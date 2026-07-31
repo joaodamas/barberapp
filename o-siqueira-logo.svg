@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 560" width="560" height="560">
+  <!-- O SIQUEIRA · Barbearia — selo principal -->
+  <defs>
+    <clipPath id="poleGlass">
+      <rect x="248" y="196" width="64" height="168" rx="14"/>
+    </clipPath>
+    <path id="arcTop" d="M 92,280 A 188,188 0 0 1 468,280" fill="none"/>
+    <path id="arcBottom" d="M 108,280 A 172,172 0 0 0 452,280" fill="none"/>
+    <g id="star">
+      <path d="M0,-7 L1.9,-1.9 L7,0 L1.9,1.9 L0,7 L-1.9,1.9 L-7,0 L-1.9,-1.9 Z" fill="#C8A24B"/>
+    </g>
+  </defs>
+
+  <!-- fundo do selo -->
+  <circle cx="280" cy="280" r="272" fill="#0D0C09"/>
+  <circle cx="280" cy="280" r="272" fill="none" stroke="#C8A24B" stroke-width="2.5"/>
+  <circle cx="280" cy="280" r="258" fill="none" stroke="#C8A24B" stroke-width="1" opacity="0.55"/>
+  <circle cx="280" cy="280" r="206" fill="none" stroke="#C8A24B" stroke-width="0.8" opacity="0.35"/>
+
+  <!-- texto em arco -->
+  <text font-family="'Helvetica Neue', Arial, sans-serif" font-weight="700" font-size="43"
+        letter-spacing="10" fill="#EFE9DC">
+    <textPath href="#arcTop" startOffset="50%" text-anchor="middle">O SIQUEIRA</textPath>
+  </text>
+  <text font-family="'Helvetica Neue', Arial, sans-serif" font-weight="600" font-size="19"
+        letter-spacing="7" fill="#C8A24B">
+    <textPath href="#arcBottom" startOffset="50%" text-anchor="middle">BARBEARIA · DESDE 2012</textPath>
+  </text>
+
+  <!-- ornamentos laterais -->
+  <g stroke="#C8A24B" stroke-width="1.4">
+    <line x1="96" y1="280" x2="132" y2="280"/>
+    <line x1="428" y1="280" x2="464" y2="280"/>
+  </g>
+  <use href="#star" x="0" y="0" transform="translate(88,280) scale(0.7)"/>
+  <use href="#star" x="0" y="0" transform="translate(472,280) scale(0.7)"/>
+
+  <!-- tesouras cruzadas (refinadas, atrás do poste) -->
+  <g stroke="#EFE9DC" stroke-linecap="round" fill="none">
+    <!-- lâminas: finas na ponta, elegantes -->
+    <path d="M 200,206 L 352,344" stroke-width="7"/>
+    <path d="M 360,206 L 208,344" stroke-width="7"/>
+    <path d="M 200,206 L 352,344" stroke="#0D0C09" stroke-width="2" opacity="0.35"/>
+    <path d="M 360,206 L 208,344" stroke="#0D0C09" stroke-width="2" opacity="0.35"/>
+    <!-- parafusos dourados no cruzamento visual -->
+  </g>
+  <g fill="none" stroke="#EFE9DC" stroke-width="5.5">
+    <circle cx="196" cy="358" r="13"/>
+    <circle cx="364" cy="358" r="13"/>
+  </g>
+  <g fill="#C8A24B">
+    <circle cx="221" cy="325" r="3.4"/>
+    <circle cx="339" cy="325" r="3.4"/>
+  </g>
+
+  <!-- barber pole refinado -->
+  <g>
+    <!-- finial -->
+    <circle cx="280" cy="168" r="11" fill="#12100C" stroke="#EFE9DC" stroke-width="4"/>
+    <!-- tampas -->
+    <rect x="242" y="182" width="76" height="13" rx="6" fill="#12100C" stroke="#EFE9DC" stroke-width="3.6"/>
+    <rect x="242" y="364" width="76" height="13" rx="6" fill="#12100C" stroke="#EFE9DC" stroke-width="3.6"/>
+    <!-- vidro -->
+    <rect x="248" y="196" width="64" height="168" rx="14" fill="#12100C" stroke="#EFE9DC" stroke-width="4"/>
+    <!-- listras -->
+    <g clip-path="url(#poleGlass)">
+      <g stroke-linecap="butt">
+        <path d="M 238,232 L 322,196" stroke="#C8A24B" stroke-width="17"/>
+        <path d="M 238,270 L 322,234" stroke="#C8A24B" stroke-width="17"/>
+        <path d="M 238,308 L 322,272" stroke="#C8A24B" stroke-width="17"/>
+        <path d="M 238,346 L 322,310" stroke="#C8A24B" stroke-width="17"/>
+        <path d="M 238,384 L 322,348" stroke="#C8A24B" stroke-width="17"/>
+        <path d="M 238,251 L 322,215" stroke="#EFE9DC" stroke-width="5"/>
+        <path d="M 238,289 L 322,253" stroke="#EFE9DC" stroke-width="5"/>
+        <path d="M 238,327 L 322,291" stroke="#EFE9DC" stroke-width="5"/>
+        <path d="M 238,365 L 322,329" stroke="#EFE9DC" stroke-width="5"/>
+      </g>
+      <!-- brilho sutil do vidro -->
+      <rect x="252" y="196" width="7" height="168" fill="#FFFFFF" opacity="0.10"/>
+    </g>
+  </g>
+
+  <!-- três estrelas -->
+  <g>
+    <use href="#star" transform="translate(252,406) scale(0.62)"/>
+    <use href="#star" transform="translate(280,412) scale(0.85)"/>
+    <use href="#star" transform="translate(308,406) scale(0.62)"/>
+  </g>
+</svg>
