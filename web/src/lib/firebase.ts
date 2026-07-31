@@ -1,9 +1,5 @@
 import { getApp, getApps, initializeApp, type FirebaseOptions } from "firebase/app";
-import { getAnalytics, isSupported as isAnalyticsSupported } from "firebase/analytics";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
-import { getFunctions } from "firebase/functions";
-import { getStorage } from "firebase/storage";
 
 const firebaseConfig: FirebaseOptions = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -17,16 +13,30 @@ const firebaseConfig: FirebaseOptions = {
 
 export const firebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
-export const db = getFirestore(firebaseApp);
+/* Auth é o único carregado de imediato: o AuthProvider está no layout raiz, ou
+ * seja, roda em toda página. O resto do SDK é importado sob demanda — juntos,
+ * Firestore/Storage/Functions/Analytics pesam mais de 400 KB, e cobrar isso de
+ * quem só abriu a tela de agendar atrasa toda navegação. */
 export const auth = getAuth(firebaseApp);
-export const storage = getStorage(firebaseApp);
-export const functions = getFunctions(firebaseApp, "southamerica-east1");
 
-let analyticsPromise: ReturnType<typeof getAnalytics> | null = null;
+export async function getDb() {
+  const { getFirestore } = await import("firebase/firestore");
+  return getFirestore(firebaseApp);
+}
+
+export async function getAppStorage() {
+  const { getStorage } = await import("firebase/storage");
+  return getStorage(firebaseApp);
+}
+
+export async function getAppFunctions() {
+  const { getFunctions } = await import("firebase/functions");
+  return getFunctions(firebaseApp, "southamerica-east1");
+}
 
 export async function getFirebaseAnalytics() {
   if (typeof window === "undefined") return null;
-  if (!(await isAnalyticsSupported())) return null;
-  if (!analyticsPromise) analyticsPromise = getAnalytics(firebaseApp);
-  return analyticsPromise;
+  const { getAnalytics, isSupported } = await import("firebase/analytics");
+  if (!(await isSupported())) return null;
+  return getAnalytics(firebaseApp);
 }

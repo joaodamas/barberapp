@@ -1,4 +1,4 @@
-const CACHE_NAME = "o-siqueira-v1";
+const CACHE_NAME = "o-siqueira-v2";
 const OFFLINE_URL = "/offline";
 const APP_SHELL = [
   OFFLINE_URL,
@@ -38,19 +38,33 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  const isAppShell = APP_SHELL.includes(new URL(request.url).pathname);
+  const { pathname } = new URL(request.url);
+  const isAppShell = APP_SHELL.includes(pathname);
+  // Assets do build têm hash no nome: o conteúdo nunca muda para a mesma URL.
+  const isImmutable = pathname.startsWith("/_next/static/");
 
-  if (isAppShell) {
-    // App shell muda raramente — cache-first é seguro e mais rápido.
+  if (isAppShell || isImmutable) {
+    // Cache-first. Em asset imutável não há risco de servir versão velha — um
+    // build novo gera URLs novas — e evita esperar a rede a cada navegação,
+    // que era o que deixava a troca de tela lenta e piscando em branco.
     event.respondWith(
-      caches.match(request).then((cached) => cached || fetch(request))
+      caches.match(request).then(
+        (cached) =>
+          cached ||
+          fetch(request).then((response) => {
+            if (response.ok) {
+              const clone = response.clone();
+              caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+            }
+            return response;
+          })
+      )
     );
     return;
   }
 
-  // Todo o resto (JS/CSS/_next/etc.): rede primeiro, sempre — evita servir um
-  // bundle desatualizado indefinidamente (chunks de dev reaproveitam URL).
-  // Cache só entra como fallback se a rede falhar (offline).
+  // Demais requisições do mesmo domínio: rede primeiro, cache como rede de
+  // segurança para offline.
   event.respondWith(
     fetch(request)
       .then((response) => {
