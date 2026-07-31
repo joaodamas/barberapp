@@ -407,6 +407,59 @@ export const dre = {
 
 export const breakEven = { day: 14, totalDays: 31 };
 
+/* ---- Séries por período (para os filtros de DRE e Números) ----
+ *
+ * O mês base (offset 0) é julho/2026 — todos os números acima descrevem ele.
+ * Meses anteriores são derivados por um fator de receita determinístico: custo
+ * variável acompanha a receita (é variável, por definição) e custo fixo não
+ * muda. Assim navegar entre meses altera o resultado de forma coerente, sem
+ * precisar de um dataset inteiro por mês. */
+
+const MONTH_REVENUE_FACTORS = [
+  1, 0.89, 0.94, 1.07, 0.82, 0.91, 0.97, 1.12, 0.86, 0.93, 1.04, 0.88,
+];
+
+/** Fator de receita de um mês relativo a julho/2026. `offset` 0 = julho, 1 = junho... */
+export function monthRevenueFactor(offset: number) {
+  const i = Math.abs(Math.round(offset)) % MONTH_REVENUE_FACTORS.length;
+  return MONTH_REVENUE_FACTORS[i];
+}
+
+const BASE_MONTH = { year: 2026, month: 7 };
+
+/** Rótulo do mês ("Julho de 2026") a partir do offset em meses para trás. */
+export function monthLabelFor(offset: number) {
+  const d = new Date(BASE_MONTH.year, BASE_MONTH.month - 1 - offset, 1);
+  const label = d.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+/** Quantos meses para trás o mock cobre (0 = só o mês atual). */
+export const MAX_MONTH_OFFSET = MONTH_REVENUE_FACTORS.length - 1;
+
+/** Multiplicador de um período inteiro em relação a um mês. */
+export const PERIOD_MONTHS = {
+  mes: 1,
+  trimestre: 3,
+  semestre: 6,
+  ano: 12,
+} as const;
+
+export type PeriodKey = keyof typeof PERIOD_MONTHS;
+
+/**
+ * Soma os fatores dos meses que compõem um período, para agregar qualquer
+ * métrica acumulável (receita, atendimentos) de mês para trimestre/ano.
+ */
+export function periodFactor(period: PeriodKey, offset: number) {
+  const months = PERIOD_MONTHS[period];
+  const start = offset * months;
+  let total = 0;
+  for (let i = 0; i < months; i++) total += monthRevenueFactor(start + i);
+  return total;
+}
+
+
 export const revenueBreakdown = [
   { label: "Serviços avulsos", value: 10200 },
   { label: "Produtos (loja)", value: 950 },

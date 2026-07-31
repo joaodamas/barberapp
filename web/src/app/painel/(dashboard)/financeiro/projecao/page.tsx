@@ -1,6 +1,5 @@
 "use client";
 
-import { useMemo } from "react";
 import { AlertTriangle, TrendingDown, TrendingUp, Wallet } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -23,9 +22,8 @@ export default function ProjecaoPage() {
   const despesasFixas = cashProjection.reduce((s, d) => s + d.fixedExpense, 0);
   const resultadoProjetado = cashProjection.at(-1)?.cumulative ?? 0;
 
-  const tightestDay = useMemo(
-    () => cashProjection.reduce((min, d) => (d.cumulative < min.cumulative ? d : min)),
-    []
+  const tightestDay = cashProjection.reduce((min, d) =>
+    d.cumulative < min.cumulative ? d : min
   );
 
   return (

@@ -7,7 +7,10 @@ import { Card } from "@/components/ui/card";
 import { formatBRL } from "@/lib/format";
 import {
   dre,
+  MAX_MONTH_OFFSET,
   monthExpenses,
+  monthLabelFor,
+  monthRevenueFactor,
   products,
   productMovements,
   revenueBreakdown,
@@ -28,6 +31,7 @@ function signTone(value: number): "success" | "danger" {
 
 export default function DrePage() {
   const [scenarioPct, setScenarioPct] = useState(0);
+  const [monthOffset, setMonthOffset] = useState(0);
   const [open, setOpen] = useState<Set<string>>(new Set(["receita", "cmv"]));
 
   function toggle(key: string) {
@@ -39,22 +43,27 @@ export default function DrePage() {
     });
   }
 
-  const custoVariavelTotal = dre.cmv + dre.gatewayFees + dre.commissions;
-  const margemContribuicao = dre.grossRevenue - custoVariavelTotal;
-  const margemContribuicaoPct = (margemContribuicao / dre.grossRevenue) * 100;
+  /** Receita e custos variáveis acompanham o mês; custo fixo é fixo. */
+  const f = monthRevenueFactor(monthOffset);
+  const scale = (value: number) => Math.round(value * f);
+
+  const grossRevenue = scale(dre.grossRevenue);
+  const custoVariavelTotal = scale(dre.cmv + dre.gatewayFees + dre.commissions);
+  const margemContribuicao = grossRevenue - custoVariavelTotal;
+  const margemContribuicaoPct = (margemContribuicao / grossRevenue) * 100;
   const payroll = 0;
   const custoFixoTotal = dre.operatingExpenses + payroll;
   const resultadoDoMes = margemContribuicao - custoFixoTotal;
 
   const scenario = useMemo(() => {
     const factor = 1 + scenarioPct / 100;
-    const receita = dre.grossRevenue * factor;
+    const receita = grossRevenue * factor;
     const custoVariavel = custoVariavelTotal * factor;
     const margem = receita - custoVariavel;
     const custoFixo = custoFixoTotal;
     const resultado = margem - custoFixo;
     return { receita, custoVariavel, margem, custoFixo, resultado };
-  }, [scenarioPct, custoVariavelTotal, custoFixoTotal]);
+  }, [scenarioPct, grossRevenue, custoVariavelTotal, custoFixoTotal]);
 
   const servicosAvulsos = revenueBreakdown.find((r) => r.label === "Serviços avulsos")?.value ?? 0;
   const outrosServicos = servicosAvulsos - topServices.reduce((s, t) => s + t.revenue, 0);
@@ -64,15 +73,19 @@ export default function DrePage() {
       return {
         key: "receita.servicos",
         label: r.label,
-        value: r.value,
+        value: scale(r.value),
         children: [
           ...topServices.map((s) => ({
             key: `receita.servicos.${s.name}`,
             label: s.name,
-            value: s.revenue,
-            caption: `${s.count} atendimentos`,
+            value: scale(s.revenue),
+            caption: `${Math.round(s.count * f)} atendimentos`,
           })),
-          { key: "receita.servicos.outros", label: "Outros serviços", value: outrosServicos },
+          {
+            key: "receita.servicos.outros",
+            label: "Outros serviços",
+            value: scale(outrosServicos),
+          },
         ],
       };
     }
@@ -80,30 +93,31 @@ export default function DrePage() {
       return {
         key: "receita.produtos",
         label: r.label,
-        value: r.value,
+        value: scale(r.value),
         children: productMovements.map((m) => ({
           key: `receita.produtos.${m.productId}`,
           label: products.find((p) => p.id === m.productId)?.name ?? m.productId,
-          value: m.soldRevenue,
-          caption: `${m.sold} un.`,
+          value: scale(m.soldRevenue),
+          caption: `${Math.round(m.sold * f)} un.`,
         })),
       };
     }
-    return { key: `receita.${r.label}`, label: r.label, value: r.value };
+    return { key: `receita.${r.label}`, label: r.label, value: scale(r.value) };
   });
 
   const cmvTree: DreItem[] = productMovements.map((m) => ({
     key: `cmv.${m.productId}`,
     label: products.find((p) => p.id === m.productId)?.name ?? m.productId,
-    value: m.purchaseCost,
-    caption: `${m.purchased} un. compradas`,
+    value: scale(m.purchaseCost),
+    caption: `${Math.round(m.purchased * f)} un. compradas`,
   }));
 
   const variaveisTree: DreItem[] = [
-    { key: "var.gateway", label: "Taxas de gateway", value: dre.gatewayFees },
-    { key: "var.comissao", label: "Comissões de profissionais", value: dre.commissions },
+    { key: "var.gateway", label: "Taxas de gateway", value: scale(dre.gatewayFees) },
+    { key: "var.comissao", label: "Comissões de profissionais", value: scale(dre.commissions) },
   ];
 
+  // Despesa fixa não escala com a receita — é o que define o ponto de equilíbrio.
   const fixasTree: DreItem[] = monthExpenses.map((e) => ({
     key: `fixa.${e.id}`,
     label: e.description,
@@ -124,14 +138,20 @@ export default function DrePage() {
         <div className="flex items-center gap-1 text-sm text-ivory-muted">
           <button
             aria-label="Mês anterior"
-            className="flex h-7 w-7 items-center justify-center rounded-lg transition-colors hover:bg-surface-raised hover:text-ivory"
+            disabled={monthOffset >= MAX_MONTH_OFFSET}
+            onClick={() => setMonthOffset((o) => Math.min(o + 1, MAX_MONTH_OFFSET))}
+            className="flex h-7 w-7 items-center justify-center rounded-lg transition-colors hover:bg-surface-raised hover:text-ivory disabled:cursor-not-allowed disabled:opacity-30"
           >
             <ChevronLeft size={16} />
           </button>
-          <span className="min-w-24 text-center font-medium text-ivory">Julho de 2026</span>
+          <span className="min-w-32 text-center font-medium text-ivory">
+            {monthLabelFor(monthOffset)}
+          </span>
           <button
             aria-label="Próximo mês"
-            className="flex h-7 w-7 items-center justify-center rounded-lg transition-colors hover:bg-surface-raised hover:text-ivory"
+            disabled={monthOffset <= 0}
+            onClick={() => setMonthOffset((o) => Math.max(o - 1, 0))}
+            className="flex h-7 w-7 items-center justify-center rounded-lg transition-colors hover:bg-surface-raised hover:text-ivory disabled:cursor-not-allowed disabled:opacity-30"
           >
             <ChevronRight size={16} />
           </button>
@@ -139,7 +159,7 @@ export default function DrePage() {
       </div>
 
       <div className="grid grid-cols-2 gap-2 md:grid-cols-5 md:gap-4">
-        <KpiTile tone="neutral" icon={Wallet} label="Receita" value={formatBRL(dre.grossRevenue)} />
+        <KpiTile tone="neutral" icon={Wallet} label="Receita" value={formatBRL(grossRevenue)} />
         <KpiTile
           tone="danger"
           icon={TrendingDown}
@@ -172,7 +192,7 @@ export default function DrePage() {
       <Card className="flex flex-col gap-0.5 text-sm md:p-6 md:text-base">
         <ExpandableGroup
           label="Receita Bruta"
-          value={dre.grossRevenue}
+          value={grossRevenue}
           items={receitaTree}
           open={open}
           toggle={toggle}
@@ -182,7 +202,7 @@ export default function DrePage() {
         />
         <ExpandableGroup
           label="(−) Custo de Mercadoria Vendida"
-          value={dre.cmv}
+          value={scale(dre.cmv)}
           items={cmvTree}
           open={open}
           toggle={toggle}
@@ -191,7 +211,7 @@ export default function DrePage() {
         />
         <ExpandableGroup
           label="(−) Despesas Variáveis"
-          value={dre.gatewayFees + dre.commissions}
+          value={scale(dre.gatewayFees + dre.commissions)}
           items={variaveisTree}
           open={open}
           toggle={toggle}
@@ -287,7 +307,7 @@ export default function DrePage() {
               </tr>
             </thead>
             <tbody>
-              <ScenarioRow label="Receita" atual={dre.grossRevenue} simulado={scenario.receita} />
+              <ScenarioRow label="Receita" atual={grossRevenue} simulado={scenario.receita} />
               <ScenarioRow
                 label="Custo Variável Total"
                 atual={custoVariavelTotal}

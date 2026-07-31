@@ -3,9 +3,9 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogOut } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { painelNavItems } from "@/lib/nav-items";
+import { SidebarUserFooter } from "@/components/sidebar-user-footer";
 
 export function PainelSidebarNav() {
   const pathname = usePathname();
@@ -94,25 +94,10 @@ export function PainelSidebarNav() {
         })}
       </nav>
 
-      <div className="mx-4 mb-4 mt-2 flex items-center gap-3 rounded-xl border border-border bg-surface-raised/60 px-3 py-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gold/15 font-display text-xs text-gold-light">
-          OS
-        </div>
-        <div className="min-w-0 flex-1 leading-tight">
-          <p className="truncate text-xs font-medium text-ivory">
-            O Siqueira Barbearia
-          </p>
-          <p className="truncate text-[11px] text-ivory-muted">
-            Operação solo · Fase 1
-          </p>
-        </div>
-        <button
-          aria-label="Sair"
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-ivory-muted/70 transition-colors hover:bg-surface hover:text-ivory"
-        >
-          <LogOut size={14} />
-        </button>
-      </div>
+      <SidebarUserFooter
+        caption="Painel do dono"
+        fallbackName="O Siqueira Barbearia"
+      />
     </aside>
   );
 }

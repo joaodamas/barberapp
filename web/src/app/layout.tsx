@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Oswald, Manrope } from "next/font/google";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
+import { AuthProvider } from "@/lib/auth-context";
 import "./globals.css";
 
 const oswald = Oswald({
@@ -56,7 +57,7 @@ export default function RootLayout({
       className={`${oswald.variable} ${manrope.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-bg text-ivory md:h-full md:overflow-hidden">
-        {children}
+        <AuthProvider>{children}</AuthProvider>
         <ServiceWorkerRegister />
       </body>
     </html>

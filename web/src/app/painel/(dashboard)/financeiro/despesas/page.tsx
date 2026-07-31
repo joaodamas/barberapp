@@ -30,6 +30,7 @@ const emptyForm = {
 export default function DespesasPage() {
   const [expenses, setExpenses] = useState<Expense[]>(monthExpenses);
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
 
   const total = expenses.reduce((s, e) => s + e.value, 0);
@@ -50,26 +51,45 @@ export default function DespesasPage() {
   }, [expenses]);
 
   function openModal() {
+    setEditingId(null);
     setForm(emptyForm);
+    setModalOpen(true);
+  }
+
+  function openEditModal(expense: Expense) {
+    setEditingId(expense.id);
+    setForm({
+      description: expense.description,
+      category: expense.category,
+      supplier: expense.supplier === "—" ? "" : expense.supplier,
+      value: String(expense.value),
+      date: expense.date,
+      payment: expense.payment,
+      recurring: expense.recurring,
+      observations: "",
+    });
     setModalOpen(true);
   }
 
   function saveExpense() {
     const value = Number(form.value);
     if (!form.description || !value) return;
-    setExpenses((prev) => [
-      {
-        id: `exp_${Date.now()}`,
-        category: form.category,
-        description: form.description,
-        supplier: form.supplier || "—",
-        value,
-        date: form.date,
-        payment: form.payment,
-        recurring: form.recurring,
-      },
-      ...prev,
-    ]);
+
+    const fields = {
+      category: form.category,
+      description: form.description,
+      supplier: form.supplier || "—",
+      value,
+      date: form.date,
+      payment: form.payment,
+      recurring: form.recurring,
+    };
+
+    setExpenses((prev) =>
+      editingId
+        ? prev.map((e) => (e.id === editingId ? { ...e, ...fields } : e))
+        : [{ id: `exp_${Date.now()}`, ...fields }, ...prev]
+    );
     setModalOpen(false);
   }
 
@@ -167,6 +187,7 @@ export default function DespesasPage() {
                   <div className="flex items-center justify-end gap-1">
                     <button
                       aria-label="Editar"
+                      onClick={() => openEditModal(e)}
                       className="flex h-7 w-7 items-center justify-center rounded-lg text-ivory-muted/70 transition-colors hover:bg-surface-raised hover:text-ivory"
                     >
                       <Pencil size={13} />
@@ -196,7 +217,9 @@ export default function DespesasPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-ivory">Nova Despesa</h2>
+              <h2 className="text-lg font-semibold text-ivory">
+                {editingId ? "Editar Despesa" : "Nova Despesa"}
+              </h2>
               <button
                 aria-label="Fechar"
                 onClick={() => setModalOpen(false)}

@@ -19,7 +19,8 @@ import {
   hourlyHeatmap,
   monthKpis,
   noShowStats,
-  previousMonthKpis,
+  PERIOD_MONTHS,
+  periodFactor,
   topServices,
 } from "@/lib/mock-data";
 
@@ -128,6 +129,46 @@ export default function NumerosPage() {
     (a, b) => STATUS_PRIORITY[a.status] - STATUS_PRIORITY[b.status] || b.lastVisitDaysAgo - a.lastVisitDaysAgo
   );
 
+  /* Agrega o mock para o período escolhido. Valores acumuláveis (faturamento,
+   * atendimentos) somam os meses do período; taxas (ocupação, no-show) usam a
+   * média mensal, senão um trimestre teria 180% de ocupação. */
+  const months = PERIOD_MONTHS[period];
+  const back = Math.abs(offset);
+  const factor = periodFactor(period, back);
+  const prevFactor = periodFactor(period, back + 1);
+  const monthlyAvg = factor / months;
+  const prevMonthlyAvg = prevFactor / months;
+
+  const clamp = (v: number, max = 100) => Math.min(Math.round(v * 10) / 10, max);
+
+  const kpis = {
+    revenue: Math.round(monthKpis.revenue * factor),
+    appointments: Math.round(monthKpis.appointments * factor),
+    occupancyPct: clamp(monthKpis.occupancyPct * monthlyAvg),
+    noShowPct: clamp(monthKpis.noShowPct / monthlyAvg),
+  };
+  const prevKpis = {
+    revenue: Math.round(monthKpis.revenue * prevFactor),
+    appointments: Math.round(monthKpis.appointments * prevFactor),
+    occupancyPct: clamp(monthKpis.occupancyPct * prevMonthlyAvg),
+    noShowPct: clamp(monthKpis.noShowPct / prevMonthlyAvg),
+  };
+  // Ticket médio é derivado — assim nunca fica inconsistente com receita/atendimentos.
+  const avgTicket = Math.round(kpis.revenue / kpis.appointments);
+  const prevAvgTicket = Math.round(prevKpis.revenue / prevKpis.appointments);
+
+  const periodServices = topServices.map((s) => ({
+    ...s,
+    count: Math.round(s.count * factor),
+    revenue: Math.round(s.revenue * factor),
+  }));
+
+  const periodNoShow = {
+    noShowCount: Math.round(noShowStats.noShowCount * factor),
+    lateCancelCount: Math.round(noShowStats.lateCancelCount * factor),
+    totalBookings: Math.round(noShowStats.totalBookings * factor),
+  };
+
   return (
     <div className="flex flex-col gap-6 pt-1 md:gap-10 md:pt-2">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -176,48 +217,41 @@ export default function NumerosPage() {
         </div>
       </div>
 
-      {offset !== 0 && (
-        <p className="-mt-2 text-xs text-ivory-muted">
-          Mostrando o mesmo período de referência (dados de períodos anteriores
-          entram conforme o histórico for sendo registrado).
-        </p>
-      )}
-
       <div className="grid grid-cols-2 gap-2 md:grid-cols-5 md:gap-4">
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-6">
           <p className="text-[10px] uppercase text-ivory-muted md:text-xs md:tracking-wide">Faturamento</p>
           <p className="font-display text-lg font-semibold text-gold-light md:text-2xl">
-            {formatBRL(monthKpis.revenue)}
+            {formatBRL(kpis.revenue)}
           </p>
-          <Delta current={monthKpis.revenue} previous={previousMonthKpis.revenue} />
+          <Delta current={kpis.revenue} previous={prevKpis.revenue} />
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-6">
           <p className="text-[10px] uppercase text-ivory-muted md:text-xs md:tracking-wide">Atendimentos</p>
           <p className="font-display text-lg font-semibold text-ivory md:text-2xl">
-            {monthKpis.appointments}
+            {kpis.appointments}
           </p>
-          <Delta current={monthKpis.appointments} previous={previousMonthKpis.appointments} />
+          <Delta current={kpis.appointments} previous={prevKpis.appointments} />
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-6">
           <p className="text-[10px] uppercase text-ivory-muted md:text-xs md:tracking-wide">Ticket médio</p>
           <p className="font-display text-lg font-semibold text-ivory md:text-2xl">
-            {formatBRL(monthKpis.avgTicket)}
+            {formatBRL(avgTicket)}
           </p>
-          <Delta current={monthKpis.avgTicket} previous={previousMonthKpis.avgTicket} />
+          <Delta current={avgTicket} previous={prevAvgTicket} />
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-6">
           <p className="text-[10px] uppercase text-ivory-muted md:text-xs md:tracking-wide">Ocupação</p>
           <p className="font-display text-lg font-semibold text-ivory md:text-2xl">
-            {monthKpis.occupancyPct}%
+            {kpis.occupancyPct}%
           </p>
-          <Delta current={monthKpis.occupancyPct} previous={previousMonthKpis.occupancyPct} />
+          <Delta current={kpis.occupancyPct} previous={prevKpis.occupancyPct} />
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-6">
           <p className="text-[10px] uppercase text-ivory-muted md:text-xs md:tracking-wide">Taxa de no-show</p>
           <p className="font-display text-lg font-semibold text-ivory md:text-2xl">
-            {monthKpis.noShowPct}%
+            {kpis.noShowPct}%
           </p>
-          <Delta current={monthKpis.noShowPct} previous={previousMonthKpis.noShowPct} invert />
+          <Delta current={kpis.noShowPct} previous={prevKpis.noShowPct} invert />
         </Card>
       </div>
 
@@ -227,7 +261,7 @@ export default function NumerosPage() {
             <Scissors size={12} /> Top serviços
           </h2>
           <Card className="flex flex-col gap-3 md:gap-4 md:p-6">
-            {topServices.map((s) => (
+            {periodServices.map((s) => (
               <div key={s.name} className="flex items-center justify-between text-sm md:text-base">
                 <div>
                   <p className="text-ivory">{s.name}</p>
@@ -290,14 +324,17 @@ export default function NumerosPage() {
             {hourlyHeatmap.days.map((day, i) => (
               <Fragment key={day}>
                 <span className="text-xs text-ivory-muted md:text-sm">{day}</span>
-                {hourlyHeatmap.values[i].map((pct, j) => (
-                  <div
-                    key={`${day}-${j}`}
-                    className={`flex h-9 items-center justify-center rounded-lg text-xs font-medium text-bg transition-colors md:h-12 md:text-sm ${heatColor(pct)}`}
-                  >
-                    {pct}%
-                  </div>
-                ))}
+                {hourlyHeatmap.values[i].map((basePct, j) => {
+                  const pct = Math.min(Math.round(basePct * monthlyAvg), 100);
+                  return (
+                    <div
+                      key={`${day}-${j}`}
+                      className={`flex h-9 items-center justify-center rounded-lg text-xs font-medium text-bg transition-colors md:h-12 md:text-sm ${heatColor(pct)}`}
+                    >
+                      {pct}%
+                    </div>
+                  );
+                })}
               </Fragment>
             ))}
           </div>
@@ -323,9 +360,10 @@ export default function NumerosPage() {
           </Card>
           <Card className="flex flex-col gap-1 md:gap-2 md:p-6">
             <p className="text-sm text-ivory md:text-base">
-              No-show caiu de {previousMonthKpis.noShowPct}% para {monthKpis.noShowPct}% —{" "}
-              {noShowStats.noShowCount} faltas e {noShowStats.lateCancelCount} cancelamentos
-              tardios em {noShowStats.totalBookings} agendamentos.
+              No-show {kpis.noShowPct <= prevKpis.noShowPct ? "caiu" : "subiu"} de{" "}
+              {prevKpis.noShowPct}% para {kpis.noShowPct}% — {periodNoShow.noShowCount} faltas
+              e {periodNoShow.lateCancelCount} cancelamentos tardios em{" "}
+              {periodNoShow.totalBookings} agendamentos.
             </p>
             <p className="text-xs text-ivory-muted md:text-sm">
               A confirmação por WhatsApp no dia continua sendo o maior fator de

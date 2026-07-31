@@ -3,9 +3,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogOut } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { clienteNavItems } from "@/lib/nav-items";
+import { SidebarUserFooter } from "@/components/sidebar-user-footer";
+import { OwnerPanelLink } from "@/components/owner-panel-link";
 
 export function ClienteSidebarNav() {
   const pathname = usePathname();
@@ -68,24 +69,13 @@ export function ClienteSidebarNav() {
         })}
       </nav>
 
-      <Link
+      <OwnerPanelLink className="mx-4 mt-4" />
+
+      <SidebarUserFooter
         href="/perfil"
-        className="mx-4 mb-4 mt-2 flex items-center gap-3 rounded-xl border border-border bg-surface-raised/60 px-3 py-3 transition-colors hover:border-gold/30"
-      >
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gold/15 font-display text-xs text-gold-light">
-          JD
-        </div>
-        <div className="min-w-0 flex-1 leading-tight">
-          <p className="truncate text-xs font-medium text-ivory">João Damas</p>
-          <p className="truncate text-[11px] text-ivory-muted">Ver perfil</p>
-        </div>
-        <span
-          aria-label="Sair"
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-ivory-muted/70 transition-colors hover:bg-surface hover:text-ivory"
-        >
-          <LogOut size={14} />
-        </span>
-      </Link>
+        caption="Ver perfil"
+        fallbackName="Cliente"
+      />
     </aside>
   );
 }
