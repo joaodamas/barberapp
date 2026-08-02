@@ -6,9 +6,11 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/cn";
 import { painelNavItems } from "@/lib/nav-items";
 import { SidebarUserFooter } from "@/components/sidebar-user-footer";
+import { useTenant } from "@/lib/tenant-context";
 
 export function PainelSidebarNav() {
   const pathname = usePathname();
+  const { brand } = useTenant();
 
   return (
     <aside className="hidden shrink-0 bg-surface/60 md:flex md:h-full md:w-64 md:flex-col md:overflow-y-auto md:border-r md:border-border md:shadow-[8px_0_32px_-24px_rgba(0,0,0,0.8)]">
@@ -16,13 +18,13 @@ export function PainelSidebarNav() {
         href="/painel"
         className="flex items-center gap-3 px-6 pb-6 pt-8"
       >
-        <Image src="/logo.svg" alt="" width={38} height={38} priority />
+        <Image src={brand.logo} alt="" width={38} height={38} priority />
         <div className="leading-tight">
           <p className="font-display text-base uppercase tracking-wider text-ivory">
-            O Siqueira
+            {brand.shortName}
           </p>
           <p className="text-[11px] uppercase tracking-wide text-ivory-muted">
-            Painel do dono
+            {brand.panelLabel}
           </p>
         </div>
       </Link>
@@ -94,10 +96,7 @@ export function PainelSidebarNav() {
         })}
       </nav>
 
-      <SidebarUserFooter
-        caption="Painel do dono"
-        fallbackName="O Siqueira Barbearia"
-      />
+      <SidebarUserFooter caption={brand.panelLabel} fallbackName={brand.name} />
     </aside>
   );
 }

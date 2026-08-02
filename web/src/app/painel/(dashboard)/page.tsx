@@ -26,6 +26,7 @@ import {
   todayKpis,
 } from "@/lib/mock-data";
 import { bookingPolicy } from "@/lib/business-rules";
+import { useTenant } from "@/lib/tenant-context";
 import type { Booking } from "@/lib/types";
 
 /** Um encaixe pendente ainda não ocupa horário — só ocupa depois de aprovado. */
@@ -39,6 +40,7 @@ const OCCUPIES_SLOT: Booking["status"][] = [
 
 export default function PainelHojePage() {
   const [bookings, setBookings] = useState<Booking[]>(todayBookings);
+  const { brand } = useTenant();
 
   const fitInRequests = bookings.filter((b) => b.status === "fit_in_requested");
   const agendados = bookings.filter((b) => OCCUPIES_SLOT.includes(b.status));
@@ -84,7 +86,7 @@ export default function PainelHojePage() {
       .map((s) => s.name)
       .join(" + ");
     const message = approve
-      ? `Olá ${firstName}! Seu encaixe de hoje às ${booking.time} (${serviceNames}) foi confirmado. Te esperamos! — O Siqueira Barbearia`
+      ? `Olá ${firstName}! Seu encaixe de hoje às ${booking.time} (${serviceNames}) foi confirmado. Te esperamos! — ${brand.name}`
       : `Olá ${firstName}, infelizmente não conseguimos encaixar o horário das ${booking.time} hoje. Posso te mandar as próximas vagas livres?`;
     window.open(
       `https://wa.me/${booking.clientWhatsapp}?text=${encodeURIComponent(message)}`,

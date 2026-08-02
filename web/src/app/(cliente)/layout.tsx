@@ -2,15 +2,18 @@ import Image from "next/image";
 import Link from "next/link";
 import { AuthGuard } from "@/components/auth-guard";
 import { DemoBanner } from "@/components/demo-banner";
+import { getTenant } from "@/lib/tenant-server";
 import { SubscriptionProvider } from "@/lib/subscription-context";
 import { ClienteBottomNav } from "@/components/cliente-bottom-nav";
 import { ClienteSidebarNav } from "@/components/cliente-sidebar-nav";
 
-export default function ClienteLayout({
+export default async function ClienteLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const { brand } = await getTenant();
+
   return (
     <AuthGuard>
       <SubscriptionProvider>
@@ -28,9 +31,9 @@ export default function ClienteLayout({
         <div className="flex min-h-full w-full flex-1 flex-col md:h-full md:overflow-hidden">
           <header className="safe-top flex items-center gap-2.5 px-4 pb-3 pt-4 md:hidden">
             <Link href="/" className="flex items-center gap-2.5">
-              <Image src="/logo.svg" alt="" width={32} height={32} priority />
+              <Image src={brand.logo} alt="" width={32} height={32} priority />
               <span className="font-display text-sm uppercase tracking-wider text-ivory">
-                O Siqueira
+                {brand.shortName}
               </span>
             </Link>
           </header>

@@ -1,7 +1,10 @@
 @import "tailwindcss";
 
 :root {
-  /* Design system "O Siqueira" — fundo claro, detalhes dourado/preto */
+  /* Design system da plataforma — fundo claro, detalhes dourado/preto.
+   * `--color-gold` é sobrescrito por barbearia em tempo de execução (ver
+   * `lib/tenant.ts`); o resto é da plataforma, para o contraste medido não
+   * depender da cor que o lojista escolher. */
   --color-bg: #ffffff;
   --color-surface: #f8f5ee;
   --color-surface-raised: #efe9dc;

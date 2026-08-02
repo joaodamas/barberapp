@@ -1,14 +1,20 @@
 import type { Booking, Service } from "./types";
 import { loyaltyPolicy, splitSale, taxRatePct } from "./business-rules";
+import { DEFAULT_TENANT } from "./tenant";
 
 /** Dados de demonstração — serão substituídos por Firestore nos próximos épicos. */
 
+/**
+ * Ficha da barbearia — passa a vir do tenant.
+ * As telas que ainda importam daqui continuam funcionando; quando o Firestore
+ * entrar, elas trocam `barbershop` por `useTenant().contact`.
+ */
 export const barbershop = {
-  name: "O Siqueira Barbearia",
-  since: 2012,
-  address: "Rua das Tesouras, 120 — Centro",
-  whatsapp: "5511999999999",
-  instagram: "@osiqueirabarbearia",
+  name: DEFAULT_TENANT.brand.name,
+  since: DEFAULT_TENANT.contact.since,
+  address: DEFAULT_TENANT.contact.address,
+  whatsapp: DEFAULT_TENANT.contact.whatsapp,
+  instagram: DEFAULT_TENANT.contact.instagram,
 };
 
 export const services: Service[] = [

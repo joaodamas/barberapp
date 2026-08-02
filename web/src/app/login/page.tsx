@@ -15,6 +15,7 @@ import {
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
+import { useTenant } from "@/lib/tenant-context";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
@@ -55,6 +56,7 @@ function messageFor(error: unknown, fallback: string) {
 export default function LoginPage() {
   const router = useRouter();
   const { user, claims, loading } = useAuth();
+  const { brand } = useTenant();
   const [method, setMethod] = useState<Method>("phone");
 
   const [phoneStep, setPhoneStep] = useState<PhoneStep>("phone");
@@ -185,8 +187,8 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-bg px-4 py-10">
       <div className="flex flex-col items-center gap-2 text-center">
-        <Image src="/logo.svg" alt="" width={56} height={56} priority />
-        <h1 className="font-display text-xl text-ivory">O Siqueira Barbearia</h1>
+        <Image src={brand.logo} alt="" width={56} height={56} priority />
+        <h1 className="font-display text-xl text-ivory">{brand.name}</h1>
         <p className="text-sm text-ivory-muted">Entre com sua conta</p>
       </div>
 

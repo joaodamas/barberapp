@@ -56,6 +56,31 @@ const nextConfig: NextConfig = {
         source: "/:path*",
         headers: securityHeaders,
       },
+
+      /* Resolver a barbearia pelo subdomínio tornou todas as rotas dinâmicas:
+       * não dá para prerenderizar uma marca que só se conhece na requisição.
+       * Sem mitigação, cada acesso vira uma execução de servidor.
+       *
+       * O HTML servido é a casca do app — idêntico para todos os visitantes de
+       * uma mesma barbearia, porque todo conteúdo logado é renderizado no
+       * cliente depois do AuthGuard. Logo, pode ser cacheado na borda, e o CDN
+       * já separa o cache por hostname. O render acontece uma vez por
+       * barbearia, não uma vez por visita.
+       *
+       * ⚠️ ISTO DEIXA DE SER SEGURO no dia em que qualquer dado de usuário for
+       * renderizado no servidor. Se um `await getDoc(...)` de dado pessoal
+       * entrar numa page, este bloco tem de sair junto — senão a resposta de um
+       * cliente é servida ao próximo. */
+      {
+        source: "/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=0, s-maxage=300, stale-while-revalidate=86400",
+          },
+          { key: "Vary", value: "Host" },
+        ],
+      },
     ];
   },
 };
