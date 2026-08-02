@@ -100,14 +100,14 @@ function Delta({
 }) {
   const diff = current - previous;
   if (previous === 0 || Math.abs(diff) < 0.05) {
-    return <span className="text-[10px] text-ivory-muted md:text-xs">— vs período anterior</span>;
+    return <span className="text-[11px] text-ivory-muted md:text-xs">— vs período anterior</span>;
   }
   const pctChange = (diff / previous) * 100;
   const isGood = invert ? diff < 0 : diff > 0;
   const Icon = diff > 0 ? ArrowUp : ArrowDown;
   return (
     <span
-      className={`inline-flex items-center gap-0.5 text-[10px] font-medium md:text-xs ${
+      className={`inline-flex items-center gap-0.5 text-[11px] font-medium md:text-xs ${
         isGood ? "text-success" : "text-danger"
       }`}
     >
@@ -221,7 +221,7 @@ export default function NumerosPage() {
               aria-label="Período anterior"
               disabled={back >= maxOffsetForPeriod}
               onClick={() => setOffset((o) => Math.max(o - 1, -maxOffsetForPeriod))}
-              className="flex h-7 w-7 items-center justify-center rounded-lg transition-colors hover:bg-surface-raised hover:text-ivory disabled:opacity-30 disabled:hover:bg-transparent"
+              className="flex h-11 w-11 items-center justify-center md:h-8 md:w-8 rounded-lg transition-colors hover:bg-surface-raised hover:text-ivory disabled:opacity-30 disabled:hover:bg-transparent"
             >
               <ChevronLeft size={16} />
             </button>
@@ -232,7 +232,7 @@ export default function NumerosPage() {
               aria-label="Próximo período"
               onClick={() => setOffset((o) => Math.min(o + 1, 0))}
               disabled={offset >= 0}
-              className="flex h-7 w-7 items-center justify-center rounded-lg transition-colors hover:bg-surface-raised hover:text-ivory disabled:opacity-30 disabled:hover:bg-transparent"
+              className="flex h-11 w-11 items-center justify-center md:h-8 md:w-8 rounded-lg transition-colors hover:bg-surface-raised hover:text-ivory disabled:opacity-30 disabled:hover:bg-transparent"
             >
               <ChevronRight size={16} />
             </button>
@@ -242,35 +242,35 @@ export default function NumerosPage() {
 
       <div className="grid grid-cols-2 gap-2 md:grid-cols-5 md:gap-4">
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-6">
-          <p className="text-[10px] uppercase text-ivory-muted md:text-xs md:tracking-wide">Faturamento</p>
+          <p className="text-[11px] uppercase text-ivory-muted md:text-xs md:tracking-wide">Faturamento</p>
           <p className="font-display text-lg font-semibold text-gold-light md:text-2xl">
             {formatBRL(kpis.revenue)}
           </p>
           <Delta current={kpis.revenue} previous={prevKpis.revenue} />
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-6">
-          <p className="text-[10px] uppercase text-ivory-muted md:text-xs md:tracking-wide">Atendimentos</p>
+          <p className="text-[11px] uppercase text-ivory-muted md:text-xs md:tracking-wide">Atendimentos</p>
           <p className="font-display text-lg font-semibold text-ivory md:text-2xl">
             {kpis.appointments}
           </p>
           <Delta current={kpis.appointments} previous={prevKpis.appointments} />
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-6">
-          <p className="text-[10px] uppercase text-ivory-muted md:text-xs md:tracking-wide">Ticket médio</p>
+          <p className="text-[11px] uppercase text-ivory-muted md:text-xs md:tracking-wide">Ticket médio</p>
           <p className="font-display text-lg font-semibold text-ivory md:text-2xl">
             {formatBRL(avgTicket)}
           </p>
           <Delta current={avgTicket} previous={prevAvgTicket} />
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-6">
-          <p className="text-[10px] uppercase text-ivory-muted md:text-xs md:tracking-wide">Ocupação</p>
+          <p className="text-[11px] uppercase text-ivory-muted md:text-xs md:tracking-wide">Ocupação</p>
           <p className="font-display text-lg font-semibold text-ivory md:text-2xl">
             {kpis.occupancyPct}%
           </p>
           <Delta current={kpis.occupancyPct} previous={prevKpis.occupancyPct} />
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-6">
-          <p className="text-[10px] uppercase text-ivory-muted md:text-xs md:tracking-wide">Taxa de no-show</p>
+          <p className="text-[11px] uppercase text-ivory-muted md:text-xs md:tracking-wide">Taxa de no-show</p>
           <p className="font-display text-lg font-semibold text-ivory md:text-2xl">
             {kpis.noShowPct}%
           </p>
@@ -339,7 +339,7 @@ export default function NumerosPage() {
             {hourlyHeatmap.hours.map((h) => (
               <span
                 key={h}
-                className="text-center text-[10px] uppercase text-ivory-muted md:text-xs"
+                className="text-center text-[11px] uppercase text-ivory-muted md:text-xs"
               >
                 {h}
               </span>

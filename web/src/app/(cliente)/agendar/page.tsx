@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
 import { services } from "@/lib/mock-data";
 import { formatBRL } from "@/lib/format";
-import { bookableDays, slotsForDate } from "@/lib/slots";
+import { bookableDays, firstBookableIndex, slotsForDate } from "@/lib/slots";
 import { bookingPolicy } from "@/lib/business-rules";
 import type { PaymentMethod, TimeSlot } from "@/lib/types";
 
@@ -31,7 +31,9 @@ const STEP_LABELS: Record<Step, string> = {
 export default function AgendarPage() {
   const [step, setStep] = useState<Step>(1);
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
-  const [selectedDayIndex, setSelectedDayIndex] = useState(0);
+  const [selectedDayIndex, setSelectedDayIndex] = useState(() =>
+    firstBookableIndex(bookableDays())
+  );
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("pix");
 
@@ -177,12 +179,12 @@ export default function AgendarPage() {
                       : "border-border text-ivory-muted")
                   }
                 >
-                  <span className="text-[10px] uppercase">
+                  <span className="text-[11px] uppercase">
                     {d.date.toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", "")}
                   </span>
                   <span className="text-base font-semibold">{d.date.getDate()}</span>
                   {d.disabled && (
-                    <span className="text-[9px] leading-none">
+                    <span className="text-[11px] leading-none">
                       {d.reason === "fechado" ? "fechado" : "—"}
                     </span>
                   )}
@@ -207,6 +209,7 @@ export default function AgendarPage() {
             </Card>
           ) : null}
 
+          {!selectedDay?.disabled && (
           <div className="grid grid-cols-3 gap-2 md:grid-cols-4 md:gap-3">
             {slots.map((slot) => {
               const active = selectedSlot?.time === slot.time;
@@ -236,12 +239,13 @@ export default function AgendarPage() {
                 >
                   {slot.time}
                   {slot.isFitIn && (
-                    <span className="text-[10px] font-medium">encaixe</span>
+                    <span className="text-[11px] font-medium">encaixe</span>
                   )}
                 </button>
               );
             })}
           </div>
+          )}
         </div>
       )}
 

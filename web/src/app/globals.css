@@ -67,6 +67,9 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  /* Texto corrido não tinha line-height declarado e herdava o do navegador
+   * (~1.2), apertado demais para blocos de política e descrição. */
+  line-height: 1.55;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -116,6 +119,8 @@ h1, h2, h3, h4, .font-display {
 }
 
 .card-interactive {
+  /* O cartão só sinalizava que é clicável no hover, e não pelo cursor. */
+  cursor: pointer;
   transition: transform 0.18s ease, box-shadow 0.22s ease, border-color 0.22s ease;
 }
 
@@ -148,4 +153,25 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
 select,
 textarea {
   border-color: var(--color-border-strong);
+}
+
+/* Tabelas financeiras rolam na horizontal no celular (min-w de 480–720px).
+ * Sem indicação, o usuário não descobre que há coluna à direita: uma sombra
+ * na borda aparece só enquanto houver conteúdo fora da tela. */
+.table-scroll {
+  background:
+    linear-gradient(to right, var(--color-surface) 30%, transparent),
+    linear-gradient(to left, var(--color-surface) 30%, transparent) 100% 0,
+    radial-gradient(farthest-side at 0 50%, rgba(0, 0, 0, 0.12), transparent),
+    radial-gradient(farthest-side at 100% 50%, rgba(0, 0, 0, 0.12), transparent) 100% 0;
+  background-repeat: no-repeat;
+  background-size: 40px 100%, 40px 100%, 14px 100%, 14px 100%;
+  background-attachment: local, local, scroll, scroll;
+}
+
+/* Números tabulares: colunas de valor precisam alinhar dígito a dígito. */
+.font-display,
+table td,
+table th {
+  font-variant-numeric: tabular-nums;
 }

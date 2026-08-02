@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
 import { Modal } from "@/components/ui/modal";
-import { formatBRL, formatDateShortPtBR } from "@/lib/format";
+import { formatBRL, formatDateShortPtBR, safeDiv } from "@/lib/format";
 import { plans } from "@/lib/mock-data";
 import {
   addOneMonthISO,
@@ -83,16 +83,18 @@ export default function PlanosPage() {
 
       <div className="flex flex-col gap-3 pb-4 md:grid md:grid-cols-3 md:gap-5 md:pb-0">
         {plans.map((plan) => {
-          const breakEvenVisits = Math.ceil(plan.price / plan.priceAvulso);
-          const savingsPct = Math.round((1 - plan.price / plan.priceAvulso) * 100);
+          const breakEvenVisits = Math.max(1, Math.ceil(safeDiv(plan.price, plan.priceAvulso, 1)));
+          const savingsPct = Math.round((1 - safeDiv(plan.price, plan.priceAvulso, 1)) * 100);
           const isActive = plan.id === activePlanId;
           return (
+            /* O card inteiro era um <div onClick> com um <button> dentro:
+             * inalcançável por teclado e com interativo aninhado. A ação vive
+             * só no botão; o card mantém o realce no hover via `group`. */
             <Card
               key={plan.id}
               interactive
-              onClick={() => !isActive && openCheckout(plan)}
               className={
-                "flex cursor-pointer flex-col gap-3 md:gap-4 md:p-6 " +
+                "group flex flex-col gap-3 md:gap-4 md:p-6 " +
                 (isActive
                   ? "border-success/50"
                   : plan.highlight
@@ -138,10 +140,7 @@ export default function PlanosPage() {
                 variant={isActive ? "secondary" : plan.highlight ? "primary" : "secondary"}
                 className="w-full md:mt-2"
                 disabled={isActive}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openCheckout(plan);
-                }}
+                onClick={() => openCheckout(plan)}
               >
                 {isActive ? "Plano ativo" : "Assinar"}
               </Button>

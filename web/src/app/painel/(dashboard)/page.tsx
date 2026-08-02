@@ -112,7 +112,7 @@ export default function PainelHojePage() {
             <p className="font-display text-sm font-semibold text-ivory md:text-2xl">
               {formatBRL(previsaoHoje)}
             </p>
-            <p className="text-[10px] text-ivory-muted md:text-xs md:uppercase md:tracking-wide">
+            <p className="text-[11px] text-ivory-muted md:text-xs md:uppercase md:tracking-wide">
               previsto hoje
             </p>
           </div>
@@ -123,7 +123,7 @@ export default function PainelHojePage() {
             <p className="font-display text-sm font-semibold text-ivory md:text-2xl">
               {confirmedCount}
             </p>
-            <p className="text-[10px] text-ivory-muted md:text-xs md:uppercase md:tracking-wide">
+            <p className="text-[11px] text-ivory-muted md:text-xs md:uppercase md:tracking-wide">
               atendimentos
             </p>
           </div>
@@ -134,7 +134,7 @@ export default function PainelHojePage() {
             <p className="font-display text-sm font-semibold text-ivory md:text-2xl">
               {ocupacaoPct}%
             </p>
-            <p className="text-[10px] text-ivory-muted md:text-xs md:uppercase md:tracking-wide">
+            <p className="text-[11px] text-ivory-muted md:text-xs md:uppercase md:tracking-wide">
               ocupação
             </p>
           </div>
@@ -145,7 +145,7 @@ export default function PainelHojePage() {
             <p className="font-display text-sm font-semibold text-ivory md:text-2xl">
               {horariosLivres}
             </p>
-            <p className="text-[10px] text-ivory-muted md:text-xs md:uppercase md:tracking-wide">
+            <p className="text-[11px] text-ivory-muted md:text-xs md:uppercase md:tracking-wide">
               horários livres
             </p>
           </div>

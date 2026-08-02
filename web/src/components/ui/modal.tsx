@@ -94,7 +94,7 @@ export function Modal({
           <button
             aria-label="Fechar"
             onClick={onClose}
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-ivory-muted transition-colors hover:bg-surface-raised hover:text-ivory"
+            className="flex h-11 w-11 shrink-0 items-center justify-center md:h-8 md:w-8 rounded-lg text-ivory-muted transition-colors hover:bg-surface-raised hover:text-ivory"
           >
             <X size={16} />
           </button>

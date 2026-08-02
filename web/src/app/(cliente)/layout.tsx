@@ -14,6 +14,14 @@ export default function ClienteLayout({
   return (
     <AuthGuard>
       <SubscriptionProvider>
+        {/* Sem isto, quem navega por teclado passa por toda a sidebar
+            antes de chegar ao conteúdo. */}
+        <a
+          href="#conteudo"
+          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-xl focus:bg-gold focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-ivory"
+        >
+          Pular para o conteúdo
+        </a>
         <DemoBanner />
       <div className="mx-auto flex min-h-full w-full max-w-md flex-1 flex-col md:h-full md:max-w-none md:flex-row md:overflow-hidden">
         <ClienteSidebarNav />
@@ -26,7 +34,7 @@ export default function ClienteLayout({
               </span>
             </Link>
           </header>
-          <main className="flex-1 px-4 pb-6 md:overflow-y-auto md:px-10 md:py-10 lg:px-14 xl:px-16">
+          <main id="conteudo" tabIndex={-1} className="flex-1 px-4 pb-6 md:overflow-y-auto md:px-10 md:py-10 lg:px-14 xl:px-16">
             <div className="mx-auto w-full max-w-[1400px]">{children}</div>
           </main>
           <ClienteBottomNav />

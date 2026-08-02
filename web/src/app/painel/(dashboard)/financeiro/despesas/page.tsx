@@ -142,38 +142,38 @@ export default function DespesasPage() {
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-5">
           <div className="flex items-center gap-1.5">
             <CheckSquare size={12} className="text-gold-light" />
-            <p className="text-[10px] uppercase tracking-wide text-ivory-muted md:text-xs">Lançamentos</p>
+            <p className="text-[11px] uppercase tracking-wide text-ivory-muted md:text-xs">Lançamentos</p>
           </div>
           <p className="font-display text-lg font-semibold text-ivory md:text-2xl">{expenses.length}</p>
-          <p className="text-[10px] text-ivory-muted md:text-xs">no mês atual</p>
+          <p className="text-[11px] text-ivory-muted md:text-xs">no mês atual</p>
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-5">
           <div className="flex items-center gap-1.5">
             <DollarSign size={12} className="text-danger" />
-            <p className="text-[10px] uppercase tracking-wide text-ivory-muted md:text-xs">Total no mês</p>
+            <p className="text-[11px] uppercase tracking-wide text-ivory-muted md:text-xs">Total no mês</p>
           </div>
           <p className="font-display text-lg font-semibold text-ivory md:text-2xl">{formatBRL(total)}</p>
-          <p className="text-[10px] text-ivory-muted md:text-xs">julho de 2026</p>
+          <p className="text-[11px] text-ivory-muted md:text-xs">julho de 2026</p>
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-5">
           <div className="flex items-center gap-1.5">
             <Repeat size={12} className="text-gold-light" />
-            <p className="text-[10px] uppercase tracking-wide text-ivory-muted md:text-xs">Recorrentes</p>
+            <p className="text-[11px] uppercase tracking-wide text-ivory-muted md:text-xs">Recorrentes</p>
           </div>
           <p className="font-display text-lg font-semibold text-ivory md:text-2xl">{formatBRL(recurringTotal)}</p>
-          <p className="text-[10px] text-ivory-muted md:text-xs">por mês</p>
+          <p className="text-[11px] text-ivory-muted md:text-xs">por mês</p>
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-5">
           <div className="flex items-center gap-1.5">
             <Tag size={12} className="text-gold-light" />
-            <p className="text-[10px] uppercase tracking-wide text-ivory-muted md:text-xs">Maior categoria</p>
+            <p className="text-[11px] uppercase tracking-wide text-ivory-muted md:text-xs">Maior categoria</p>
           </div>
           <p className="font-display text-lg font-semibold text-ivory md:text-xl">{topCategory.category}</p>
-          <p className="text-[10px] text-ivory-muted md:text-xs">{formatBRL(topCategory.value)} no mês</p>
+          <p className="text-[11px] text-ivory-muted md:text-xs">{formatBRL(topCategory.value)} no mês</p>
         </Card>
       </div>
 
-      <Card className="overflow-x-auto p-0 md:p-0">
+      <Card className="table-scroll overflow-x-auto p-0">
         <table className="w-full min-w-[720px] text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ivory-muted">
@@ -214,14 +214,14 @@ export default function DespesasPage() {
                     <button
                       aria-label="Editar"
                       onClick={() => openEditModal(e)}
-                      className="flex h-7 w-7 items-center justify-center rounded-lg text-ivory-muted/70 transition-colors hover:bg-surface-raised hover:text-ivory"
+                      className="flex h-11 w-11 items-center justify-center md:h-8 md:w-8 rounded-lg text-ivory-muted/70 transition-colors hover:bg-surface-raised hover:text-ivory"
                     >
                       <Pencil size={13} />
                     </button>
                     <button
                       aria-label="Excluir"
                       onClick={() => setPendingDelete(e)}
-                      className="flex h-7 w-7 items-center justify-center rounded-lg text-ivory-muted/70 transition-colors hover:bg-danger/10 hover:text-danger"
+                      className="flex h-11 w-11 items-center justify-center md:h-8 md:w-8 rounded-lg text-ivory-muted/70 transition-colors hover:bg-danger/10 hover:text-danger"
                     >
                       <Trash2 size={13} />
                     </button>

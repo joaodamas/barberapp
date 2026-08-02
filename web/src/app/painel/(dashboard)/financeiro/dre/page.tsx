@@ -149,7 +149,7 @@ export default function DrePage() {
             aria-label="Mês anterior"
             disabled={monthOffset >= MAX_MONTH_OFFSET}
             onClick={() => setMonthOffset((o) => Math.min(o + 1, MAX_MONTH_OFFSET))}
-            className="flex h-7 w-7 items-center justify-center rounded-lg transition-colors hover:bg-surface-raised hover:text-ivory disabled:cursor-not-allowed disabled:opacity-30"
+            className="flex h-11 w-11 items-center justify-center md:h-8 md:w-8 rounded-lg transition-colors hover:bg-surface-raised hover:text-ivory disabled:cursor-not-allowed disabled:opacity-30"
           >
             <ChevronLeft size={16} />
           </button>
@@ -160,7 +160,7 @@ export default function DrePage() {
             aria-label="Próximo mês"
             disabled={monthOffset <= 0}
             onClick={() => setMonthOffset((o) => Math.max(o - 1, 0))}
-            className="flex h-7 w-7 items-center justify-center rounded-lg transition-colors hover:bg-surface-raised hover:text-ivory disabled:cursor-not-allowed disabled:opacity-30"
+            className="flex h-11 w-11 items-center justify-center md:h-8 md:w-8 rounded-lg transition-colors hover:bg-surface-raised hover:text-ivory disabled:cursor-not-allowed disabled:opacity-30"
           >
             <ChevronRight size={16} />
           </button>
@@ -317,14 +317,14 @@ export default function DrePage() {
             onChange={(e) => setScenarioPct(Number(e.target.value))}
             className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-surface-raised accent-gold"
           />
-          <div className="flex justify-between text-[10px] text-ivory-muted">
+          <div className="flex justify-between text-[11px] text-ivory-muted">
             <span>-50%</span>
             <span>0%</span>
             <span>+100%</span>
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="table-scroll overflow-x-auto">
           <table className="w-full min-w-[480px] text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ivory-muted">

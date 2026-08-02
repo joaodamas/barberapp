@@ -128,7 +128,7 @@ export default function FinanceiroPage() {
           </h3>
           <Card className="flex flex-col gap-3 md:p-6">
             {revenueBreakdown.map((item, i) => {
-              const pct = Math.round((item.value / totalRevenueBreakdown) * 100);
+              const pct = Math.round(safePct(item.value, totalRevenueBreakdown));
               return (
                 <div key={item.label} className="flex flex-col gap-1.5">
                   <div className="flex items-center justify-between text-sm">

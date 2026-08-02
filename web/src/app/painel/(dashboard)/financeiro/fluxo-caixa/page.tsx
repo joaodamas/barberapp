@@ -3,7 +3,7 @@
 import { Calendar, TrendingUp, Wallet } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { KpiTile } from "@/components/ui/kpi-tile";
-import { formatBRL, formatWeekdayAndDay, safeDiv } from "@/lib/format";
+import { formatBRL, formatWeekdayAndDay, safeDiv, safePct } from "@/lib/format";
 import { dailyCashHistory, monthLabelFor } from "@/lib/mock-data";
 
 export default function FluxoCaixaPage() {
@@ -55,7 +55,7 @@ export default function FluxoCaixaPage() {
         />
       </div>
 
-      <Card className="overflow-x-auto p-0">
+      <Card className="table-scroll overflow-x-auto p-0">
         <table className="w-full min-w-[640px] text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ivory-muted">
@@ -92,7 +92,7 @@ export default function FluxoCaixaPage() {
                   <div className="h-1.5 w-16 overflow-hidden rounded-full bg-surface-raised">
                     <div
                       className="h-full rounded-full bg-gold"
-                      style={{ width: `${(d.total / maxTotal) * 100}%` }}
+                      style={{ width: `${safePct(d.total, maxTotal)}%` }}
                     />
                   </div>
                 </td>

@@ -17,7 +17,7 @@ import {
   loyalty,
   nextBooking,
 } from "@/lib/mock-data";
-import { bookableDays, slotsForDate } from "@/lib/slots";
+import { bookableDays, firstBookableIndex, slotsForDate } from "@/lib/slots";
 import {
   cancellationPolicy,
   refundAmountFor,
@@ -62,7 +62,7 @@ export default function ReservasPage() {
   const [booking, setBooking] = useState<Booking>(nextBooking);
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
-  const [dayIndex, setDayIndex] = useState(0);
+  const [dayIndex, setDayIndex] = useState(() => firstBookableIndex(bookableDays()));
   const [time, setTime] = useState<string | null>(null);
   const [rescheduleCount, setRescheduleCount] = useState(0);
 
@@ -97,7 +97,7 @@ export default function ReservasPage() {
       : `Limite de ${reschedulePolicy.maxPerBooking} reagendamentos por reserva atingido.`;
 
   function openReschedule() {
-    setDayIndex(0);
+    setDayIndex(firstBookableIndex(days));
     setTime(null);
     setRescheduleOpen(true);
   }
@@ -124,13 +124,13 @@ export default function ReservasPage() {
             <p className="font-display text-lg font-semibold text-ivory">
               {bookingHistory.length}
             </p>
-            <p className="text-[10px] text-ivory-muted md:text-xs">atendimentos concluídos</p>
+            <p className="text-[11px] text-ivory-muted md:text-xs">atendimentos concluídos</p>
           </Card>
           <Card className="flex flex-col items-center gap-0.5 p-3 text-center md:min-w-32 md:p-4">
             <p className="font-display text-lg font-semibold text-gold-light">
               {formatBRL(totalSpentHistory)}
             </p>
-            <p className="text-[10px] text-ivory-muted md:text-xs">investido na barbearia</p>
+            <p className="text-[11px] text-ivory-muted md:text-xs">investido na barbearia</p>
           </Card>
         </div>
 
