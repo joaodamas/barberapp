@@ -1,0 +1,129 @@
+rules_version = '2';
+
+/**
+ * Regras de segurança do Firestore — O Siqueira Barbearia.
+ *
+ * Princípio: NEGAR POR PADRÃO. A autorização da aplicação é client-side
+ * (AuthGuard só decide o que renderizar); estas regras são a única barreira
+ * real entre um usuário e os dados de outro.
+ *
+ * Enquanto nenhuma tela usa o Firestore, tudo aqui está fechado de propósito.
+ * Cada épico que passar a persistir deve abrir a SUA coleção, nunca relaxar o
+ * fallback do fim do arquivo.
+ */
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /* ---------------- helpers ---------------- */
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner() {
+      return isSignedIn() && request.auth.token.role == 'owner';
+    }
+
+    function isSelf(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /** Campos que o cliente nunca pode escrever — só Cloud Functions. */
+    function withoutServerFields() {
+      return !request.resource.data.keys().hasAny([
+        'status', 'value', 'paidAt', 'refundedAmount', 'commission', 'role'
+      ]);
+    }
+
+    /* ---------------- catálogo público ---------------- */
+
+    // Serviços e planos são vitrine: qualquer um logado lê, só o dono escreve.
+    match /services/{serviceId} {
+      allow read: if isSignedIn();
+      allow write: if isOwner();
+    }
+
+    match /plans/{planId} {
+      allow read: if isSignedIn();
+      allow write: if isOwner();
+    }
+
+    /* ---------------- dados do próprio usuário ---------------- */
+
+    match /users/{userId} {
+      allow read: if isSelf(userId) || isOwner();
+      // O usuário edita o próprio perfil, mas nunca o próprio papel.
+      allow update: if isSelf(userId) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'workspaceId']);
+      allow create: if isSelf(userId);
+      allow delete: if isOwner();
+    }
+
+    /* ---------------- agenda ---------------- */
+
+    match /bookings/{bookingId} {
+      allow read: if isOwner() || (isSignedIn() && resource.data.clientId == request.auth.uid);
+      // Criar reserva é permitido, mas status/valor são decididos no servidor.
+      allow create: if isSignedIn()
+                    && request.resource.data.clientId == request.auth.uid
+                    && withoutServerFields();
+      // Cancelar/reagendar passa por Cloud Function (aplica política e reembolso).
+      allow update, delete: if isOwner();
+    }
+
+    /* ---------------- financeiro: só o dono ---------------- */
+
+    match /expenses/{expenseId}          { allow read, write: if isOwner(); }
+    match /cash_entries/{entryId}        { allow read, write: if isOwner(); }
+    match /commissions/{commissionId}    { allow read, write: if isOwner(); }
+    match /products/{productId} {
+      allow read: if isSignedIn();
+      allow write: if isOwner();
+    }
+    match /inventory_movements/{moveId}  { allow read, write: if isOwner(); }
+
+    /* ---------------- escrita exclusiva do servidor ---------------- */
+
+    // Pagamentos, estornos, assinaturas, fidelidade, ocorrências, log de
+    // WhatsApp e auditoria só são gravados por Cloud Functions (Admin SDK, que
+    // ignora estas regras). O cliente no máximo lê o que é dele.
+    match /payments/{paymentId} {
+      allow read: if isOwner() || (isSignedIn() && resource.data.clientId == request.auth.uid);
+      allow write: if false;
+    }
+    match /refunds/{refundId} {
+      allow read: if isOwner() || (isSignedIn() && resource.data.clientId == request.auth.uid);
+      allow write: if false;
+    }
+    match /subscriptions/{subscriptionId} {
+      allow read: if isOwner() || (isSignedIn() && resource.data.clientId == request.auth.uid);
+      allow write: if false;
+    }
+    match /subscription_invoices/{invoiceId} {
+      allow read: if isOwner() || (isSignedIn() && resource.data.clientId == request.auth.uid);
+      allow write: if false;
+    }
+    match /loyalty_transactions/{txId} {
+      allow read: if isOwner() || (isSignedIn() && resource.data.clientId == request.auth.uid);
+      allow write: if false;
+    }
+    match /client_occurrences/{occurrenceId} {
+      allow read: if isOwner();
+      allow write: if false;
+    }
+    match /whatsapp_messages/{messageId} {
+      allow read: if isOwner();
+      allow write: if false;
+    }
+    match /audit_log/{entryId} {
+      allow read: if isOwner();
+      allow write: if false;
+    }
+
+    /* ---------------- fallback ---------------- */
+
+    // Qualquer coleção não declarada acima é inacessível. Não relaxar.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

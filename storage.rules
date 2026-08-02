@@ -1,0 +1,48 @@
+rules_version = '2';
+
+/**
+ * Regras do Cloud Storage — O Siqueira Barbearia.
+ *
+ * Nenhuma tela faz upload hoje. O arquivo existe fechado porque `firebase.json`
+ * o referencia (sem ele, `firebase deploy` falha) e porque o default do console
+ * não deve ser a fonte da verdade — regra de segurança se versiona.
+ */
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner() {
+      return isSignedIn() && request.auth.token.role == 'owner';
+    }
+
+    function isImageUnder(maxMB) {
+      return request.resource.contentType.matches('image/.*')
+             && request.resource.size < maxMB * 1024 * 1024;
+    }
+
+    // Foto de perfil: cada um mexe só na sua.
+    match /users/{userId}/avatar/{fileName} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && request.auth.uid == userId && isImageUnder(5);
+    }
+
+    // Fotos de produto da loja: leitura para quem está logado, escrita só do dono.
+    match /products/{productId}/{fileName} {
+      allow read: if isSignedIn();
+      allow write: if isOwner() && isImageUnder(5);
+    }
+
+    // Fechamentos mensais em PDF e outros relatórios: só o dono.
+    match /reports/{fileName} {
+      allow read: if isOwner();
+      allow write: if false;
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
