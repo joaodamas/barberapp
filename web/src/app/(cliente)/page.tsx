@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, MapPin, Phone, Sparkles } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { WelcomeHeading } from "@/components/welcome-heading";
 import { Pill } from "@/components/ui/pill";
 import { Button } from "@/components/ui/button";
 import { BarberPoleDivider } from "@/components/ui/barber-pole-divider";
@@ -21,10 +22,7 @@ export default function InicioPage() {
   return (
     <div className="grid grid-cols-1 gap-5 pt-1 md:grid-cols-[1fr_360px] md:items-start md:gap-x-10 md:gap-y-10 md:pt-2">
       <div className="md:col-span-2 md:flex md:items-center md:justify-between md:gap-6">
-        <div>
-          <p className="text-sm text-ivory-muted md:text-base">Bem-vindo de volta,</p>
-          <h1 className="text-2xl text-ivory md:text-4xl md:tracking-tight">João</h1>
-        </div>
+        <WelcomeHeading />
         <Link href="/agendar" className="hidden md:block">
           <Button className="md:h-12 md:px-7 md:text-base">
             Agendar horário

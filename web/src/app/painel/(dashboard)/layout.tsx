@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { AuthGuard } from "@/components/auth-guard";
+import { DemoBanner } from "@/components/demo-banner";
 import { PainelBottomNav } from "@/components/painel-bottom-nav";
 import { PainelSidebarNav } from "@/components/painel-sidebar-nav";
 
@@ -11,6 +12,7 @@ export default function PainelDashboardLayout({
 }) {
   return (
     <AuthGuard requireOwner>
+      <DemoBanner />
       <div className="mx-auto flex min-h-full w-full max-w-md flex-1 flex-col md:h-full md:max-w-none md:flex-row md:overflow-hidden">
         <PainelSidebarNav />
         <div className="flex min-h-full w-full flex-1 flex-col md:h-full md:overflow-hidden">

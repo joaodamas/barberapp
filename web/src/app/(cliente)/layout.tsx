@@ -1,6 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { AuthGuard } from "@/components/auth-guard";
+import { DemoBanner } from "@/components/demo-banner";
+import { SubscriptionProvider } from "@/lib/subscription-context";
 import { ClienteBottomNav } from "@/components/cliente-bottom-nav";
 import { ClienteSidebarNav } from "@/components/cliente-sidebar-nav";
 
@@ -11,6 +13,8 @@ export default function ClienteLayout({
 }) {
   return (
     <AuthGuard>
+      <SubscriptionProvider>
+        <DemoBanner />
       <div className="mx-auto flex min-h-full w-full max-w-md flex-1 flex-col md:h-full md:max-w-none md:flex-row md:overflow-hidden">
         <ClienteSidebarNav />
         <div className="flex min-h-full w-full flex-1 flex-col md:h-full md:overflow-hidden">
@@ -28,6 +32,7 @@ export default function ClienteLayout({
           <ClienteBottomNav />
         </div>
       </div>
+      </SubscriptionProvider>
     </AuthGuard>
   );
 }

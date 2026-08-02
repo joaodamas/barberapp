@@ -6,30 +6,35 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
 import { Modal } from "@/components/ui/modal";
-import { formatBRL } from "@/lib/format";
+import { formatBRL, formatDateShortPtBR } from "@/lib/format";
 import { plans } from "@/lib/mock-data";
-
-type Plan = (typeof plans)[number];
-type Billing = "cartao" | "pix";
+import {
+  addOneMonthISO,
+  useSubscription,
+  type Billing,
+  type Plan,
+} from "@/lib/subscription-context";
 
 const BILLING_LABEL: Record<Billing, string> = {
   cartao: "Cartão de crédito recorrente",
   pix: "Pix mensal",
 };
 
-/** Data da próxima cobrança: mesmo dia do mês seguinte. */
-function nextChargeDate() {
-  const d = new Date();
-  d.setMonth(d.getMonth() + 1);
-  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "long" });
-}
-
 export default function PlanosPage() {
+  const {
+    plan: activePlan,
+    billing: activeBilling,
+    nextChargeISO,
+    subscribe,
+    cancel,
+  } = useSubscription();
+
   const [checkoutPlan, setCheckoutPlan] = useState<Plan | null>(null);
   const [billing, setBilling] = useState<Billing>("cartao");
-  const [activePlanId, setActivePlanId] = useState<string | null>(null);
-  const [activeBilling, setActiveBilling] = useState<Billing>("cartao");
   const [confirmedPlan, setConfirmedPlan] = useState<Plan | null>(null);
+  const [cancelOpen, setCancelOpen] = useState(false);
+
+  const activePlanId = activePlan?.id ?? null;
 
   function openCheckout(plan: Plan) {
     setBilling("cartao");
@@ -38,17 +43,15 @@ export default function PlanosPage() {
 
   function confirmSubscription() {
     if (!checkoutPlan) return;
-    setActivePlanId(checkoutPlan.id);
-    setActiveBilling(billing);
+    subscribe(checkoutPlan, billing);
     setConfirmedPlan(checkoutPlan);
     setCheckoutPlan(null);
   }
 
-  function cancelSubscription() {
-    setActivePlanId(null);
+  function confirmCancellation() {
+    cancel();
+    setCancelOpen(false);
   }
-
-  const activePlan = plans.find((p) => p.id === activePlanId) ?? null;
 
   return (
     <div className="flex flex-col gap-5 pt-1 md:gap-8 md:pt-2">
@@ -68,11 +71,11 @@ export default function PlanosPage() {
                 Plano {activePlan.name} ativo
               </p>
               <p className="text-xs text-ivory-muted md:text-sm">
-                {BILLING_LABEL[activeBilling]} · próxima cobrança em {nextChargeDate()}
+                {BILLING_LABEL[activeBilling]} · próxima cobrança em {nextChargeISO ? formatDateShortPtBR(nextChargeISO) : "—"}
               </p>
             </div>
           </div>
-          <Button variant="secondary" className="text-danger" onClick={cancelSubscription}>
+          <Button variant="secondary" className="text-danger" onClick={() => setCancelOpen(true)}>
             Cancelar plano
           </Button>
         </Card>
@@ -213,9 +216,36 @@ export default function PlanosPage() {
             );
           })}
           <p className="text-xs text-ivory-muted">
-            Primeira cobrança hoje. A próxima cai em {nextChargeDate()}.
+            Primeira cobrança hoje. A próxima cai em {formatDateShortPtBR(addOneMonthISO(new Date()))}.
           </p>
         </div>
+      </Modal>
+
+      <Modal
+        open={cancelOpen}
+        onClose={() => setCancelOpen(false)}
+        title="Cancelar plano"
+        description={activePlan ? `Plano ${activePlan.name}` : undefined}
+        className="max-w-md"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setCancelOpen(false)}>
+              Manter plano
+            </Button>
+            <Button
+              className="bg-danger text-white hover:bg-danger/90"
+              onClick={confirmCancellation}
+            >
+              Confirmar cancelamento
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-ivory-muted">
+          Seu plano continua valendo até o fim do ciclo já pago
+          {nextChargeISO ? ` (${formatDateShortPtBR(nextChargeISO)})` : ""}. Depois
+          disso, os atendimentos voltam a ser cobrados no avulso.
+        </p>
       </Modal>
 
       <Modal
