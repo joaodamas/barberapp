@@ -42,7 +42,8 @@ export const viewport: Viewport = {
   themeColor: "#ffffff",
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
+  /* `maximumScale: 1` bloqueava o pinch-zoom e reprovava no WCAG 1.4.4.
+   * Impedir zoom nunca foi requisito — era herança de template. */
   viewportFit: "cover",
 };
 

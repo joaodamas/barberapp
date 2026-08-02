@@ -8,7 +8,8 @@ export default function manifest(): MetadataRoute.Manifest {
       "Agende seu horário, acompanhe sua fidelidade e assine um plano na O Siqueira Barbearia.",
     start_url: "/",
     display: "standalone",
-    orientation: "portrait",
+    /* Sem trava de orientação: o produto tem layout desktop/tablet completo
+     * com sidebar, e "portrait" prendia o tablet instalado no layout mobile. */
     background_color: "#ffffff",
     theme_color: "#ffffff",
     lang: "pt-BR",
