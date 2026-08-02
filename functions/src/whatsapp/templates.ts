@@ -114,9 +114,9 @@ export const TEMPLATES = {
     audience: "cliente",
     trigger: "Cancelamento confirmado (pelo cliente ou pela loja).",
     body:
-      "{{1}}, sua reserva de {{2}} às {{3}} foi cancelada.\n\n" +
-      "{{4}}\n\n" +
-      "Quando quiser remarcar, é só abrir o app: {{5}}",
+      "Olá {{1}}, sua reserva de {{2}} às {{3}} foi cancelada.\n\n" +
+      "Sobre o valor: {{4}}\n\n" +
+      "Quando quiser remarcar, é só abrir o app em {{5}} — te esperamos!",
     params: [
       "primeiroNome",
       "data",
@@ -141,9 +141,9 @@ export const TEMPLATES = {
     trigger:
       "Encaixe recusado pelo barbeiro OU expirado sem resposta (45 min).",
     body:
-      "{{1}}, não consegui encaixar o horário das {{2}}. 😕\n\n" +
+      "Oi {{1}}, não consegui encaixar o horário das {{2}}. 😕\n\n" +
       "Mas tenho estes horários livres para {{3}}:\n{{4}}\n\n" +
-      "Garanta o seu em um toque: {{5}}",
+      "Garanta o seu em um toque no link {{5}} — leva menos de um minuto.",
     params: ["primeiroNome", "horaSolicitada", "servicos", "horariosLivres", "linkApp"],
     example: [
       "João",
@@ -163,7 +163,7 @@ export const TEMPLATES = {
     body:
       "Valeu pela visita, {{1}}! 💈\n\n" +
       "Você agora tem {{2}} de {{3}} carimbos — faltam {{4}} para {{5}}.\n\n" +
-      "Se puder avaliar o atendimento, ajuda muito: {{6}}",
+      "Se puder avaliar o atendimento em {{6}}, ajuda muito. Até a próxima!",
     params: [
       "primeiroNome",
       "carimbos",
@@ -228,7 +228,7 @@ export const TEMPLATES = {
       "Confirmados: {{3}} · Sem confirmação: {{4}}\n" +
       "Previsão de caixa: {{5}}\n" +
       "Horários ainda livres: {{6}}\n\n" +
-      "Detalhes no painel: {{7}}",
+      "Detalhes no painel {{7}} — bom trabalho!",
     params: [
       "data",
       "totalAtendimentos",
@@ -256,7 +256,10 @@ export const TEMPLATES = {
     audience: "barbeiro",
     trigger:
       "Cancelamento de última hora, mensalista regularizado, estoque abaixo do mínimo.",
-    body: "⚠️ {{1}}\n\n{{2}}\n\nVer no painel: {{3}}",
+    body:
+      "⚠️ Atenção: {{1}}\n\n" +
+      "O que aconteceu: {{2}}\n\n" +
+      "Confira os detalhes no painel {{3}} quando puder.",
     params: ["titulo", "detalhe", "linkPainel"],
     example: [
       "Cancelamento de última hora",
@@ -277,7 +280,7 @@ export const TEMPLATES = {
     trigger: "D-5, D-3 e D-1 do vencimento da mensalidade.",
     body:
       "Oi {{1}}! Sua mensalidade do plano {{2}} ({{3}}) vence em {{4}}.\n\n" +
-      "Pode pagar por aqui, leva menos de um minuto: {{5}}",
+      "Pode pagar pelo link {{5}} — leva menos de um minuto.",
     params: ["primeiroNome", "nomePlano", "valor", "vencimento", "linkPagamento"],
     example: [
       "João",
@@ -295,8 +298,8 @@ export const TEMPLATES = {
     audience: "cliente",
     trigger: "D0 — dia do vencimento.",
     body:
-      "{{1}}, hoje é o vencimento da sua mensalidade do plano {{2}}: {{3}}.\n\n" +
-      "{{4}}",
+      "Oi {{1}}, hoje é o vencimento da sua mensalidade do plano {{2}}: {{3}}.\n\n" +
+      "Como funciona: {{4}}\n\nQualquer dúvida, é só responder por aqui.",
     params: ["primeiroNome", "nomePlano", "valor", "instrucao"],
     example: [
       "João",
@@ -313,9 +316,9 @@ export const TEMPLATES = {
     audience: "cliente",
     trigger: "D+1 e D+3 após o vencimento.",
     body:
-      "{{1}}, sua mensalidade do plano {{2}} ({{3}}) venceu em {{4}} e ainda " +
+      "Oi {{1}}, sua mensalidade do plano {{2}} ({{3}}) venceu em {{4}} e ainda " +
       "consta em aberto.\n\n" +
-      "Regularize por aqui para manter seus benefícios ativos: {{5}}",
+      "Regularize pelo link {{5}} para manter seus benefícios ativos.",
     params: ["primeiroNome", "nomePlano", "valor", "vencimento", "linkPagamento"],
     example: [
       "João",
@@ -333,10 +336,10 @@ export const TEMPLATES = {
     audience: "cliente",
     trigger: "D+5 — aviso final antes da suspensão do plano.",
     body:
-      "{{1}}, este é o último aviso sobre a mensalidade do plano {{2}} " +
+      "Oi {{1}}, este é o último aviso sobre a mensalidade do plano {{2}} " +
       "({{3}}), vencida em {{4}}.\n\n" +
       "Se não for regularizada, seu plano será suspenso e os benefícios ficam " +
-      "pausados até o pagamento. Resolver agora: {{5}}",
+      "pausados até o pagamento. Você resolve agora pelo link {{5}}.",
     params: ["primeiroNome", "nomePlano", "valor", "vencimento", "linkPagamento"],
     example: [
       "João",
@@ -360,9 +363,9 @@ export const TEMPLATES = {
       "Gestor bloqueou agenda (folga, férias, feriado) ou alterou uma reserva. " +
       "Dispara para todos os clientes com horário afetado.",
     body:
-      "{{1}}, precisamos avisar sobre o seu horário de {{2}} às {{3}}.\n\n" +
-      "{{4}}\n\n" +
-      "Escolha um novo horário em um toque: {{5}}",
+      "Oi {{1}}, precisamos avisar sobre o seu horário de {{2}} às {{3}}.\n\n" +
+      "Motivo: {{4}}\n\n" +
+      "Escolha um novo horário em um toque pelo link {{5}}.",
     params: ["primeiroNome", "data", "hora", "motivo", "linkReagendamento"],
     example: [
       "João",
@@ -381,7 +384,10 @@ export const TEMPLATES = {
     audience: "cliente",
     trigger:
       "Ação avulsa do gestor ('Enviar aviso aos clientes'). Respeita opt-in e limites anti-spam.",
-    body: "{{1}}\n\n{{2}}\n\n{{3}}",
+    body:
+      "💈 {{1}}\n\n" +
+      "Detalhes: {{2}}\n\n" +
+      "Para aproveitar: {{3}} — qualquer dúvida, é só responder por aqui.",
     params: ["titulo", "mensagem", "chamadaParaAcao"],
     example: [
       "Horário especial de fim de ano 💈",
@@ -404,7 +410,8 @@ export const TEMPLATES = {
       "E aí {{1}}, sumiu! 💈\n\n" +
       "Faz {{2}} dias desde seu último corte na {{3}}. Que tal dar aquela " +
       "renovada?\n\n" +
-      "Seu horário de costume ({{4}}) costuma estar livre. Agende aqui: {{5}}",
+      "Seu horário de costume ({{4}}) costuma estar livre. Agende pelo link {{5}} " +
+      "e a gente te espera.",
     params: ["primeiroNome", "diasSemVir", "nomeBarbearia", "horarioCostume", "linkApp"],
     example: [
       "João",
@@ -425,7 +432,7 @@ export const TEMPLATES = {
       "Parabéns, {{1}}! 🎉\n\n" +
       "A {{2}} te dá {{3}} no seu próximo atendimento deste mês. " +
       "É nosso presente.\n\n" +
-      "Agende quando quiser: {{4}}",
+      "Agende quando quiser pelo link {{4}} — vai ser um prazer.",
     params: ["primeiroNome", "nomeBarbearia", "mimo", "linkApp"],
     example: [
       "João",
