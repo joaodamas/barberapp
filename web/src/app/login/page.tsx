@@ -4,8 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
+  createUserWithEmailAndPassword,
   GoogleAuthProvider,
   RecaptchaVerifier,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signInWithPhoneNumber,
   signInWithPopup,
@@ -18,6 +20,37 @@ import { Card } from "@/components/ui/card";
 
 type Method = "phone" | "email";
 type PhoneStep = "phone" | "code";
+type EmailMode = "entrar" | "criar";
+
+/**
+ * Mensagem por código do Firebase.
+ * Antes tudo caía num `catch {}` com texto genérico: impossível distinguir
+ * senha errada de excesso de tentativas ou de falha de rede, e nada era
+ * registrado para diagnóstico.
+ */
+const AUTH_MESSAGES: Record<string, string> = {
+  "auth/invalid-credential": "E-mail ou senha incorretos.",
+  "auth/invalid-email": "E-mail inválido.",
+  "auth/user-not-found": "Não encontramos uma conta com esse e-mail.",
+  "auth/wrong-password": "Senha incorreta.",
+  "auth/email-already-in-use": "Já existe uma conta com esse e-mail. Tente entrar.",
+  "auth/weak-password": "A senha precisa ter pelo menos 6 caracteres.",
+  "auth/too-many-requests": "Muitas tentativas. Aguarde alguns minutos e tente de novo.",
+  "auth/network-request-failed": "Sem conexão. Verifique a internet e tente de novo.",
+  "auth/popup-closed-by-user": "A janela do Google foi fechada antes de concluir.",
+  "auth/popup-blocked": "O navegador bloqueou a janela do Google. Libere os pop-ups.",
+  "auth/invalid-phone-number": "Número inválido. Use DDD + número.",
+  "auth/invalid-verification-code": "Código inválido.",
+  "auth/code-expired": "O código expirou. Peça um novo.",
+  "auth/operation-not-allowed":
+    "Login por SMS ainda não está habilitado no projeto. Use e-mail ou Google.",
+};
+
+function messageFor(error: unknown, fallback: string) {
+  const code = (error as { code?: string })?.code;
+  if (process.env.NODE_ENV !== "production") console.error("[auth]", code, error);
+  return (code && AUTH_MESSAGES[code]) || fallback;
+}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -30,8 +63,10 @@ export default function LoginPage() {
   const [confirmation, setConfirmation] = useState<ConfirmationResult | null>(null);
   const recaptchaRef = useRef<RecaptchaVerifier | null>(null);
 
+  const [emailMode, setEmailMode] = useState<EmailMode>("entrar");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [notice, setNotice] = useState<string | null>(null);
 
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -42,21 +77,27 @@ export default function LoginPage() {
     router.replace(claims.role === "owner" ? "/painel" : "/");
   }, [loading, user, claims.role, router]);
 
+  /* O verificador só é criado quando a aba "Celular" está aberta, e é
+   * destruído ao sair: um RecaptchaVerifier consumido precisa de clear()
+   * antes de ser reusado, senão a segunda tentativa falha depois de um erro. */
   useEffect(() => {
-    if (!recaptchaRef.current) {
-      recaptchaRef.current = new RecaptchaVerifier(auth, "recaptcha-container", {
-        size: "invisible",
-      });
-    }
-  }, []);
+    if (method !== "phone") return;
+    recaptchaRef.current = new RecaptchaVerifier(auth, "recaptcha-container", {
+      size: "invisible",
+    });
+    return () => {
+      recaptchaRef.current?.clear();
+      recaptchaRef.current = null;
+    };
+  }, [method]);
 
   async function handleGoogle() {
     setError(null);
     setBusy(true);
     try {
       await signInWithPopup(auth, new GoogleAuthProvider());
-    } catch {
-      setError("Não foi possível entrar com Google. Tente novamente.");
+    } catch (err) {
+      setError(messageFor(err, "Não foi possível entrar com Google. Tente novamente."));
     } finally {
       setBusy(false);
     }
@@ -69,15 +110,17 @@ export default function LoginPage() {
       const formatted = phone.startsWith("+")
         ? phone
         : `+55${phone.replace(/\D/g, "")}`;
-      const result = await signInWithPhoneNumber(
-        auth,
-        formatted,
-        recaptchaRef.current!
-      );
+      if (!recaptchaRef.current) throw new Error("reCAPTCHA não inicializado");
+      const result = await signInWithPhoneNumber(auth, formatted, recaptchaRef.current);
       setConfirmation(result);
       setPhoneStep("code");
-    } catch {
-      setError("Não conseguimos enviar o código. Confira o número e tente de novo.");
+    } catch (err) {
+      setError(messageFor(err, "Não conseguimos enviar o código. Confira o número e tente de novo."));
+      // Verificador consumido: recria para permitir nova tentativa.
+      recaptchaRef.current?.clear();
+      recaptchaRef.current = new RecaptchaVerifier(auth, "recaptcha-container", {
+        size: "invisible",
+      });
     } finally {
       setBusy(false);
     }
@@ -89,20 +132,51 @@ export default function LoginPage() {
     setBusy(true);
     try {
       await confirmation.confirm(code);
-    } catch {
-      setError("Código inválido.");
+    } catch (err) {
+      setError(messageFor(err, "Código inválido."));
     } finally {
       setBusy(false);
     }
   }
 
-  async function handleEmailLogin() {
+  async function handleEmailSubmit() {
+    setError(null);
+    setNotice(null);
+    setBusy(true);
+    try {
+      if (emailMode === "criar") {
+        await createUserWithEmailAndPassword(auth, email, password);
+      } else {
+        await signInWithEmailAndPassword(auth, email, password);
+      }
+    } catch (err) {
+      setError(
+        messageFor(
+          err,
+          emailMode === "criar"
+            ? "Não foi possível criar a conta."
+            : "E-mail ou senha incorretos."
+        )
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /* Não havia como criar conta por e-mail nem recuperar senha: quem escolhesse
+   * a aba "E-mail" sem conta prévia ficava sem saída. */
+  async function handlePasswordReset() {
+    if (!email) {
+      setError("Informe o e-mail para receber o link de redefinição.");
+      return;
+    }
     setError(null);
     setBusy(true);
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-    } catch {
-      setError("E-mail ou senha incorretos.");
+      await sendPasswordResetEmail(auth, email);
+      setNotice("Enviamos um link de redefinição para o seu e-mail.");
+    } catch (err) {
+      setError(messageFor(err, "Não foi possível enviar o link de redefinição."));
     } finally {
       setBusy(false);
     }
@@ -121,14 +195,17 @@ export default function LoginPage() {
           {(["phone", "email"] as Method[]).map((m) => (
             <button
               key={m}
+              type="button"
+              aria-pressed={method === m}
               onClick={() => {
                 setMethod(m);
                 setError(null);
+                setNotice(null);
               }}
               className={
                 "flex-1 rounded-lg py-2 text-sm font-medium transition-colors " +
                 (method === m
-                  ? "bg-gold text-bg"
+                  ? "bg-gold text-ivory"
                   : "text-ivory-muted hover:text-ivory")
               }
             >
@@ -139,11 +216,20 @@ export default function LoginPage() {
 
         {method === "phone" ? (
           phoneStep === "phone" ? (
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-ivory-muted">
+            <form
+              className="flex flex-col gap-1.5"
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSendCode();
+              }}
+            >
+              <label htmlFor="login-phone" className="text-xs font-medium text-ivory-muted">
                 Celular com WhatsApp
               </label>
               <input
+                id="login-phone"
+                name="tel"
+                autoComplete="tel"
                 type="tel"
                 inputMode="numeric"
                 placeholder="(11) 99999-9999"
@@ -152,19 +238,28 @@ export default function LoginPage() {
                 className="rounded-xl border border-border bg-surface px-4 py-3 text-sm text-ivory outline-none focus-visible:ring-2 focus-visible:ring-gold"
               />
               <Button
+                type="submit"
                 className="mt-1"
-                onClick={handleSendCode}
                 disabled={busy || phone.replace(/\D/g, "").length < 10}
               >
                 Enviar código
               </Button>
-            </div>
+            </form>
           ) : (
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-ivory-muted">
+            <form
+              className="flex flex-col gap-1.5"
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleVerifyCode();
+              }}
+            >
+              <label htmlFor="login-code" className="text-xs font-medium text-ivory-muted">
                 Código recebido por SMS
               </label>
               <input
+                id="login-code"
+                name="one-time-code"
+                autoComplete="one-time-code"
                 type="text"
                 inputMode="numeric"
                 placeholder="000000"
@@ -172,14 +267,11 @@ export default function LoginPage() {
                 onChange={(e) => setCode(e.target.value)}
                 className="rounded-xl border border-border bg-surface px-4 py-3 text-center text-lg tracking-[0.5em] text-ivory outline-none focus-visible:ring-2 focus-visible:ring-gold"
               />
-              <Button
-                className="mt-1"
-                onClick={handleVerifyCode}
-                disabled={busy || code.length < 6}
-              >
+              <Button type="submit" className="mt-1" disabled={busy || code.length < 6}>
                 Confirmar
               </Button>
               <button
+                type="button"
                 onClick={() => {
                   setPhoneStep("phone");
                   setError(null);
@@ -188,14 +280,25 @@ export default function LoginPage() {
               >
                 Usar outro número
               </button>
-            </div>
+            </form>
           )
         ) : (
-          <div className="flex flex-col gap-3">
+          <form
+            className="flex flex-col gap-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleEmailSubmit();
+            }}
+          >
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-ivory-muted">E-mail</label>
+              <label htmlFor="login-email" className="text-xs font-medium text-ivory-muted">
+                E-mail
+              </label>
               <input
+                id="login-email"
+                name="email"
                 type="email"
+                autoComplete="email"
                 placeholder="voce@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -203,25 +306,59 @@ export default function LoginPage() {
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-ivory-muted">Senha</label>
+              <label htmlFor="login-password" className="text-xs font-medium text-ivory-muted">
+                Senha
+              </label>
               <input
+                id="login-password"
+                name="password"
                 type="password"
+                autoComplete={emailMode === "criar" ? "new-password" : "current-password"}
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="rounded-xl border border-border bg-surface px-4 py-3 text-sm text-ivory outline-none focus-visible:ring-2 focus-visible:ring-gold"
               />
             </div>
-            <Button
-              onClick={handleEmailLogin}
-              disabled={busy || !email || password.length < 6}
-            >
-              Entrar
+            <Button type="submit" disabled={busy || !email || password.length < 6}>
+              {emailMode === "criar" ? "Criar conta" : "Entrar"}
             </Button>
-          </div>
+            <div className="flex items-center justify-between text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  setEmailMode((m) => (m === "entrar" ? "criar" : "entrar"));
+                  setError(null);
+                  setNotice(null);
+                }}
+                className="text-gold-light transition-opacity hover:opacity-80"
+              >
+                {emailMode === "criar" ? "Já tenho conta" : "Criar uma conta"}
+              </button>
+              {emailMode === "entrar" && (
+                <button
+                  type="button"
+                  onClick={handlePasswordReset}
+                  disabled={busy}
+                  className="text-ivory-muted transition-colors hover:text-ivory disabled:opacity-40"
+                >
+                  Esqueci a senha
+                </button>
+              )}
+            </div>
+          </form>
         )}
 
-        {error && <p className="text-xs text-danger">{error}</p>}
+        {error && (
+          <p role="alert" className="text-xs text-danger">
+            {error}
+          </p>
+        )}
+        {notice && (
+          <p role="status" className="text-xs text-success">
+            {notice}
+          </p>
+        )}
 
         <div className="flex items-center gap-3 text-xs text-ivory-muted">
           <div className="h-px flex-1 bg-border" />
