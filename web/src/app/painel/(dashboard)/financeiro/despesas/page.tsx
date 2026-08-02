@@ -1,18 +1,18 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CheckSquare, DollarSign, Pencil, Plus, Repeat, Tag, Trash2, X } from "lucide-react";
+import { CheckSquare, DollarSign, Pencil, Plus, Repeat, Tag, Trash2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
-import { formatBRL, formatDatePtBR } from "@/lib/format";
+import { Modal } from "@/components/ui/modal";
+import { formatBRL, formatDateShortPtBR } from "@/lib/format";
 import {
   expenseCategories,
   monthExpenses,
+  type Expense,
   type ExpensePaymentMethod,
 } from "@/lib/mock-data";
-
-type Expense = (typeof monthExpenses)[number];
 
 const PAYMENT_METHODS: ExpensePaymentMethod[] = ["Pix", "Boleto", "Cartão", "Transferência"];
 
@@ -21,7 +21,7 @@ const emptyForm = {
   category: expenseCategories[0],
   supplier: "",
   value: "",
-  date: "2026-07-31",
+  date: todayISO(),
   payment: "Pix" as ExpensePaymentMethod,
   recurring: false,
   observations: "",
@@ -32,6 +32,15 @@ export default function DespesasPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const [formError, setFormError] = useState<string | null>(null);
+  /** Exclusão pedia confirmação em Reservas mas apagava lançamento num clique. */
+  const [pendingDelete, setPendingDelete] = useState<Expense | null>(null);
+
+  // A tabela saía na ordem do array: 05, 10, 12, 08, 15... visivelmente fora de ordem.
+  const sorted = useMemo(
+    () => [...expenses].sort((a, b) => b.date.localeCompare(a.date)),
+    [expenses]
+  );
 
   const total = expenses.reduce((s, e) => s + e.value, 0);
   const recurringTotal = expenses
@@ -52,7 +61,8 @@ export default function DespesasPage() {
 
   function openModal() {
     setEditingId(null);
-    setForm(emptyForm);
+    setForm({ ...emptyForm, date: todayISO() });
+    setFormError(null);
     setModalOpen(true);
   }
 
@@ -66,23 +76,37 @@ export default function DespesasPage() {
       date: expense.date,
       payment: expense.payment,
       recurring: expense.recurring,
-      observations: "",
+      observations: expense.observations ?? "",
     });
+    setFormError(null);
     setModalOpen(true);
   }
 
   function saveExpense() {
     const value = Number(form.value);
-    if (!form.description || !value) return;
+
+    /* Antes o clique simplesmente não fazia nada: sem mensagem, com o botão
+     * habilitado. E valor negativo passava. */
+    if (!form.description.trim()) {
+      setFormError("Informe a descrição do lançamento.");
+      return;
+    }
+    if (!Number.isFinite(value) || value <= 0) {
+      setFormError("Informe um valor maior que zero.");
+      return;
+    }
+    setFormError(null);
 
     const fields = {
       category: form.category,
-      description: form.description,
-      supplier: form.supplier || "—",
+      description: form.description.trim(),
+      supplier: form.supplier.trim() || "—",
       value,
       date: form.date,
       payment: form.payment,
       recurring: form.recurring,
+      // O textarea era preenchido e o valor descartado no salvamento.
+      observations: form.observations.trim() || undefined,
     };
 
     setExpenses((prev) =>
@@ -93,8 +117,10 @@ export default function DespesasPage() {
     setModalOpen(false);
   }
 
-  function removeExpense(id: string) {
-    setExpenses((prev) => prev.filter((e) => e.id !== id));
+  function confirmRemove() {
+    if (!pendingDelete) return;
+    setExpenses((prev) => prev.filter((e) => e.id !== pendingDelete.id));
+    setPendingDelete(null);
   }
 
   return (
@@ -161,13 +187,13 @@ export default function DespesasPage() {
             </tr>
           </thead>
           <tbody>
-            {expenses.map((e) => (
+            {sorted.map((e) => (
               <tr
                 key={e.id}
                 className="border-b border-border/60 transition-colors last:border-0 hover:bg-surface-raised/60"
               >
                 <td className="whitespace-nowrap px-4 py-3 text-ivory-muted md:px-6">
-                  {formatDatePtBR(e.date).split(",")[0]}
+                  {formatDateShortPtBR(e.date)}
                 </td>
                 <td className="px-4 py-3 text-ivory">
                   {e.description}
@@ -194,7 +220,7 @@ export default function DespesasPage() {
                     </button>
                     <button
                       aria-label="Excluir"
-                      onClick={() => removeExpense(e.id)}
+                      onClick={() => setPendingDelete(e)}
                       className="flex h-7 w-7 items-center justify-center rounded-lg text-ivory-muted/70 transition-colors hover:bg-danger/10 hover:text-danger"
                     >
                       <Trash2 size={13} />
@@ -204,136 +230,173 @@ export default function DespesasPage() {
               </tr>
             ))}
           </tbody>
+          <tfoot>
+            <tr className="border-t border-border">
+              <td className="px-4 py-3 text-xs uppercase tracking-wide text-ivory-muted md:px-6" colSpan={5}>
+                Total do mês
+              </td>
+              <td className="whitespace-nowrap px-4 py-3 text-right font-display font-semibold text-ivory">
+                {formatBRL(total)}
+              </td>
+              <td className="md:px-6" />
+            </tr>
+          </tfoot>
         </table>
       </Card>
 
-      {modalOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
-          onClick={() => setModalOpen(false)}
-        >
-          <Card
-            className="w-full max-w-xl md:p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-ivory">
-                {editingId ? "Editar Despesa" : "Nova Despesa"}
-              </h2>
-              <button
-                aria-label="Fechar"
-                onClick={() => setModalOpen(false)}
-                className="flex h-7 w-7 items-center justify-center rounded-lg text-ivory-muted transition-colors hover:bg-surface-raised hover:text-ivory"
-              >
-                <X size={16} />
-              </button>
-            </div>
+      <Modal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={editingId ? "Editar Despesa" : "Nova Despesa"}
+        className="max-w-xl"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={saveExpense}>Salvar</Button>
+          </>
+        }
+      >
+        <div className="grid gap-4 md:grid-cols-2">
+          <label className="flex flex-col gap-1 text-xs text-ivory-muted md:col-span-2">
+            Descrição *
+            <input
+              value={form.description}
+              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+              placeholder="Ex: Aluguel do salão, conta de energia"
+              className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
+            />
+          </label>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <label className="flex flex-col gap-1 text-xs text-ivory-muted md:col-span-2">
-                Descrição *
-                <input
-                  value={form.description}
-                  onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                  placeholder="Ex: Aluguel do salão, conta de energia"
-                  className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
-                />
-              </label>
+          <label className="flex flex-col gap-1 text-xs text-ivory-muted">
+            Categoria *
+            <select
+              value={form.category}
+              onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
+              className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
+            >
+              {expenseCategories.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </label>
 
-              <label className="flex flex-col gap-1 text-xs text-ivory-muted">
-                Categoria *
-                <select
-                  value={form.category}
-                  onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
-                  className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
-                >
-                  {expenseCategories.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-              </label>
+          <label className="flex flex-col gap-1 text-xs text-ivory-muted">
+            Fornecedor / Beneficiário
+            <input
+              value={form.supplier}
+              onChange={(e) => setForm((f) => ({ ...f, supplier: e.target.value }))}
+              placeholder="Ex: Imobiliária, concessionária"
+              className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
+            />
+          </label>
 
-              <label className="flex flex-col gap-1 text-xs text-ivory-muted">
-                Fornecedor / Beneficiário
-                <input
-                  value={form.supplier}
-                  onChange={(e) => setForm((f) => ({ ...f, supplier: e.target.value }))}
-                  placeholder="Ex: Imobiliária, concessionária"
-                  className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
-                />
-              </label>
+          <label className="flex flex-col gap-1 text-xs text-ivory-muted">
+            Valor (R$) *
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              value={form.value}
+              onChange={(e) => setForm((f) => ({ ...f, value: e.target.value }))}
+              placeholder="0"
+              className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
+            />
+          </label>
 
-              <label className="flex flex-col gap-1 text-xs text-ivory-muted">
-                Valor (R$) *
-                <input
-                  type="number"
-                  value={form.value}
-                  onChange={(e) => setForm((f) => ({ ...f, value: e.target.value }))}
-                  placeholder="0"
-                  className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
-                />
-              </label>
+          <label className="flex flex-col gap-1 text-xs text-ivory-muted">
+            Data
+            <input
+              type="date"
+              value={form.date}
+              onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
+              className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
+            />
+          </label>
 
-              <label className="flex flex-col gap-1 text-xs text-ivory-muted">
-                Data
-                <input
-                  type="date"
-                  value={form.date}
-                  onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
-                  className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
-                />
-              </label>
+          <label className="flex flex-col gap-1 text-xs text-ivory-muted">
+            Forma de pagamento
+            <select
+              value={form.payment}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, payment: e.target.value as ExpensePaymentMethod }))
+              }
+              className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
+            >
+              {PAYMENT_METHODS.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+          </label>
 
-              <label className="flex flex-col gap-1 text-xs text-ivory-muted">
-                Forma de pagamento
-                <select
-                  value={form.payment}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, payment: e.target.value as ExpensePaymentMethod }))
-                  }
-                  className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
-                >
-                  {PAYMENT_METHODS.map((p) => (
-                    <option key={p} value={p}>
-                      {p}
-                    </option>
-                  ))}
-                </select>
-              </label>
+          <label className="flex items-center gap-2 text-sm text-ivory md:col-span-2">
+            <input
+              type="checkbox"
+              checked={form.recurring}
+              onChange={(e) => setForm((f) => ({ ...f, recurring: e.target.checked }))}
+              className="h-4 w-4 rounded border-border accent-gold"
+            />
+            Recorrente (repete todo mês — entra como custo fixo no DRE)
+          </label>
 
-              <label className="flex items-center gap-2 text-sm text-ivory md:col-span-2">
-                <input
-                  type="checkbox"
-                  checked={form.recurring}
-                  onChange={(e) => setForm((f) => ({ ...f, recurring: e.target.checked }))}
-                  className="h-4 w-4 rounded border-border accent-gold"
-                />
-                Recorrente (repete todo mês)
-              </label>
+          <label className="flex flex-col gap-1 text-xs text-ivory-muted md:col-span-2">
+            Observações
+            <textarea
+              value={form.observations}
+              onChange={(e) => setForm((f) => ({ ...f, observations: e.target.value }))}
+              placeholder="Notas internas sobre este lançamento (opcional)"
+              rows={2}
+              className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
+            />
+          </label>
 
-              <label className="flex flex-col gap-1 text-xs text-ivory-muted md:col-span-2">
-                Observações
-                <textarea
-                  value={form.observations}
-                  onChange={(e) => setForm((f) => ({ ...f, observations: e.target.value }))}
-                  placeholder="Notas internas sobre este lançamento (opcional)"
-                  rows={2}
-                  className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
-                />
-              </label>
-            </div>
-
-            <div className="mt-5 flex justify-end gap-2">
-              <Button variant="ghost" onClick={() => setModalOpen(false)}>
-                Cancelar
-              </Button>
-              <Button onClick={saveExpense}>Salvar</Button>
-            </div>
-          </Card>
+          {formError && (
+            <p role="alert" className="text-xs text-danger md:col-span-2">
+              {formError}
+            </p>
+          )}
         </div>
-      )}
+      </Modal>
+
+      <Modal
+        open={pendingDelete !== null}
+        onClose={() => setPendingDelete(null)}
+        title="Excluir lançamento"
+        description={pendingDelete?.description}
+        className="max-w-md"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setPendingDelete(null)}>
+              Manter
+            </Button>
+            <Button
+              className="bg-danger text-white hover:bg-danger/90"
+              onClick={confirmRemove}
+            >
+              Excluir
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-ivory-muted">
+          {pendingDelete
+            ? `${formatBRL(pendingDelete.value)} · ${pendingDelete.category} · ${formatDateShortPtBR(pendingDelete.date)}`
+            : ""}
+          . Esta ação não pode ser desfeita e altera o resultado do mês.
+        </p>
+      </Modal>
+
     </div>
   );
+}
+
+/** Data de hoje em ISO. O formulário abria fixo em 2026-07-31. */
+function todayISO() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }

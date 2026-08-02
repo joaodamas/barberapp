@@ -12,11 +12,12 @@ import {
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
-import { formatBRL } from "@/lib/format";
+import { formatBRL, safeDiv } from "@/lib/format";
 import {
   clientRecurrence,
   type ClientRecurrenceStatus,
   hourlyHeatmap,
+  MAX_MONTH_OFFSET,
   monthKpis,
   noShowStats,
   PERIOD_MONTHS,
@@ -134,34 +135,55 @@ export default function NumerosPage() {
    * média mensal, senão um trimestre teria 180% de ocupação. */
   const months = PERIOD_MONTHS[period];
   const back = Math.abs(offset);
+  /* O DRE limita a navegação com MAX_MONTH_OFFSET; aqui era ilimitada — dava
+   * para chegar a "Janeiro de 1524" com os dados repetindo a cada 12 meses. */
+  const maxOffsetForPeriod = Math.floor((MAX_MONTH_OFFSET + 1) / months) - 1;
   const factor = periodFactor(period, back);
   const prevFactor = periodFactor(period, back + 1);
   const monthlyAvg = factor / months;
   const prevMonthlyAvg = prevFactor / months;
 
-  const clamp = (v: number, max = 100) => Math.min(Math.round(v * 10) / 10, max);
+  const clamp = (v: number, max = 100) =>
+    Math.min(Math.max(Math.round(v * 10) / 10, 0), max);
+
+  /** Faltas sobem quando a agenda enche; a relação é fraca, não inversa. */
+  const noShowRateFor = (avg: number) => clamp(monthKpis.noShowPct * (0.85 + 0.15 * avg));
 
   const kpis = {
     revenue: Math.round(monthKpis.revenue * factor),
     appointments: Math.round(monthKpis.appointments * factor),
     occupancyPct: clamp(monthKpis.occupancyPct * monthlyAvg),
-    noShowPct: clamp(monthKpis.noShowPct / monthlyAvg),
+    /* No-show é contagem ÷ agendamentos, não taxa dividida por fator de
+     * receita — isso fazia a falta "cair" sempre que o faturamento subia. */
+    noShowPct: noShowRateFor(monthlyAvg),
   };
   const prevKpis = {
     revenue: Math.round(monthKpis.revenue * prevFactor),
     appointments: Math.round(monthKpis.appointments * prevFactor),
     occupancyPct: clamp(monthKpis.occupancyPct * prevMonthlyAvg),
-    noShowPct: clamp(monthKpis.noShowPct / prevMonthlyAvg),
+    noShowPct: noShowRateFor(prevMonthlyAvg),
   };
   // Ticket médio é derivado — assim nunca fica inconsistente com receita/atendimentos.
-  const avgTicket = Math.round(kpis.revenue / kpis.appointments);
-  const prevAvgTicket = Math.round(prevKpis.revenue / prevKpis.appointments);
+  const avgTicket = Math.round(safeDiv(kpis.revenue, kpis.appointments));
+  const prevAvgTicket = Math.round(safeDiv(prevKpis.revenue, prevKpis.appointments));
 
   const periodServices = topServices.map((s) => ({
     ...s,
     count: Math.round(s.count * factor),
     revenue: Math.round(s.revenue * factor),
   }));
+
+  /* O card de insight dizia "Sexta e sábado... 90%+" fixo no JSX, idêntico em
+   * qualquer período. Agora sai do próprio mapa de calor. */
+  const heatCells = hourlyHeatmap.days.flatMap((day, i) =>
+    hourlyHeatmap.values[i].map((basePct, j) => ({
+      day,
+      hour: hourlyHeatmap.hours[j],
+      pct: Math.min(Math.round(basePct * monthlyAvg), 100),
+    }))
+  );
+  const peak = heatCells.reduce((a, b) => (b.pct > a.pct ? b : a), heatCells[0]);
+  const idle = heatCells.reduce((a, b) => (b.pct < a.pct ? b : a), heatCells[0]);
 
   const periodNoShow = {
     noShowCount: Math.round(noShowStats.noShowCount * factor),
@@ -186,7 +208,7 @@ export default function NumerosPage() {
                 className={
                   "flex-1 rounded-lg py-2 text-sm font-medium transition-colors md:px-5 md:py-2 " +
                   (period === p
-                    ? "bg-gold text-bg"
+                    ? "bg-gold text-ivory"
                     : "text-ivory-muted hover:text-ivory")
                 }
               >
@@ -197,8 +219,9 @@ export default function NumerosPage() {
           <div className="flex items-center gap-1 text-sm text-ivory-muted">
             <button
               aria-label="Período anterior"
-              onClick={() => setOffset((o) => o - 1)}
-              className="flex h-7 w-7 items-center justify-center rounded-lg transition-colors hover:bg-surface-raised hover:text-ivory"
+              disabled={back >= maxOffsetForPeriod}
+              onClick={() => setOffset((o) => Math.max(o - 1, -maxOffsetForPeriod))}
+              className="flex h-7 w-7 items-center justify-center rounded-lg transition-colors hover:bg-surface-raised hover:text-ivory disabled:opacity-30 disabled:hover:bg-transparent"
             >
               <ChevronLeft size={16} />
             </button>
@@ -329,7 +352,7 @@ export default function NumerosPage() {
                   return (
                     <div
                       key={`${day}-${j}`}
-                      className={`flex h-9 items-center justify-center rounded-lg text-xs font-medium text-bg transition-colors md:h-12 md:text-sm ${heatColor(pct)}`}
+                      className={`flex h-9 items-center justify-center rounded-lg text-xs font-medium text-ivory transition-colors md:h-12 md:text-sm ${heatColor(pct)}`}
                     >
                       {pct}%
                     </div>
@@ -352,10 +375,13 @@ export default function NumerosPage() {
         <div className="flex flex-col gap-2 md:grid md:grid-cols-2 md:gap-4">
           <Card className="flex flex-col gap-1 md:gap-2 md:p-6">
             <p className="text-sm text-ivory md:text-base">
-              Sexta e sábado à tarde são o horário nobre — 90%+ de ocupação.
+              {peak.day} às {peak.hour} é o horário mais cheio do período —{" "}
+              {peak.pct}% de ocupação.
             </p>
             <p className="text-xs text-ivory-muted md:text-sm">
-              Considere abrir mais horários nesses blocos.
+              {idle.pct < 30
+                ? `${idle.day} às ${idle.hour} é a maior brecha (${idle.pct}%) — bom alvo para promoção.`
+                : "A agenda está distribuída: não há brecha evidente para promover."}
             </p>
           </Card>
           <Card className="flex flex-col gap-1 md:gap-2 md:p-6">

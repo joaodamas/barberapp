@@ -78,7 +78,7 @@ export default function MensalPage() {
                     className={
                       "flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold transition-colors md:h-11 md:w-11 md:text-sm " +
                       (count > 0
-                        ? "bg-gold text-bg"
+                        ? "bg-gold text-ivory"
                         : "border border-border text-ivory-muted/50")
                     }
                   >
@@ -103,7 +103,7 @@ export default function MensalPage() {
                 key={f}
                 onClick={() => setFilter(f)}
                 className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                  f === filter ? "bg-gold text-bg" : "text-ivory-muted hover:text-ivory"
+                  f === filter ? "bg-gold text-ivory" : "text-ivory-muted hover:text-ivory"
                 }`}
               >
                 {FILTER_LABELS[f]}

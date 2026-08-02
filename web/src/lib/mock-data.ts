@@ -1,4 +1,5 @@
 import type { Booking, Service, TimeSlot } from "./types";
+import { splitSale, taxRatePct } from "./business-rules";
 
 /** Dados de demonstração — serão substituídos por Firestore nos próximos épicos. */
 
@@ -173,19 +174,14 @@ export const todayBookings: Booking[] = [
   },
 ];
 
+/**
+ * Faturado, atendimentos, ocupação e caixa do dia são DERIVADOS das reservas
+ * na própria tela Hoje — eram quatro literais que não batiam com a agenda
+ * exibida logo abaixo. Só a capacidade da jornada é dado de entrada.
+ */
 export const todayKpis = {
-  revenue: 195,
-  appointments: 3,
-  occupancyPct: 68,
   /** Total de horários da jornada de hoje (ver `mockSlotsForDay`). */
   totalSlots: 12,
-};
-
-/** Caixa do dia — separado do fechamento mensal (Financeiro). Vive na tela Hoje. */
-export const cashToday = {
-  pix: 120,
-  cartao: 45,
-  dinheiro: 30,
 };
 
 export function getServicesByIds(ids: string[]): Service[] {
@@ -209,20 +205,9 @@ export const needsYou = [
   },
 ];
 
-/* ---- Regras de negócio compartilhadas (comissão, imposto, gateways) ----
- * Fonte única — Financeiro (DRE), Loja e a calculadora de precificação
- * todos leem daqui, pra nunca ficarem com números descolados um do outro. */
-
-export const businessRates = {
-  /** Comissão do profissional sobre o lucro da venda (produtos e serviços). */
-  commissionRatePct: 15,
-  /** Imposto (Simples Nacional, alíquota efetiva estimada) sobre o lucro. */
-  taxRatePct: 6,
-};
-
-export const commissionRatePct = businessRates.commissionRatePct;
-
-/* ---- Financeiro: gateways de pagamento ---- */
+/* ---- Financeiro: gateways de pagamento ----
+ * Comissão, imposto e políticas moram em `lib/business-rules.ts` — este módulo
+ * é dado de demonstração, aquele é regra de negócio configurável. */
 
 export const paymentGateways = [
   {
@@ -269,9 +254,26 @@ export const productMovements = [
   { productId: "prod_4", purchased: 5, purchaseCost: 100, sold: 4, soldRevenue: 130 },
 ];
 
+export const storeRevenueThisMonth = productMovements.reduce((s, m) => s + m.soldRevenue, 0);
+export const cmvThisMonth = productMovements.reduce((s, m) => s + m.purchaseCost, 0);
+
 /* ---- Financeiro: despesas ---- */
 
 export type ExpensePaymentMethod = "Pix" | "Boleto" | "Cartão" | "Transferência";
+
+export type Expense = {
+  id: string;
+  category: string;
+  description: string;
+  supplier: string;
+  value: number;
+  date: string;
+  payment: ExpensePaymentMethod;
+  /** Recorrente = custo FIXO no DRE. Eventual = despesa operacional variável. */
+  recurring: boolean;
+  /** Nota interna do lançamento. Era coletada no formulário e descartada. */
+  observations?: string;
+};
 
 export const expenseCategories = [
   "Aluguel",
@@ -284,7 +286,7 @@ export const expenseCategories = [
   "Outras despesas",
 ];
 
-export const monthExpenses = [
+export const monthExpenses: Expense[] = [
   {
     id: "exp_1",
     category: "Aluguel",
@@ -387,25 +389,138 @@ export const monthExpenses = [
   },
 ];
 
-/* ---- Financeiro: resultado do mês ---- */
+/* ---- Mensal (mensalistas) ---- */
 
-const operatingExpenses = monthExpenses.reduce((sum, e) => sum + e.value, 0);
-const cmvFromProducts = productMovements.reduce((s, m) => s + m.purchaseCost, 0);
-const storeMarginPct = 0.6; // margem média dos produtos da loja (ver `products`)
-const storeRevenueThisMonth = productMovements.reduce((s, m) => s + m.soldRevenue, 0);
-const storeProfitThisMonth = storeRevenueThisMonth * storeMarginPct;
+export type SubscriberStatus = "ativo" | "suspenso" | "cancelado";
 
-export const dre = {
-  grossRevenue: 12480,
-  gatewayFees: 210,
-  /** CMV = soma do custo de compra dos produtos vendidos (ver `productMovements`). */
-  cmv: cmvFromProducts,
-  /** Comissão = lucro da loja × comissão do profissional — nunca hardcoded. */
-  commissions: Math.round(storeProfitThisMonth * (businessRates.commissionRatePct / 100)),
-  operatingExpenses,
+export const subscribers: Array<{
+  id: string;
+  name: string;
+  plan: string;
+  status: SubscriberStatus;
+  nextCharge: string;
+  dueStage?: "D-5" | "D-3" | "D-1" | "D0" | "D+1" | "D+3" | "D+5";
+}> = [
+  { id: "sub_1", name: "João Damas", plan: "Corte ilimitado", status: "ativo", nextCharge: "2026-08-05" },
+  { id: "sub_2", name: "Marcos Silva", plan: "2 cortes + 1 barba", status: "ativo", nextCharge: "2026-08-02", dueStage: "D-3" },
+  { id: "sub_3", name: "Rafael Souza", plan: "Barba semanal", status: "suspenso", nextCharge: "2026-07-28", dueStage: "D+5" },
+  { id: "sub_4", name: "Carlos Eduardo", plan: "Corte ilimitado", status: "cancelado", nextCharge: "—" },
+  { id: "sub_5", name: "Tiago Moreira", plan: "Corte ilimitado", status: "ativo", nextCharge: "2026-08-09" },
+  { id: "sub_6", name: "Bruno Tavares", plan: "Corte ilimitado", status: "ativo", nextCharge: "2026-08-12" },
+  { id: "sub_7", name: "Diego Ramos", plan: "2 cortes + 1 barba", status: "ativo", nextCharge: "2026-08-15" },
+  { id: "sub_8", name: "Henrique Alves", plan: "Barba semanal", status: "ativo", nextCharge: "2026-08-18", dueStage: "D-5" },
+  { id: "sub_9", name: "Vitor Camargo", plan: "Barba semanal", status: "ativo", nextCharge: "2026-08-22" },
+];
+
+/**
+ * MRR derivado da lista de assinantes — antes eram dois literais (R$ 894 /
+ * R$ 1.043) exibidos logo acima de uma tabela que somava R$ 268.
+ *
+ * `contracted` = tudo que foi contratado (inclui suspensos, que voltam a pagar
+ * ao regularizar). `billed` = o que efetivamente entra este mês (só ativos).
+ */
+export const mrr = {
+  get billed() {
+    return subscribers
+      .filter((s) => s.status === "ativo")
+      .reduce((sum, s) => sum + planPrice(s.plan), 0);
+  },
+  get contracted() {
+    return subscribers
+      .filter((s) => s.status !== "cancelado")
+      .reduce((sum, s) => sum + planPrice(s.plan), 0);
+  },
 };
 
-export const breakEven = { day: 14, totalDays: 31 };
+function planPrice(planName: string) {
+  return plans.find((p) => p.name === planName)?.price ?? 0;
+}
+
+/* ---- Planos (cliente) ---- */
+
+export const plans = [
+  {
+    id: "plan_ilimitado",
+    name: "Corte ilimitado",
+    price: 149,
+    priceAvulso: 90,
+    description: "Cortes ilimitados no mês, sem contar hora",
+    highlight: true,
+    unlimited: true,
+  },
+  {
+    id: "plan_corte_barba",
+    name: "2 cortes + 1 barba",
+    price: 119,
+    priceAvulso: 215,
+    description: "2 cortes e 1 barba por mês",
+    highlight: false,
+  },
+  {
+    id: "plan_barba",
+    name: "Barba semanal",
+    price: 99,
+    priceAvulso: 140,
+    description: "4 barbas por mês, uma por semana",
+    highlight: false,
+  },
+];
+
+/**
+ * De onde vem o dinheiro do mês.
+ *
+ * "Mensalistas" DERIVA da lista de assinantes — era um literal (R$ 894) que
+ * não tinha relação com a tabela exibida na tela Mensal (R$ 268 de ativos).
+ */
+export const revenueBreakdown = [
+  { label: "Serviços avulsos", value: 10200 },
+  { label: "Produtos (loja)", value: storeRevenueThisMonth },
+  { label: "Mensalistas", value: mrr.billed },
+  { label: "Encaixes", value: 436 },
+];
+
+/** Receita bruta do mês = soma de todas as fontes. Nada de literal solto. */
+export const grossRevenueThisMonth = revenueBreakdown.reduce((sum, r) => sum + r.value, 0);
+
+/** Receita que entra pelo balcão — tudo menos mensalidade (cobrada por assinatura). */
+export const cashRevenueThisMonth = revenueBreakdown
+  .filter((r) => r.label !== "Mensalistas")
+  .reduce((sum, r) => sum + r.value, 0);
+
+/* ---- Financeiro: resultado do mês ---- */
+
+/** Despesa recorrente = custo FIXO. Não recorrente = operacional eventual.
+ *  O DRE tratava as duas como "fixa", inflando o custo fixo em ~45% e
+ *  distorcendo o ponto de equilíbrio. */
+export const fixedExpensesTotal = monthExpenses
+  .filter((e) => e.recurring)
+  .reduce((sum, e) => sum + e.value, 0);
+
+export const variableOperatingExpensesTotal = monthExpenses
+  .filter((e) => !e.recurring)
+  .reduce((sum, e) => sum + e.value, 0);
+
+const cmvFromProducts = cmvThisMonth;
+
+
+/** Comissão do profissional sobre o lucro bruto — rateio do PRD §10. */
+const storeSplit = splitSale({ price: storeRevenueThisMonth, cost: cmvFromProducts });
+
+export const dre = {
+  grossRevenue: grossRevenueThisMonth,
+  gatewayFees: 210,
+  /** CMV = custo de compra dos produtos vendidos (ver `productMovements`). */
+  cmv: cmvFromProducts,
+  /** Comissão = lucro bruto da loja × %barbeiro — nunca hardcoded. */
+  commissions: Math.round(storeSplit.commission),
+  fixedExpenses: fixedExpensesTotal,
+  variableOperatingExpenses: variableOperatingExpensesTotal,
+  /** Alíquota efetiva do Simples sobre o lucro — o DRE não tinha linha de imposto. */
+  taxRatePct,
+};
+
+/** Soma de todas as despesas do mês, fixas e eventuais. */
+export const operatingExpenses = fixedExpensesTotal + variableOperatingExpensesTotal;
 
 /* ---- Séries por período (para os filtros de DRE e Números) ----
  *
@@ -419,10 +534,21 @@ const MONTH_REVENUE_FACTORS = [
   1, 0.89, 0.94, 1.07, 0.82, 0.91, 0.97, 1.12, 0.86, 0.93, 1.04, 0.88,
 ];
 
-/** Fator de receita de um mês relativo a julho/2026. `offset` 0 = julho, 1 = junho... */
+/**
+ * Fator de receita de um mês relativo a julho/2026. `offset` 0 = julho, 1 = junho...
+ *
+ * Além dos 12 meses tabelados, aplica uma tendência de crescimento suave por
+ * ano — antes o índice era módulo 12 puro, então `periodFactor("ano", 0)` e
+ * `periodFactor("ano", 1)` somavam exatamente o mesmo conjunto e a variação
+ * anual aparecia sempre como "— vs período anterior".
+ */
+const YEARLY_GROWTH = 0.12;
+
 export function monthRevenueFactor(offset: number) {
-  const i = Math.abs(Math.round(offset)) % MONTH_REVENUE_FACTORS.length;
-  return MONTH_REVENUE_FACTORS[i];
+  const months = Math.abs(Math.round(offset));
+  const i = months % MONTH_REVENUE_FACTORS.length;
+  const yearsBack = Math.floor(months / MONTH_REVENUE_FACTORS.length);
+  return MONTH_REVENUE_FACTORS[i] / Math.pow(1 + YEARLY_GROWTH, yearsBack);
 }
 
 const BASE_MONTH = { year: 2026, month: 7 };
@@ -460,23 +586,16 @@ export function periodFactor(period: PeriodKey, offset: number) {
 }
 
 
-export const revenueBreakdown = [
-  { label: "Serviços avulsos", value: 10200 },
-  { label: "Produtos (loja)", value: 950 },
-  { label: "Mensalistas", value: 894 },
-  { label: "Encaixes", value: 436 },
-];
+/**
+ * Histórico diário de caixa de julho — fechado aos domingos.
+ *
+ * O total DERIVA da receita bruta: caixa do dia a dia = receita bruta menos as
+ * mensalidades, que são cobradas por assinatura e não passam pelo balcão.
+ * Antes esta série somava R$ 6.210 enquanto o DRE dizia R$ 12.480 no mesmo mês
+ * — os dois números apareciam lado a lado na tela de Financeiro.
+ */
+export const MONTH_APPOINTMENTS = 168;
 
-export const sixMonthFlow = [
-  { month: "Fev", receita: 8200, despesa: 2200 },
-  { month: "Mar", receita: 8900, despesa: 2350 },
-  { month: "Abr", receita: 9600, despesa: 2450 },
-  { month: "Mai", receita: 10400, despesa: 2600 },
-  { month: "Jun", receita: 11200, despesa: 2850 },
-  { month: "Jul", receita: 12480, despesa: 3060 },
-];
-
-/** Histórico diário de caixa — base pra filtros e conferência dia a dia (fechado aos domingos). */
 export const dailyCashHistory: Array<{
   date: string;
   pix: number;
@@ -486,26 +605,50 @@ export const dailyCashHistory: Array<{
   appointments: number;
 }> = [];
 
-for (let day = 1; day <= 31; day++) {
-  const date = `2026-07-${String(day).padStart(2, "0")}`;
-  const dow = new Date(`${date}T00:00:00`).getDay();
-  if (dow === 0) continue; // fechado aos domingos
-  const weekendBoost = dow === 5 || dow === 6 ? 120 : 0;
-  const base = 150 + weekendBoost + (day % 5) * 20;
-  const pix = Math.round(base * 0.55);
-  const cartao = Math.round(base * 0.3);
-  const dinheiro = base - pix - cartao;
-  const appointments = 2 + (dow === 5 || dow === 6 ? 2 : 0) + (day % 3);
-  dailyCashHistory.push({ date, pix, cartao, dinheiro, total: pix + cartao + dinheiro, appointments });
+{
+  const openDays: Array<{ date: string; weight: number; dow: number }> = [];
+  for (let day = 1; day <= 31; day++) {
+    const date = `2026-07-${String(day).padStart(2, "0")}`;
+    const dow = new Date(`${date}T00:00:00`).getDay();
+    if (dow === 0) continue; // fechado aos domingos
+    const weekendBoost = dow === 5 || dow === 6 ? 120 : 0;
+    openDays.push({ date, dow, weight: 150 + weekendBoost + (day % 5) * 20 });
+  }
+
+  const totalWeight = openDays.reduce((sum, d) => sum + d.weight, 0);
+  const totalAppointmentWeight = openDays.length;
+
+  let distributedRevenue = 0;
+  let distributedAppointments = 0;
+
+  openDays.forEach((d, index) => {
+    const isLast = index === openDays.length - 1;
+
+    // O último dia absorve o arredondamento, para o total fechar exato.
+    const total = isLast
+      ? cashRevenueThisMonth - distributedRevenue
+      : Math.round((cashRevenueThisMonth * d.weight) / totalWeight);
+    const appointments = isLast
+      ? MONTH_APPOINTMENTS - distributedAppointments
+      : Math.round(MONTH_APPOINTMENTS / totalAppointmentWeight);
+
+    distributedRevenue += total;
+    distributedAppointments += appointments;
+
+    const pix = Math.round(total * 0.55);
+    const cartao = Math.round(total * 0.3);
+    dailyCashHistory.push({
+      date: d.date,
+      pix,
+      cartao,
+      dinheiro: total - pix - cartao,
+      total,
+      appointments,
+    });
+  });
 }
 
 /* ---- Operacional (mês) ---- */
-
-export const operationalStats = {
-  occupancyPct: 61,
-  activeHours: 172,
-  revenue: 12480,
-};
 
 export const hourlyHeatmap = {
   days: ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"],
@@ -525,28 +668,21 @@ export const hourlyHeatmap = {
 export const commercialStats = {
   newSubscribers: 3,
   cancellations: 1,
-  avgTicket: 129,
   defaultAmount: 0,
   storeRevenue: storeRevenueThisMonth,
+  get activeSubscribers() {
+    return subscribers.filter((s) => s.status === "ativo").length;
+  },
 };
 
 /* ---- Números ---- */
 
 export const monthKpis = {
-  revenue: 12480,
-  appointments: 168,
-  avgTicket: 74,
+  /** Deriva da receita bruta — não repetir o número. */
+  revenue: grossRevenueThisMonth,
+  appointments: MONTH_APPOINTMENTS,
   occupancyPct: 61,
   noShowPct: 4.2,
-};
-
-/** Mesmos indicadores no período anterior — só pra calcular a variação (▲/▼). */
-export const previousMonthKpis = {
-  revenue: 11100,
-  appointments: 156,
-  avgTicket: 71,
-  occupancyPct: 57,
-  noShowPct: 6.1,
 };
 
 export const noShowStats = {
@@ -582,61 +718,6 @@ export const clientRecurrence: Array<{
 ];
 
 /** Meses disponíveis pra navegação de período (mock — 12 meses fixos). */
-export const availableMonths = [
-  "2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06",
-  "2026-07", "2026-08", "2026-09", "2026-10", "2026-11", "2026-12",
-];
-
-/* ---- Mensal (mensalistas) ---- */
-
-export const mrr = { billed: 894, contracted: 1043 };
-
-export type SubscriberStatus = "ativo" | "suspenso" | "cancelado";
-
-export const subscribers: Array<{
-  id: string;
-  name: string;
-  plan: string;
-  status: SubscriberStatus;
-  nextCharge: string;
-  dueStage?: "D-5" | "D-3" | "D-1" | "D0" | "D+1" | "D+3" | "D+5";
-}> = [
-  { id: "sub_1", name: "João Damas", plan: "Corte ilimitado", status: "ativo", nextCharge: "2026-08-05" },
-  { id: "sub_2", name: "Marcos Silva", plan: "2 cortes + 1 barba", status: "ativo", nextCharge: "2026-08-02", dueStage: "D-3" },
-  { id: "sub_3", name: "Rafael Souza", plan: "Barba semanal", status: "suspenso", nextCharge: "2026-07-28", dueStage: "D+5" },
-  { id: "sub_4", name: "Carlos Eduardo", plan: "Corte ilimitado", status: "cancelado", nextCharge: "—" },
-];
-
-/* ---- Planos (cliente) ---- */
-
-export const plans = [
-  {
-    id: "plan_ilimitado",
-    name: "Corte ilimitado",
-    price: 149,
-    priceAvulso: 90,
-    description: "Cortes ilimitados no mês, sem contar hora",
-    highlight: true,
-    unlimited: true,
-  },
-  {
-    id: "plan_corte_barba",
-    name: "2 cortes + 1 barba",
-    price: 119,
-    priceAvulso: 215,
-    description: "2 cortes e 1 barba por mês",
-    highlight: false,
-  },
-  {
-    id: "plan_barba",
-    name: "Barba semanal",
-    price: 99,
-    priceAvulso: 140,
-    description: "4 barbas por mês, uma por semana",
-    highlight: false,
-  },
-];
-
 /* ---- Financeiro: projeção de caixa (próximos 30 dias) ---- */
 
 /** Marcações avulsas já confirmadas na agenda pra agosto — dado real, não estimativa. */

@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, SlidersHorizontal, TrendingDown, TrendingUp, Wallet } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { KpiTile } from "@/components/ui/kpi-tile";
 import { formatBRL } from "@/lib/format";
+import { computeDre } from "@/lib/dre";
+import { taxRatePct as dreTaxRatePct } from "@/lib/business-rules";
 import {
-  dre,
   MAX_MONTH_OFFSET,
   monthExpenses,
   monthLabelFor,
@@ -47,23 +48,18 @@ export default function DrePage() {
   const f = monthRevenueFactor(monthOffset);
   const scale = (value: number) => Math.round(value * f);
 
-  const grossRevenue = scale(dre.grossRevenue);
-  const custoVariavelTotal = scale(dre.cmv + dre.gatewayFees + dre.commissions);
-  const margemContribuicao = grossRevenue - custoVariavelTotal;
-  const margemContribuicaoPct = (margemContribuicao / grossRevenue) * 100;
-  const payroll = 0;
-  const custoFixoTotal = dre.operatingExpenses + payroll;
-  const resultadoDoMes = margemContribuicao - custoFixoTotal;
+  const r = computeDre({ revenueFactor: f });
+  const {
+    grossRevenue,
+    variableCost: custoVariavelTotal,
+    contributionMargin: margemContribuicao,
+    contributionMarginPct: margemContribuicaoPct,
+    fixedCost: custoFixoTotal,
+    payroll,
+    result: resultadoDoMes,
+  } = r;
 
-  const scenario = useMemo(() => {
-    const factor = 1 + scenarioPct / 100;
-    const receita = grossRevenue * factor;
-    const custoVariavel = custoVariavelTotal * factor;
-    const margem = receita - custoVariavel;
-    const custoFixo = custoFixoTotal;
-    const resultado = margem - custoFixo;
-    return { receita, custoVariavel, margem, custoFixo, resultado };
-  }, [scenarioPct, grossRevenue, custoVariavelTotal, custoFixoTotal]);
+  const scenario = computeDre({ revenueFactor: f * (1 + scenarioPct / 100) });
 
   const servicosAvulsos = revenueBreakdown.find((r) => r.label === "Serviços avulsos")?.value ?? 0;
   const outrosServicos = servicosAvulsos - topServices.reduce((s, t) => s + t.revenue, 0);
@@ -113,17 +109,30 @@ export default function DrePage() {
   }));
 
   const variaveisTree: DreItem[] = [
-    { key: "var.gateway", label: "Taxas de gateway", value: scale(dre.gatewayFees) },
-    { key: "var.comissao", label: "Comissões de profissionais", value: scale(dre.commissions) },
+    { key: "var.gateway", label: "Taxas de gateway", value: r.gatewayFees },
+    { key: "var.comissao", label: "Comissões de profissionais", value: r.commissions },
   ];
 
-  // Despesa fixa não escala com a receita — é o que define o ponto de equilíbrio.
-  const fixasTree: DreItem[] = monthExpenses.map((e) => ({
-    key: `fixa.${e.id}`,
-    label: e.description,
-    value: e.value,
-    caption: e.category,
-  }));
+  /* Despesa fixa = recorrente. Antes TODA despesa entrava como fixa, inclusive
+   * impulsionamento no Instagram e revisão de máquina — o custo fixo ficava 45%
+   * inflado e o ponto de equilíbrio, errado. */
+  const fixasTree: DreItem[] = monthExpenses
+    .filter((e) => e.recurring)
+    .map((e) => ({
+      key: `fixa.${e.id}`,
+      label: e.description,
+      value: e.value,
+      caption: e.category,
+    }));
+
+  const eventuaisTree: DreItem[] = monthExpenses
+    .filter((e) => !e.recurring)
+    .map((e) => ({
+      key: `eventual.${e.id}`,
+      label: e.description,
+      value: e.value,
+      caption: e.category,
+    }));
 
   return (
     <div className="flex flex-col gap-6 pt-1 md:gap-8 md:pt-2">
@@ -202,7 +211,7 @@ export default function DrePage() {
         />
         <ExpandableGroup
           label="(−) Custo de Mercadoria Vendida"
-          value={scale(dre.cmv)}
+          value={r.cmv}
           items={cmvTree}
           open={open}
           toggle={toggle}
@@ -211,7 +220,7 @@ export default function DrePage() {
         />
         <ExpandableGroup
           label="(−) Despesas Variáveis"
-          value={scale(dre.gatewayFees + dre.commissions)}
+          value={r.gatewayFees + r.commissions}
           items={variaveisTree}
           open={open}
           toggle={toggle}
@@ -229,12 +238,21 @@ export default function DrePage() {
           </span>
         </div>
         <ExpandableGroup
-          label="(−) Despesas Fixas"
-          value={dre.operatingExpenses}
+          label="(−) Despesas Fixas (recorrentes)"
+          value={r.fixedExpenses}
           items={fixasTree}
           open={open}
           toggle={toggle}
           groupKey="fixas"
+          tone="danger"
+        />
+        <ExpandableGroup
+          label="(−) Despesas Operacionais Eventuais"
+          value={r.variableOperatingExpenses}
+          items={eventuaisTree}
+          open={open}
+          toggle={toggle}
+          groupKey="eventuais"
           tone="danger"
         />
         <div className="flex items-center justify-between py-1.5 pl-5">
@@ -246,6 +264,16 @@ export default function DrePage() {
         <div className="mt-1 flex items-center justify-between border-t border-border pt-2">
           <span className="text-ivory">(=) Custo Fixo Total</span>
           <span className="text-ivory">{formatBRL(custoFixoTotal)}</span>
+        </div>
+        <div className="mt-1 flex items-center justify-between border-t border-border pt-2">
+          <span className="text-ivory">(=) Resultado antes de impostos</span>
+          <span className="text-ivory">{formatBRL(r.resultBeforeTax)}</span>
+        </div>
+        <div className="flex items-center justify-between py-1.5 pl-5">
+          <span className="text-ivory-muted">
+            (−) Impostos <span className="text-xs">(Simples, {dreTaxRatePct}% sobre o resultado)</span>
+          </span>
+          <span className="font-medium text-danger">{formatBRL(r.tax)}</span>
         </div>
         <div className="flex items-center justify-between border-t border-border pt-3">
           <span className="font-semibold text-ivory">Resultado do Mês</span>
@@ -307,19 +335,19 @@ export default function DrePage() {
               </tr>
             </thead>
             <tbody>
-              <ScenarioRow label="Receita" atual={grossRevenue} simulado={scenario.receita} />
+              <ScenarioRow label="Receita" atual={grossRevenue} simulado={scenario.grossRevenue} />
               <ScenarioRow
                 label="Custo Variável Total"
                 atual={custoVariavelTotal}
-                simulado={scenario.custoVariavel}
+                simulado={scenario.variableCost}
                 invert
               />
-              <ScenarioRow label="Margem de Contribuição" atual={margemContribuicao} simulado={scenario.margem} />
-              <ScenarioRow label="Custo Fixo Total" atual={custoFixoTotal} simulado={scenario.custoFixo} invert />
+              <ScenarioRow label="Margem de Contribuição" atual={margemContribuicao} simulado={scenario.contributionMargin} />
+              <ScenarioRow label="Custo Fixo Total" atual={custoFixoTotal} simulado={scenario.fixedCost} invert />
               <ScenarioRow
                 label="Resultado do Mês"
                 atual={resultadoDoMes}
-                simulado={scenario.resultado}
+                simulado={scenario.result}
                 strong
               />
             </tbody>
@@ -427,42 +455,6 @@ function DreDetailRow({
           <DreDetailRow key={child.key} item={child} depth={depth + 1} open={open} toggle={toggle} tone={tone} />
         ))}
     </>
-  );
-}
-
-function KpiTile({
-  tone,
-  icon: Icon,
-  label,
-  value,
-  caption,
-}: {
-  tone: "success" | "danger" | "neutral";
-  icon: LucideIcon;
-  label: string;
-  value: string;
-  caption?: string;
-}) {
-  const toneBorder = {
-    success: "border-t-success",
-    danger: "border-t-danger",
-    neutral: "border-t-gold",
-  }[tone];
-  const toneText = {
-    success: "text-success",
-    danger: "text-danger",
-    neutral: "text-gold-light",
-  }[tone];
-
-  return (
-    <Card className={`flex flex-col gap-1 border-t-2 p-3 md:gap-1.5 md:p-5 ${toneBorder}`}>
-      <div className="flex items-center gap-1.5">
-        <Icon size={12} className={toneText} />
-        <p className="text-[10px] uppercase tracking-wide text-ivory-muted md:text-xs">{label}</p>
-      </div>
-      <p className="font-display text-lg font-semibold text-ivory md:text-2xl">{value}</p>
-      {caption && <p className="text-[10px] text-ivory-muted md:text-xs">{caption}</p>}
-    </Card>
   );
 }
 

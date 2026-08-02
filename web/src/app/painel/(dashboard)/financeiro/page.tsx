@@ -18,39 +18,41 @@ import type { LucideIcon } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
-import { formatBRL } from "@/lib/format";
+import { KpiTile, signTone } from "@/components/ui/kpi-tile";
+import { formatBRL, safePct } from "@/lib/format";
+import { computeDre, DRE_DAYS_IN_MONTH } from "@/lib/dre";
 import {
-  breakEven,
   cashProjection,
   commercialStats,
   dailyCashHistory,
-  dre,
   monthExpenses,
+  mrr,
   paymentGateways,
   revenueBreakdown,
 } from "@/lib/mock-data";
 
 const REVENUE_BAR_SHADES = ["bg-gold", "bg-gold/75", "bg-gold/50", "bg-gold/30"];
 
-function signTone(value: number): "success" | "danger" {
-  return value >= 0 ? "success" : "danger";
-}
-
 export default function FinanceiroPage() {
   const [gatewayId, setGatewayId] = useState(paymentGateways[0].id);
   const gateway = paymentGateways.find((g) => g.id === gatewayId) ?? paymentGateways[0];
 
-  const netRevenue = dre.grossRevenue - dre.gatewayFees;
-  const grossProfit = netRevenue - dre.cmv - dre.commissions;
-  const operatingResult = grossProfit - dre.operatingExpenses;
-  const marginPct = Math.round((operatingResult / dre.grossRevenue) * 100);
-  const breakEvenPct = Math.round((breakEven.day / breakEven.totalDays) * 100);
-  const totalExpenses = dre.grossRevenue - operatingResult;
-  const totalRevenueBreakdown = revenueBreakdown.reduce((s, r) => s + r.value, 0);
+  /* Mesmo cálculo que a tela de DRE usa — as duas liam a mesma base e faziam a
+   * conta cada uma do seu jeito. */
+  const r = computeDre();
+  const operatingResult = r.result;
+  const marginPct = Math.round(r.marginPct);
+  const totalExpenses = r.totalCost;
+  const breakEvenPct = r.breakEvenDay
+    ? Math.round(safePct(r.breakEvenDay, DRE_DAYS_IN_MONTH))
+    : 100;
+
+  const totalRevenueBreakdown = revenueBreakdown.reduce((s, item) => s + item.value, 0);
   const netGrowth = commercialStats.newSubscribers - commercialStats.cancellations;
   const cashFlowMonthTotal = dailyCashHistory.reduce((s, d) => s + d.total, 0);
   const expensesTotal = monthExpenses.reduce((s, e) => s + e.value, 0);
   const projectedResult = cashProjection.at(-1)?.cumulative ?? 0;
+  const activeSubscriberCount = commercialStats.activeSubscribers;
 
   return (
     <div className="flex flex-col gap-8 pt-1 md:gap-12 md:pt-2">
@@ -72,7 +74,13 @@ export default function FinanceiroPage() {
         <SectionHeader dot="bg-success" title="Financeiro" subtitle="Caixa e resultado do mês" />
 
         <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-4">
-          <KpiTile tone="neutral" icon={Wallet} label="Recebido" value={formatBRL(dre.grossRevenue)} />
+          <KpiTile
+            tone="neutral"
+            icon={Wallet}
+            label="Receita bruta"
+            value={formatBRL(r.grossRevenue)}
+            caption={`caixa ${formatBRL(cashFlowMonthTotal)} + mensalistas ${formatBRL(mrr.billed)}`}
+          />
           <KpiTile tone="danger" icon={TrendingDown} label="Despesas" value={formatBRL(totalExpenses)} />
           <KpiTile
             tone={signTone(operatingResult)}
@@ -86,10 +94,20 @@ export default function FinanceiroPage() {
         <Card className="flex flex-col gap-2 md:p-6">
           <div className="flex items-center justify-between text-sm md:text-base">
             <span className="text-ivory-muted">
-              Atingido no dia {breakEven.day} de {breakEven.totalDays}
+              {r.breakEvenDay
+                ? `Ponto de equilíbrio no dia ${r.breakEvenDay} de ${DRE_DAYS_IN_MONTH}`
+                : "Ponto de equilíbrio não atingido no mês"}
             </span>
-            <Pill tone="success">
-              <TrendingUp size={12} /> no verde
+            <Pill tone={operatingResult >= 0 ? "success" : "danger"}>
+              {operatingResult >= 0 ? (
+                <>
+                  <TrendingUp size={12} /> no verde
+                </>
+              ) : (
+                <>
+                  <TrendingDown size={12} /> no vermelho
+                </>
+              )}
             </Pill>
           </div>
           <div className="h-2 w-full overflow-hidden rounded-full bg-surface-raised">
@@ -99,8 +117,8 @@ export default function FinanceiroPage() {
             />
           </div>
           <p className="text-xs text-ivory-muted md:text-sm">
-            Recebido {formatBRL(dre.grossRevenue)} de {formatBRL(totalExpenses)} em
-            custos ({100 - Math.round((totalExpenses / dre.grossRevenue) * 100)}%).
+            {formatBRL(r.grossRevenue)} de receita contra {formatBRL(totalExpenses)} de
+            custo total — sobra {formatBRL(operatingResult)} ({marginPct}% de margem).
           </p>
         </Card>
 
@@ -142,7 +160,7 @@ export default function FinanceiroPage() {
                   key={g.id}
                   onClick={() => setGatewayId(g.id)}
                   className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                    g.id === gatewayId ? "bg-gold text-bg" : "text-ivory-muted hover:text-ivory"
+                    g.id === gatewayId ? "bg-gold text-ivory" : "text-ivory-muted hover:text-ivory"
                   }`}
                 >
                   {g.name}
@@ -217,23 +235,23 @@ export default function FinanceiroPage() {
           <KpiTile
             tone="neutral"
             icon={TrendingUp}
-            label="Ticket médio"
-            value={formatBRL(commercialStats.avgTicket)}
-            caption="mensalidade/ativo"
+            label="Mensalidade média"
+            value={formatBRL(Math.round(safeAvg(mrr.billed, activeSubscriberCount)))}
+            caption={`${activeSubscriberCount} mensalista(s) ativo(s)`}
           />
           <KpiTile
             tone={commercialStats.defaultAmount > 0 ? "danger" : "success"}
             icon={AlertCircle}
             label="Inadimplência"
             value={formatBRL(commercialStats.defaultAmount)}
-            caption="0% do previsto"
+            caption={`${Math.round(safePct(commercialStats.defaultAmount, mrr.contracted))}% do contratado`}
           />
           <KpiTile
             tone="neutral"
             icon={Store}
             label="Faturamento da loja"
             value={formatBRL(commercialStats.storeRevenue)}
-            caption={`comissão: ${formatBRL(dre.commissions)}`}
+            caption={`comissão do profissional: ${formatBRL(r.commissions)}`}
           />
         </div>
       </section>
@@ -255,42 +273,6 @@ function SectionHeader({ dot, title, subtitle }: { dot: string; title: string; s
       <h2 className="font-display text-lg text-ivory md:text-2xl">{title}</h2>
       <span className="text-sm text-ivory-muted md:text-base">· {subtitle}</span>
     </div>
-  );
-}
-
-function KpiTile({
-  tone,
-  icon: Icon,
-  label,
-  value,
-  caption,
-}: {
-  tone: "success" | "danger" | "neutral";
-  icon: LucideIcon;
-  label: string;
-  value: string;
-  caption?: string;
-}) {
-  const toneBorder = {
-    success: "border-t-success",
-    danger: "border-t-danger",
-    neutral: "border-t-gold",
-  }[tone];
-  const toneText = {
-    success: "text-success",
-    danger: "text-danger",
-    neutral: "text-gold-light",
-  }[tone];
-
-  return (
-    <Card className={`flex flex-col gap-1 border-t-2 p-3 md:gap-1.5 md:p-5 ${toneBorder}`}>
-      <div className="flex items-center gap-1.5">
-        <Icon size={12} className={toneText} />
-        <p className="text-[10px] uppercase tracking-wide text-ivory-muted md:text-xs">{label}</p>
-      </div>
-      <p className="font-display text-lg font-semibold text-ivory md:text-2xl">{value}</p>
-      {caption && <p className="text-[10px] text-ivory-muted md:text-xs">{caption}</p>}
-    </Card>
   );
 }
 
@@ -324,4 +306,8 @@ function QuickLinkCard({
       </Card>
     </Link>
   );
+}
+
+function safeAvg(total: number, count: number) {
+  return count > 0 ? total / count : 0;
 }

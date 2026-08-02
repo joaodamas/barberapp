@@ -18,36 +18,51 @@ import { Pill } from "@/components/ui/pill";
 import { Button } from "@/components/ui/button";
 import { bookingStatusMeta } from "@/lib/booking-status";
 import { paymentMethodLabel } from "@/lib/payment-method";
-import { formatBRL } from "@/lib/format";
+import { formatBRL, safePct } from "@/lib/format";
 import {
-  cashToday,
   getServicesByIds,
   needsYou,
   todayBookings,
   todayKpis,
 } from "@/lib/mock-data";
+import { bookingPolicy } from "@/lib/business-rules";
 import type { Booking } from "@/lib/types";
+
+/** Um encaixe pendente ainda não ocupa horário — só ocupa depois de aprovado. */
+const OCCUPIES_SLOT: Booking["status"][] = [
+  "pending_payment",
+  "confirmed",
+  "confirmed_by_client",
+  "completed",
+  "no_show",
+];
 
 export default function PainelHojePage() {
   const [bookings, setBookings] = useState<Booking[]>(todayBookings);
 
   const fitInRequests = bookings.filter((b) => b.status === "fit_in_requested");
-  const activeBookings = bookings.filter(
-    (b) => b.status !== "cancelled_by_client" && b.status !== "expired"
-  );
-  const confirmedCount = activeBookings.length;
-  const horariosLivres = todayKpis.totalSlots - activeBookings.length;
+  const agendados = bookings.filter((b) => OCCUPIES_SLOT.includes(b.status));
 
-  const previsaoHoje = activeBookings
-    .filter((b) => b.status !== "fit_in_requested")
-    .reduce((s, b) => s + b.value, 0);
-  const recebidoReal = activeBookings
-    .filter(
-      (b) =>
-        b.status !== "fit_in_requested" &&
-        (b.status === "completed" || b.paymentMethod !== "local")
-    )
-    .reduce((s, b) => s + b.value, 0);
+  const confirmedCount = agendados.length;
+  const horariosLivres = Math.max(todayKpis.totalSlots - agendados.length, 0);
+  const ocupacaoPct = Math.round(safePct(agendados.length, todayKpis.totalSlots));
+
+  const previsaoHoje = agendados.reduce((s, b) => s + b.value, 0);
+
+  /* Pix e cartão contam assim que confirmados; dinheiro só quando o cliente é
+   * atendido e marcado como concluído. */
+  const recebidas = agendados.filter(
+    (b) => b.status === "completed" || b.paymentMethod !== "local"
+  );
+  const recebidoReal = recebidas.reduce((s, b) => s + b.value, 0);
+
+  /* Caixa derivado das próprias reservas — antes eram três números fixos que
+   * não batiam com a agenda exibida logo acima. */
+  const caixaHoje = {
+    pix: sumBy(recebidas, (b) => (b.paymentMethod === "pix" ? b.value : 0)),
+    cartao: sumBy(recebidas, (b) => (b.paymentMethod === "cartao" ? b.value : 0)),
+    dinheiro: sumBy(recebidas, (b) => (b.paymentMethod === "local" ? b.value : 0)),
+  };
 
   function complete(id: string) {
     setBookings((prev) =>
@@ -95,10 +110,10 @@ export default function PainelHojePage() {
           <Wallet size={16} className="mx-auto text-gold-light md:mx-0 md:h-9 md:w-9 md:shrink-0 md:rounded-xl md:bg-gold/10 md:p-2" />
           <div className="md:text-left">
             <p className="font-display text-sm font-semibold text-ivory md:text-2xl">
-              {formatBRL(todayKpis.revenue)}
+              {formatBRL(previsaoHoje)}
             </p>
             <p className="text-[10px] text-ivory-muted md:text-xs md:uppercase md:tracking-wide">
-              faturado
+              previsto hoje
             </p>
           </div>
         </Card>
@@ -117,7 +132,7 @@ export default function PainelHojePage() {
           <Percent size={16} className="mx-auto text-gold-light md:mx-0 md:h-9 md:w-9 md:shrink-0 md:rounded-xl md:bg-gold/10 md:p-2" />
           <div className="md:text-left">
             <p className="font-display text-sm font-semibold text-ivory md:text-2xl">
-              {todayKpis.occupancyPct}%
+              {ocupacaoPct}%
             </p>
             <p className="text-[10px] text-ivory-muted md:text-xs md:uppercase md:tracking-wide">
               ocupação
@@ -151,7 +166,7 @@ export default function PainelHojePage() {
           <div className="h-2 w-full overflow-hidden rounded-full bg-surface-raised">
             <div
               className="h-full rounded-full bg-success transition-[width] duration-300"
-              style={{ width: `${Math.min((recebidoReal / previsaoHoje) * 100, 100)}%` }}
+              style={{ width: `${safePct(recebidoReal, previsaoHoje)}%` }}
             />
           </div>
           <div className="flex items-center justify-between text-sm md:text-base">
@@ -176,21 +191,21 @@ export default function PainelHojePage() {
             <Landmark size={16} className="shrink-0 text-gold-light" />
             <span className="flex-1 text-sm text-ivory-muted">Pix</span>
             <span className="font-display font-semibold text-ivory">
-              {formatBRL(cashToday.pix)}
+              {formatBRL(caixaHoje.pix)}
             </span>
           </div>
           <div className="flex items-center gap-3 px-4 py-3 md:flex-1 md:p-5">
             <CreditCard size={16} className="shrink-0 text-gold-light" />
             <span className="flex-1 text-sm text-ivory-muted">Cartão</span>
             <span className="font-display font-semibold text-ivory">
-              {formatBRL(cashToday.cartao)}
+              {formatBRL(caixaHoje.cartao)}
             </span>
           </div>
           <div className="flex items-center gap-3 px-4 py-3 md:flex-1 md:p-5">
             <Wallet size={16} className="shrink-0 text-gold-light" />
             <span className="flex-1 text-sm text-ivory-muted">Dinheiro</span>
             <span className="font-display font-semibold text-ivory">
-              {formatBRL(cashToday.dinheiro)}
+              {formatBRL(caixaHoje.dinheiro)}
             </span>
           </div>
         </Card>
@@ -238,7 +253,9 @@ export default function PainelHojePage() {
                       · {booking.time}
                     </p>
                   </div>
-                  <Pill tone="gold">expira em 22 min</Pill>
+                  <Pill tone="gold">
+                    expira em até {bookingPolicy.fitInExpirationMinutes} min
+                  </Pill>
                 </div>
                 <div className="flex gap-2">
                   <Button
@@ -313,4 +330,8 @@ export default function PainelHojePage() {
       </section>
     </div>
   );
+}
+
+function sumBy<T>(items: T[], value: (item: T) => number) {
+  return items.reduce((total, item) => total + value(item), 0);
 }
