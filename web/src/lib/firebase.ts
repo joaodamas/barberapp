@@ -11,6 +11,21 @@ const firebaseConfig: FirebaseOptions = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
+/* O SDK falha com "auth/invalid-api-key" — mensagem que não diz o que fazer — e
+ * como este módulo é avaliado no prerender de TODA rota, o build inteiro morre
+ * sem explicação. Falhar antes, dizendo exatamente o que falta. */
+const missingKeys = Object.entries(firebaseConfig)
+  .filter(([, value]) => !value)
+  .map(([key]) => key);
+
+if (missingKeys.length > 0) {
+  throw new Error(
+    `Firebase: configuração incompleta (${missingKeys.join(", ")}).\n` +
+      `Copie web/.env.example para web/.env.local e preencha as chaves do projeto ` +
+      `no console do Firebase (Configurações do projeto → Seus apps → Web).`
+  );
+}
+
 export const firebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
 /* Auth é o único carregado de imediato: o AuthProvider está no layout raiz, ou
