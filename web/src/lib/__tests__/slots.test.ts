@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { bookableDays, slotsForDate, WORKDAY_TIMES } from "@/lib/slots";
+import {
+  bookableDays,
+  firstBookableIndex,
+  slotsForDate,
+  WORKDAY_TIMES,
+} from "@/lib/slots";
 import { bookingPolicy, isOpenOn } from "@/lib/business-rules";
 
 // Quinta-feira, 02/07/2026 — dia útil, usado como referência estável.
@@ -80,5 +85,26 @@ describe("encaixes", () => {
   it("dia fechado não é oferecido pelo seletor", () => {
     const days = bookableDays(new Date(`${QUINTA}T10:00:00`));
     expect(days.find((d) => d.iso === DOMINGO)?.disabled).toBe(true);
+  });
+});
+
+describe("dia fechado", () => {
+  // 02/08/2026 é um domingo — e foi o "hoje" real quando isto foi escrito.
+  const DOMINGO_HOJE = new Date("2026-08-02T10:00:00");
+
+  it("não devolve horário livre em dia fechado", () => {
+    const slots = slotsForDate("2026-08-02", { now: new Date("2026-08-02T06:00:00") });
+    expect(slots.every((s) => !s.available)).toBe(true);
+  });
+
+  it("o seletor não abre num dia fechado quando hoje é domingo", () => {
+    const days = bookableDays(DOMINGO_HOJE);
+    expect(days[0].disabled).toBe(true);
+    const inicial = firstBookableIndex(days);
+    expect(days[inicial].disabled).toBe(false);
+  });
+
+  it("firstBookableIndex devolve 0 se nada for agendável", () => {
+    expect(firstBookableIndex([])).toBe(0);
   });
 });

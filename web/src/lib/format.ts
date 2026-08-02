@@ -20,20 +20,12 @@ export function formatDatePtBR(iso: string) {
  * Existe porque `formatDatePtBR(...).split(",")[0]` devolve o DIA DA SEMANA,
  * não a data: as tabelas de Despesas e Projeção chegaram a exibir só
  * "domingo", "segunda-feira". Toda coluna de data usa esta função ou
- * `formatDateNumeric`.
+ * `formatWeekdayAndDay`.
  */
 export function formatDateShortPtBR(iso: string) {
   return parseISODate(iso).toLocaleDateString("pt-BR", {
     day: "2-digit",
     month: "long",
-  });
-}
-
-/** "05/07" — para tabelas densas, onde o mês por extenso não cabe. */
-export function formatDateNumeric(iso: string) {
-  return parseISODate(iso).toLocaleDateString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
   });
 }
 

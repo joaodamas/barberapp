@@ -86,7 +86,7 @@ separar o layout logado da tela de login.
 2. **Percentual, prazo e janela de política vêm de `lib/business-rules.ts`.** Se
    um número de política aparece em JSX, ele veio de lá.
 3. **Não use `formatDatePtBR(...).split(",")[0]`** — isso devolve o dia da
-   semana, não a data. Use `formatDateShortPtBR` ou `formatDateNumeric`.
+   semana, não a data. Use `formatDateShortPtBR` ou `formatWeekdayAndDay`.
 4. **Divisões passam por `safeDiv`/`safePct`.** `NaN%` e `R$ ∞` já chegaram à
    tela.
 5. **Modal é o de `components/ui/modal.tsx`** — já tem `Esc`, focus trap,

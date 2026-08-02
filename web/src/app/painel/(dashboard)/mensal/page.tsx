@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { CalendarClock } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
-import { formatBRL, formatDatePtBR } from "@/lib/format";
+import { formatBRL, formatDatePtBR, safePct } from "@/lib/format";
 import { mrr, subscribers, type SubscriberStatus } from "@/lib/mock-data";
 
 const STATUS_META: Record<
@@ -29,7 +29,7 @@ const FILTER_LABELS: Record<Filter, string> = {
 
 export default function MensalPage() {
   const [filter, setFilter] = useState<Filter>("todos");
-  const mrrPct = Math.round((mrr.billed / mrr.contracted) * 100);
+  const mrrPct = Math.round(safePct(mrr.billed, mrr.contracted));
 
   const filtered = useMemo(
     () => (filter === "todos" ? subscribers : subscribers.filter((s) => s.status === filter)),
@@ -84,7 +84,7 @@ export default function MensalPage() {
                   >
                     {count > 0 ? count : ""}
                   </div>
-                  <span className="text-[10px] text-ivory-muted md:text-xs">{stage}</span>
+                  <span className="text-[11px] text-ivory-muted md:text-xs">{stage}</span>
                 </div>
               );
             })}
@@ -112,7 +112,7 @@ export default function MensalPage() {
           </div>
         </div>
 
-        <Card className="overflow-x-auto p-0">
+        <Card className="table-scroll overflow-x-auto p-0">
           <table className="w-full min-w-[520px] text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ivory-muted">

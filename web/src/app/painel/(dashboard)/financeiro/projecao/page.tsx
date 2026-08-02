@@ -18,8 +18,10 @@ export default function ProjecaoPage() {
   const despesasFixas = cashProjection.reduce((s, d) => s + d.fixedExpense, 0);
   const resultadoProjetado = cashProjection.at(-1)?.cumulative ?? 0;
 
-  const tightestDay = cashProjection.reduce((min, d) =>
-    d.cumulative < min.cumulative ? d : min
+  // `reduce` sem valor inicial lança TypeError em array vazio.
+  const tightestDay = cashProjection.reduce(
+    (min, d) => (d.cumulative < min.cumulative ? d : min),
+    cashProjection[0]
   );
 
   return (
@@ -65,7 +67,7 @@ export default function ProjecaoPage() {
         />
       </div>
 
-      <Card className="overflow-x-auto p-0">
+      <Card className="table-scroll overflow-x-auto p-0">
         <table className="w-full min-w-[640px] text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ivory-muted">

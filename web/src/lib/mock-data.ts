@@ -1,5 +1,5 @@
-import type { Booking, Service, TimeSlot } from "./types";
-import { splitSale, taxRatePct } from "./business-rules";
+import type { Booking, Service } from "./types";
+import { loyaltyPolicy, splitSale, taxRatePct } from "./business-rules";
 
 /** Dados de demonstração — serão substituídos por Firestore nos próximos épicos. */
 
@@ -81,10 +81,11 @@ export const nextBooking: Booking = {
   paymentMethod: "pix",
 };
 
+/** Estado da fidelidade do cliente; a meta e o prêmio são política. */
 export const loyalty = {
   stamps: 7,
-  goal: 10,
-  reward: "1 corte grátis",
+  goal: loyaltyPolicy.stampsForReward,
+  reward: loyaltyPolicy.reward,
 };
 
 /** Histórico de atendimentos concluídos deste cliente — usado na aba "Histórico" de Reservas. */
@@ -95,36 +96,6 @@ export const bookingHistory = [
   { id: "hist_4", serviceIds: ["corte-sobrancelha"], date: "2026-06-06", time: "17:00", value: 70, paymentMethod: "cartao" as const },
   { id: "hist_5", serviceIds: ["corte-barba"], date: "2026-05-23", time: "16:30", value: 90, paymentMethod: "pix" as const },
 ];
-
-export function mockSlotsForDay(dayIndex: number): TimeSlot[] {
-  const base: TimeSlot[] = [
-    { time: "09:00", available: true },
-    { time: "09:30", available: true },
-    { time: "10:00", available: true },
-    { time: "10:30", available: true },
-    { time: "11:00", available: true },
-    { time: "14:00", available: true },
-    { time: "14:30", available: true },
-    { time: "15:00", available: true },
-    { time: "15:30", available: true },
-    { time: "16:00", available: true },
-    { time: "16:30", available: true },
-    { time: "17:00", available: true },
-  ];
-
-  // Ocupa 2-3 horários por dia, deslocando o padrão conforme o dia — só para variar o mock.
-  const occupiedIndexes = [
-    (dayIndex * 2 + 2) % base.length,
-    (dayIndex * 3 + 4) % base.length,
-    (dayIndex * 5 + 7) % base.length,
-  ];
-
-  return base.map((slot, i) =>
-    occupiedIndexes.includes(i)
-      ? { ...slot, available: false, isFitIn: true }
-      : slot
-  );
-}
 
 export const todayBookings: Booking[] = [
   {
@@ -518,9 +489,6 @@ export const dre = {
   /** Alíquota efetiva do Simples sobre o lucro — o DRE não tinha linha de imposto. */
   taxRatePct,
 };
-
-/** Soma de todas as despesas do mês, fixas e eventuais. */
-export const operatingExpenses = fixedExpensesTotal + variableOperatingExpensesTotal;
 
 /* ---- Séries por período (para os filtros de DRE e Números) ----
  *

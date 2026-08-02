@@ -1,5 +1,5 @@
 import { bookingPolicy, isOpenOn } from "@/lib/business-rules";
-import { toISODate } from "@/lib/format";
+import { parseISODate, toISODate } from "@/lib/format";
 import type { TimeSlot } from "@/lib/types";
 
 /**
@@ -78,6 +78,12 @@ export type SlotOptions = {
 export function slotsForDate(iso: string, options: SlotOptions = {}): TimeSlot[] {
   const { durationMin = bookingPolicy.slotMinutes, now = new Date(), allowFitIn = true } = options;
 
+  /* Defesa em profundidade: a tela já esconde dia fechado, mas quem chamar
+   * direto não deve receber horário nenhum num domingo. */
+  if (!isOpenOn(parseISODate(iso))) {
+    return WORKDAY_TIMES.map((time) => ({ time, available: false }));
+  }
+
   const occupied = occupiedIndexesFor(iso);
   const slotsNeeded = Math.max(1, Math.ceil(durationMin / bookingPolicy.slotMinutes));
   const earliest = new Date(now.getTime() + bookingPolicy.minAdvanceMinutes * 60_000);
@@ -131,4 +137,15 @@ function isContiguous(previous: string, next: string) {
 function toMinutes(time: string) {
   const [hours, minutes] = time.split(":").map(Number);
   return hours * 60 + minutes;
+}
+
+/**
+ * Índice do primeiro dia realmente agendável.
+ *
+ * O seletor iniciava em 0 — e quando "hoje" cai num domingo, a tela abria já
+ * num dia fechado, sem horário nenhum e sem o usuário ter escolhido nada.
+ */
+export function firstBookableIndex(days: BookableDay[]) {
+  const index = days.findIndex((d) => !d.disabled);
+  return index === -1 ? 0 : index;
 }
