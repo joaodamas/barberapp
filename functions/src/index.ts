@@ -18,6 +18,7 @@ initializeApp();
 
 setGlobalOptions({ region: "southamerica-east1", maxInstances: 10 });
 
+export { provisionBarbershop, grantShopRole } from "./provisioning";
 export { TEMPLATES } from "./whatsapp/templates";
 export type {
   TemplateDef,
@@ -33,7 +34,10 @@ export const healthcheck = onCall(() => ({
 }));
 
 /**
- * Concede ou revoga o papel de dono.
+ * @deprecated Use `grantShopRole`, que vincula a uma barbearia específica.
+ *
+ * Concede ou revoga o papel de dono GLOBAL — modelo single-tenant. Mantido
+ * apenas para o bootstrap do primeiro operador da plataforma.
  *
  * O app inteiro decide o que mostrar a partir do claim `role: owner`, e até
  * aqui NENHUM código do repositório o atribuía — ele havia sido gravado à mão,

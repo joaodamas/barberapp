@@ -63,3 +63,30 @@ jobs:
       # a aprovação leva dias e a rejeição custa o ciclo inteiro.
       - run: npm run test
       - run: npm run build
+
+  rules:
+    name: regras do firestore (isolamento entre barbearias)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: functions
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+      # O emulador do Firestore roda sobre a JVM.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - run: npm ci
+      - run: npm install -g firebase-tools
+
+      # Prova que uma barbearia não alcança dado de outra. Um furo aqui vaza o
+      # financeiro de um cliente pagante para outro — é o teste que não pode
+      # faltar antes de qualquer deploy de regras.
+      - run: npm run test:rules

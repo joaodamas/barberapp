@@ -7,12 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
 import { Modal } from "@/components/ui/modal";
 import { formatBRL, formatDateShortPtBR } from "@/lib/format";
-import {
-  expenseCategories,
-  monthExpenses,
-  type Expense,
-  type ExpensePaymentMethod,
-} from "@/lib/mock-data";
+import { expenseCategories, type Expense, type ExpensePaymentMethod } from "@/lib/mock-data";
+import { useTenant } from "@/lib/tenant-context";
+import { useShopCollection } from "@/lib/db/use-collection";
+import { createDoc, patchDoc, removeDoc } from "@/lib/db/repository";
 
 const PAYMENT_METHODS: ExpensePaymentMethod[] = ["Pix", "Boleto", "Cartão", "Transferência"];
 
@@ -28,7 +26,15 @@ const emptyForm = {
 };
 
 export default function DespesasPage() {
-  const [expenses, setExpenses] = useState<Expense[]>(monthExpenses);
+  const { id: barbershopId } = useTenant();
+
+  /* Tempo real: o painel costuma ficar aberto o expediente inteiro num tablet,
+   * e um lançamento feito no celular precisa aparecer aqui sem recarregar. */
+  const { items: expenses, status } = useShopCollection<Omit<Expense, "id">>("expenses", {
+    orderByField: "date",
+    direction: "desc",
+  });
+
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -36,11 +42,10 @@ export default function DespesasPage() {
   /** Exclusão pedia confirmação em Reservas mas apagava lançamento num clique. */
   const [pendingDelete, setPendingDelete] = useState<Expense | null>(null);
 
-  // A tabela saía na ordem do array: 05, 10, 12, 08, 15... visivelmente fora de ordem.
-  const sorted = useMemo(
-    () => [...expenses].sort((a, b) => b.date.localeCompare(a.date)),
-    [expenses]
-  );
+  // A ordenação vem do Firestore (`orderBy date desc`); o sort local existia
+  // porque a lista era um array fixo fora de ordem.
+  const sorted = expenses;
+  const [saving, setSaving] = useState(false);
 
   const total = expenses.reduce((s, e) => s + e.value, 0);
   const recurringTotal = expenses
@@ -82,7 +87,7 @@ export default function DespesasPage() {
     setModalOpen(true);
   }
 
-  function saveExpense() {
+  async function saveExpense() {
     const value = Number(form.value);
 
     /* Antes o clique simplesmente não fazia nada: sem mensagem, com o botão
@@ -109,18 +114,31 @@ export default function DespesasPage() {
       observations: form.observations.trim() || undefined,
     };
 
-    setExpenses((prev) =>
-      editingId
-        ? prev.map((e) => (e.id === editingId ? { ...e, ...fields } : e))
-        : [{ id: `exp_${Date.now()}`, ...fields }, ...prev]
-    );
-    setModalOpen(false);
+    setSaving(true);
+    try {
+      if (editingId) {
+        await patchDoc(barbershopId, "expenses", editingId, fields);
+      } else {
+        await createDoc(barbershopId, "expenses", fields);
+      }
+      setModalOpen(false);
+    } catch (error) {
+      console.error("[despesas] falha ao salvar", error);
+      setFormError("Não foi possível salvar. Verifique a conexão e tente de novo.");
+    } finally {
+      setSaving(false);
+    }
   }
 
-  function confirmRemove() {
+  async function confirmRemove() {
     if (!pendingDelete) return;
-    setExpenses((prev) => prev.filter((e) => e.id !== pendingDelete.id));
-    setPendingDelete(null);
+    try {
+      await removeDoc(barbershopId, "expenses", pendingDelete.id);
+    } catch (error) {
+      console.error("[despesas] falha ao excluir", error);
+    } finally {
+      setPendingDelete(null);
+    }
   }
 
   return (
@@ -187,6 +205,27 @@ export default function DespesasPage() {
             </tr>
           </thead>
           <tbody>
+            {status === "carregando" && (
+              <tr>
+                <td colSpan={7} className="px-4 py-10 text-center text-sm text-ivory-muted md:px-6">
+                  <span className="inline-block h-4 w-40 animate-pulse rounded bg-surface-raised" />
+                </td>
+              </tr>
+            )}
+            {status === "erro" && (
+              <tr>
+                <td colSpan={7} className="px-4 py-10 text-center text-sm text-danger md:px-6">
+                  Não foi possível carregar os lançamentos.
+                </td>
+              </tr>
+            )}
+            {status === "pronto" && sorted.length === 0 && (
+              <tr>
+                <td colSpan={7} className="px-4 py-10 text-center text-sm text-ivory-muted md:px-6">
+                  Nenhuma despesa lançada ainda.
+                </td>
+              </tr>
+            )}
             {sorted.map((e) => (
               <tr
                 key={e.id}
@@ -254,7 +293,9 @@ export default function DespesasPage() {
             <Button variant="ghost" onClick={() => setModalOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={saveExpense}>Salvar</Button>
+            <Button onClick={saveExpense} disabled={saving}>
+              {saving ? "Salvando…" : "Salvar"}
+            </Button>
           </>
         }
       >
