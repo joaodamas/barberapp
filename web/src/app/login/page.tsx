@@ -199,7 +199,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-bg px-4 py-10">
+    <div className="flex min-h-screen flex-col items-center justify-center gap-6 overflow-y-auto bg-bg px-4 py-10 md:h-full">
       <div className="flex flex-col items-center gap-2 text-center">
         <Image src={brand.logo} alt="" width={56} height={56} priority />
         <h1 className="font-display text-xl text-ivory">{brand.name}</h1>

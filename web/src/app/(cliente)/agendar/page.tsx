@@ -20,6 +20,7 @@ import { CalendarX2 } from "lucide-react";
 import { formatBRL } from "@/lib/format";
 import { bookableDays, firstBookableIndex, slotsForDate } from "@/lib/slots";
 import { bookingPolicy } from "@/lib/business-rules";
+import { useAuth } from "@/lib/auth-context";
 import type { PaymentMethod, TimeSlot } from "@/lib/types";
 
 type Step = 1 | 2 | 3 | 4;
@@ -51,7 +52,44 @@ export default function AgendarPage() {
     firstBookableIndex(bookableDays())
   );
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("pix");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("local");
+  const { user } = useAuth();
+  const [confirmando, setConfirmando] = useState(false);
+  const [erroReserva, setErroReserva] = useState<string | null>(null);
+
+  /**
+   * A reserva é criada no SERVIDOR.
+   *
+   * Antes, o passo 4 dizia "Reserva confirmada!" e não gravava nada — o
+   * cliente saía acreditando ter horário marcado. Agora a Cloud Function soma
+   * o preço a partir do catálogo (o cliente não manda valor), checa conflito de
+   * horário numa transação (dois toques simultâneos, um só ganha o slot) e
+   * define o status, que as regras proíbem o cliente de escrever.
+   */
+  async function confirmarReserva() {
+    if (!selectedDay || !selectedSlot) return;
+    setConfirmando(true);
+    setErroReserva(null);
+    try {
+      const { callFunction } = await import("@/lib/firebase");
+      await callFunction("createBooking", {
+        barbershopId: tenant.id,
+        serviceIds: selectedServiceIds,
+        date: selectedDay.iso,
+        time: selectedSlot.time,
+        paymentMethod,
+        isFitIn,
+        clientName: user?.displayName ?? undefined,
+        clientWhatsapp: user?.phoneNumber ?? undefined,
+      });
+      setStep(4);
+    } catch (err) {
+      const msg = (err as { message?: string })?.message;
+      setErroReserva(msg ?? "Não foi possível concluir. Tente de novo.");
+    } finally {
+      setConfirmando(false);
+    }
+  }
 
   const days = useMemo(() => bookableDays(new Date(), tenant.schedule), [tenant.schedule]);
 
@@ -319,6 +357,8 @@ export default function AgendarPage() {
               </p>
               <div className="grid grid-cols-3 gap-2">
                 <button
+                  disabled
+                  title="Pagamento antecipado entra quando o gateway for integrado"
                   onClick={() => setPaymentMethod("pix")}
                   className={
                     "flex flex-col items-center justify-center gap-1.5 rounded-xl border py-3 text-sm " +
@@ -330,6 +370,8 @@ export default function AgendarPage() {
                   <QrCode size={16} /> Pix
                 </button>
                 <button
+                  disabled
+                  title="Pagamento antecipado entra quando o gateway for integrado"
                   onClick={() => setPaymentMethod("cartao")}
                   className={
                     "flex flex-col items-center justify-center gap-1.5 rounded-xl border py-3 text-sm " +
@@ -360,11 +402,17 @@ export default function AgendarPage() {
                 </p>
               ) : (
                 <p className="text-xs text-ivory-muted">
-                  Pagamento simulado nesta fase — a integração real com o
-                  gateway entra no próximo épico.
+                  Pix e cartão entram quando a integração com o gateway ficar
+                  pronta. Por enquanto, o pagamento é no salão.
                 </p>
               )}
             </>
+          )}
+
+          {erroReserva && (
+            <p role="alert" className="text-sm text-danger">
+              {erroReserva}
+            </p>
           )}
 
           <Card className="flex gap-2 bg-surface-raised text-xs text-ivory-muted">
@@ -415,10 +463,10 @@ export default function AgendarPage() {
           </div>
           <Button
             className="w-full"
-            disabled={ctaDisabled}
-            onClick={() => setStep((s) => (s + 1) as Step)}
+            disabled={ctaDisabled || confirmando}
+            onClick={() => (step === 3 ? confirmarReserva() : setStep((s) => (s + 1) as Step))}
           >
-            {ctaLabel}
+            {confirmando ? "Confirmando…" : ctaLabel}
           </Button>
         </div>
       )}
@@ -479,10 +527,10 @@ export default function AgendarPage() {
 
           <Button
             className="w-full"
-            disabled={ctaDisabled}
-            onClick={() => setStep((s) => (s + 1) as Step)}
+            disabled={ctaDisabled || confirmando}
+            onClick={() => (step === 3 ? confirmarReserva() : setStep((s) => (s + 1) as Step))}
           >
-            {ctaLabel}
+            {confirmando ? "Confirmando…" : ctaLabel}
           </Button>
         </Card>
       )}

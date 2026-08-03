@@ -61,7 +61,7 @@ export default function ComecarPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-bg">
+      <div className="flex min-h-screen items-center justify-center overflow-y-auto bg-bg md:h-full">
         <Loader2 className="h-8 w-8 animate-spin text-gold-light" />
       </div>
     );
@@ -98,7 +98,7 @@ export default function ComecarPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center bg-bg px-4 py-8 md:py-14">
+    <div className="flex min-h-screen flex-col items-center overflow-y-auto bg-bg px-4 py-8 md:h-full md:py-14">
       <div className="flex w-full max-w-2xl flex-col gap-6">
         <header className="flex flex-col items-center gap-2 text-center">
           <Image src={tenant.brand.logo} alt="" width={44} height={44} priority />
