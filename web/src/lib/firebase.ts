@@ -11,6 +11,21 @@ const firebaseConfig: FirebaseOptions = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
+/* O SDK falha com "auth/invalid-api-key" — mensagem que não diz o que fazer — e
+ * como este módulo é avaliado no prerender de TODA rota, o build inteiro morre
+ * sem explicação. Falhar antes, dizendo exatamente o que falta. */
+const missingKeys = Object.entries(firebaseConfig)
+  .filter(([, value]) => !value)
+  .map(([key]) => key);
+
+if (missingKeys.length > 0) {
+  throw new Error(
+    `Firebase: configuração incompleta (${missingKeys.join(", ")}).\n` +
+      `Copie web/.env.example para web/.env.local e preencha as chaves do projeto ` +
+      `no console do Firebase (Configurações do projeto → Seus apps → Web).`
+  );
+}
+
 export const firebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
 /* Auth é o único carregado de imediato: o AuthProvider está no layout raiz, ou
@@ -19,9 +34,30 @@ export const firebaseApp = getApps().length ? getApp() : initializeApp(firebaseC
  * quem só abriu a tela de agendar atrasa toda navegação. */
 export const auth = getAuth(firebaseApp);
 
+/* Emulador local: permite exercitar cadastro, regras e onboarding de verdade
+ * sem tocar no projeto de produção. Ligado por NEXT_PUBLIC_USE_EMULATOR. */
+const useEmulator = process.env.NEXT_PUBLIC_USE_EMULATOR === "true";
+
+if (useEmulator && typeof window !== "undefined") {
+  const w = window as unknown as { __emuAuth?: boolean };
+  if (!w.__emuAuth) {
+    w.__emuAuth = true;
+    void import("firebase/auth").then(({ connectAuthEmulator }) => {
+      connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
+    });
+  }
+}
+
+let dbPromise: Promise<import("firebase/firestore").Firestore> | null = null;
+
 export async function getDb() {
-  const { getFirestore } = await import("firebase/firestore");
-  return getFirestore(firebaseApp);
+  dbPromise ??= (async () => {
+    const { getFirestore, connectFirestoreEmulator } = await import("firebase/firestore");
+    const db = getFirestore(firebaseApp);
+    if (useEmulator) connectFirestoreEmulator(db, "127.0.0.1", 8080);
+    return db;
+  })();
+  return dbPromise;
 }
 
 export async function getAppStorage() {
@@ -29,9 +65,24 @@ export async function getAppStorage() {
   return getStorage(firebaseApp);
 }
 
+let functionsPromise: Promise<import("firebase/functions").Functions> | null = null;
+
 export async function getAppFunctions() {
-  const { getFunctions } = await import("firebase/functions");
-  return getFunctions(firebaseApp, "southamerica-east1");
+  functionsPromise ??= (async () => {
+    const { getFunctions, connectFunctionsEmulator } = await import("firebase/functions");
+    const fns = getFunctions(firebaseApp, "southamerica-east1");
+    if (useEmulator) connectFunctionsEmulator(fns, "127.0.0.1", 5001);
+    return fns;
+  })();
+  return functionsPromise;
+}
+
+/** Chama uma Cloud Function tipada. */
+export async function callFunction<TInput, TOutput>(name: string, data: TInput) {
+  const fns = await getAppFunctions();
+  const { httpsCallable } = await import("firebase/functions");
+  const result = await httpsCallable<TInput, TOutput>(fns, name)(data);
+  return result.data;
 }
 
 export async function getFirebaseAnalytics() {

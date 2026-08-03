@@ -1,11 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { CalendarClock } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
-import { formatBRL, formatDatePtBR } from "@/lib/format";
-import { mrr, subscribers, type SubscriberStatus } from "@/lib/mock-data";
+import { formatBRL, formatDatePtBR, safePct } from "@/lib/format";
+import { useSubscribers } from "@/lib/db/use-shop-data";
+import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
+import { Users } from "lucide-react";
+import type { SubscriberDoc } from "@/lib/domain";
+
+type SubscriberStatus = SubscriberDoc["status"];
 
 const STATUS_META: Record<
   SubscriberStatus,
@@ -29,12 +34,18 @@ const FILTER_LABELS: Record<Filter, string> = {
 
 export default function MensalPage() {
   const [filter, setFilter] = useState<Filter>("todos");
-  const mrrPct = Math.round((mrr.billed / mrr.contracted) * 100);
+  const { items: subscribers, status } = useSubscribers();
 
-  const filtered = useMemo(
-    () => (filter === "todos" ? subscribers : subscribers.filter((s) => s.status === filter)),
-    [filter]
-  );
+  /* MRR derivado da lista: cobrável = ativos; contratado inclui suspensos, que
+   * voltam a pagar ao regularizar. */
+  const mrr = {
+    billed: subscribers.filter((s) => s.status === "ativo").reduce((t, s) => t + s.price, 0),
+    contracted: subscribers.filter((s) => s.status !== "cancelado").reduce((t, s) => t + s.price, 0),
+  };
+  const mrrPct = Math.round(safePct(mrr.billed, mrr.contracted));
+
+  const filtered =
+    filter === "todos" ? subscribers : subscribers.filter((s) => s.status === filter);
 
   return (
     <div className="flex flex-col gap-6 pt-1 md:gap-10 md:pt-2">
@@ -78,13 +89,13 @@ export default function MensalPage() {
                     className={
                       "flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold transition-colors md:h-11 md:w-11 md:text-sm " +
                       (count > 0
-                        ? "bg-gold text-bg"
+                        ? "bg-gold text-ivory"
                         : "border border-border text-ivory-muted/50")
                     }
                   >
                     {count > 0 ? count : ""}
                   </div>
-                  <span className="text-[10px] text-ivory-muted md:text-xs">{stage}</span>
+                  <span className="text-[11px] text-ivory-muted md:text-xs">{stage}</span>
                 </div>
               );
             })}
@@ -92,6 +103,19 @@ export default function MensalPage() {
         </Card>
       </div>
 
+      {status === "carregando" && <LoadingRows rows={3} />}
+
+      {status === "pronto" && subscribers.length === 0 && (
+        <EmptyState
+          icon={Users}
+          title="Nenhum mensalista ainda"
+          description="Crie um plano e comece a ter receita previsível. Barbearias com clube de assinatura faturam mais e têm menos falta."
+          actionLabel="Criar plano"
+          actionHref="/painel/loja"
+        />
+      )}
+
+      {subscribers.length > 0 && (
       <section>
         <div className="mb-2 flex items-center justify-between md:mb-3">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm">
@@ -103,7 +127,7 @@ export default function MensalPage() {
                 key={f}
                 onClick={() => setFilter(f)}
                 className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                  f === filter ? "bg-gold text-bg" : "text-ivory-muted hover:text-ivory"
+                  f === filter ? "bg-gold text-ivory" : "text-ivory-muted hover:text-ivory"
                 }`}
               >
                 {FILTER_LABELS[f]}
@@ -112,7 +136,7 @@ export default function MensalPage() {
           </div>
         </div>
 
-        <Card className="overflow-x-auto p-0">
+        <Card className="table-scroll overflow-x-auto p-0">
           <table className="w-full min-w-[520px] text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ivory-muted">
@@ -131,7 +155,7 @@ export default function MensalPage() {
                     className="border-b border-border/60 transition-colors last:border-0 hover:bg-surface-raised/60"
                   >
                     <td className="px-4 py-3 text-ivory md:px-6">{s.name}</td>
-                    <td className="px-4 py-3 text-ivory-muted">{s.plan}</td>
+                    <td className="px-4 py-3 text-ivory-muted">{s.planName}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-ivory-muted">
                       {s.nextCharge !== "—" ? formatDatePtBR(s.nextCharge) : "—"}
                     </td>
@@ -152,6 +176,7 @@ export default function MensalPage() {
           </table>
         </Card>
       </section>
+      )}
     </div>
   );
 }

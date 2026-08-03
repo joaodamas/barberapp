@@ -1,4 +1,4 @@
-const CACHE_NAME = "o-siqueira-v2";
+const CACHE_NAME = "o-siqueira-v3";
 const OFFLINE_URL = "/offline";
 const APP_SHELL = [
   OFFLINE_URL,
@@ -8,10 +8,26 @@ const APP_SHELL = [
 ];
 
 self.addEventListener("install", (event) => {
+  // `addAll` é atômico: um único 404 derruba o precache inteiro e a página
+  // offline nunca chega a ser cacheada. Cada item falha por conta própria.
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL))
+    caches.open(CACHE_NAME).then((cache) =>
+      Promise.all(
+        APP_SHELL.map((url) =>
+          cache.add(url).catch((err) => {
+            console.warn("[sw] falhou ao pré-cachear", url, err);
+          })
+        )
+      )
+    )
   );
-  self.skipWaiting();
+  // Sem skipWaiting() automático: ativar o SW novo enquanto uma aba ainda roda
+  // o JS do build anterior faz ela pedir chunks que já não existem. O app
+  // decide a hora de trocar, mandando a mensagem SKIP_WAITING.
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data === "SKIP_WAITING") self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
@@ -33,7 +49,18 @@ self.addEventListener("fetch", (event) => {
 
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request).catch(() => caches.match(OFFLINE_URL))
+      fetch(request).catch(async () => {
+        // `caches.match` pode devolver undefined; respondWith(undefined) vira
+        // erro de rede em vez da página offline.
+        const cached = await caches.match(OFFLINE_URL);
+        return (
+          cached ??
+          new Response("Você está offline.", {
+            status: 503,
+            headers: { "Content-Type": "text/plain; charset=utf-8" },
+          })
+        );
+      })
     );
     return;
   }
@@ -63,12 +90,32 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  /* Respostas que podem conter dado de UM usuário nunca vão para o
+   * CacheStorage — ele é compartilhado pelo dispositivo e não tem chave por
+   * conta. Num celular emprestado no salão, o próximo login leria o cache do
+   * anterior. Vale para payloads RSC (`?_rsc=`), rotas de API e qualquer
+   * resposta marcada como privada. */
+  const url = new URL(request.url);
+  const isPrivate =
+    url.searchParams.has("_rsc") ||
+    url.pathname.startsWith("/api/") ||
+    request.headers.get("Accept")?.includes("text/x-component");
+
+  if (isPrivate) {
+    event.respondWith(fetch(request));
+    return;
+  }
+
   // Demais requisições do mesmo domínio: rede primeiro, cache como rede de
   // segurança para offline.
   event.respondWith(
     fetch(request)
       .then((response) => {
-        if (response.ok && request.url.startsWith(self.location.origin)) {
+        if (
+          response.ok &&
+          request.url.startsWith(self.location.origin) &&
+          response.headers.get("Cache-Control")?.includes("private") !== true
+        ) {
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
         }

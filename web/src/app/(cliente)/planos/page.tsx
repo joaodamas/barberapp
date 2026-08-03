@@ -6,30 +6,38 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
 import { Modal } from "@/components/ui/modal";
-import { formatBRL } from "@/lib/format";
-import { plans } from "@/lib/mock-data";
-
-type Plan = (typeof plans)[number];
-type Billing = "cartao" | "pix";
+import { formatBRL, formatDateShortPtBR, safeDiv } from "@/lib/format";
+import { usePlans } from "@/lib/db/use-shop-data";
+import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
+import {
+  addOneMonthISO,
+  useSubscription,
+  type Billing,
+  type Plan,
+} from "@/lib/subscription-context";
 
 const BILLING_LABEL: Record<Billing, string> = {
   cartao: "Cartão de crédito recorrente",
   pix: "Pix mensal",
 };
 
-/** Data da próxima cobrança: mesmo dia do mês seguinte. */
-function nextChargeDate() {
-  const d = new Date();
-  d.setMonth(d.getMonth() + 1);
-  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "long" });
-}
-
 export default function PlanosPage() {
+  const { items: plans, status } = usePlans();
+
+  const {
+    plan: activePlan,
+    billing: activeBilling,
+    nextChargeISO,
+    subscribe,
+    cancel,
+  } = useSubscription();
+
   const [checkoutPlan, setCheckoutPlan] = useState<Plan | null>(null);
   const [billing, setBilling] = useState<Billing>("cartao");
-  const [activePlanId, setActivePlanId] = useState<string | null>(null);
-  const [activeBilling, setActiveBilling] = useState<Billing>("cartao");
   const [confirmedPlan, setConfirmedPlan] = useState<Plan | null>(null);
+  const [cancelOpen, setCancelOpen] = useState(false);
+
+  const activePlanId = activePlan?.id ?? null;
 
   function openCheckout(plan: Plan) {
     setBilling("cartao");
@@ -38,17 +46,15 @@ export default function PlanosPage() {
 
   function confirmSubscription() {
     if (!checkoutPlan) return;
-    setActivePlanId(checkoutPlan.id);
-    setActiveBilling(billing);
+    subscribe(checkoutPlan, billing);
     setConfirmedPlan(checkoutPlan);
     setCheckoutPlan(null);
   }
 
-  function cancelSubscription() {
-    setActivePlanId(null);
+  function confirmCancellation() {
+    cancel();
+    setCancelOpen(false);
   }
-
-  const activePlan = plans.find((p) => p.id === activePlanId) ?? null;
 
   return (
     <div className="flex flex-col gap-5 pt-1 md:gap-8 md:pt-2">
@@ -68,28 +74,43 @@ export default function PlanosPage() {
                 Plano {activePlan.name} ativo
               </p>
               <p className="text-xs text-ivory-muted md:text-sm">
-                {BILLING_LABEL[activeBilling]} · próxima cobrança em {nextChargeDate()}
+                {BILLING_LABEL[activeBilling]} · próxima cobrança em {nextChargeISO ? formatDateShortPtBR(nextChargeISO) : "—"}
               </p>
             </div>
           </div>
-          <Button variant="secondary" className="text-danger" onClick={cancelSubscription}>
+          <Button variant="secondary" className="text-danger" onClick={() => setCancelOpen(true)}>
             Cancelar plano
           </Button>
         </Card>
       )}
 
+      {status === "carregando" && <LoadingRows rows={3} />}
+
+      {status === "pronto" && plans.length === 0 && (
+        <EmptyState
+          icon={Sparkles}
+          title="Nenhum plano disponível ainda"
+          description="A barbearia ainda não criou planos de mensalista. Você pode agendar normalmente no avulso."
+          actionLabel="Agendar horário"
+          actionHref="/agendar"
+        />
+      )}
+
+      {plans.length > 0 && (
       <div className="flex flex-col gap-3 pb-4 md:grid md:grid-cols-3 md:gap-5 md:pb-0">
         {plans.map((plan) => {
-          const breakEvenVisits = Math.ceil(plan.price / plan.priceAvulso);
-          const savingsPct = Math.round((1 - plan.price / plan.priceAvulso) * 100);
+          const breakEvenVisits = Math.max(1, Math.ceil(safeDiv(plan.price, plan.priceAvulso, 1)));
+          const savingsPct = Math.round((1 - safeDiv(plan.price, plan.priceAvulso, 1)) * 100);
           const isActive = plan.id === activePlanId;
           return (
+            /* O card inteiro era um <div onClick> com um <button> dentro:
+             * inalcançável por teclado e com interativo aninhado. A ação vive
+             * só no botão; o card mantém o realce no hover via `group`. */
             <Card
               key={plan.id}
               interactive
-              onClick={() => !isActive && openCheckout(plan)}
               className={
-                "flex cursor-pointer flex-col gap-3 md:gap-4 md:p-6 " +
+                "group flex flex-col gap-3 md:gap-4 md:p-6 " +
                 (isActive
                   ? "border-success/50"
                   : plan.highlight
@@ -135,10 +156,7 @@ export default function PlanosPage() {
                 variant={isActive ? "secondary" : plan.highlight ? "primary" : "secondary"}
                 className="w-full md:mt-2"
                 disabled={isActive}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openCheckout(plan);
-                }}
+                onClick={() => openCheckout(plan)}
               >
                 {isActive ? "Plano ativo" : "Assinar"}
               </Button>
@@ -146,7 +164,9 @@ export default function PlanosPage() {
           );
         })}
       </div>
+      )}
 
+      {plans.length > 0 && (
       <Card className="flex flex-col gap-3 md:max-w-2xl md:gap-4 md:p-6">
         <p className="text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm">
           Como funciona a cobrança
@@ -164,6 +184,7 @@ export default function PlanosPage() {
           Cancele quando quiser — vale até o fim do ciclo já pago.
         </div>
       </Card>
+      )}
 
       <Modal
         open={!!checkoutPlan}
@@ -213,9 +234,36 @@ export default function PlanosPage() {
             );
           })}
           <p className="text-xs text-ivory-muted">
-            Primeira cobrança hoje. A próxima cai em {nextChargeDate()}.
+            Primeira cobrança hoje. A próxima cai em {formatDateShortPtBR(addOneMonthISO(new Date()))}.
           </p>
         </div>
+      </Modal>
+
+      <Modal
+        open={cancelOpen}
+        onClose={() => setCancelOpen(false)}
+        title="Cancelar plano"
+        description={activePlan ? `Plano ${activePlan.name}` : undefined}
+        className="max-w-md"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setCancelOpen(false)}>
+              Manter plano
+            </Button>
+            <Button
+              className="bg-danger text-white hover:bg-danger/90"
+              onClick={confirmCancellation}
+            >
+              Confirmar cancelamento
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-ivory-muted">
+          Seu plano continua valendo até o fim do ciclo já pago
+          {nextChargeISO ? ` (${formatDateShortPtBR(nextChargeISO)})` : ""}. Depois
+          disso, os atendimentos voltam a ser cobrados no avulso.
+        </p>
       </Modal>
 
       <Modal

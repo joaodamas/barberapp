@@ -1,21 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, SlidersHorizontal, TrendingDown, TrendingUp, Wallet } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { KpiTile } from "@/components/ui/kpi-tile";
 import { formatBRL } from "@/lib/format";
-import {
-  dre,
-  MAX_MONTH_OFFSET,
-  monthExpenses,
-  monthLabelFor,
-  monthRevenueFactor,
-  products,
-  productMovements,
-  revenueBreakdown,
-  topServices,
-} from "@/lib/mock-data";
+import { useFinanceiro, mesAtual, rotuloDoMes } from "@/lib/db/use-financeiro";
+import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
+import { useTenant } from "@/lib/tenant-context";
 
 type DreItem = {
   key: string;
@@ -43,48 +35,65 @@ export default function DrePage() {
     });
   }
 
-  /** Receita e custos variáveis acompanham o mês; custo fixo é fixo. */
-  const f = monthRevenueFactor(monthOffset);
-  const scale = (value: number) => Math.round(value * f);
+  const tenant = useTenant();
+  const mes = mesAtual(monthOffset);
+  const { dre: r, receita, raw, status } = useFinanceiro(mes);
+  const dreTaxRatePct = tenant.policies.taxRatePct;
 
-  const grossRevenue = scale(dre.grossRevenue);
-  const custoVariavelTotal = scale(dre.cmv + dre.gatewayFees + dre.commissions);
-  const margemContribuicao = grossRevenue - custoVariavelTotal;
-  const margemContribuicaoPct = (margemContribuicao / grossRevenue) * 100;
-  const payroll = 0;
-  const custoFixoTotal = dre.operatingExpenses + payroll;
-  const resultadoDoMes = margemContribuicao - custoFixoTotal;
+  const monthExpenses = raw.expenses.filter((e) => e.date.startsWith(mes));
+  const products = raw.products;
+  const nomeProduto = new Map(raw.services.map((s) => [s.id, s.name]));
 
-  const scenario = useMemo(() => {
-    const factor = 1 + scenarioPct / 100;
-    const receita = grossRevenue * factor;
-    const custoVariavel = custoVariavelTotal * factor;
-    const margem = receita - custoVariavel;
-    const custoFixo = custoFixoTotal;
-    const resultado = margem - custoFixo;
-    return { receita, custoVariavel, margem, custoFixo, resultado };
-  }, [scenarioPct, grossRevenue, custoVariavelTotal, custoFixoTotal]);
+  const revenueBreakdown = [
+    { label: "Serviços avulsos", value: receita.servicos },
+    { label: "Produtos (loja)", value: receita.produtos },
+    { label: "Mensalistas", value: receita.mensalistas },
+    { label: "Encaixes", value: receita.encaixes },
+  ].filter((i) => i.value > 0);
 
-  const servicosAvulsos = revenueBreakdown.find((r) => r.label === "Serviços avulsos")?.value ?? 0;
-  const outrosServicos = servicosAvulsos - topServices.reduce((s, t) => s + t.revenue, 0);
+  const topServices = raw.tops;
+  const {
+    grossRevenue,
+    variableCost: custoVariavelTotal,
+    contributionMargin: margemContribuicao,
+    contributionMarginPct: margemContribuicaoPct,
+    fixedCost: custoFixoTotal,
+    payroll,
+    result: resultadoDoMes,
+  } = r;
+
+  /* Simulação: escala receita e custo variável, mantém o fixo. É o que revela
+   * o impacto real na margem antes de investir em crescimento. */
+  const fator = 1 + scenarioPct / 100;
+  const scenario = {
+    grossRevenue: Math.round(grossRevenue * fator),
+    variableCost: Math.round(custoVariavelTotal * fator),
+    contributionMargin: Math.round(grossRevenue * fator - custoVariavelTotal * fator),
+    fixedCost: custoFixoTotal,
+    result: Math.round(grossRevenue * fator - custoVariavelTotal * fator - custoFixoTotal),
+  };
+
+
+  const servicosAvulsos = receita.servicos;
+  const outrosServicos = Math.max(servicosAvulsos - topServices.reduce((s, t) => s + t.revenue, 0), 0);
 
   const receitaTree: DreItem[] = revenueBreakdown.map((r) => {
     if (r.label === "Serviços avulsos") {
       return {
         key: "receita.servicos",
         label: r.label,
-        value: scale(r.value),
+        value: r.value,
         children: [
           ...topServices.map((s) => ({
             key: `receita.servicos.${s.name}`,
             label: s.name,
-            value: scale(s.revenue),
-            caption: `${Math.round(s.count * f)} atendimentos`,
+            value: s.revenue,
+            caption: `${s.count} atendimentos`,
           })),
           {
             key: "receita.servicos.outros",
             label: "Outros serviços",
-            value: scale(outrosServicos),
+            value: outrosServicos,
           },
         ],
       };
@@ -93,37 +102,54 @@ export default function DrePage() {
       return {
         key: "receita.produtos",
         label: r.label,
-        value: scale(r.value),
-        children: productMovements.map((m) => ({
-          key: `receita.produtos.${m.productId}`,
-          label: products.find((p) => p.id === m.productId)?.name ?? m.productId,
-          value: scale(m.soldRevenue),
-          caption: `${Math.round(m.sold * f)} un.`,
-        })),
+        value: r.value,
+        children: raw.movements
+          .filter((m) => m.kind === "venda" && m.date.startsWith(mes))
+          .map((m) => ({
+            key: `receita.produtos.${m.id}`,
+            label: products.find((p) => p.id === m.productId)?.name ?? nomeProduto.get(m.productId) ?? m.productId,
+            value: m.value,
+            caption: `${m.quantity} un.`,
+          })),
       };
     }
-    return { key: `receita.${r.label}`, label: r.label, value: scale(r.value) };
+    return { key: `receita.${r.label}`, label: r.label, value: r.value };
   });
 
-  const cmvTree: DreItem[] = productMovements.map((m) => ({
-    key: `cmv.${m.productId}`,
-    label: products.find((p) => p.id === m.productId)?.name ?? m.productId,
-    value: scale(m.purchaseCost),
-    caption: `${Math.round(m.purchased * f)} un. compradas`,
-  }));
+  const cmvTree: DreItem[] = raw.movements
+    .filter((m) => m.kind === "compra" && m.date.startsWith(mes))
+    .map((m) => ({
+      key: `cmv.${m.id}`,
+      label: products.find((p) => p.id === m.productId)?.name ?? m.productId,
+      value: m.value,
+      caption: `${m.quantity} un. compradas`,
+    }));
 
   const variaveisTree: DreItem[] = [
-    { key: "var.gateway", label: "Taxas de gateway", value: scale(dre.gatewayFees) },
-    { key: "var.comissao", label: "Comissões de profissionais", value: scale(dre.commissions) },
+    { key: "var.gateway", label: "Taxas de gateway", value: r.gatewayFees },
+    { key: "var.comissao", label: "Comissões de profissionais", value: r.commissions },
   ];
 
-  // Despesa fixa não escala com a receita — é o que define o ponto de equilíbrio.
-  const fixasTree: DreItem[] = monthExpenses.map((e) => ({
-    key: `fixa.${e.id}`,
-    label: e.description,
-    value: e.value,
-    caption: e.category,
-  }));
+  /* Despesa fixa = recorrente. Antes TODA despesa entrava como fixa, inclusive
+   * impulsionamento no Instagram e revisão de máquina — o custo fixo ficava 45%
+   * inflado e o ponto de equilíbrio, errado. */
+  const fixasTree: DreItem[] = monthExpenses
+    .filter((e) => e.recurring)
+    .map((e) => ({
+      key: `fixa.${e.id}`,
+      label: e.description,
+      value: e.value,
+      caption: e.category,
+    }));
+
+  const eventuaisTree: DreItem[] = monthExpenses
+    .filter((e) => !e.recurring)
+    .map((e) => ({
+      key: `eventual.${e.id}`,
+      label: e.description,
+      value: e.value,
+      caption: e.category,
+    }));
 
   return (
     <div className="flex flex-col gap-6 pt-1 md:gap-8 md:pt-2">
@@ -138,26 +164,40 @@ export default function DrePage() {
         <div className="flex items-center gap-1 text-sm text-ivory-muted">
           <button
             aria-label="Mês anterior"
-            disabled={monthOffset >= MAX_MONTH_OFFSET}
-            onClick={() => setMonthOffset((o) => Math.min(o + 1, MAX_MONTH_OFFSET))}
-            className="flex h-7 w-7 items-center justify-center rounded-lg transition-colors hover:bg-surface-raised hover:text-ivory disabled:cursor-not-allowed disabled:opacity-30"
+            disabled={monthOffset >= 11}
+            onClick={() => setMonthOffset((o) => Math.min(o + 1, 11))}
+            className="flex h-11 w-11 items-center justify-center md:h-8 md:w-8 rounded-lg transition-colors hover:bg-surface-raised hover:text-ivory disabled:cursor-not-allowed disabled:opacity-30"
           >
             <ChevronLeft size={16} />
           </button>
           <span className="min-w-32 text-center font-medium text-ivory">
-            {monthLabelFor(monthOffset)}
+            {rotuloDoMes(mes)}
           </span>
           <button
             aria-label="Próximo mês"
             disabled={monthOffset <= 0}
             onClick={() => setMonthOffset((o) => Math.max(o - 1, 0))}
-            className="flex h-7 w-7 items-center justify-center rounded-lg transition-colors hover:bg-surface-raised hover:text-ivory disabled:cursor-not-allowed disabled:opacity-30"
+            className="flex h-11 w-11 items-center justify-center md:h-8 md:w-8 rounded-lg transition-colors hover:bg-surface-raised hover:text-ivory disabled:cursor-not-allowed disabled:opacity-30"
           >
             <ChevronRight size={16} />
           </button>
         </div>
       </div>
 
+      {status === "carregando" && <LoadingRows rows={5} />}
+
+      {status === "pronto" && grossRevenue === 0 && monthExpenses.length === 0 && (
+        <EmptyState
+          icon={Wallet}
+          title={`Sem movimento em ${rotuloDoMes(mes)}`}
+          description="O DRE se monta a partir dos atendimentos concluídos e das despesas lançadas. Faltam os dois neste mês."
+          actionLabel="Lançar despesas"
+          actionHref="/painel/financeiro/despesas"
+        />
+      )}
+
+      {(grossRevenue > 0 || monthExpenses.length > 0) && (
+      <>
       <div className="grid grid-cols-2 gap-2 md:grid-cols-5 md:gap-4">
         <KpiTile tone="neutral" icon={Wallet} label="Receita" value={formatBRL(grossRevenue)} />
         <KpiTile
@@ -202,7 +242,7 @@ export default function DrePage() {
         />
         <ExpandableGroup
           label="(−) Custo de Mercadoria Vendida"
-          value={scale(dre.cmv)}
+          value={r.cmv}
           items={cmvTree}
           open={open}
           toggle={toggle}
@@ -211,7 +251,7 @@ export default function DrePage() {
         />
         <ExpandableGroup
           label="(−) Despesas Variáveis"
-          value={scale(dre.gatewayFees + dre.commissions)}
+          value={r.gatewayFees + r.commissions}
           items={variaveisTree}
           open={open}
           toggle={toggle}
@@ -229,12 +269,21 @@ export default function DrePage() {
           </span>
         </div>
         <ExpandableGroup
-          label="(−) Despesas Fixas"
-          value={dre.operatingExpenses}
+          label="(−) Despesas Fixas (recorrentes)"
+          value={r.fixedExpenses}
           items={fixasTree}
           open={open}
           toggle={toggle}
           groupKey="fixas"
+          tone="danger"
+        />
+        <ExpandableGroup
+          label="(−) Despesas Operacionais Eventuais"
+          value={r.variableOperatingExpenses}
+          items={eventuaisTree}
+          open={open}
+          toggle={toggle}
+          groupKey="eventuais"
           tone="danger"
         />
         <div className="flex items-center justify-between py-1.5 pl-5">
@@ -246,6 +295,16 @@ export default function DrePage() {
         <div className="mt-1 flex items-center justify-between border-t border-border pt-2">
           <span className="text-ivory">(=) Custo Fixo Total</span>
           <span className="text-ivory">{formatBRL(custoFixoTotal)}</span>
+        </div>
+        <div className="mt-1 flex items-center justify-between border-t border-border pt-2">
+          <span className="text-ivory">(=) Resultado antes de impostos</span>
+          <span className="text-ivory">{formatBRL(r.resultBeforeTax)}</span>
+        </div>
+        <div className="flex items-center justify-between py-1.5 pl-5">
+          <span className="text-ivory-muted">
+            (−) Impostos <span className="text-xs">(Simples, {dreTaxRatePct}% sobre o resultado)</span>
+          </span>
+          <span className="font-medium text-danger">{formatBRL(r.tax)}</span>
         </div>
         <div className="flex items-center justify-between border-t border-border pt-3">
           <span className="font-semibold text-ivory">Resultado do Mês</span>
@@ -289,14 +348,14 @@ export default function DrePage() {
             onChange={(e) => setScenarioPct(Number(e.target.value))}
             className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-surface-raised accent-gold"
           />
-          <div className="flex justify-between text-[10px] text-ivory-muted">
+          <div className="flex justify-between text-[11px] text-ivory-muted">
             <span>-50%</span>
             <span>0%</span>
             <span>+100%</span>
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="table-scroll overflow-x-auto">
           <table className="w-full min-w-[480px] text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ivory-muted">
@@ -307,25 +366,27 @@ export default function DrePage() {
               </tr>
             </thead>
             <tbody>
-              <ScenarioRow label="Receita" atual={grossRevenue} simulado={scenario.receita} />
+              <ScenarioRow label="Receita" atual={grossRevenue} simulado={scenario.grossRevenue} />
               <ScenarioRow
                 label="Custo Variável Total"
                 atual={custoVariavelTotal}
-                simulado={scenario.custoVariavel}
+                simulado={scenario.variableCost}
                 invert
               />
-              <ScenarioRow label="Margem de Contribuição" atual={margemContribuicao} simulado={scenario.margem} />
-              <ScenarioRow label="Custo Fixo Total" atual={custoFixoTotal} simulado={scenario.custoFixo} invert />
+              <ScenarioRow label="Margem de Contribuição" atual={margemContribuicao} simulado={scenario.contributionMargin} />
+              <ScenarioRow label="Custo Fixo Total" atual={custoFixoTotal} simulado={scenario.fixedCost} invert />
               <ScenarioRow
                 label="Resultado do Mês"
                 atual={resultadoDoMes}
-                simulado={scenario.resultado}
+                simulado={scenario.result}
                 strong
               />
             </tbody>
           </table>
         </div>
       </Card>
+      </>
+      )}
     </div>
   );
 }
@@ -427,42 +488,6 @@ function DreDetailRow({
           <DreDetailRow key={child.key} item={child} depth={depth + 1} open={open} toggle={toggle} tone={tone} />
         ))}
     </>
-  );
-}
-
-function KpiTile({
-  tone,
-  icon: Icon,
-  label,
-  value,
-  caption,
-}: {
-  tone: "success" | "danger" | "neutral";
-  icon: LucideIcon;
-  label: string;
-  value: string;
-  caption?: string;
-}) {
-  const toneBorder = {
-    success: "border-t-success",
-    danger: "border-t-danger",
-    neutral: "border-t-gold",
-  }[tone];
-  const toneText = {
-    success: "text-success",
-    danger: "text-danger",
-    neutral: "text-gold-light",
-  }[tone];
-
-  return (
-    <Card className={`flex flex-col gap-1 border-t-2 p-3 md:gap-1.5 md:p-5 ${toneBorder}`}>
-      <div className="flex items-center gap-1.5">
-        <Icon size={12} className={toneText} />
-        <p className="text-[10px] uppercase tracking-wide text-ivory-muted md:text-xs">{label}</p>
-      </div>
-      <p className="font-display text-lg font-semibold text-ivory md:text-2xl">{value}</p>
-      {caption && <p className="text-[10px] text-ivory-muted md:text-xs">{caption}</p>}
-    </Card>
   );
 }
 

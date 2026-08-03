@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Bell,
@@ -18,8 +18,11 @@ import { SignOutButton } from "@/components/sign-out-button";
 import { ProfileIdentity } from "@/components/profile-identity";
 import { OwnerPanelLink } from "@/components/owner-panel-link";
 import { useAuth } from "@/lib/auth-context";
-import { formatBRL } from "@/lib/format";
-import { barbershop, bookingHistory, loyalty, nextBooking } from "@/lib/mock-data";
+import { formatBRL, formatDateShortPtBR } from "@/lib/format";
+import { useSubscription } from "@/lib/subscription-context";
+import { cancellationPolicy } from "@/lib/business-rules";
+import { useTenant } from "@/lib/tenant-context";
+import { useLoyalty, useMyBookings } from "@/lib/db/use-shop-data";
 
 type MenuKey = "dados" | "plano" | "notificacoes" | "politica" | "ajuda";
 
@@ -41,6 +44,18 @@ const MODAL_TITLE: Record<MenuKey, string> = {
 
 export default function PerfilPage() {
   const { user } = useAuth();
+  const tenant = useTenant();
+  const { items: minhas } = useMyBookings(user?.uid);
+  const { plan: activePlan, nextChargeISO } = useSubscription();
+
+  const bookingHistory = minhas.filter((b) => b.status === "completed");
+  const loyalty = useLoyalty(user?.uid);
+  const barbershop = {
+    name: tenant.brand.name,
+    address: tenant.contact.address,
+    whatsapp: tenant.contact.whatsapp,
+    instagram: tenant.contact.instagram ?? "",
+  };
   const [openMenu, setOpenMenu] = useState<MenuKey | null>(null);
 
   const [name, setName] = useState("");
@@ -54,13 +69,19 @@ export default function PerfilPage() {
     fidelidade: true,
   });
 
-  const totalVisits = bookingHistory.length + 1;
-  const totalSpent =
-    bookingHistory.reduce((s, b) => s + b.value, 0) + nextBooking.value;
+  /* Só atendimento concluído conta — a reserva futura (possivelmente "a pagar
+   * no salão") era somada como visita realizada e dinheiro gasto. */
+  const totalVisits = bookingHistory.length;
+  const totalSpent = bookingHistory.reduce((s, b) => s + b.value, 0);
+
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (savedTimer.current) clearTimeout(savedTimer.current);
+  }, []);
 
   function saveProfile() {
     setSaved(true);
-    setTimeout(() => {
+    savedTimer.current = setTimeout(() => {
       setSaved(false);
       setOpenMenu(null);
     }, 900);
@@ -126,16 +147,20 @@ export default function PerfilPage() {
               </div>
               <div>
                 <p className="text-sm font-medium text-ivory md:text-base">
-                  Você ainda não é mensalista
+                  {activePlan ? `Plano ${activePlan.name} ativo` : "Você ainda não é mensalista"}
                 </p>
                 <p className="text-xs text-ivory-muted md:text-sm">
-                  Planos a partir de R$ 149/mês
+                  {activePlan
+                    ? `${formatBRL(activePlan.price)}/mês${
+                        nextChargeISO ? ` · próxima cobrança em ${formatDateShortPtBR(nextChargeISO)}` : ""
+                      }`
+                    : "Planos a partir de R$ 149/mês"}
                 </p>
               </div>
             </div>
             <Link href="/planos">
               <Button variant="secondary" className="w-full">
-                Ver planos
+                {activePlan ? "Gerenciar plano" : "Ver planos"}
               </Button>
             </Link>
           </Card>
@@ -203,9 +228,13 @@ export default function PerfilPage() {
             <div className="flex items-center gap-3 rounded-xl border border-border bg-surface-raised px-4 py-3">
               <Sparkles size={18} className="shrink-0 text-gold-light" />
               <div>
-                <p className="text-sm text-ivory">Você ainda não é mensalista</p>
+                <p className="text-sm text-ivory">
+                  {activePlan ? `Plano ${activePlan.name}` : "Você ainda não é mensalista"}
+                </p>
                 <p className="text-xs text-ivory-muted">
-                  Hoje você paga por atendimento avulso.
+                  {activePlan
+                    ? `${formatBRL(activePlan.price)}/mês · ${activePlan.description}`
+                    : "Hoje você paga por atendimento avulso."}
                 </p>
               </div>
             </div>
@@ -265,16 +294,24 @@ export default function PerfilPage() {
         {openMenu === "politica" && (
           <div className="flex flex-col gap-3 text-sm text-ivory-muted">
             <p>
-              <strong className="text-ivory">Até 24h antes:</strong> cancelamento com 100%
-              de devolução do valor pago.
+              <strong className="text-ivory">
+                Até {cancellationPolicy.fullRefundHours}h antes:
+              </strong>{" "}
+              cancelamento com 100% de devolução do valor pago.
             </p>
             <p>
-              <strong className="text-ivory">Entre 24h e 6h antes:</strong> aplicamos a taxa
-              de cancelamento e devolvemos metade do valor.
+              <strong className="text-ivory">
+                Entre {cancellationPolicy.fullRefundHours}h e{" "}
+                {cancellationPolicy.partialRefundHours}h antes:
+              </strong>{" "}
+              retemos {cancellationPolicy.cancellationFeePct}% de taxa de cancelamento e
+              devolvemos o restante.
             </p>
             <p>
-              <strong className="text-ivory">Menos de 6h antes:</strong> não há devolução —
-              o horário dificilmente é reocupado em cima da hora.
+              <strong className="text-ivory">
+                Menos de {cancellationPolicy.partialRefundHours}h antes:
+              </strong>{" "}
+              não há devolução — o horário dificilmente é reocupado em cima da hora.
             </p>
             <p>
               Reservas com pagamento no salão não têm valor a devolver, mas faltas repetidas

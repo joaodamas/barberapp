@@ -1,17 +1,16 @@
 "use client";
 
 import { AlertTriangle, TrendingDown, TrendingUp, Wallet } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
-import { formatBRL, formatDatePtBR } from "@/lib/format";
-import { cashProjection } from "@/lib/mock-data";
-
-function signTone(value: number): "success" | "danger" {
-  return value >= 0 ? "success" : "danger";
-}
+import { KpiTile, signTone } from "@/components/ui/kpi-tile";
+import { formatBRL, formatDateShortPtBR, formatWeekdayAndDay } from "@/lib/format";
+import { useFinanceiro, mesAtual } from "@/lib/db/use-financeiro";
+import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 
 export default function ProjecaoPage() {
+  const { projecao: cashProjection, status, raw } = useFinanceiro(mesAtual());
+  const semBase = raw.expenses.length === 0 && raw.bookings.length === 0;
   const openDays = cashProjection.filter((d) => !d.isClosed);
 
   const confirmedRevenue = openDays
@@ -22,8 +21,10 @@ export default function ProjecaoPage() {
   const despesasFixas = cashProjection.reduce((s, d) => s + d.fixedExpense, 0);
   const resultadoProjetado = cashProjection.at(-1)?.cumulative ?? 0;
 
-  const tightestDay = cashProjection.reduce((min, d) =>
-    d.cumulative < min.cumulative ? d : min
+  // `reduce` sem valor inicial lança TypeError em array vazio.
+  const tightestDay = cashProjection.reduce(
+    (min, d) => (d.cumulative < min.cumulative ? d : min),
+    cashProjection[0]
   );
 
   return (
@@ -65,11 +66,22 @@ export default function ProjecaoPage() {
           icon={AlertTriangle}
           label="Ponto mais apertado"
           value={formatBRL(tightestDay.cumulative)}
-          caption={formatDatePtBR(tightestDay.date)}
+          caption={formatDateShortPtBR(tightestDay.date)}
         />
       </div>
 
-      <Card className="overflow-x-auto p-0">
+      {status === "carregando" && <LoadingRows rows={4} />}
+      {status === "pronto" && semBase && (
+        <EmptyState
+          icon={AlertTriangle}
+          title="A projeção precisa de histórico"
+          description="Ela combina suas reservas futuras, a cobrança dos mensalistas e as despesas recorrentes. Comece lançando suas despesas fixas."
+          actionLabel="Lançar despesas"
+          actionHref="/painel/financeiro/despesas"
+        />
+      )}
+      {!semBase && (
+      <Card className="table-scroll overflow-x-auto p-0">
         <table className="w-full min-w-[640px] text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ivory-muted">
@@ -88,7 +100,7 @@ export default function ProjecaoPage() {
                 className="border-b border-border/60 transition-colors last:border-0 hover:bg-surface-raised/60"
               >
                 <td className="whitespace-nowrap px-4 py-2.5 text-ivory md:px-6">
-                  {formatDatePtBR(d.date).split(",")[0]}
+                  {formatWeekdayAndDay(d.date)}
                 </td>
                 <td className="px-4 py-2.5">
                   {d.isClosed ? (
@@ -127,42 +139,7 @@ export default function ProjecaoPage() {
           </tbody>
         </table>
       </Card>
+      )}
     </div>
-  );
-}
-
-function KpiTile({
-  tone,
-  icon: Icon,
-  label,
-  value,
-  caption,
-}: {
-  tone: "success" | "danger" | "neutral";
-  icon: LucideIcon;
-  label: string;
-  value: string;
-  caption?: string;
-}) {
-  const toneBorder = {
-    success: "border-t-success",
-    danger: "border-t-danger",
-    neutral: "border-t-gold",
-  }[tone];
-  const toneText = {
-    success: "text-success",
-    danger: "text-danger",
-    neutral: "text-gold-light",
-  }[tone];
-
-  return (
-    <Card className={`flex flex-col gap-1 border-t-2 p-3 md:gap-1.5 md:p-5 ${toneBorder}`}>
-      <div className="flex items-center gap-1.5">
-        <Icon size={12} className={toneText} />
-        <p className="text-[10px] uppercase tracking-wide text-ivory-muted md:text-xs">{label}</p>
-      </div>
-      <p className="font-display text-lg font-semibold text-ivory md:text-2xl">{value}</p>
-      {caption && <p className="text-[10px] text-ivory-muted md:text-xs">{caption}</p>}
-    </Card>
   );
 }

@@ -1,12 +1,22 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertTriangle, Package, Percent, Plus, X } from "lucide-react";
+import { AlertTriangle, Package, Percent, Plus } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
+import { Modal } from "@/components/ui/modal";
 import { formatBRL } from "@/lib/format";
-import { businessRates, products as initialProducts } from "@/lib/mock-data";
+import { useProducts } from "@/lib/db/use-shop-data";
+import { useTenant } from "@/lib/tenant-context";
+import { createDoc } from "@/lib/db/repository";
+import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
+import { commissionSplit, splitSale, taxRatePct } from "@/lib/business-rules";
+
+/* `profitPct` é margem sobre o PREÇO de venda (preço = custo ÷ (1 − m)), não
+ * markup sobre o custo. 100% seria divisão por zero: limitamos e avisamos, em
+ * vez de exibir "R$ 0,00" em silêncio. */
+const MAX_PROFIT_PCT = 95;
 
 const emptyForm = {
   name: "",
@@ -17,48 +27,58 @@ const emptyForm = {
 };
 
 export default function LojaPage() {
-  const [products, setProducts] = useState(initialProducts);
+  const { id: barbershopId } = useTenant();
+  const { items: products, status } = useProducts();
   const [simPrice, setSimPrice] = useState(45);
   const [simCost, setSimCost] = useState(18);
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const lowStock = products.filter((p) => p.stock < p.minStock);
 
-  const simCommission = useMemo(() => {
-    const profit = Math.max(simPrice - simCost, 0);
-    return (profit * businessRates.commissionRatePct) / 100;
-  }, [simPrice, simCost]);
+  const simSplit = useMemo(
+    () => splitSale({ price: simPrice, cost: simCost }),
+    [simPrice, simCost]
+  );
 
   const preview = useMemo(() => {
-    const cost = Number(form.cost) || 0;
-    const profitPct = Number(form.profitPct) || 0;
-    const price = profitPct < 100 ? cost / (1 - profitPct / 100) : 0;
-    const grossProfit = price - cost;
-    const commission = (grossProfit * businessRates.commissionRatePct) / 100;
-    const tax = (grossProfit * businessRates.taxRatePct) / 100;
-    const netProfit = grossProfit - commission - tax;
-    return { cost, price, grossProfit, commission, tax, netProfit };
+    const cost = Math.max(Number(form.cost) || 0, 0);
+    const rawPct = Number(form.profitPct) || 0;
+    const profitPct = Math.min(Math.max(rawPct, 0), MAX_PROFIT_PCT);
+    const clamped = rawPct !== profitPct;
+    const price = cost / (1 - profitPct / 100);
+    const split = splitSale({ price, cost });
+    return { cost, price, profitPct, clamped, ...split, netProfit: split.shopProfit };
   }, [form.cost, form.profitPct]);
 
   function openModal() {
     setForm(emptyForm);
+    setFormError(null);
     setModalOpen(true);
   }
 
   function saveProduct() {
-    if (!form.name || !form.cost) return;
-    setProducts((prev) => [
-      ...prev,
-      {
-        id: `prod_${Date.now()}`,
-        name: form.name,
-        cost: preview.cost,
-        price: Math.round(preview.price * 100) / 100,
-        stock: Number(form.stock) || 0,
-        minStock: Number(form.minStock) || 0,
-      },
-    ]);
+    // O clique não fazia nada e nenhuma mensagem aparecia.
+    if (!form.name.trim()) {
+      setFormError("Informe o nome do produto.");
+      return;
+    }
+    if (!(Number(form.cost) > 0)) {
+      setFormError("Informe um custo unitário maior que zero.");
+      return;
+    }
+    setFormError(null);
+    void createDoc(barbershopId, "products", {
+      name: form.name.trim(),
+      cost: preview.cost,
+      price: Math.round(preview.price * 100) / 100,
+      stock: Number(form.stock) || 0,
+      minStock: Number(form.minStock) || 0,
+    }).catch((err) => {
+      console.error("[loja] falha ao cadastrar", err);
+      setFormError("Não foi possível cadastrar. Tente de novo.");
+    });
     setModalOpen(false);
   }
 
@@ -94,6 +114,17 @@ export default function LojaPage() {
           <h2 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:mb-3 md:text-sm">
             <Package size={12} /> Produtos
           </h2>
+          {status === "carregando" && <LoadingRows rows={3} />}
+          {status === "pronto" && products.length === 0 && (
+            <EmptyState
+              icon={Package}
+              title="Nenhum produto cadastrado"
+              description="Cadastre o que você revende. O sistema calcula preço de venda, comissão e imposto a partir do custo."
+              actionLabel="Adicionar produto"
+              onAction={openModal}
+            />
+          )}
+          {products.length > 0 && (
           <Card className="flex flex-col gap-3 md:gap-4 md:p-6">
             {products.map((p) => {
               const belowMin = p.stock < p.minStock;
@@ -117,6 +148,7 @@ export default function LojaPage() {
               );
             })}
           </Card>
+          )}
         </section>
 
         <section>
@@ -144,10 +176,10 @@ export default function LojaPage() {
             </label>
             <div className="flex items-center justify-between border-t border-border pt-3 text-sm md:text-base">
               <span className="text-ivory-muted">
-                Comissão do profissional ({businessRates.commissionRatePct}% do lucro)
+                Comissão do profissional ({commissionSplit.barberPct}% do lucro)
               </span>
               <span className="font-display font-semibold text-gold-light md:text-lg">
-                {formatBRL(simCommission)}
+                {formatBRL(simSplit.commission)}
               </span>
             </div>
             <p className="text-xs text-ivory-muted md:text-sm">
@@ -158,108 +190,122 @@ export default function LojaPage() {
         </section>
       </div>
 
-      {modalOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
-          onClick={() => setModalOpen(false)}
-        >
-          <Card className="w-full max-w-xl md:p-6" onClick={(e) => e.stopPropagation()}>
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-ivory">Novo Produto</h2>
-              <button
-                aria-label="Fechar"
-                onClick={() => setModalOpen(false)}
-                className="flex h-7 w-7 items-center justify-center rounded-lg text-ivory-muted transition-colors hover:bg-surface-raised hover:text-ivory"
-              >
-                <X size={16} />
-              </button>
-            </div>
+      <Modal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title="Novo Produto"
+        className="max-w-xl"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={saveProduct}>Cadastrar produto</Button>
+          </>
+        }
+      >
+        <div className="grid gap-4 md:grid-cols-2">
+          <label className="flex flex-col gap-1 text-xs text-ivory-muted md:col-span-2">
+            Nome do produto *
+            <input
+              value={form.name}
+              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+              placeholder="Ex: Cera modeladora"
+              className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
+            />
+          </label>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <label className="flex flex-col gap-1 text-xs text-ivory-muted md:col-span-2">
-                Nome do produto *
-                <input
-                  value={form.name}
-                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                  placeholder="Ex: Cera modeladora"
-                  className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
-                />
-              </label>
+          <label className="flex flex-col gap-1 text-xs text-ivory-muted">
+            Custo unitário (R$) *
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              value={form.cost}
+              onChange={(e) => setForm((f) => ({ ...f, cost: e.target.value }))}
+              placeholder="0"
+              className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
+            />
+          </label>
 
-              <label className="flex flex-col gap-1 text-xs text-ivory-muted">
-                Custo unitário (R$) *
-                <input
-                  type="number"
-                  value={form.cost}
-                  onChange={(e) => setForm((f) => ({ ...f, cost: e.target.value }))}
-                  placeholder="0"
-                  className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
-                />
-              </label>
+          <label className="flex flex-col gap-1 text-xs text-ivory-muted">
+            Margem sobre o preço de venda (%)
+            <input
+              type="number"
+              min={0}
+              max={MAX_PROFIT_PCT}
+              value={form.profitPct}
+              onChange={(e) => setForm((f) => ({ ...f, profitPct: e.target.value }))}
+              className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
+            />
+            <span className="text-[11px] text-ivory-muted">
+              preço = custo ÷ (1 − margem). Não é markup sobre o custo.
+            </span>
+          </label>
 
-              <label className="flex flex-col gap-1 text-xs text-ivory-muted">
-                Percentual de lucro (%)
-                <input
-                  type="number"
-                  value={form.profitPct}
-                  onChange={(e) => setForm((f) => ({ ...f, profitPct: e.target.value }))}
-                  className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
-                />
-              </label>
+          <label className="flex flex-col gap-1 text-xs text-ivory-muted">
+            Estoque inicial (un.)
+            <input
+              type="number"
+              min={0}
+              value={form.stock}
+              onChange={(e) => setForm((f) => ({ ...f, stock: e.target.value }))}
+              placeholder="0"
+              className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
+            />
+          </label>
 
-              <label className="flex flex-col gap-1 text-xs text-ivory-muted">
-                Estoque inicial (un.)
-                <input
-                  type="number"
-                  value={form.stock}
-                  onChange={(e) => setForm((f) => ({ ...f, stock: e.target.value }))}
-                  placeholder="0"
-                  className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
-                />
-              </label>
-
-              <label className="flex flex-col gap-1 text-xs text-ivory-muted">
-                Estoque mínimo (un.)
-                <input
-                  type="number"
-                  value={form.minStock}
-                  onChange={(e) => setForm((f) => ({ ...f, minStock: e.target.value }))}
-                  className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
-                />
-              </label>
-            </div>
-
-            <div className="mt-4 flex flex-col gap-2 rounded-xl border border-border bg-surface-raised/60 p-4">
-              <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-gold-light">
-                <Percent size={12} /> Prévia de precificação
-              </p>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                <Row label="Custo unitário" value={formatBRL(preview.cost)} />
-                <Row label="Preço de venda" value={formatBRL(preview.price)} strong />
-                <Row label="Lucro bruto" value={formatBRL(preview.grossProfit)} />
-                <Row
-                  label={`Comissão (${businessRates.commissionRatePct}%)`}
-                  value={`− ${formatBRL(preview.commission)}`}
-                  tone="danger"
-                />
-                <Row
-                  label={`Imposto (${businessRates.taxRatePct}%)`}
-                  value={`− ${formatBRL(preview.tax)}`}
-                  tone="danger"
-                />
-                <Row label="Lucro líquido" value={formatBRL(preview.netProfit)} tone="success" strong />
-              </div>
-            </div>
-
-            <div className="mt-5 flex justify-end gap-2">
-              <Button variant="ghost" onClick={() => setModalOpen(false)}>
-                Cancelar
-              </Button>
-              <Button onClick={saveProduct}>Cadastrar produto</Button>
-            </div>
-          </Card>
+          <label className="flex flex-col gap-1 text-xs text-ivory-muted">
+            Estoque mínimo (un.)
+            <input
+              type="number"
+              min={0}
+              value={form.minStock}
+              onChange={(e) => setForm((f) => ({ ...f, minStock: e.target.value }))}
+              className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
+            />
+          </label>
         </div>
-      )}
+
+        <div className="mt-4 flex flex-col gap-2 rounded-xl border border-border bg-surface-raised/60 p-4">
+          <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-gold-light">
+            <Percent size={12} /> Prévia de precificação
+          </p>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+            <Row label="Custo unitário" value={formatBRL(preview.cost)} />
+            <Row label="Preço de venda" value={formatBRL(preview.price)} strong />
+            <Row label="Lucro bruto" value={formatBRL(preview.grossProfit)} />
+            <Row
+              label={`Comissão do profissional (${commissionSplit.barberPct}%)`}
+              value={`− ${formatBRL(preview.commission)}`}
+              tone="danger"
+            />
+            <Row
+              label={`Imposto (${taxRatePct}%)`}
+              value={`− ${formatBRL(preview.tax)}`}
+              tone="danger"
+            />
+            <Row
+              label={`Sobra da barbearia (${commissionSplit.shopPct}% − imposto)`}
+              value={formatBRL(preview.shopProfit)}
+              tone="success"
+              strong
+            />
+          </div>
+          {preview.clamped && (
+            <p className="text-xs text-danger">
+              A margem foi limitada a {MAX_PROFIT_PCT}% — 100% seria divisão por zero.
+            </p>
+          )}
+        </div>
+
+        {formError && (
+          <p role="alert" className="mt-3 text-xs text-danger">
+            {formError}
+          </p>
+        )}
+      </Modal>
+
     </div>
   );
 }

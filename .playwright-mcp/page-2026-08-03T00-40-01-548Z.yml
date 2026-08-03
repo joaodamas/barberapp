@@ -1,0 +1,84 @@
+- generic [active] [ref=f11e1]:
+  - button "Open Next.js Dev Tools" [ref=f11e7] [cursor=pointer]
+  - alert [ref=f11e11]
+  - link "Pular para o conteúdo" [ref=f11e12] [cursor=pointer]:
+    - /url: "#conteudo"
+  - generic [ref=f11e13]:
+    - complementary [ref=f11e14]:
+      - link [ref=f11e15] [cursor=pointer]:
+        - /url: /painel
+        - generic [ref=f11e16]:
+          - paragraph [ref=f11e17]: O Siqueira Bar
+          - paragraph [ref=f11e18]: Painel do dono
+      - navigation [ref=f11e20]:
+        - link [ref=f11e22] [cursor=pointer]:
+          - /url: /painel
+        - generic [ref=f11e31]:
+          - link [ref=f11e32] [cursor=pointer]:
+            - /url: /painel/financeiro
+          - generic [ref=f11e38]:
+            - link "Resumo" [ref=f11e39] [cursor=pointer]:
+              - /url: /painel/financeiro
+            - link "DRE Gerencial" [ref=f11e40] [cursor=pointer]:
+              - /url: /painel/financeiro/dre
+            - link "Fluxo de Caixa" [ref=f11e41] [cursor=pointer]:
+              - /url: /painel/financeiro/fluxo-caixa
+            - link "Despesas" [ref=f11e42] [cursor=pointer]:
+              - /url: /painel/financeiro/despesas
+            - link "Projeção" [ref=f11e43] [cursor=pointer]:
+              - /url: /painel/financeiro/projecao
+        - link [ref=f11e45] [cursor=pointer]:
+          - /url: /painel/numeros
+        - link [ref=f11e51] [cursor=pointer]:
+          - /url: /painel/mensal
+        - link [ref=f11e59] [cursor=pointer]:
+          - /url: /painel/loja
+      - generic [ref=f11e66]:
+        - generic [ref=f11e67]:
+          - generic [ref=f11e68]: D
+          - generic [ref=f11e69]:
+            - paragraph [ref=f11e70]: dono
+            - paragraph [ref=f11e71]: Painel do dono
+        - button "Sair" [ref=f11e72]
+    - main [ref=f11e77]:
+      - generic [ref=f11e79]:
+        - generic [ref=f11e80]:
+          - generic [ref=f11e81]:
+            - paragraph [ref=f11e82]: 0 lançamento(s) cadastrado(s)
+            - heading "Despesas" [level=1] [ref=f11e83]
+          - button "Nova Despesa" [ref=f11e84]
+        - generic [ref=f11e86]:
+          - generic [ref=f11e87]:
+            - paragraph [ref=f11e92]: Lançamentos
+            - paragraph [ref=f11e93]: "0"
+            - paragraph [ref=f11e94]: no mês atual
+          - generic [ref=f11e95]:
+            - paragraph [ref=f11e99]: Total no mês
+            - paragraph [ref=f11e100]: R$ 0,00
+            - paragraph [ref=f11e101]: julho de 2026
+          - generic [ref=f11e102]:
+            - paragraph [ref=f11e109]: Recorrentes
+            - paragraph [ref=f11e110]: R$ 0,00
+            - paragraph [ref=f11e111]: por mês
+          - generic [ref=f11e112]:
+            - paragraph [ref=f11e117]: Maior categoria
+            - paragraph [ref=f11e118]: —
+            - paragraph [ref=f11e119]: R$ 0,00 no mês
+        - table [ref=f11e121]:
+          - rowgroup [ref=f11e122]:
+            - row [ref=f11e123]:
+              - columnheader "Data" [ref=f11e124]
+              - columnheader "Descrição" [ref=f11e125]
+              - columnheader "Fornecedor" [ref=f11e126]
+              - columnheader "Categoria" [ref=f11e127]
+              - columnheader "Pagamento" [ref=f11e128]
+              - columnheader "Valor" [ref=f11e129]
+              - columnheader [ref=f11e130]
+          - rowgroup [ref=f11e131]:
+            - row [ref=f11e132]:
+              - cell [ref=f11e133]
+          - rowgroup [ref=f11e135]:
+            - row [ref=f11e136]:
+              - cell "Total do mês" [ref=f11e137]
+              - cell "R$ 0,00" [ref=f11e138]
+              - cell [ref=f11e139]

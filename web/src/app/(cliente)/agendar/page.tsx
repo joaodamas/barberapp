@@ -13,8 +13,13 @@ import {
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
-import { services, mockSlotsForDay } from "@/lib/mock-data";
+import { useServices } from "@/lib/db/use-shop-data";
+import { useTenant } from "@/lib/tenant-context";
+import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
+import { CalendarX2 } from "lucide-react";
 import { formatBRL } from "@/lib/format";
+import { bookableDays, firstBookableIndex, slotsForDate } from "@/lib/slots";
+import { bookingPolicy } from "@/lib/business-rules";
 import type { PaymentMethod, TimeSlot } from "@/lib/types";
 
 type Step = 1 | 2 | 3 | 4;
@@ -26,29 +31,29 @@ const STEP_LABELS: Record<Step, string> = {
   4: "Confirmação",
 };
 
-function nextDays(count: number) {
-  const days = [];
-  const today = new Date();
-  for (let i = 0; i < count; i++) {
-    const d = new Date(today);
-    d.setDate(today.getDate() + i);
-    days.push(d);
-  }
-  return days;
-}
-
 export default function AgendarPage() {
+  const tenant = useTenant();
+  const { items: servicosDoc, status: statusServicos } = useServices();
+
+  const services = servicosDoc
+    .filter((s) => s.active !== false)
+    .map((s) => ({
+      id: s.id,
+      name: s.name,
+      durationMin: s.durationMin,
+      price: s.price,
+      priceFrom: s.priceFrom,
+    }));
+
   const [step, setStep] = useState<Step>(1);
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
-  const [selectedDayIndex, setSelectedDayIndex] = useState(0);
+  const [selectedDayIndex, setSelectedDayIndex] = useState(() =>
+    firstBookableIndex(bookableDays())
+  );
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("pix");
 
-  const days = useMemo(() => nextDays(10), []);
-  const slots = useMemo(
-    () => mockSlotsForDay(selectedDayIndex),
-    [selectedDayIndex]
-  );
+  const days = useMemo(() => bookableDays(new Date(), tenant.schedule), [tenant.schedule]);
 
   const selectedServices = services.filter((s) =>
     selectedServiceIds.includes(s.id)
@@ -58,8 +63,35 @@ export default function AgendarPage() {
     (sum, s) => sum + s.durationMin,
     0
   );
+
   const selectedDay = days[selectedDayIndex];
+
+  /* Os horários dependem da duração TOTAL escolhida: um combo de 60 min não
+   * pode ocupar o último slot de 30 min da jornada. */
+  // Sem useMemo: o React Compiler memoiza sozinho e o memo manual o faz
+  // desistir de otimizar o componente inteiro.
+  const slots = selectedDay
+    ? slotsForDate(selectedDay.iso, {
+        durationMin: totalDuration,
+        schedule: tenant.schedule,
+      })
+    : [];
+
   const isFitIn = Boolean(selectedSlot?.isFitIn);
+  const hasFreeSlot = slots.some((s) => s.available);
+
+  /* Rótulo e trava do CTA existiam duplicados na barra fixa do mobile e no
+   * card sticky do desktop — o mesmo ternário de 3 níveis escrito duas vezes. */
+  const ctaDisabled =
+    (step === 1 && selectedServiceIds.length === 0) || (step === 2 && !selectedSlot);
+  const ctaLabel =
+    step === 3
+      ? isFitIn
+        ? "Solicitar encaixe"
+        : paymentMethod === "local"
+          ? "Confirmar reserva"
+          : "Pagar e confirmar"
+      : "Continuar";
 
   function toggleService(id: string) {
     setSelectedServiceIds((prev) =>
@@ -101,13 +133,24 @@ export default function AgendarPage() {
         ))}
       </div>
 
-      {step === 1 && (
+      {step === 1 && statusServicos === "carregando" && <LoadingRows rows={4} />}
+
+      {step === 1 && statusServicos === "pronto" && services.length === 0 && (
+        <EmptyState
+          icon={CalendarX2}
+          title="Nenhum serviço disponível ainda"
+          description="A barbearia ainda não cadastrou os serviços. Volte em instantes ou fale com ela pelo WhatsApp."
+        />
+      )}
+
+      {step === 1 && services.length > 0 && (
         <div className="grid gap-3 pb-24 md:grid-cols-2">
           {services.map((service) => {
             const checked = selectedServiceIds.includes(service.id);
             return (
               <button
                 key={service.id}
+                aria-pressed={checked}
                 onClick={() => toggleService(service.id)}
                 className={
                   "flex items-center justify-between gap-3 rounded-2xl border p-4 text-left transition-colors md:p-5 " +
@@ -131,7 +174,7 @@ export default function AgendarPage() {
                     className={
                       "flex h-6 w-6 items-center justify-center rounded-full border " +
                       (checked
-                        ? "border-gold bg-gold text-bg"
+                        ? "border-gold bg-gold text-ivory"
                         : "border-border text-transparent")
                     }
                   >
@@ -151,29 +194,51 @@ export default function AgendarPage() {
               const active = i === selectedDayIndex;
               return (
                 <button
-                  key={d.toISOString()}
+                  key={d.iso}
+                  disabled={d.disabled}
+                  aria-pressed={active}
                   onClick={() => {
                     setSelectedDayIndex(i);
                     setSelectedSlot(null);
                   }}
                   className={
-                    "flex min-w-14 flex-col items-center gap-1 rounded-xl border px-3 py-2 " +
+                    "flex min-w-14 shrink-0 flex-col items-center gap-1 rounded-xl border px-3 py-2 transition-colors disabled:cursor-not-allowed disabled:opacity-35 " +
                     (active
                       ? "border-gold bg-gold/10 text-gold-light"
                       : "border-border text-ivory-muted")
                   }
                 >
-                  <span className="text-[10px] uppercase">
-                    {d.toLocaleDateString("pt-BR", { weekday: "short" })}
+                  <span className="text-[11px] uppercase">
+                    {d.date.toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", "")}
                   </span>
-                  <span className="text-base font-semibold">
-                    {d.getDate()}
-                  </span>
+                  <span className="text-base font-semibold">{d.date.getDate()}</span>
+                  {d.disabled && (
+                    <span className="text-[11px] leading-none">
+                      {d.reason === "fechado" ? "fechado" : "—"}
+                    </span>
+                  )}
                 </button>
               );
             })}
           </div>
 
+          {selectedDay?.disabled ? (
+            <Card className="py-8 text-center text-sm text-ivory-muted">
+              A barbearia não abre neste dia. Escolha outra data.
+            </Card>
+          ) : !hasFreeSlot ? (
+            <Card className="flex flex-col gap-2 py-6 text-center text-sm text-ivory-muted">
+              <span>
+                Nenhum horário livre comporta {totalDuration} min neste dia.
+              </span>
+              <span className="text-xs">
+                Tente outro dia, ou peça um encaixe nos horários marcados em
+                vermelho.
+              </span>
+            </Card>
+          ) : null}
+
+          {!selectedDay?.disabled && (
           <div className="grid grid-cols-3 gap-2 md:grid-cols-4 md:gap-3">
             {slots.map((slot) => {
               const active = selectedSlot?.time === slot.time;
@@ -190,11 +255,12 @@ export default function AgendarPage() {
               return (
                 <button
                   key={slot.time}
+                  aria-pressed={active}
                   onClick={() => setSelectedSlot(slot)}
                   className={
                     "flex flex-col items-center rounded-xl border py-2.5 text-sm transition-colors " +
                     (active
-                      ? "border-gold bg-gold text-bg"
+                      ? "border-gold bg-gold text-ivory"
                       : slot.isFitIn
                         ? "border-danger/40 text-danger"
                         : "border-border text-ivory")
@@ -202,12 +268,13 @@ export default function AgendarPage() {
                 >
                   {slot.time}
                   {slot.isFitIn && (
-                    <span className="text-[10px] font-medium">encaixe</span>
+                    <span className="text-[11px] font-medium">encaixe</span>
                   )}
                 </button>
               );
             })}
           </div>
+          )}
         </div>
       )}
 
@@ -218,7 +285,7 @@ export default function AgendarPage() {
               {selectedServices.map((s) => s.name).join(" + ")}
             </p>
             <p className="text-xs capitalize text-ivory-muted">
-              {selectedDay.toLocaleDateString("pt-BR", {
+              {selectedDay?.date.toLocaleDateString("pt-BR", {
                 weekday: "long",
                 day: "2-digit",
                 month: "long",
@@ -241,8 +308,8 @@ export default function AgendarPage() {
               <p className="text-sm text-ivory-muted">
                 Esse horário está ocupado. Seu pedido vai direto para o
                 WhatsApp do barbeiro — se aprovado, você paga e confirma na
-                hora. Sem resposta em até 45 min, o sistema libera opções de
-                horários livres automaticamente.
+                hora. Sem resposta em até {bookingPolicy.fitInExpirationMinutes} min, o sistema
+                libera opções de horários livres automaticamente.
               </p>
             </Card>
           ) : (
@@ -348,19 +415,10 @@ export default function AgendarPage() {
           </div>
           <Button
             className="w-full"
-            disabled={
-              (step === 1 && selectedServiceIds.length === 0) ||
-              (step === 2 && !selectedSlot)
-            }
+            disabled={ctaDisabled}
             onClick={() => setStep((s) => (s + 1) as Step)}
           >
-            {step === 3
-              ? isFitIn
-                ? "Solicitar encaixe"
-                : paymentMethod === "local"
-                  ? "Confirmar reserva"
-                  : "Pagar e confirmar"
-              : "Continuar"}
+            {ctaLabel}
           </Button>
         </div>
       )}
@@ -391,7 +449,7 @@ export default function AgendarPage() {
             <div className="flex flex-col gap-1 border-b border-border pb-4 text-sm">
               <span className="text-ivory-muted">Dia e horário</span>
               <span className="capitalize text-ivory">
-                {selectedDay.toLocaleDateString("pt-BR", {
+                {selectedDay?.date.toLocaleDateString("pt-BR", {
                   weekday: "long",
                   day: "2-digit",
                   month: "long",
@@ -421,19 +479,10 @@ export default function AgendarPage() {
 
           <Button
             className="w-full"
-            disabled={
-              (step === 1 && selectedServiceIds.length === 0) ||
-              (step === 2 && !selectedSlot)
-            }
+            disabled={ctaDisabled}
             onClick={() => setStep((s) => (s + 1) as Step)}
           >
-            {step === 3
-              ? isFitIn
-                ? "Solicitar encaixe"
-                : paymentMethod === "local"
-                  ? "Confirmar reserva"
-                  : "Pagar e confirmar"
-              : "Continuar"}
+            {ctaLabel}
           </Button>
         </Card>
       )}

@@ -2,69 +2,74 @@
 
 import { Calendar, TrendingUp, Wallet } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { formatBRL } from "@/lib/format";
-import { dailyCashHistory } from "@/lib/mock-data";
-
-const DOW_NAMES = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
-
-function weekday(date: string) {
-  return DOW_NAMES[new Date(`${date}T00:00:00`).getDay()];
-}
-
-function dayNumber(date: string) {
-  return date.split("-")[2];
-}
+import { KpiTile } from "@/components/ui/kpi-tile";
+import { formatBRL, formatWeekdayAndDay, safeDiv, safePct } from "@/lib/format";
+import { useFinanceiro, mesAtual, rotuloDoMes } from "@/lib/db/use-financeiro";
+import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 
 export default function FluxoCaixaPage() {
+  const mes = mesAtual();
+  const { caixa: dailyCashHistory, status } = useFinanceiro(mes);
   const total = dailyCashHistory.reduce((s, d) => s + d.total, 0);
-  const avgPerDay = total / dailyCashHistory.length;
-  const bestDay = dailyCashHistory.reduce((best, d) => (d.total > best.total ? d : best));
+  const avgPerDay = safeDiv(total, dailyCashHistory.length);
+  const bestDay = dailyCashHistory.reduce(
+    (best, d) => (d.total > best.total ? d : best),
+    dailyCashHistory[0]
+  );
   const totalAppointments = dailyCashHistory.reduce((s, d) => s + d.appointments, 0);
   const maxTotal = Math.max(...dailyCashHistory.map((d) => d.total), 1);
+  const totals = dailyCashHistory.reduce(
+    (acc, d) => ({
+      pix: acc.pix + d.pix,
+      cartao: acc.cartao + d.cartao,
+      dinheiro: acc.dinheiro + d.dinheiro,
+    }),
+    { pix: 0, cartao: 0, dinheiro: 0 }
+  );
 
   return (
     <div className="flex flex-col gap-6 pt-1 md:gap-8 md:pt-2">
       <div>
-        <p className="text-sm text-ivory-muted md:text-base">Histórico diário</p>
+        {/* A tela não dizia de que mês eram os números. */}
+        <p className="text-sm text-ivory-muted md:text-base">
+          Histórico diário · {rotuloDoMes(mes)}
+        </p>
         <h1 className="text-xl text-ivory md:text-3xl md:tracking-tight">Fluxo de Caixa</h1>
+        <p className="mt-1 text-xs text-ivory-muted md:text-sm">
+          Só o que entra pelo balcão. Mensalidades são cobradas por assinatura e
+          aparecem no Financeiro.
+        </p>
       </div>
 
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-4">
-        <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-5">
-          <div className="flex items-center gap-1.5">
-            <Wallet size={12} className="text-gold-light" />
-            <p className="text-[10px] uppercase tracking-wide text-ivory-muted md:text-xs">Total no mês</p>
-          </div>
-          <p className="font-display text-lg font-semibold text-ivory md:text-2xl">{formatBRL(total)}</p>
-        </Card>
-        <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-5">
-          <div className="flex items-center gap-1.5">
-            <TrendingUp size={12} className="text-gold-light" />
-            <p className="text-[10px] uppercase tracking-wide text-ivory-muted md:text-xs">Média diária</p>
-          </div>
-          <p className="font-display text-lg font-semibold text-ivory md:text-2xl">{formatBRL(avgPerDay)}</p>
-        </Card>
-        <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-5">
-          <div className="flex items-center gap-1.5">
-            <Calendar size={12} className="text-gold-light" />
-            <p className="text-[10px] uppercase tracking-wide text-ivory-muted md:text-xs">Melhor dia</p>
-          </div>
-          <p className="font-display text-lg font-semibold text-ivory md:text-2xl">{formatBRL(bestDay.total)}</p>
-          <p className="text-[10px] text-ivory-muted md:text-xs">
-            {weekday(bestDay.date)} dia {dayNumber(bestDay.date)}
-          </p>
-        </Card>
-        <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-5">
-          <div className="flex items-center gap-1.5">
-            <Calendar size={12} className="text-gold-light" />
-            <p className="text-[10px] uppercase tracking-wide text-ivory-muted md:text-xs">Atendimentos</p>
-          </div>
-          <p className="font-display text-lg font-semibold text-ivory md:text-2xl">{totalAppointments}</p>
-          <p className="text-[10px] text-ivory-muted md:text-xs">{dailyCashHistory.length} dias trabalhados</p>
-        </Card>
+        <KpiTile icon={Wallet} label="Total no mês" value={formatBRL(total)} />
+        <KpiTile icon={TrendingUp} label="Média diária" value={formatBRL(avgPerDay)} />
+        <KpiTile
+          icon={Calendar}
+          label="Melhor dia"
+          value={formatBRL(bestDay?.total ?? 0)}
+          caption={bestDay ? formatWeekdayAndDay(bestDay.date) : undefined}
+        />
+        <KpiTile
+          icon={Calendar}
+          label="Atendimentos"
+          value={String(totalAppointments)}
+          caption={`${dailyCashHistory.length} dias trabalhados`}
+        />
       </div>
 
-      <Card className="overflow-x-auto p-0">
+      {status === "carregando" && <LoadingRows rows={4} />}
+      {status === "pronto" && dailyCashHistory.length === 0 && (
+        <EmptyState
+          icon={Wallet}
+          title="Nenhum movimento neste mês"
+          description="Cada atendimento marcado como concluído na tela Hoje entra aqui automaticamente, separado por meio de pagamento."
+          actionLabel="Ir para Hoje"
+          actionHref="/painel"
+        />
+      )}
+      {dailyCashHistory.length > 0 && (
+      <Card className="table-scroll overflow-x-auto p-0">
         <table className="w-full min-w-[640px] text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ivory-muted">
@@ -85,11 +90,11 @@ export default function FluxoCaixaPage() {
                 className="border-b border-border/60 transition-colors last:border-0 hover:bg-surface-raised/60"
               >
                 <td className="whitespace-nowrap px-4 py-2.5 text-ivory md:px-6">
-                  {weekday(d.date)} {dayNumber(d.date)}
+                  {formatWeekdayAndDay(d.date)}
                 </td>
                 <td className="px-4 py-2.5 text-right text-ivory-muted">{d.appointments}</td>
                 <td className="px-4 py-2.5 text-right text-ivory-muted">
-                  {formatBRL(d.total / d.appointments)}
+                  {formatBRL(safeDiv(d.total, d.appointments))}
                 </td>
                 <td className="px-4 py-2.5 text-right text-ivory-muted">{formatBRL(d.pix)}</td>
                 <td className="px-4 py-2.5 text-right text-ivory-muted">{formatBRL(d.cartao)}</td>
@@ -101,15 +106,34 @@ export default function FluxoCaixaPage() {
                   <div className="h-1.5 w-16 overflow-hidden rounded-full bg-surface-raised">
                     <div
                       className="h-full rounded-full bg-gold"
-                      style={{ width: `${(d.total / maxTotal) * 100}%` }}
+                      style={{ width: `${safePct(d.total, maxTotal)}%` }}
                     />
                   </div>
                 </td>
               </tr>
             ))}
           </tbody>
+          <tfoot>
+            <tr className="border-t border-border font-medium">
+              <td className="px-4 py-3 text-xs uppercase tracking-wide text-ivory-muted md:px-6">
+                Total
+              </td>
+              <td className="px-4 py-3 text-right text-ivory">{totalAppointments}</td>
+              <td className="px-4 py-3 text-right text-ivory">
+                {formatBRL(safeDiv(total, totalAppointments))}
+              </td>
+              <td className="px-4 py-3 text-right text-ivory">{formatBRL(totals.pix)}</td>
+              <td className="px-4 py-3 text-right text-ivory">{formatBRL(totals.cartao)}</td>
+              <td className="px-4 py-3 text-right text-ivory">{formatBRL(totals.dinheiro)}</td>
+              <td className="whitespace-nowrap px-4 py-3 text-right font-display font-semibold text-ivory">
+                {formatBRL(total)}
+              </td>
+              <td className="md:px-6" />
+            </tr>
+          </tfoot>
         </table>
       </Card>
+      )}
     </div>
   );
 }

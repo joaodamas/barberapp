@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+
 import { CalendarX2, Phone } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
@@ -9,102 +10,152 @@ import { Modal } from "@/components/ui/modal";
 import { bookingStatusMeta } from "@/lib/booking-status";
 import { paymentMethodLabel } from "@/lib/payment-method";
 import { formatBRL, formatDatePtBR } from "@/lib/format";
+import { useTenant } from "@/lib/tenant-context";
+import { useAuth } from "@/lib/auth-context";
+import { useLoyalty, useMyBookings, useServices } from "@/lib/db/use-shop-data";
+import { patchDoc } from "@/lib/db/repository";
+import { OCCUPIES_SLOT } from "@/lib/domain";
+import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
+import { bookableDays, firstBookableIndex, slotsForDate } from "@/lib/slots";
 import {
-  barbershop,
-  bookingHistory,
-  getServicesByIds,
-  loyalty,
-  mockSlotsForDay,
-  nextBooking,
-} from "@/lib/mock-data";
+  cancellationPolicy,
+  refundAmountFor,
+  reschedulePolicy,
+} from "@/lib/business-rules";
 import type { Booking } from "@/lib/types";
 
 type Tab = "futuras" | "historico";
 
-/** Dias selecionáveis no reagendamento — os próximos 10 a partir de hoje. */
-function nextDays(count: number) {
-  const today = new Date();
-  return Array.from({ length: count }, (_, i) => {
-    const d = new Date(today);
-    d.setDate(today.getDate() + i);
-    return d;
-  });
+/** Horas até o início da reserva. Negativo = já passou. */
+function hoursUntil(booking: Booking) {
+  const start = new Date(`${booking.date}T${booking.time}:00`);
+  return (start.getTime() - Date.now()) / 3_600_000;
 }
 
 /**
- * Política de cancelamento da barbearia (mesma exibida no card):
- * até 24h antes devolve 100%; entre 24h e 6h retém 50%; abaixo de 6h não devolve.
+ * Política de cancelamento — os percentuais e janelas vivem em
+ * `lib/business-rules.ts`. Aqui só se monta o texto.
  */
 function refundFor(booking: Booking) {
-  const start = new Date(`${booking.date}T${booking.time}:00`);
-  const hoursUntil = (start.getTime() - Date.now()) / 3_600_000;
+  const hours = hoursUntil(booking);
+  const refund = refundAmountFor({
+    value: booking.value,
+    paymentMethod: booking.paymentMethod,
+    hoursUntilStart: hours,
+  });
 
-  if (booking.paymentMethod === "local") {
-    return {
-      hoursUntil,
-      amount: 0,
-      label: "Como o pagamento seria no salão, não há valor a devolver.",
-    };
-  }
-  if (hoursUntil >= 24) {
-    return {
-      hoursUntil,
-      amount: booking.value,
-      label: `Faltam mais de 24h: você recebe ${formatBRL(booking.value)} de volta (100%).`,
-    };
-  }
-  if (hoursUntil >= 6) {
-    const amount = booking.value / 2;
-    return {
-      hoursUntil,
-      amount,
-      label: `Faltam menos de 24h: aplicamos a taxa de cancelamento e devolvemos ${formatBRL(amount)}.`,
-    };
-  }
-  return {
-    hoursUntil,
-    amount: 0,
-    label: "Faltam menos de 6h para o horário: não há devolução prevista na política.",
-  };
+  const label =
+    refund.tier === "sem_pagamento"
+      ? "Como o pagamento seria no salão, não há valor a devolver."
+      : refund.tier === "integral"
+        ? `Faltam mais de ${cancellationPolicy.fullRefundHours}h: você recebe ${formatBRL(refund?.amount ?? 0)} de volta (100%).`
+        : refund.tier === "parcial"
+          ? `Faltam menos de ${cancellationPolicy.fullRefundHours}h: retemos ${refund.retainedPct}% de taxa de cancelamento e devolvemos ${formatBRL(refund?.amount ?? 0)}.`
+          : `Faltam menos de ${cancellationPolicy.partialRefundHours}h para o horário: não há devolução prevista na política.`;
+
+  return { hoursUntil: hours, ...refund, label };
 }
 
 export default function ReservasPage() {
+  const tenant = useTenant();
+  const { user } = useAuth();
+  const { items: minhas, status } = useMyBookings(user?.uid);
+  const { items: services } = useServices();
+
+  const barbershop = { whatsapp: tenant.contact.whatsapp };
+  const loyalty = useLoyalty(user?.uid);
+  const getServicesByIds = (ids: string[]) =>
+    ids.map((id) => services.find((s) => s.id === id)).filter(Boolean) as Array<{
+      id: string; name: string; durationMin: number;
+    }>;
+
+  const hoje = new Date().toISOString().slice(0, 10);
+  const futuras = minhas.filter((b) => b.date >= hoje && OCCUPIES_SLOT.includes(b.status));
+  const bookingHistory = minhas.filter((b) => b.status === "completed");
+
   const [tab, setTab] = useState<Tab>("futuras");
-  const [booking, setBooking] = useState<Booking>(nextBooking);
+  const booking = (futuras[futuras.length - 1] ?? null) as (typeof minhas)[number] | null;
+  const statusMeta = booking ? bookingStatusMeta[booking.status] : null;
+  const bookingServices = booking ? getServicesByIds(booking.serviceIds) : [];
+  const duracaoDaReserva = bookingServices.reduce((sum, s) => sum + s.durationMin, 0);
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
-  const [dayIndex, setDayIndex] = useState(0);
+  const [dayIndex, setDayIndex] = useState(() => firstBookableIndex(bookableDays(new Date(), tenant.schedule)));
   const [time, setTime] = useState<string | null>(null);
+  const [rescheduleCount, setRescheduleCount] = useState(0);
+  const [resgatando, setResgatando] = useState(false);
+  const [erroResgate, setErroResgate] = useState<string | null>(null);
 
-  const days = useMemo(() => nextDays(10), []);
-  const slots = useMemo(() => mockSlotsForDay(dayIndex), [dayIndex]);
+  /* O resgate acontece no servidor: a transação lê o saldo e grava o resgate
+   * junto, senão dois toques no botão resgatam duas vezes com um saldo só. */
+  async function resgatar() {
+    setResgatando(true);
+    setErroResgate(null);
+    try {
+      const { callFunction } = await import("@/lib/firebase");
+      await callFunction("redeemLoyaltyReward", { barbershopId: tenant.id });
+    } catch (err) {
+      console.error("[fidelidade]", err);
+      setErroResgate(
+        (err as { message?: string })?.message ?? "Não foi possível resgatar agora."
+      );
+    } finally {
+      setResgatando(false);
+    }
+  }
 
-  const statusMeta = bookingStatusMeta[booking.status];
-  const bookingServices = getServicesByIds(booking.serviceIds);
-  const active = booking.status !== "cancelled_by_client";
-  const refund = refundFor(booking);
+  const days = useMemo(() => bookableDays(new Date(), tenant.schedule), [tenant.schedule]);
+  const selectedDay = days[dayIndex];
+
+  const slots = selectedDay
+    ? slotsForDate(selectedDay.iso, {
+        durationMin: duracaoDaReserva,
+        allowFitIn: false,
+        schedule: tenant.schedule,
+        ocupados: minhas.filter((b) => b.date === selectedDay.iso).map((b) => b.time),
+      })
+    : [];
+
+  const active = !!booking;
+  const refund = booking ? refundFor(booking) : null;
 
   const totalSpentHistory = bookingHistory.reduce((s, b) => s + b.value, 0);
-  const stampsLeft = loyalty.goal - loyalty.stamps;
+  const stampsLeft = loyalty.faltam;
+
+  /* Reagendar era grátis, ilimitado e sem prazo — dava para reagendar 10 min
+   * antes e cancelar depois com 100% de volta, anulando a política inteira. */
+  const horasAteReserva = booking ? hoursUntil(booking) : 0;
+  const podeReagendar =
+    active &&
+    horasAteReserva >= reschedulePolicy.minHoursBefore &&
+    rescheduleCount < reschedulePolicy.maxPerBooking;
+  const motivoBloqueio =
+    horasAteReserva < reschedulePolicy.minHoursBefore
+      ? `Reagendamento só até ${reschedulePolicy.minHoursBefore}h antes — fale com a barbearia.`
+      : `Limite de ${reschedulePolicy.maxPerBooking} reagendamentos por reserva atingido.`;
 
   function openReschedule() {
-    setDayIndex(0);
+    setDayIndex(firstBookableIndex(days));
     setTime(null);
     setRescheduleOpen(true);
   }
 
   function confirmReschedule() {
-    if (!time) return;
-    const day = days[dayIndex];
-    const isoDate = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(
-      day.getDate()
-    ).padStart(2, "0")}`;
-    setBooking((b) => ({ ...b, date: isoDate, time, status: "confirmed" }));
+    if (!time || !selectedDay || !podeReagendar || !booking) return;
+    void patchDoc(tenant.id, "bookings", booking.id, {
+      date: selectedDay.iso,
+      time,
+      status: "confirmed",
+    }).catch((e) => console.error("[reservas] falha ao reagendar", e));
+    setRescheduleCount((n) => n + 1);
     setRescheduleOpen(false);
   }
 
   function confirmCancel() {
-    setBooking((b) => ({ ...b, status: "cancelled_by_client" }));
+    if (!booking) return;
+    void patchDoc(tenant.id, "bookings", booking.id, {
+      status: "cancelled_by_client",
+    }).catch((e) => console.error("[reservas] falha ao cancelar", e));
     setCancelOpen(false);
   }
 
@@ -116,15 +167,15 @@ export default function ReservasPage() {
         <div className="grid grid-cols-2 gap-2 md:w-fit md:gap-4">
           <Card className="flex flex-col items-center gap-0.5 p-3 text-center md:min-w-32 md:p-4">
             <p className="font-display text-lg font-semibold text-ivory">
-              {bookingHistory.length + (active ? 1 : 0)}
+              {bookingHistory.length}
             </p>
-            <p className="text-[10px] text-ivory-muted md:text-xs">atendimentos no total</p>
+            <p className="text-[11px] text-ivory-muted md:text-xs">atendimentos concluídos</p>
           </Card>
           <Card className="flex flex-col items-center gap-0.5 p-3 text-center md:min-w-32 md:p-4">
             <p className="font-display text-lg font-semibold text-gold-light">
-              {formatBRL(totalSpentHistory + (active ? booking.value : 0))}
+              {formatBRL(totalSpentHistory)}
             </p>
-            <p className="text-[10px] text-ivory-muted md:text-xs">investido na barbearia</p>
+            <p className="text-[11px] text-ivory-muted md:text-xs">investido na barbearia</p>
           </Card>
         </div>
 
@@ -135,7 +186,7 @@ export default function ReservasPage() {
               onClick={() => setTab(t)}
               className={
                 "flex-1 rounded-lg py-2 text-sm font-medium capitalize transition-colors md:px-6 md:py-2.5 md:text-base " +
-                (tab === t ? "bg-gold text-bg" : "text-ivory-muted hover:text-ivory")
+                (tab === t ? "bg-gold text-ivory" : "text-ivory-muted hover:text-ivory")
               }
             >
               {t === "futuras" ? "Futuras" : "Histórico"}
@@ -143,7 +194,9 @@ export default function ReservasPage() {
           ))}
         </div>
 
-        {tab === "futuras" ? (
+        {status === "carregando" ? (
+          <LoadingRows rows={2} />
+        ) : tab === "futuras" ? (
           active ? (
             <Card className="flex flex-col gap-3 md:max-w-xl md:p-6">
               <div className="flex items-start justify-between gap-2">
@@ -152,21 +205,27 @@ export default function ReservasPage() {
                     {bookingServices.map((s) => s.name).join(" + ")}
                   </p>
                   <p className="text-sm capitalize text-ivory-muted md:text-base">
-                    {formatDatePtBR(booking.date)} às {booking.time}
+                    {booking ? `${formatDatePtBR(booking.date)} às ${booking.time}` : ""}
                   </p>
                 </div>
-                <Pill tone={statusMeta.tone}>{statusMeta.label}</Pill>
+                {statusMeta && <Pill tone={statusMeta.tone}>{statusMeta.label}</Pill>}
               </div>
               <div className="flex items-center justify-between border-t border-border pt-2 text-sm md:pt-3 md:text-base">
                 <span className="text-ivory-muted">
-                  {booking.paymentMethod === "local" ? "A pagar no salão" : "Valor pago"}
+                  {booking?.paymentMethod === "local" ? "A pagar no salão" : "Valor pago"}
                 </span>
                 <span className="font-display font-semibold text-ivory md:text-lg">
-                  {formatBRL(booking.value)}
+                  {formatBRL(booking?.value ?? 0)}
                 </span>
               </div>
               <div className="flex gap-2">
-                <Button variant="secondary" className="flex-1" onClick={openReschedule}>
+                <Button
+                  variant="secondary"
+                  className="flex-1"
+                  onClick={openReschedule}
+                  disabled={!podeReagendar}
+                  title={podeReagendar ? undefined : motivoBloqueio}
+                >
                   Reagendar
                 </Button>
                 <Button
@@ -178,21 +237,23 @@ export default function ReservasPage() {
                 </Button>
               </div>
               <p className="text-xs text-ivory-muted md:text-sm">
-                Cancelamento até 24h antes: 100% de volta. Entre 24h e 6h: taxa de
-                cancelamento aplicada.
+                Cancelamento até {cancellationPolicy.fullRefundHours}h antes: 100% de
+                volta. Entre {cancellationPolicy.fullRefundHours}h e{" "}
+                {cancellationPolicy.partialRefundHours}h: taxa de{" "}
+                {cancellationPolicy.cancellationFeePct}%.{" "}
+                {!podeReagendar && active && (
+                  <span className="text-gold-light">{motivoBloqueio}</span>
+                )}
               </p>
             </Card>
           ) : (
-            <Card className="flex flex-col items-center gap-3 py-10 text-center md:max-w-xl md:py-14">
-              <CalendarX2 size={22} className="text-ivory-muted" />
-              <div>
-                <p className="text-sm text-ivory md:text-base">Reserva cancelada</p>
-                <p className="mt-1 text-xs text-ivory-muted md:text-sm">{refund.label}</p>
-              </div>
-              <a href="/agendar">
-                <Button>Agendar novo horário</Button>
-              </a>
-            </Card>
+            <EmptyState
+              icon={CalendarX2}
+              title="Você não tem reserva futura"
+              description="Escolha o serviço e o horário que der certo pra você — leva menos de um minuto."
+              actionLabel="Agendar horário"
+              actionHref="/agendar"
+            />
           )
         ) : bookingHistory.length > 0 ? (
           <div className="flex flex-col gap-2 md:max-w-xl">
@@ -239,7 +300,7 @@ export default function ReservasPage() {
                 {loyalty.stamps} de {loyalty.goal} carimbos
               </p>
               <p className="text-xs text-gold-light md:text-sm">
-                faltam {stampsLeft} para {loyalty.reward}
+                {loyalty.podeResgatar ? "pronto para resgatar" : `faltam ${stampsLeft}`}
               </p>
             </div>
             <div className="flex gap-1.5">
@@ -254,6 +315,16 @@ export default function ReservasPage() {
                 />
               ))}
             </div>
+            {loyalty.podeResgatar && (
+              <Button onClick={resgatar} disabled={resgatando}>
+                {resgatando ? "Resgatando…" : `Resgatar ${loyalty.reward}`}
+              </Button>
+            )}
+            {erroResgate && (
+              <p role="alert" className="text-xs text-danger">
+                {erroResgate}
+              </p>
+            )}
           </Card>
         </section>
 
@@ -295,7 +366,7 @@ export default function ReservasPage() {
         open={rescheduleOpen}
         onClose={() => setRescheduleOpen(false)}
         title="Reagendar"
-        description={`${bookingServices.map((s) => s.name).join(" + ")} · ${formatBRL(booking.value)}`}
+        description={`${bookingServices.map((s) => s.name).join(" + ")} · ${formatBRL(booking?.value ?? 0)}`}
         footer={
           <>
             <Button variant="ghost" onClick={() => setRescheduleOpen(false)}>
@@ -315,22 +386,24 @@ export default function ReservasPage() {
             <div className="flex gap-2 overflow-x-auto pb-1">
               {days.map((d, i) => (
                 <button
-                  key={i}
+                  key={d.iso}
+                  disabled={d.disabled}
+                  aria-pressed={i === dayIndex}
                   onClick={() => {
                     setDayIndex(i);
                     setTime(null);
                   }}
                   className={
-                    "flex min-w-14 shrink-0 flex-col items-center rounded-xl border px-3 py-2 text-xs transition-colors " +
+                    "flex min-w-14 shrink-0 flex-col items-center rounded-xl border px-3 py-2 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-35 " +
                     (i === dayIndex
                       ? "border-gold bg-gold/10 text-gold-light"
                       : "border-border text-ivory-muted hover:border-gold/40 hover:text-ivory")
                   }
                 >
                   <span className="capitalize">
-                    {d.toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", "")}
+                    {d.date.toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", "")}
                   </span>
-                  <span className="font-display text-base text-ivory">{d.getDate()}</span>
+                  <span className="font-display text-base text-ivory">{d.date.getDate()}</span>
                 </button>
               ))}
             </div>
@@ -345,11 +418,12 @@ export default function ReservasPage() {
                 <button
                   key={slot.time}
                   disabled={!slot.available}
+                  aria-pressed={time === slot.time}
                   onClick={() => setTime(slot.time)}
                   className={
                     "rounded-lg border px-2 py-2 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-30 " +
                     (time === slot.time
-                      ? "border-gold bg-gold text-bg"
+                      ? "border-gold bg-gold text-ivory"
                       : "border-border text-ivory hover:border-gold/50")
                   }
                 >
@@ -365,7 +439,7 @@ export default function ReservasPage() {
         open={cancelOpen}
         onClose={() => setCancelOpen(false)}
         title="Cancelar reserva"
-        description={`${formatDatePtBR(booking.date)} às ${booking.time}`}
+        description={booking ? `${formatDatePtBR(booking.date)} às ${booking.time}` : ""}
         className="max-w-md"
         footer={
           <>
@@ -379,11 +453,11 @@ export default function ReservasPage() {
         }
       >
         <div className="flex flex-col gap-3">
-          <p className="text-sm text-ivory">{refund.label}</p>
+          <p className="text-sm text-ivory">{refund?.label}</p>
           <div className="flex items-center justify-between rounded-xl border border-border bg-surface-raised px-4 py-3 text-sm">
             <span className="text-ivory-muted">Valor a devolver</span>
             <span className="font-display font-semibold text-ivory">
-              {formatBRL(refund.amount)}
+              {formatBRL(refund?.amount ?? 0)}
             </span>
           </div>
           <p className="text-xs text-ivory-muted">

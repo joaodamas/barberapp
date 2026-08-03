@@ -41,8 +41,17 @@ export type TemplateDef = {
   /** Exemplo para submissão na Meta (obrigatório na aprovação). */
   example: string[];
   buttons?: QuickReply[];
-  /** Para quem essa mensagem vai: cliente final ou dono/barbeiro. */
+  /** Para quem essa mensagem vai. */
   audience: "cliente" | "barbeiro";
+  /**
+   * De qual WhatsApp sai.
+   *
+   * `barbearia` — a WABA do cliente, conectada por Embedded Signup.
+   * `plataforma` — a SUA WABA. Cobrança do SaaS e avisos de trial não podem
+   *   sair do número da barbearia: é você falando com ela, não ela com o
+   *   cliente dela.
+   */
+  sender?: "barbearia" | "plataforma";
   /** O que dispara o envio — documentação operacional. */
   trigger: string;
 };
@@ -114,9 +123,9 @@ export const TEMPLATES = {
     audience: "cliente",
     trigger: "Cancelamento confirmado (pelo cliente ou pela loja).",
     body:
-      "{{1}}, sua reserva de {{2}} às {{3}} foi cancelada.\n\n" +
-      "{{4}}\n\n" +
-      "Quando quiser remarcar, é só abrir o app: {{5}}",
+      "Olá {{1}}, sua reserva de {{2}} às {{3}} foi cancelada.\n\n" +
+      "Sobre o valor: {{4}}\n\n" +
+      "Quando quiser remarcar, é só abrir o app em {{5}} — te esperamos!",
     params: [
       "primeiroNome",
       "data",
@@ -141,9 +150,9 @@ export const TEMPLATES = {
     trigger:
       "Encaixe recusado pelo barbeiro OU expirado sem resposta (45 min).",
     body:
-      "{{1}}, não consegui encaixar o horário das {{2}}. 😕\n\n" +
+      "Oi {{1}}, não consegui encaixar o horário das {{2}}. 😕\n\n" +
       "Mas tenho estes horários livres para {{3}}:\n{{4}}\n\n" +
-      "Garanta o seu em um toque: {{5}}",
+      "Garanta o seu em um toque no link {{5}} — leva menos de um minuto.",
     params: ["primeiroNome", "horaSolicitada", "servicos", "horariosLivres", "linkApp"],
     example: [
       "João",
@@ -163,7 +172,7 @@ export const TEMPLATES = {
     body:
       "Valeu pela visita, {{1}}! 💈\n\n" +
       "Você agora tem {{2}} de {{3}} carimbos — faltam {{4}} para {{5}}.\n\n" +
-      "Se puder avaliar o atendimento, ajuda muito: {{6}}",
+      "Se puder avaliar o atendimento em {{6}}, ajuda muito. Até a próxima!",
     params: [
       "primeiroNome",
       "carimbos",
@@ -228,7 +237,7 @@ export const TEMPLATES = {
       "Confirmados: {{3}} · Sem confirmação: {{4}}\n" +
       "Previsão de caixa: {{5}}\n" +
       "Horários ainda livres: {{6}}\n\n" +
-      "Detalhes no painel: {{7}}",
+      "Detalhes no painel {{7}} — bom trabalho!",
     params: [
       "data",
       "totalAtendimentos",
@@ -256,7 +265,10 @@ export const TEMPLATES = {
     audience: "barbeiro",
     trigger:
       "Cancelamento de última hora, mensalista regularizado, estoque abaixo do mínimo.",
-    body: "⚠️ {{1}}\n\n{{2}}\n\nVer no painel: {{3}}",
+    body:
+      "⚠️ Atenção: {{1}}\n\n" +
+      "O que aconteceu: {{2}}\n\n" +
+      "Confira os detalhes no painel {{3}} quando puder.",
     params: ["titulo", "detalhe", "linkPainel"],
     example: [
       "Cancelamento de última hora",
@@ -277,7 +289,7 @@ export const TEMPLATES = {
     trigger: "D-5, D-3 e D-1 do vencimento da mensalidade.",
     body:
       "Oi {{1}}! Sua mensalidade do plano {{2}} ({{3}}) vence em {{4}}.\n\n" +
-      "Pode pagar por aqui, leva menos de um minuto: {{5}}",
+      "Pode pagar pelo link {{5}} — leva menos de um minuto.",
     params: ["primeiroNome", "nomePlano", "valor", "vencimento", "linkPagamento"],
     example: [
       "João",
@@ -295,8 +307,8 @@ export const TEMPLATES = {
     audience: "cliente",
     trigger: "D0 — dia do vencimento.",
     body:
-      "{{1}}, hoje é o vencimento da sua mensalidade do plano {{2}}: {{3}}.\n\n" +
-      "{{4}}",
+      "Oi {{1}}, hoje é o vencimento da sua mensalidade do plano {{2}}: {{3}}.\n\n" +
+      "Como funciona: {{4}}\n\nQualquer dúvida, é só responder por aqui.",
     params: ["primeiroNome", "nomePlano", "valor", "instrucao"],
     example: [
       "João",
@@ -313,9 +325,9 @@ export const TEMPLATES = {
     audience: "cliente",
     trigger: "D+1 e D+3 após o vencimento.",
     body:
-      "{{1}}, sua mensalidade do plano {{2}} ({{3}}) venceu em {{4}} e ainda " +
+      "Oi {{1}}, sua mensalidade do plano {{2}} ({{3}}) venceu em {{4}} e ainda " +
       "consta em aberto.\n\n" +
-      "Regularize por aqui para manter seus benefícios ativos: {{5}}",
+      "Regularize pelo link {{5}} para manter seus benefícios ativos.",
     params: ["primeiroNome", "nomePlano", "valor", "vencimento", "linkPagamento"],
     example: [
       "João",
@@ -333,10 +345,10 @@ export const TEMPLATES = {
     audience: "cliente",
     trigger: "D+5 — aviso final antes da suspensão do plano.",
     body:
-      "{{1}}, este é o último aviso sobre a mensalidade do plano {{2}} " +
+      "Oi {{1}}, este é o último aviso sobre a mensalidade do plano {{2}} " +
       "({{3}}), vencida em {{4}}.\n\n" +
       "Se não for regularizada, seu plano será suspenso e os benefícios ficam " +
-      "pausados até o pagamento. Resolver agora: {{5}}",
+      "pausados até o pagamento. Você resolve agora pelo link {{5}}.",
     params: ["primeiroNome", "nomePlano", "valor", "vencimento", "linkPagamento"],
     example: [
       "João",
@@ -360,9 +372,9 @@ export const TEMPLATES = {
       "Gestor bloqueou agenda (folga, férias, feriado) ou alterou uma reserva. " +
       "Dispara para todos os clientes com horário afetado.",
     body:
-      "{{1}}, precisamos avisar sobre o seu horário de {{2}} às {{3}}.\n\n" +
-      "{{4}}\n\n" +
-      "Escolha um novo horário em um toque: {{5}}",
+      "Oi {{1}}, precisamos avisar sobre o seu horário de {{2}} às {{3}}.\n\n" +
+      "Motivo: {{4}}\n\n" +
+      "Escolha um novo horário em um toque pelo link {{5}}.",
     params: ["primeiroNome", "data", "hora", "motivo", "linkReagendamento"],
     example: [
       "João",
@@ -381,7 +393,10 @@ export const TEMPLATES = {
     audience: "cliente",
     trigger:
       "Ação avulsa do gestor ('Enviar aviso aos clientes'). Respeita opt-in e limites anti-spam.",
-    body: "{{1}}\n\n{{2}}\n\n{{3}}",
+    body:
+      "💈 {{1}}\n\n" +
+      "Detalhes: {{2}}\n\n" +
+      "Para aproveitar: {{3}} — qualquer dúvida, é só responder por aqui.",
     params: ["titulo", "mensagem", "chamadaParaAcao"],
     example: [
       "Horário especial de fim de ano 💈",
@@ -404,7 +419,8 @@ export const TEMPLATES = {
       "E aí {{1}}, sumiu! 💈\n\n" +
       "Faz {{2}} dias desde seu último corte na {{3}}. Que tal dar aquela " +
       "renovada?\n\n" +
-      "Seu horário de costume ({{4}}) costuma estar livre. Agende aqui: {{5}}",
+      "Seu horário de costume ({{4}}) costuma estar livre. Agende pelo link {{5}} " +
+      "e a gente te espera.",
     params: ["primeiroNome", "diasSemVir", "nomeBarbearia", "horarioCostume", "linkApp"],
     example: [
       "João",
@@ -425,7 +441,7 @@ export const TEMPLATES = {
       "Parabéns, {{1}}! 🎉\n\n" +
       "A {{2}} te dá {{3}} no seu próximo atendimento deste mês. " +
       "É nosso presente.\n\n" +
-      "Agende quando quiser: {{4}}",
+      "Agende quando quiser pelo link {{4}} — vai ser um prazer.",
     params: ["primeiroNome", "nomeBarbearia", "mimo", "linkApp"],
     example: [
       "João",
@@ -434,6 +450,398 @@ export const TEMPLATES = {
       "https://osiqueira.jpproject.com.br/agendar",
     ],
   },
+
+  /* ---------------------------------------------------------------------- */
+  /* Reserva: estados de pagamento e falta                                   */
+  /* ---------------------------------------------------------------------- */
+
+  reserva_aguardando_pagamento: {
+    name: "reserva_aguardando_pagamento",
+    category: "UTILITY",
+    language: "pt_BR",
+    audience: "cliente",
+    trigger:
+      "Reserva criada com pagamento antecipado. O horário fica em espera até o prazo do hold.",
+    body:
+      "Oi {{1}}, separei seu horário de {{2}} às {{3}} ({{4}}).\n\n" +
+      "Para confirmar, finalize o pagamento de {{5}} em até {{6}} minutos — " +
+      "depois disso o horário volta para a agenda. É só abrir {{7}} e concluir.",
+    params: ["primeiroNome", "data", "hora", "servicos", "valor", "minutos", "linkPagamento"],
+    example: [
+      "João",
+      "segunda, 03 de agosto",
+      "16:30",
+      "Corte + barba",
+      "R$ 90,00",
+      "15",
+      "https://osiqueira.jpproject.com.br/reservas",
+    ],
+  },
+
+  reserva_expirada: {
+    name: "reserva_expirada",
+    category: "UTILITY",
+    language: "pt_BR",
+    audience: "cliente",
+    trigger: "Hold de pagamento venceu sem confirmação. Status vira `expired`.",
+    body:
+      "Oi {{1}}, o prazo para confirmar o horário de {{2}} às {{3}} terminou e " +
+      "ele voltou para a agenda.\n\n" +
+      "Se ainda quiser, dá para escolher outro horário em {{4}} — leva menos de um minuto.",
+    params: ["primeiroNome", "data", "hora", "linkApp"],
+    example: [
+      "João",
+      "segunda, 03 de agosto",
+      "16:30",
+      "https://osiqueira.jpproject.com.br/agendar",
+    ],
+  },
+
+  reagendamento_confirmado: {
+    name: "reagendamento_confirmado",
+    category: "UTILITY",
+    language: "pt_BR",
+    audience: "cliente",
+    trigger: "Cliente reagendou pelo app, dentro da janela permitida.",
+    body:
+      "Pronto, {{1}}! Seu horário mudou de {{2}} para {{3}} às {{4}}.\n\n" +
+      "Serviço: {{5}}\n" +
+      "Endereço: {{6}}\n\n" +
+      "Te esperamos no novo horário.",
+    params: ["primeiroNome", "quandoAntes", "data", "hora", "servicos", "endereco"],
+    example: [
+      "João",
+      "domingo, 02 de agosto às 16:30",
+      "terça, 04 de agosto",
+      "10:00",
+      "Corte + barba",
+      "Rua das Tesouras, 120 — Centro",
+    ],
+  },
+
+  reembolso_processado: {
+    name: "reembolso_processado",
+    category: "UTILITY",
+    language: "pt_BR",
+    audience: "cliente",
+    trigger:
+      "Estorno efetivado. O PRD §6 exige comunicar o prazo — Pix cai rápido, cartão segue a bandeira.",
+    body:
+      "Oi {{1}}, o valor de {{2}} referente à reserva de {{3}} foi devolvido.\n\n" +
+      "Forma: {{4}}\n" +
+      "Prazo estimado: {{5}}\n\n" +
+      "Qualquer coisa é só responder por aqui.",
+    params: ["primeiroNome", "valor", "data", "formaDevolucao", "prazo"],
+    example: [
+      "João",
+      "R$ 67,50",
+      "domingo, 02 de agosto",
+      "Pix na mesma chave usada no pagamento",
+      "até 1 dia útil",
+    ],
+  },
+
+  ocorrencia_registrada: {
+    name: "ocorrencia_registrada",
+    category: "UTILITY",
+    language: "pt_BR",
+    audience: "cliente",
+    trigger:
+      "Atendimento marcado como no-show. Registra a ocorrência no histórico (PRD §6).",
+    body:
+      "Oi {{1}}, notamos que você não conseguiu vir no horário de {{2}} às {{3}}.\n\n" +
+      "Sem problema — acontece. Só avisando que o horário ficou reservado e não " +
+      "pôde ser usado por outra pessoa.\n\n" +
+      "Quando quiser remarcar, é só abrir {{4}} e escolher o que der certo pra você.",
+    params: ["primeiroNome", "data", "hora", "linkApp"],
+    example: [
+      "João",
+      "domingo, 02 de agosto",
+      "16:30",
+      "https://osiqueira.jpproject.com.br/agendar",
+    ],
+  },
+
+  pagamento_antecipado_exigido: {
+    name: "pagamento_antecipado_exigido",
+    category: "UTILITY",
+    language: "pt_BR",
+    audience: "cliente",
+    trigger:
+      "Cliente atingiu o limite de faltas na janela configurada. O PRD §4 exige avisar o PORQUÊ ao aplicar a regra.",
+    /* Texto deliberadamente sem tom de punição: o cliente continua bem-vindo, o
+     * que mudou foi a forma de reservar. Mensagem acusatória gera bloqueio, e
+     * bloqueio derruba a nota de qualidade do número. */
+    body:
+      "Oi {{1}}, tudo bem? Um aviso rápido sobre suas próximas reservas na {{2}}.\n\n" +
+      "Como alguns horários recentes acabaram não sendo usados, as próximas " +
+      "reservas passam a ser confirmadas com pagamento antecipado — assim o " +
+      "horário fica garantido pra você.\n\n" +
+      "Nada muda no atendimento, e você continua podendo cancelar dentro do prazo " +
+      "com devolução. Detalhes da política em {{3}} — qualquer dúvida, é só responder.",
+    params: ["primeiroNome", "nomeBarbearia", "linkPolitica"],
+    example: [
+      "João",
+      "O Siqueira Barbearia",
+      "https://osiqueira.jpproject.com.br/perfil",
+    ],
+  },
+
+  /* ---------------------------------------------------------------------- */
+  /* Fidelidade                                                              */
+  /* ---------------------------------------------------------------------- */
+
+  fidelidade_recompensa_liberada: {
+    name: "fidelidade_recompensa_liberada",
+    category: "UTILITY",
+    language: "pt_BR",
+    audience: "cliente",
+    trigger: "Saldo de carimbos atingiu a meta. É o principal gatilho de retorno.",
+    body:
+      "Boa, {{1}}! Você completou {{2}} carimbos na {{3}}.\n\n" +
+      "Seu prêmio está liberado: {{4}}\n\n" +
+      "É só resgatar pelo app em {{5}} e usar no próximo atendimento.",
+    params: ["primeiroNome", "carimbos", "nomeBarbearia", "recompensa", "linkApp"],
+    example: [
+      "João",
+      "10",
+      "O Siqueira Barbearia",
+      "1 corte grátis",
+      "https://osiqueira.jpproject.com.br/reservas",
+    ],
+  },
+
+  fidelidade_resgatada: {
+    name: "fidelidade_resgatada",
+    category: "UTILITY",
+    language: "pt_BR",
+    audience: "cliente",
+    trigger: "Cliente resgatou a recompensa pelo app.",
+    body:
+      "Resgate confirmado, {{1}}! Seu prêmio {{2}} está válido para usar na {{3}}.\n\n" +
+      "Sua contagem recomeça do zero a partir do próximo atendimento. " +
+      "Agende quando quiser em {{4}} — vai ser um prazer.",
+    params: ["primeiroNome", "recompensa", "nomeBarbearia", "linkApp"],
+    example: [
+      "João",
+      "1 corte grátis",
+      "O Siqueira Barbearia",
+      "https://osiqueira.jpproject.com.br/agendar",
+    ],
+  },
+
+  /* ---------------------------------------------------------------------- */
+  /* Mensalista: ciclo de vida do plano                                      */
+  /* ---------------------------------------------------------------------- */
+
+  plano_ativado: {
+    name: "plano_ativado",
+    category: "UTILITY",
+    language: "pt_BR",
+    audience: "cliente",
+    trigger: "Assinatura criada e primeira cobrança aprovada.",
+    body:
+      "Bem-vindo ao clube, {{1}}! Seu plano {{2}} está ativo na {{3}}.\n\n" +
+      "O que inclui: {{4}}\n" +
+      "Valor: {{5}}/mês · próxima cobrança em {{6}}\n\n" +
+      "Já pode agendar usando o plano em {{7}} — bom corte!",
+    params: [
+      "primeiroNome", "nomePlano", "nomeBarbearia", "beneficios",
+      "valor", "proximaCobranca", "linkApp",
+    ],
+    example: [
+      "João",
+      "Corte ilimitado",
+      "O Siqueira Barbearia",
+      "cortes ilimitados no mês",
+      "R$ 149,00",
+      "05/09",
+      "https://osiqueira.jpproject.com.br/agendar",
+    ],
+  },
+
+  mensalidade_paga: {
+    name: "mensalidade_paga",
+    category: "UTILITY",
+    language: "pt_BR",
+    audience: "cliente",
+    trigger: "Cobrança recorrente aprovada.",
+    body:
+      "Recebemos, {{1}}! Sua mensalidade do plano {{2}} ({{3}}) foi paga.\n\n" +
+      "Próxima cobrança: {{4}}\n\n" +
+      "Seus benefícios seguem ativos. Bom corte!",
+    params: ["primeiroNome", "nomePlano", "valor", "proximaCobranca"],
+    example: ["João", "Corte ilimitado", "R$ 149,00", "05/09"],
+  },
+
+  plano_suspenso: {
+    name: "plano_suspenso",
+    category: "UTILITY",
+    language: "pt_BR",
+    audience: "cliente",
+    trigger: "D+5 sem pagamento. O plano foi efetivamente suspenso (PRD §8).",
+    body:
+      "Oi {{1}}, seu plano {{2}} ficou suspenso porque a mensalidade de {{3}} " +
+      "segue em aberto.\n\n" +
+      "Você continua podendo agendar normalmente, pagando por atendimento. " +
+      "Assim que regularizar em {{4}}, os benefícios voltam na hora.",
+    params: ["primeiroNome", "nomePlano", "vencimento", "linkPagamento"],
+    example: [
+      "João",
+      "Corte ilimitado",
+      "05/08",
+      "https://osiqueira.jpproject.com.br/planos",
+    ],
+  },
+
+  plano_reativado: {
+    name: "plano_reativado",
+    category: "UTILITY",
+    language: "pt_BR",
+    audience: "cliente",
+    trigger: "Mensalista regularizou o pagamento — reativação imediata (PRD §8).",
+    body:
+      "Tudo certo, {{1}}! Seu plano {{2}} voltou a ficar ativo na {{3}}.\n\n" +
+      "Próxima cobrança: {{4}}\n\n" +
+      "Pode agendar usando o plano normalmente em {{5}} — bom corte!",
+    params: ["primeiroNome", "nomePlano", "nomeBarbearia", "proximaCobranca", "linkApp"],
+    example: [
+      "João",
+      "Corte ilimitado",
+      "O Siqueira Barbearia",
+      "05/09",
+      "https://osiqueira.jpproject.com.br/agendar",
+    ],
+  },
+
+  plano_cancelado: {
+    name: "plano_cancelado",
+    category: "UTILITY",
+    language: "pt_BR",
+    audience: "cliente",
+    trigger:
+      "Cancelamento confirmado. Vale até o fim do ciclo já pago (PRD §8).",
+    body:
+      "Oi {{1}}, seu plano {{2}} foi cancelado, como você pediu.\n\n" +
+      "Ele continua valendo até {{3}} — até lá seus benefícios seguem normais. " +
+      "Depois disso, os atendimentos voltam a ser cobrados no avulso.\n\n" +
+      "Se mudar de ideia, é só reativar em {{4}} quando quiser.",
+    params: ["primeiroNome", "nomePlano", "fimDoCiclo", "linkPlanos"],
+    example: [
+      "João",
+      "Corte ilimitado",
+      "05/09",
+      "https://osiqueira.jpproject.com.br/planos",
+    ],
+  },
+
+  /* ---------------------------------------------------------------------- */
+  /* Operacional (barbeiro)                                                  */
+  /* ---------------------------------------------------------------------- */
+
+  nova_reserva: {
+    name: "nova_reserva",
+    category: "UTILITY",
+    language: "pt_BR",
+    audience: "barbeiro",
+    trigger: "Reserva confirmada pelo app, sem passar por encaixe.",
+    body:
+      "📅 Nova reserva confirmada\n\n" +
+      "Cliente: {{1}}\n" +
+      "Serviço: {{2}}\n" +
+      "Quando: {{3}} às {{4}}\n" +
+      "Valor: {{5}} ({{6}})\n\n" +
+      "Já está na sua agenda — nada a fazer.",
+    params: ["nomeCliente", "servicos", "data", "hora", "valor", "formaPagamento"],
+    example: [
+      "João Damas",
+      "Corte + barba",
+      "segunda, 03 de agosto",
+      "16:30",
+      "R$ 90,00",
+      "pago via Pix",
+    ],
+  },
+
+  fechamento_mensal: {
+    name: "fechamento_mensal",
+    category: "UTILITY",
+    language: "pt_BR",
+    audience: "barbeiro",
+    trigger: "Primeiro dia útil do mês, com o resultado do mês anterior fechado.",
+    body:
+      "📊 Fechamento de {{1}}\n\n" +
+      "Faturamento: {{2}}\n" +
+      "Custos: {{3}}\n" +
+      "Resultado: {{4}} ({{5}} de margem)\n" +
+      "Atendimentos: {{6}}\n\n" +
+      "O detalhamento e o DRE completo estão em {{7}} — bom mês!",
+    params: [
+      "mesReferencia", "faturamento", "custos", "resultado",
+      "margem", "atendimentos", "linkPainel",
+    ],
+    example: [
+      "julho",
+      "R$ 12.469,00",
+      "R$ 4.953,00",
+      "R$ 7.516,00",
+      "60%",
+      "168",
+      "https://osiqueira.jpproject.com.br/painel/financeiro/dre",
+    ],
+  },
+
+  /* ---------------------------------------------------------------------- */
+  /* Plataforma → dono da barbearia (sai da SUA WABA, não da dela)           */
+  /* ---------------------------------------------------------------------- */
+
+  trial_terminando: {
+    name: "trial_terminando",
+    category: "UTILITY",
+    language: "pt_BR",
+    audience: "barbeiro",
+    sender: "plataforma",
+    trigger: "Faltam 3 dias para o fim do teste de 7 dias.",
+    body:
+      "Oi {{1}}, faltam {{2}} dias do seu teste na {{3}}.\n\n" +
+      "Nesse período você já registrou {{4}} atendimento(s). Para continuar " +
+      "com tudo funcionando, escolha um plano em {{5}} — leva dois minutos e " +
+      "seus dados continuam onde estão.",
+    params: ["primeiroNome", "diasRestantes", "nomePlataforma", "atendimentos", "linkPlanos"],
+    example: ["Zé", "3", "nossa plataforma", "12", "https://app.exemplo.com.br/planos"],
+  },
+
+  trial_encerrado: {
+    name: "trial_encerrado",
+    category: "UTILITY",
+    language: "pt_BR",
+    audience: "barbeiro",
+    sender: "plataforma",
+    trigger: "Fim dos 7 dias sem plano escolhido. App entra em modo leitura.",
+    body:
+      "Oi {{1}}, seu teste terminou hoje.\n\n" +
+      "Nada foi apagado: sua agenda, seus clientes e seu financeiro continuam " +
+      "salvos. Escolhendo um plano em {{2}}, tudo volta a funcionar na hora.\n\n" +
+      "Se quiser conversar antes de decidir, é só responder por aqui.",
+    params: ["primeiroNome", "linkPlanos"],
+    example: ["Zé", "https://app.exemplo.com.br/planos"],
+  },
+
+  cobranca_falhou: {
+    name: "cobranca_falhou",
+    category: "UTILITY",
+    language: "pt_BR",
+    audience: "barbeiro",
+    sender: "plataforma",
+    trigger: "Cobrança da assinatura da plataforma recusada.",
+    body:
+      "Oi {{1}}, a cobrança do seu plano {{2}} ({{3}}) não passou.\n\n" +
+      "Costuma ser limite ou cartão vencido. Atualizando os dados em {{4}}, " +
+      "a gente tenta de novo automaticamente e nada é interrompido.",
+    params: ["primeiroNome", "nomePlano", "valor", "linkCobranca"],
+    example: ["Zé", "Crescimento", "R$ 197,00", "https://app.exemplo.com.br/assinatura"],
+  },
+
 } as const satisfies Record<string, TemplateDef>;
 
 export type TemplateName = keyof typeof TEMPLATES;

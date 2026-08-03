@@ -5,8 +5,12 @@ import { onAuthStateChanged, type User } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 
 type Claims = {
+  /** Vínculo por barbearia: `{ "<barbershopId>": "owner" | "staff" }`. */
+  barbershops?: Record<string, string>;
+  /** Operador da plataforma (suporte). */
+  platformAdmin?: boolean;
+  /** @deprecated modelo single-tenant; sai quando os tokens renovarem. */
   role?: string;
-  workspaceId?: string;
 };
 
 type AuthState = {
@@ -36,8 +40,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setState({
         user,
         claims: {
+          barbershops: token.claims.barbershops as Record<string, string> | undefined,
+          platformAdmin: token.claims.platformAdmin === true,
           role: token.claims.role as string | undefined,
-          workspaceId: token.claims.workspaceId as string | undefined,
         },
         loading: false,
       });

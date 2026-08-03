@@ -1,0 +1,224 @@
+rules_version = '2';
+
+/**
+ * Regras de segurança do Firestore — plataforma multi-barbearia.
+ *
+ * MODELO DE ISOLAMENTO: subcoleções sob /barbershops/{barbershopId}.
+ * O isolamento é estrutural, não por filtro. Uma regra no nível do pai protege
+ * tudo abaixo, e é impossível "esquecer o where" e vazar dado de outra
+ * barbearia — que é exatamente o risco do modelo com coleções na raiz e campo
+ * tenantId.
+ *
+ * MODELO DE ACESSO: o vínculo entre pessoa e barbearia vive no custom claim
+ * `barbershops: { "<id>": "owner" | "staff" }`. Ler o claim é grátis; ler um
+ * documento de membership dentro da regra custaria uma leitura por avaliação.
+ * O cliente final NÃO tem claim: ele acessa o que é dele por `clientId`.
+ *
+ * Princípio: NEGAR POR PADRÃO. Cada épico que passar a persistir abre a SUA
+ * coleção. O fallback do fim do arquivo nunca é relaxado.
+ */
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /* ------------------------------------------------------------------ */
+    /* Identidade e vínculo                                                */
+    /* ------------------------------------------------------------------ */
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function memberships() {
+      return isSignedIn() && 'barbershops' in request.auth.token
+        ? request.auth.token.barbershops
+        : {};
+    }
+
+    /** Papel da pessoa nesta barbearia, ou null se não tiver vínculo. */
+    function roleIn(barbershopId) {
+      return memberships().get(barbershopId, null);
+    }
+
+    function isOwnerOf(barbershopId) {
+      return roleIn(barbershopId) == 'owner';
+    }
+
+    function isStaffOf(barbershopId) {
+      return roleIn(barbershopId) in ['owner', 'staff'];
+    }
+
+    function isSelf(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /** Operador da plataforma — suporte e administração do SaaS. */
+    function isPlatformAdmin() {
+      return isSignedIn() && request.auth.token.platformAdmin == true;
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* Conta do cliente final — global, atravessa barbearias               */
+    /* ------------------------------------------------------------------ */
+
+    match /users/{userId} {
+      allow read: if isSelf(userId) || isPlatformAdmin();
+      allow create: if isSelf(userId);
+      // Ninguém edita o próprio vínculo nem o próprio papel por aqui.
+      allow update: if isSelf(userId)
+                    && !request.resource.data.diff(resource.data)
+                         .affectedKeys().hasAny(['barbershops', 'platformAdmin']);
+      allow delete: if isSelf(userId) || isPlatformAdmin();
+
+      // Espelho de "de quais barbearias eu sou cliente" — escrito pelo servidor.
+      match /memberships/{barbershopId} {
+        allow read: if isSelf(userId);
+        allow write: if false;
+      }
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* A barbearia                                                         */
+    /* ------------------------------------------------------------------ */
+
+    match /barbershops/{barbershopId} {
+
+      // Ficha pública: nome, endereço, horário — o app do cliente precisa
+      // renderizar isso antes de qualquer vínculo existir.
+      allow read: if isSignedIn();
+      // Criar e excluir barbearia é ato da plataforma, não do lojista.
+      allow create, delete: if isPlatformAdmin();
+      // O dono edita a própria barbearia, menos o que define o contrato.
+      allow update: if isPlatformAdmin()
+                    || (isOwnerOf(barbershopId)
+                        && !request.resource.data.diff(resource.data)
+                             .affectedKeys().hasAny(['slug', 'plan', 'status', 'createdAt']));
+
+      /* -------- quem trabalha aqui -------- */
+
+      match /members/{userId} {
+        allow read: if isStaffOf(barbershopId) || isSelf(userId);
+        // Conceder acesso passa por Cloud Function: o claim precisa ser
+        // gravado junto, senão o documento e o token divergem.
+        allow write: if false;
+      }
+
+      /* -------- catálogo: cliente lê, dono escreve -------- */
+
+      match /services/{serviceId} {
+        allow read: if isSignedIn();
+        allow write: if isOwnerOf(barbershopId);
+      }
+
+      match /plans/{planId} {
+        allow read: if isSignedIn();
+        allow write: if isOwnerOf(barbershopId);
+      }
+
+      match /products/{productId} {
+        allow read: if isSignedIn();
+        allow write: if isOwnerOf(barbershopId);
+      }
+
+      /* -------- agenda -------- */
+
+      match /bookings/{bookingId} {
+        allow read: if isStaffOf(barbershopId)
+                    || (isSignedIn() && resource.data.clientId == request.auth.uid);
+
+        // O cliente cria a própria reserva, mas status e valor são decididos no
+        // servidor — senão dá para marcar "confirmado" sem pagar.
+        allow create: if isSignedIn()
+                      && request.resource.data.clientId == request.auth.uid
+                      && !request.resource.data.keys().hasAny(
+                           ['status', 'value', 'paidAt', 'refundedAmount']);
+
+        // Cancelar e reagendar passam por Cloud Function: aplicam a política,
+        // calculam o reembolso e registram a ocorrência.
+        allow update, delete: if isStaffOf(barbershopId);
+      }
+
+      match /schedules/{scheduleId} {
+        allow read: if isSignedIn();
+        allow write: if isOwnerOf(barbershopId);
+      }
+
+      /* -------- financeiro: só quem é do time -------- */
+
+      match /expenses/{expenseId}         { allow read, write: if isOwnerOf(barbershopId); }
+      match /cash_entries/{entryId}       { allow read, write: if isOwnerOf(barbershopId); }
+      match /commissions/{commissionId}   { allow read: if isStaffOf(barbershopId);
+                                            allow write: if isOwnerOf(barbershopId); }
+      match /inventory_movements/{moveId} { allow read, write: if isStaffOf(barbershopId); }
+
+      /* -------- escrita exclusiva do servidor -------- */
+
+      // Dinheiro, assinatura, fidelidade e auditoria só são gravados por Cloud
+      // Functions (Admin SDK, que ignora estas regras). O cliente no máximo lê
+      // o que é dele.
+      function ownsResource() {
+        return isSignedIn() && resource.data.clientId == request.auth.uid;
+      }
+
+      match /payments/{paymentId} {
+        allow read: if isStaffOf(barbershopId) || ownsResource();
+        allow write: if false;
+      }
+      match /refunds/{refundId} {
+        allow read: if isStaffOf(barbershopId) || ownsResource();
+        allow write: if false;
+      }
+      match /subscriptions/{subscriptionId} {
+        allow read: if isStaffOf(barbershopId) || ownsResource();
+        allow write: if false;
+      }
+      match /subscription_invoices/{invoiceId} {
+        allow read: if isStaffOf(barbershopId) || ownsResource();
+        allow write: if false;
+      }
+      match /loyalty_transactions/{txId} {
+        allow read: if isStaffOf(barbershopId) || ownsResource();
+        allow write: if false;
+      }
+      match /client_occurrences/{occurrenceId} {
+        allow read: if isStaffOf(barbershopId);
+        allow write: if false;
+      }
+      match /whatsapp_messages/{messageId} {
+        allow read: if isOwnerOf(barbershopId);
+        allow write: if false;
+      }
+      match /audit_log/{entryId} {
+        // Log de auditoria é imutável, inclusive para o dono.
+        allow read: if isOwnerOf(barbershopId) || isPlatformAdmin();
+        allow write: if false;
+      }
+
+      /* -------- fallback dentro da barbearia -------- */
+
+      // Coleção nova ainda não declarada acima fica inacessível, em vez de
+      // herdar permissão por descuido.
+      match /{document=**} {
+        allow read, write: if false;
+      }
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* Índice público de barbearias — resolve o subdomínio para o tenant   */
+    /* ------------------------------------------------------------------ */
+
+    match /slugs/{slug} {
+      // Precisa ser legível sem login: é o que traduz "osiqueira.dominio.com"
+      // em um barbershopId antes de qualquer autenticação.
+      allow read: if true;
+      allow write: if isPlatformAdmin();
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* Fallback global                                                     */
+    /* ------------------------------------------------------------------ */
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

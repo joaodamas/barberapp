@@ -1,30 +1,52 @@
+"use client";
+
 import Link from "next/link";
 import { ArrowRight, MapPin, Phone, Sparkles } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { WelcomeHeading } from "@/components/welcome-heading";
 import { Pill } from "@/components/ui/pill";
 import { Button } from "@/components/ui/button";
 import { BarberPoleDivider } from "@/components/ui/barber-pole-divider";
 import { bookingStatusMeta } from "@/lib/booking-status";
 import { formatBRL, formatDatePtBR } from "@/lib/format";
-import {
-  barbershop,
-  getServicesByIds,
-  loyalty,
-  nextBooking,
-} from "@/lib/mock-data";
+import { useTenant } from "@/lib/tenant-context";
+import { useAuth } from "@/lib/auth-context";
+import { useLoyalty, useMyBookings, useServices } from "@/lib/db/use-shop-data";
+import { OCCUPIES_SLOT } from "@/lib/domain";
+import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
+import { CalendarPlus } from "lucide-react";
 
 export default function InicioPage() {
-  const bookingServices = getServicesByIds(nextBooking.serviceIds);
-  const statusMeta = bookingStatusMeta[nextBooking.status];
-  const stampsLeft = loyalty.goal - loyalty.stamps;
+  const tenant = useTenant();
+  const { user } = useAuth();
+  const { items: minhas, status } = useMyBookings(user?.uid);
+  const { items: services } = useServices();
+
+  const hoje = new Date().toISOString().slice(0, 10);
+  const futuras = minhas
+    .filter((b) => b.date >= hoje && OCCUPIES_SLOT.includes(b.status))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const nextBooking = futuras[0] ?? null;
+
+  const bookingServices = nextBooking
+    ? (nextBooking.serviceIds
+        .map((id) => services.find((s) => s.id === id))
+        .filter(Boolean) as Array<{ name: string }>)
+    : [];
+  const statusMeta = nextBooking ? bookingStatusMeta[nextBooking.status] : null;
+
+  const loyalty = useLoyalty(user?.uid);
+  const stampsLeft = loyalty.faltam;
+  const barbershop = {
+    name: tenant.brand.name,
+    address: tenant.contact.address,
+    whatsapp: tenant.contact.whatsapp,
+  };
 
   return (
     <div className="grid grid-cols-1 gap-5 pt-1 md:grid-cols-[1fr_360px] md:items-start md:gap-x-10 md:gap-y-10 md:pt-2">
       <div className="md:col-span-2 md:flex md:items-center md:justify-between md:gap-6">
-        <div>
-          <p className="text-sm text-ivory-muted md:text-base">Bem-vindo de volta,</p>
-          <h1 className="text-2xl text-ivory md:text-4xl md:tracking-tight">João</h1>
-        </div>
+        <WelcomeHeading />
         <Link href="/agendar" className="hidden md:block">
           <Button className="md:h-12 md:px-7 md:text-base">
             Agendar horário
@@ -47,6 +69,19 @@ export default function InicioPage() {
         >
           Próximo agendamento
         </h2>
+        {status === "carregando" && <LoadingRows rows={1} />}
+
+        {status === "pronto" && !nextBooking && (
+          <EmptyState
+            icon={CalendarPlus}
+            title="Você não tem horário marcado"
+            description="Escolha o serviço e o melhor horário para você — leva menos de um minuto."
+            actionLabel="Agendar agora"
+            actionHref="/agendar"
+          />
+        )}
+
+        {nextBooking && (
         <Card className="flex flex-col gap-3 md:p-6">
           <div className="flex items-start justify-between gap-2">
             <div>
@@ -57,7 +92,7 @@ export default function InicioPage() {
                 {formatDatePtBR(nextBooking.date)} às {nextBooking.time}
               </p>
             </div>
-            <Pill tone={statusMeta.tone}>{statusMeta.label}</Pill>
+            {statusMeta && <Pill tone={statusMeta.tone}>{statusMeta.label}</Pill>}
           </div>
           <BarberPoleDivider />
           <div className="flex items-center justify-between text-sm md:text-base">
@@ -77,6 +112,7 @@ export default function InicioPage() {
             Ver detalhes / reagendar →
           </Link>
         </Card>
+        )}
       </section>
 
       <Link href="/planos" className="md:col-start-2 md:row-start-2">
@@ -112,7 +148,9 @@ export default function InicioPage() {
               {loyalty.stamps} de {loyalty.goal} carimbos
             </p>
             <p className="text-xs text-gold-light md:text-sm">
-              faltam {stampsLeft} para {loyalty.reward}
+              {loyalty.podeResgatar
+                ? `${loyalty.reward} liberado!`
+                : `faltam ${stampsLeft} para ${loyalty.reward}`}
             </p>
           </div>
           <div className="flex gap-1.5">

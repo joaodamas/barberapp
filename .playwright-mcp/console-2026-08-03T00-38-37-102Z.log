@@ -1,0 +1,39 @@
+[     332ms] [ERROR] The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTTPS protocol. You can also use the 'localhost' origin instead. See https://www.w3.org/TR/powerful-features/#potentially-trustworthy-origin and https://html.spec.whatwg.org/#the-cross-origin-opener-policy-header. @ http://barbeariadoze.lvh.me:3000/login:0
+[     560ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://barbeariadoze.lvh.me:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2489
+[     650ms] [LOG] [HMR] connected @ http://barbeariadoze.lvh.me:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2489
+[    3751ms] [WARNING] The resource http://barbeariadoze.lvh.me:3000/_next/static/media/6ad1cda2f16975ee-s.p.2j22bd4n1tlhh.woff2 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://barbeariadoze.lvh.me:3000/login:0
+[   20276ms] [ERROR] Connecting to 'http://osiqueira.lvh.me:3000/' violates the following Content Security Policy directive: "connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://*.cloudfunctions.net ws://localhost:* ws://*.lvh.me:* http://127.0.0.1:*". The action has been blocked. @ :10
+[   20285ms] [ERROR] Fetch API cannot load http://osiqueira.lvh.me:3000/. Refused to connect because it violates the document's Content Security Policy. @ :10
+[   32535ms] [LOG] [Fast Refresh] rebuilding @ http://barbeariadoze.lvh.me:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2489
+[   33999ms] [LOG] [Fast Refresh] done in 1572ms @ http://barbeariadoze.lvh.me:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2489
+[   34402ms] [LOG] [Fast Refresh] rebuilding @ http://barbeariadoze.lvh.me:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2489
+[   34709ms] [LOG] [Fast Refresh] done in 409ms @ http://barbeariadoze.lvh.me:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2489
+[   34841ms] [LOG] [Fast Refresh] rebuilding @ http://barbeariadoze.lvh.me:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2489
+[   35082ms] [LOG] [Fast Refresh] done in 343ms @ http://barbeariadoze.lvh.me:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2489
+[   35275ms] [LOG] [Fast Refresh] rebuilding @ http://barbeariadoze.lvh.me:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2489
+[   35607ms] [LOG] [Fast Refresh] done in 434ms @ http://barbeariadoze.lvh.me:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2489
+[   35780ms] [LOG] [Fast Refresh] rebuilding @ http://barbeariadoze.lvh.me:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2489
+[   36047ms] [LOG] [Fast Refresh] done in 367ms @ http://barbeariadoze.lvh.me:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2489
+[   36196ms] [LOG] [Fast Refresh] rebuilding @ http://barbeariadoze.lvh.me:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2489
+[   36488ms] [LOG] [Fast Refresh] done in 395ms @ http://barbeariadoze.lvh.me:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2489
+[   36707ms] [LOG] [Fast Refresh] rebuilding @ http://barbeariadoze.lvh.me:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2489
+[   37029ms] [LOG] [Fast Refresh] done in 423ms @ http://barbeariadoze.lvh.me:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2489
+[   37198ms] [LOG] [Fast Refresh] rebuilding @ http://barbeariadoze.lvh.me:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2489
+[   37455ms] [LOG] [Fast Refresh] done in 359ms @ http://barbeariadoze.lvh.me:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2489
+[   37637ms] [LOG] [Fast Refresh] rebuilding @ http://barbeariadoze.lvh.me:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2489
+[   37936ms] [LOG] [Fast Refresh] done in 401ms @ http://barbeariadoze.lvh.me:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2489
+[   38105ms] [LOG] [Fast Refresh] rebuilding @ http://barbeariadoze.lvh.me:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2489
+[   38567ms] [LOG] [Fast Refresh] done in 566ms @ http://barbeariadoze.lvh.me:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2489
+[   38773ms] [LOG] [Fast Refresh] rebuilding @ http://barbeariadoze.lvh.me:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2489
+[   39239ms] [LOG] [Fast Refresh] done in 568ms @ http://barbeariadoze.lvh.me:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2489
+[   39405ms] [LOG] [Fast Refresh] rebuilding @ http://barbeariadoze.lvh.me:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2489
+[   39816ms] [LOG] [Fast Refresh] done in 512ms @ http://barbeariadoze.lvh.me:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2489
+[   39994ms] [LOG] [Fast Refresh] rebuilding @ http://barbeariadoze.lvh.me:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2489
+[   40498ms] [LOG] [Fast Refresh] done in 605ms @ http://barbeariadoze.lvh.me:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2489
+[   40735ms] [LOG] [Fast Refresh] rebuilding @ http://barbeariadoze.lvh.me:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2489
+[   41199ms] [LOG] [Fast Refresh] done in 566ms @ http://barbeariadoze.lvh.me:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2489
+[   41385ms] [LOG] [Fast Refresh] rebuilding @ http://barbeariadoze.lvh.me:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2489
+[   41941ms] [LOG] [Fast Refresh] done in 657ms @ http://barbeariadoze.lvh.me:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2489
+[   42133ms] [LOG] [Fast Refresh] rebuilding @ http://barbeariadoze.lvh.me:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2489
+[   42417ms] [LOG] [Fast Refresh] done in 384ms @ http://barbeariadoze.lvh.me:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2489
+[   44691ms] [WARNING] The resource http://barbeariadoze.lvh.me:3000/_next/static/media/6ad1cda2f16975ee-s.p.2j22bd4n1tlhh.woff2 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://barbeariadoze.lvh.me:3000/login:0

@@ -13,58 +13,9 @@ import {
 import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
 import { formatBRL } from "@/lib/format";
-import {
-  clientRecurrence,
-  type ClientRecurrenceStatus,
-  hourlyHeatmap,
-  monthKpis,
-  noShowStats,
-  PERIOD_MONTHS,
-  periodFactor,
-  topServices,
-} from "@/lib/mock-data";
-
-type Period = "mes" | "trimestre" | "semestre" | "ano";
-
-const PERIOD_LABELS: Record<Period, string> = {
-  mes: "Mês",
-  trimestre: "Trimestre",
-  semestre: "Semestre",
-  ano: "Ano",
-};
-
-const MONTH_NAMES = [
-  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
-];
-
-// "Hoje" no mock é 31 de julho de 2026 — mês 6 (0-indexado).
-const BASE_YEAR = 2026;
-const BASE_MONTH = 6;
-
-function periodLabel(period: Period, offset: number): string {
-  if (period === "mes") {
-    const total = BASE_YEAR * 12 + BASE_MONTH + offset;
-    const year = Math.floor(total / 12);
-    const month = ((total % 12) + 12) % 12;
-    return `${MONTH_NAMES[month]} de ${year}`;
-  }
-  if (period === "trimestre") {
-    const baseQuarter = Math.floor(BASE_MONTH / 3);
-    const total = BASE_YEAR * 4 + baseQuarter + offset;
-    const year = Math.floor(total / 4);
-    const quarter = ((total % 4) + 4) % 4;
-    return `${quarter + 1}º trimestre de ${year}`;
-  }
-  if (period === "semestre") {
-    const baseSemester = Math.floor(BASE_MONTH / 6);
-    const total = BASE_YEAR * 2 + baseSemester + offset;
-    const year = Math.floor(total / 2);
-    const semester = ((total % 2) + 2) % 2;
-    return `${semester + 1}º semestre de ${year}`;
-  }
-  return `${BASE_YEAR + offset}`;
-}
+import { useFinanceiro, mesAtual, rotuloDoMes } from "@/lib/db/use-financeiro";
+import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
+import type { StatusRecorrencia as ClientRecurrenceStatus } from "@/lib/analytics";
 
 function heatColor(pct: number) {
   if (pct >= 80) return "bg-gold";
@@ -99,14 +50,14 @@ function Delta({
 }) {
   const diff = current - previous;
   if (previous === 0 || Math.abs(diff) < 0.05) {
-    return <span className="text-[10px] text-ivory-muted md:text-xs">— vs período anterior</span>;
+    return <span className="text-[11px] text-ivory-muted md:text-xs">— vs período anterior</span>;
   }
   const pctChange = (diff / previous) * 100;
   const isGood = invert ? diff < 0 : diff > 0;
   const Icon = diff > 0 ? ArrowUp : ArrowDown;
   return (
     <span
-      className={`inline-flex items-center gap-0.5 text-[10px] font-medium md:text-xs ${
+      className={`inline-flex items-center gap-0.5 text-[11px] font-medium md:text-xs ${
         isGood ? "text-success" : "text-danger"
       }`}
     >
@@ -117,99 +68,58 @@ function Delta({
 }
 
 export default function NumerosPage() {
-  const [period, setPeriod] = useState<Period>("mes");
   const [offset, setOffset] = useState(0);
 
-  function changePeriod(p: Period) {
-    setPeriod(p);
-    setOffset(0);
-  }
+  const mes = mesAtual(Math.abs(offset));
+  const mesAnterior = mesAtual(Math.abs(offset) + 1);
+  const atual = useFinanceiro(mes);
+  const anterior = useFinanceiro(mesAnterior);
 
-  const sortedRecurrence = [...clientRecurrence].sort(
+  const kpis = atual.kpis;
+  const prevKpis = anterior.kpis;
+  const avgTicket = kpis.avgTicket;
+  const prevAvgTicket = prevKpis.avgTicket;
+  const periodServices = atual.tops;
+  const periodNoShow = kpis;
+  const hourlyHeatmap = atual.heatmap;
+  const sortedRecurrence = [...atual.recorrencia].sort(
     (a, b) => STATUS_PRIORITY[a.status] - STATUS_PRIORITY[b.status] || b.lastVisitDaysAgo - a.lastVisitDaysAgo
   );
 
-  /* Agrega o mock para o período escolhido. Valores acumuláveis (faturamento,
-   * atendimentos) somam os meses do período; taxas (ocupação, no-show) usam a
-   * média mensal, senão um trimestre teria 180% de ocupação. */
-  const months = PERIOD_MONTHS[period];
-  const back = Math.abs(offset);
-  const factor = periodFactor(period, back);
-  const prevFactor = periodFactor(period, back + 1);
-  const monthlyAvg = factor / months;
-  const prevMonthlyAvg = prevFactor / months;
+  const heatCells = hourlyHeatmap.days.flatMap((day, i) =>
+    hourlyHeatmap.values[i].map((pct, j) => ({ day, hour: hourlyHeatmap.hours[j], pct }))
+  );
+  const peak = heatCells.reduce((a, b) => (b.pct > a.pct ? b : a), heatCells[0] ?? { day: "", hour: "", pct: 0 });
+  const idle = heatCells.reduce((a, b) => (b.pct < a.pct ? b : a), heatCells[0] ?? { day: "", hour: "", pct: 0 });
 
-  const clamp = (v: number, max = 100) => Math.min(Math.round(v * 10) / 10, max);
-
-  const kpis = {
-    revenue: Math.round(monthKpis.revenue * factor),
-    appointments: Math.round(monthKpis.appointments * factor),
-    occupancyPct: clamp(monthKpis.occupancyPct * monthlyAvg),
-    noShowPct: clamp(monthKpis.noShowPct / monthlyAvg),
-  };
-  const prevKpis = {
-    revenue: Math.round(monthKpis.revenue * prevFactor),
-    appointments: Math.round(monthKpis.appointments * prevFactor),
-    occupancyPct: clamp(monthKpis.occupancyPct * prevMonthlyAvg),
-    noShowPct: clamp(monthKpis.noShowPct / prevMonthlyAvg),
-  };
-  // Ticket médio é derivado — assim nunca fica inconsistente com receita/atendimentos.
-  const avgTicket = Math.round(kpis.revenue / kpis.appointments);
-  const prevAvgTicket = Math.round(prevKpis.revenue / prevKpis.appointments);
-
-  const periodServices = topServices.map((s) => ({
-    ...s,
-    count: Math.round(s.count * factor),
-    revenue: Math.round(s.revenue * factor),
-  }));
-
-  const periodNoShow = {
-    noShowCount: Math.round(noShowStats.noShowCount * factor),
-    lateCancelCount: Math.round(noShowStats.lateCancelCount * factor),
-    totalBookings: Math.round(noShowStats.totalBookings * factor),
-  };
+  const semDados = atual.status === "pronto" && kpis.totalBookings === 0;
 
   return (
     <div className="flex flex-col gap-6 pt-1 md:gap-10 md:pt-2">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-sm text-ivory-muted md:text-base">Filtros livres</p>
+          <p className="text-sm text-ivory-muted md:text-base">Seu mês</p>
           <h1 className="text-xl text-ivory md:text-4xl md:tracking-tight">Números</h1>
         </div>
 
         <div className="flex flex-col gap-2 md:items-end">
-          <div className="flex gap-2 rounded-xl border border-border bg-surface p-1 md:w-fit">
-            {(Object.keys(PERIOD_LABELS) as Period[]).map((p) => (
-              <button
-                key={p}
-                onClick={() => changePeriod(p)}
-                className={
-                  "flex-1 rounded-lg py-2 text-sm font-medium transition-colors md:px-5 md:py-2 " +
-                  (period === p
-                    ? "bg-gold text-bg"
-                    : "text-ivory-muted hover:text-ivory")
-                }
-              >
-                {PERIOD_LABELS[p]}
-              </button>
-            ))}
-          </div>
           <div className="flex items-center gap-1 text-sm text-ivory-muted">
             <button
-              aria-label="Período anterior"
-              onClick={() => setOffset((o) => o - 1)}
-              className="flex h-7 w-7 items-center justify-center rounded-lg transition-colors hover:bg-surface-raised hover:text-ivory"
+              aria-label="Mês anterior"
+              disabled={Math.abs(offset) >= 11}
+              onClick={() => setOffset((o) => Math.max(o - 1, -11))}
+              className="flex h-11 w-11 items-center justify-center md:h-8 md:w-8 rounded-lg transition-colors hover:bg-surface-raised hover:text-ivory disabled:opacity-30 disabled:hover:bg-transparent"
             >
               <ChevronLeft size={16} />
             </button>
             <span className="min-w-36 text-center font-medium text-ivory">
-              {periodLabel(period, offset)}
+              {rotuloDoMes(mes)}
             </span>
             <button
-              aria-label="Próximo período"
+              aria-label="Próximo mês"
               onClick={() => setOffset((o) => Math.min(o + 1, 0))}
               disabled={offset >= 0}
-              className="flex h-7 w-7 items-center justify-center rounded-lg transition-colors hover:bg-surface-raised hover:text-ivory disabled:opacity-30 disabled:hover:bg-transparent"
+              className="flex h-11 w-11 items-center justify-center md:h-8 md:w-8 rounded-lg transition-colors hover:bg-surface-raised hover:text-ivory disabled:opacity-30 disabled:hover:bg-transparent"
             >
               <ChevronRight size={16} />
             </button>
@@ -217,37 +127,51 @@ export default function NumerosPage() {
         </div>
       </div>
 
+      {atual.status === "carregando" && <LoadingRows rows={5} />}
+
+      {semDados && (
+        <EmptyState
+          icon={Scissors}
+          title={`Nenhum atendimento em ${rotuloDoMes(mes)}`}
+          description="Seus indicadores aparecem depois dos primeiros atendimentos concluídos. Marque um como concluído na tela Hoje."
+          actionLabel="Ir para Hoje"
+          actionHref="/painel"
+        />
+      )}
+
+      {!semDados && atual.status !== "carregando" && (
+      <>
       <div className="grid grid-cols-2 gap-2 md:grid-cols-5 md:gap-4">
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-6">
-          <p className="text-[10px] uppercase text-ivory-muted md:text-xs md:tracking-wide">Faturamento</p>
+          <p className="text-[11px] uppercase text-ivory-muted md:text-xs md:tracking-wide">Faturamento</p>
           <p className="font-display text-lg font-semibold text-gold-light md:text-2xl">
             {formatBRL(kpis.revenue)}
           </p>
           <Delta current={kpis.revenue} previous={prevKpis.revenue} />
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-6">
-          <p className="text-[10px] uppercase text-ivory-muted md:text-xs md:tracking-wide">Atendimentos</p>
+          <p className="text-[11px] uppercase text-ivory-muted md:text-xs md:tracking-wide">Atendimentos</p>
           <p className="font-display text-lg font-semibold text-ivory md:text-2xl">
             {kpis.appointments}
           </p>
           <Delta current={kpis.appointments} previous={prevKpis.appointments} />
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-6">
-          <p className="text-[10px] uppercase text-ivory-muted md:text-xs md:tracking-wide">Ticket médio</p>
+          <p className="text-[11px] uppercase text-ivory-muted md:text-xs md:tracking-wide">Ticket médio</p>
           <p className="font-display text-lg font-semibold text-ivory md:text-2xl">
             {formatBRL(avgTicket)}
           </p>
           <Delta current={avgTicket} previous={prevAvgTicket} />
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-6">
-          <p className="text-[10px] uppercase text-ivory-muted md:text-xs md:tracking-wide">Ocupação</p>
+          <p className="text-[11px] uppercase text-ivory-muted md:text-xs md:tracking-wide">Ocupação</p>
           <p className="font-display text-lg font-semibold text-ivory md:text-2xl">
             {kpis.occupancyPct}%
           </p>
           <Delta current={kpis.occupancyPct} previous={prevKpis.occupancyPct} />
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-6">
-          <p className="text-[10px] uppercase text-ivory-muted md:text-xs md:tracking-wide">Taxa de no-show</p>
+          <p className="text-[11px] uppercase text-ivory-muted md:text-xs md:tracking-wide">Taxa de no-show</p>
           <p className="font-display text-lg font-semibold text-ivory md:text-2xl">
             {kpis.noShowPct}%
           </p>
@@ -316,7 +240,7 @@ export default function NumerosPage() {
             {hourlyHeatmap.hours.map((h) => (
               <span
                 key={h}
-                className="text-center text-[10px] uppercase text-ivory-muted md:text-xs"
+                className="text-center text-[11px] uppercase text-ivory-muted md:text-xs"
               >
                 {h}
               </span>
@@ -324,12 +248,12 @@ export default function NumerosPage() {
             {hourlyHeatmap.days.map((day, i) => (
               <Fragment key={day}>
                 <span className="text-xs text-ivory-muted md:text-sm">{day}</span>
-                {hourlyHeatmap.values[i].map((basePct, j) => {
-                  const pct = Math.min(Math.round(basePct * monthlyAvg), 100);
+                {hourlyHeatmap.values[i].map((pct, j) => {
+                  // A ocupação já vem calculada das reservas do período.
                   return (
                     <div
                       key={`${day}-${j}`}
-                      className={`flex h-9 items-center justify-center rounded-lg text-xs font-medium text-bg transition-colors md:h-12 md:text-sm ${heatColor(pct)}`}
+                      className={`flex h-9 items-center justify-center rounded-lg text-xs font-medium text-ivory transition-colors md:h-12 md:text-sm ${heatColor(pct)}`}
                     >
                       {pct}%
                     </div>
@@ -352,10 +276,13 @@ export default function NumerosPage() {
         <div className="flex flex-col gap-2 md:grid md:grid-cols-2 md:gap-4">
           <Card className="flex flex-col gap-1 md:gap-2 md:p-6">
             <p className="text-sm text-ivory md:text-base">
-              Sexta e sábado à tarde são o horário nobre — 90%+ de ocupação.
+              {peak.day} às {peak.hour} é o horário mais cheio do período —{" "}
+              {peak.pct}% de ocupação.
             </p>
             <p className="text-xs text-ivory-muted md:text-sm">
-              Considere abrir mais horários nesses blocos.
+              {idle.pct < 30
+                ? `${idle.day} às ${idle.hour} é a maior brecha (${idle.pct}%) — bom alvo para promoção.`
+                : "A agenda está distribuída: não há brecha evidente para promover."}
             </p>
           </Card>
           <Card className="flex flex-col gap-1 md:gap-2 md:p-6">
@@ -372,6 +299,8 @@ export default function NumerosPage() {
           </Card>
         </div>
       </section>
+      </>
+      )}
     </div>
   );
 }

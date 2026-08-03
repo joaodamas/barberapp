@@ -1,0 +1,15 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - heading "O Siqueira Barbearia" [level=1] [ref=e4]
+    - paragraph [ref=e5]: Entre com sua conta
+  - generic [ref=e6]:
+    - generic [ref=e7]:
+      - button "Celular" [pressed] [ref=e8]
+      - button "E-mail" [ref=e9]
+    - generic [ref=e10]:
+      - text: Celular com WhatsApp
+      - textbox "Celular com WhatsApp" [ref=e11]:
+        - /placeholder: (11) 99999-9999
+      - button "Enviar código" [disabled] [ref=e12]
+    - generic [ref=e13]: ou
+    - button "Continuar com Google" [ref=e14]
