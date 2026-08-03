@@ -1,6 +1,6 @@
 # WhatsApp — como a amarração funciona
 
-**Data:** 2026-08-02 · **Estado:** catálogo de 16 templates pronto e validado; envio, webhook e gatilhos não existem.
+**Data:** 2026-08-02 · **Estado:** catálogo de **34 templates** pronto e validado; envio, webhook e gatilhos não existem.
 
 ---
 
@@ -159,6 +159,22 @@ A varredura **precisa** do índice `bookings(status, date)` — que já está ap
 **Recomendação: barbearia paga direto no começo.** Você não conhece o volume real ainda, e absorver custo variável desconhecido num plano de preço fixo é a forma mais rápida de descobrir que a margem sumiu. Quando houver histórico de consumo por barbearia, embutir vira diferencial de venda ("WhatsApp incluso, sem cartão na Meta").
 
 Independente do modelo, **medir o consumo por barbearia desde o primeiro dia** — é isso que informa a decisão depois.
+
+---
+
+## 6.5. Dois números, não um
+
+O catálogo tem `sender`, e ele separa duas conversas que não podem sair do mesmo lugar:
+
+| Sai da **WABA da barbearia** | Sai da **sua WABA** |
+|---|---|
+| 26 templates para o cliente final | `trial_terminando` |
+| 5 templates operacionais para o barbeiro | `trial_encerrado` |
+| | `cobranca_falhou` |
+
+Cobrança do SaaS e aviso de trial são **você falando com a barbearia**. Sair do WhatsApp dela apareceria para o cliente final dela como se a barbearia estivesse cobrando a si mesma — e, pior, a resposta do dono cairia na caixa que atende os clientes.
+
+Um teste trava isso: toda mensagem com `audience: "cliente"` precisa ter `sender: "barbearia"`.
 
 ---
 
