@@ -450,8 +450,26 @@ export function projecaoDeCaixa(params: {
     const isEstimate = !isClosed && confirmado === 0;
     const bookingRevenue = isClosed ? 0 : confirmado || media(dow);
 
+    /* Mensalidade é RECORRENTE, não um evento único.
+     *
+     * A regra antiga era `nextCharge === date`: casa uma vez e nunca mais. Em
+     * 30 dias isso passa despercebido, porque a próxima cobrança de todo mundo
+     * cai dentro da janela. Em 6 ou 12 meses vira erro grosseiro — cada
+     * mensalista pagaria UMA vez no ano inteiro, e a projeção subestimaria a
+     * receita recorrente em mais de 90%.
+     *
+     * Agora cobra todo mês no mesmo dia da próxima cobrança, e só a partir
+     * dela: mensalista com cobrança dia 20 não gera receita no dia 20 de um mês
+     * anterior ao contrato. Dia 31 em mês de 30 cai no último dia — é o que os
+     * meios de pagamento fazem. */
+    const diaDaCobranca = (iso: string) => Number(iso.slice(-2));
+    const ultimoDiaDoMes = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
     const subscriptionCharge = ativos
-      .filter((s) => s.nextCharge === date)
+      .filter((sub) => {
+        if (!sub.nextCharge || sub.nextCharge > date) return false;
+        const alvoDia = Math.min(diaDaCobranca(sub.nextCharge), ultimoDiaDoMes);
+        return alvoDia === d.getDate();
+      })
       .reduce((s, sub) => s + sub.price, 0);
 
     const fixedExpense = recorrentes
@@ -547,3 +565,67 @@ export function horariosDaJornada(schedule: {
 }
 
 export { monthOf };
+
+/** Uma linha de projeção agregada por mês. */
+export type MesProjetado = {
+  /** `AAAA-MM`. */
+  mes: string;
+  rotulo: string;
+  bookingRevenue: number;
+  subscriptionCharge: number;
+  fixedExpense: number;
+  net: number;
+  cumulative: number;
+  /** Quanto da receita do mês é estimativa, de 0 a 1. */
+  fracaoEstimada: number;
+};
+
+/**
+ * Agrupa a projeção diária por mês.
+ *
+ * 365 barras não são um gráfico, são ruído — e 365 linhas de tabela ninguém
+ * lê. Além de uns dois meses, o que o dono decide é por mês: "dezembro fecha
+ * no vermelho?", não "dia 14 de dezembro fecha no vermelho?".
+ *
+ * `fracaoEstimada` viaja junto de propósito. Ela é o que separa projeção de
+ * chute com aparência de projeção: em janeiro pode ser 20%, em dezembro é
+ * 100%, e a tela precisa mostrar essa diferença em vez de apresentar os dois
+ * números com a mesma cara.
+ */
+export function agruparProjecaoPorMes(dias: DiaProjetado[]): MesProjetado[] {
+  const porMes = new Map<string, MesProjetado>();
+
+  for (const d of dias) {
+    const mes = d.date.slice(0, 7);
+    let m = porMes.get(mes);
+    if (!m) {
+      m = {
+        mes,
+        rotulo: new Date(`${mes}-01T12:00:00`).toLocaleDateString("pt-BR", {
+          month: "short",
+          year: "2-digit",
+        }),
+        bookingRevenue: 0,
+        subscriptionCharge: 0,
+        fixedExpense: 0,
+        net: 0,
+        // O acumulado é o do ÚLTIMO dia do mês, não a soma dos acumulados
+        // diários — somar acumulado é contar o mesmo dinheiro várias vezes.
+        cumulative: 0,
+        fracaoEstimada: 0,
+      };
+      porMes.set(mes, m);
+    }
+    m.bookingRevenue += d.bookingRevenue;
+    m.subscriptionCharge += d.subscriptionCharge;
+    m.fixedExpense += d.fixedExpense;
+    m.net += d.net;
+    m.cumulative = d.cumulative;
+    if (d.isEstimate) m.fracaoEstimada += d.bookingRevenue;
+  }
+
+  for (const m of porMes.values()) {
+    m.fracaoEstimada = m.bookingRevenue > 0 ? m.fracaoEstimada / m.bookingRevenue : 0;
+  }
+  return [...porMes.values()];
+}

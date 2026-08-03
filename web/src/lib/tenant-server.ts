@@ -81,12 +81,25 @@ async function loadTenantBySlug(slug: string): Promise<Tenant | null> {
   const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
   if (!projectId) return null;
 
-  const base = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
+  /* Com o emulador ligado, ler daqui a PRODUÇÃO é pior que não ler nada.
+   *
+   * O SDK cliente respeita `connectFirestoreEmulator`, mas esta resolução usa
+   * `fetch` direto na REST — e ficava apontada para o Firestore de verdade. O
+   * sintoma não parece de tenant: o slug local não existe lá, cai no tenant
+   * padrão, e o dono de uma barbearia local é tratado como CLIENTE, porque o
+   * claim dele não bate com o id do tenant errado. Some o painel, sem erro.
+   *
+   * O emulador serve a mesma REST na porta 8080. */
+  /* Cache de uma hora sobre o emulador esconde o que você acabou de semear. */
+  const emEmulador = process.env.NEXT_PUBLIC_USE_EMULATOR === "true";
+  const base = emEmulador
+    ? `http://127.0.0.1:8080/v1/projects/${projectId}/databases/(default)/documents`
+    : `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
 
   try {
     // O documento de slug quase nunca muda: uma hora de cache é conservador.
     const slugRes = await fetch(`${base}/slugs/${encodeURIComponent(slug)}`, {
-      next: { revalidate: 3600 },
+      next: { revalidate: emEmulador ? 0 : 3600 },
     });
     if (!slugRes.ok) return null;
 
@@ -95,7 +108,7 @@ async function loadTenantBySlug(slug: string): Promise<Tenant | null> {
 
     // A ficha muda quando o dono edita a marca: cinco minutos.
     const shopRes = await fetch(`${base}/barbershops/${barbershopId}`, {
-      next: { revalidate: 300 },
+      next: { revalidate: emEmulador ? 0 : 300 },
     });
     if (!shopRes.ok) return null;
 

@@ -1,16 +1,34 @@
 "use client";
 
+import { useState } from "react";
 import { AlertTriangle, TrendingDown, TrendingUp, Wallet } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
 import { KpiTile, signTone } from "@/components/ui/kpi-tile";
 import { formatBRL, formatDateShortPtBR, formatWeekdayAndDay } from "@/lib/format";
-import { useFinanceiro, mesAtual } from "@/lib/db/use-financeiro";
+import {
+  useFinanceiro,
+  mesAtual,
+  HORIZONTES,
+  type Horizonte,
+} from "@/lib/db/use-financeiro";
+import { agruparProjecaoPorMes } from "@/lib/analytics";
+import { Segmented } from "@/components/ui/segmented";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { LineChart } from "@/components/ui/chart";
 
 export default function ProjecaoPage() {
-  const { projecao: cashProjection, status, raw } = useFinanceiro(mesAtual());
+  const [horizonte, setHorizonte] = useState<Horizonte>("mensal");
+  const { projecao: cashProjection, status, raw } = useFinanceiro(mesAtual(), horizonte);
+  const porMes = HORIZONTES[horizonte].porMes;
+  const meses = porMes ? agruparProjecaoPorMes(cashProjection) : [];
+  /* Quanto do horizonte inteiro é estimativa. É o número que decide se a
+   * projeção é informação ou enfeite — e ele cresce rápido com o prazo. */
+  const receitaTotal = cashProjection.reduce((s, d) => s + d.bookingRevenue, 0);
+  const receitaEstimada = cashProjection
+    .filter((d) => d.isEstimate)
+    .reduce((s, d) => s + d.bookingRevenue, 0);
+  const pctEstimado = receitaTotal > 0 ? Math.round((receitaEstimada / receitaTotal) * 100) : 0;
   const semBase = raw.expenses.length === 0 && raw.bookings.length === 0;
   const openDays = cashProjection.filter((d) => !d.isClosed);
 
@@ -31,7 +49,9 @@ export default function ProjecaoPage() {
   return (
     <div className="flex flex-col gap-6 pt-1 md:gap-8 md:pt-2">
       <div>
-        <p className="text-sm text-ivory-muted md:text-base">Próximos 30 dias</p>
+        <p className="text-sm text-ivory-muted md:text-base">
+          Próximos {HORIZONTES[horizonte].dias} dias
+        </p>
         <h1 className="text-xl text-ivory md:text-3xl md:tracking-tight">Projeção de Caixa</h1>
         <p className="mt-1 text-xs text-ivory-muted md:text-sm">
           Combina marcações já confirmadas, cobrança de mensalistas (data real)
@@ -39,6 +59,27 @@ export default function ProjecaoPage() {
           usam a média histórica daquele dia da semana — marcados como
           &quot;estimado&quot;.
         </p>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <Segmented
+          label="Horizonte da projeção"
+          value={horizonte}
+          onChange={setHorizonte}
+          options={(Object.keys(HORIZONTES) as Horizonte[]).map((h) => ({
+            value: h,
+            label: HORIZONTES[h].rotulo,
+          }))}
+        />
+        {pctEstimado > 0 && (
+          <p className="text-xs text-ivory-muted">
+            <strong className="text-ivory">{pctEstimado}%</strong> desta receita é
+            estimativa, calculada pela média histórica de cada dia da semana — não
+            por horário já marcado.
+            {pctEstimado >= 80 &&
+              " Nesse prazo praticamente ninguém tem agenda marcada, então trate como cenário, não como previsão."}
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-4">
@@ -94,10 +135,14 @@ export default function ProjecaoPage() {
           </div>
           <LineChart
             label={`Saldo acumulado projetado para os próximos ${cashProjection.length} dias.`}
-            data={cashProjection.map((d) => ({
-              label: formatDateShortPtBR(d.date),
-              value: d.cumulative,
-            }))}
+            data={
+              porMes
+                ? meses.map((m) => ({ label: m.rotulo, value: m.cumulative }))
+                : cashProjection.map((d) => ({
+                    label: formatDateShortPtBR(d.date),
+                    value: d.cumulative,
+                  }))
+            }
           />
           <p className="text-xs text-ivory-muted">
             A linha tracejada é o zero. Onde a curva cruza para baixo dela, o
@@ -106,7 +151,67 @@ export default function ProjecaoPage() {
         </Card>
       )}
 
-      {!semBase && (
+      {/* Prazo longo vira tabela POR MÊS. 365 linhas ninguém lê, e a decisão
+          nesse horizonte é mensal: "dezembro fecha no vermelho?", não "dia 14
+          de dezembro fecha no vermelho?". */}
+      {!semBase && porMes && (
+        <Card className="table-scroll overflow-x-auto p-0">
+          <table className="w-full min-w-[560px] text-sm">
+            <thead>
+              <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ivory-muted">
+                <th className="px-4 py-3 font-medium md:px-6">Mês</th>
+                <th className="px-4 py-3 text-right font-medium">Receita</th>
+                <th className="px-4 py-3 text-right font-medium">Mensalistas</th>
+                <th className="px-4 py-3 text-right font-medium">Despesa fixa</th>
+                <th className="px-4 py-3 text-right font-medium">Resultado</th>
+                <th className="px-4 py-3 text-right font-medium md:px-6">Acumulado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {meses.map((m) => (
+                <tr
+                  key={m.mes}
+                  className="border-b border-border/60 transition-colors last:border-0 hover:bg-surface-raised/60"
+                >
+                  <td className="px-4 py-3 md:px-6">
+                    <span className="capitalize text-ivory">{m.rotulo}</span>
+                    {m.fracaoEstimada > 0 && (
+                      <span className="ml-2 text-xs text-ivory-muted">
+                        {Math.round(m.fracaoEstimada * 100)}% estimado
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-right text-ivory">
+                    {formatBRL(m.bookingRevenue)}
+                  </td>
+                  <td className="px-4 py-3 text-right text-ivory-muted">
+                    {formatBRL(m.subscriptionCharge)}
+                  </td>
+                  <td className="px-4 py-3 text-right text-danger">
+                    −{formatBRL(m.fixedExpense)}
+                  </td>
+                  <td
+                    className={`px-4 py-3 text-right font-medium ${
+                      m.net >= 0 ? "text-success" : "text-danger"
+                    }`}
+                  >
+                    {formatBRL(m.net)}
+                  </td>
+                  <td
+                    className={`px-4 py-3 text-right font-display md:px-6 ${
+                      m.cumulative >= 0 ? "text-ivory" : "text-danger"
+                    }`}
+                  >
+                    {formatBRL(m.cumulative)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+      )}
+
+      {!semBase && !porMes && (
       <Card className="table-scroll overflow-x-auto p-0">
         <table className="w-full min-w-[640px] text-sm">
           <thead>
