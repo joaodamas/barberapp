@@ -19,6 +19,11 @@ initializeApp();
 setGlobalOptions({ region: "southamerica-east1", maxInstances: 10 });
 
 export { provisionBarbershop, grantShopRole } from "./provisioning";
+export {
+  signUpBarbershop,
+  checkSlugAvailability,
+  completeOnboardingStep,
+} from "./signup";
 export { TEMPLATES } from "./whatsapp/templates";
 export type {
   TemplateDef,

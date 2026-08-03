@@ -328,7 +328,46 @@ E ele tem uma vantagem que nenhum outro cliente vai ter: conhece o produto e que
 
 ---
 
-## 10. Referências
+## 10. Verificação contra o emulador (2026-08-02)
+
+Fluxo exercitado de ponta a ponta com Auth + Firestore + Functions no emulador,
+e navegado no browser em dois subdomínios reais (`osiqueira.lvh.me`,
+`barbeariadoze.lvh.me`).
+
+| Verificação | Resultado |
+|---|---|
+| Cadastro bloqueado sem e-mail verificado | ✅ |
+| Slug curto / reservado / ocupado recusados com motivo | ✅ |
+| Barbearia criada com trial de 7 dias | ✅ |
+| Segunda barbearia na mesma conta bloqueada | ✅ |
+| Claim `barbershops[id]=owner` concedido | ✅ |
+| Quatro passos do onboarding registrados | ✅ |
+| Duas barbearias, dois subdomínios, marcas e manifests distintos | ✅ |
+| Login pela UI → redireciona para `/painel` | ✅ |
+| 17 rotas sem erro de servidor | ✅ |
+| Despesas: estado vazio, escrita e KPI atualizando em tempo real | ✅ |
+| 34 testes de regra + 34 de function + 54 do web | ✅ |
+
+**Quatro defeitos encontrados só por rodar**, todos corrigidos:
+
+1. `onboarding.completedAt` era `Timestamp` do Firestore e derrubava a rota com
+   500 ao atravessar para Client Component.
+2. `upgrade-insecure-requests` na CSP forçava https em subdomínio local e
+   derrubava todos os assets.
+3. Faltava `unsafe-eval` em desenvolvimento — o React precisa dele, e sem isso a
+   hidratação quebrava.
+4. Faltava `allowedDevOrigins` — a página carregava e **nenhum botão
+   respondia**, sem erro no console.
+
+Os itens 2 a 4 têm a mesma assinatura: a tela aparece inteira e nada funciona.
+Nenhum deles apareceria em typecheck, lint ou teste unitário.
+
+Também corrigido: `shortName` cortava no meio da palavra ("O Siqueira Bar",
+"Barbearia do Z") — e é o texto que fica sob o ícone no celular do cliente.
+
+---
+
+## 11. Referências
 
 - [`ESTRATEGIA-SAAS.md`](./ESTRATEGIA-SAAS.md) — isolamento, subdomínio, planos e preço
 - [`COMPARATIVO-MERCADO-2026-08.md`](./COMPARATIVO-MERCADO-2026-08.md) — posicionamento

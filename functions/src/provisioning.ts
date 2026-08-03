@@ -105,7 +105,7 @@ export const provisionBarbershop = onCall<ProvisionInput>(async (request) => {
       plan,
       brand: {
         name,
-        shortName: name.length > 14 ? name.slice(0, 14).trim() : name,
+        shortName: shortNameFrom(name),
         logo: "/logo.svg",
         logoHorizontal: "/logo-horizontal.svg",
         accentColor: input.accentColor ?? "#b8863a",
@@ -248,4 +248,24 @@ function featuresFor(plan: "entrada" | "completo") {
 
 function onlyDigits(value: string) {
   return value.replace(/\D/g, "");
+}
+
+/**
+ * Nome curto para o ícone na tela inicial.
+ *
+ * `slice(0, 14)` cortava no meio da palavra: "O Siqueira Barbearia" virava
+ * "O Siqueira Bar" e "Barbearia do Zé" virava "Barbearia do Z" — e é esse
+ * texto que fica sob o ícone no celular do cliente. Corta por palavra.
+ */
+function shortNameFrom(name: string, max = 14) {
+  const limpo = name.trim().replace(/\s+/g, " ");
+  if (limpo.length <= max) return limpo;
+
+  let curto = "";
+  for (const palavra of limpo.split(" ")) {
+    const proximo = curto ? `${curto} ${palavra}` : palavra;
+    if (proximo.length > max) break;
+    curto = proximo;
+  }
+  return curto || limpo.slice(0, max).trim();
 }

@@ -34,9 +34,30 @@ export const firebaseApp = getApps().length ? getApp() : initializeApp(firebaseC
  * quem só abriu a tela de agendar atrasa toda navegação. */
 export const auth = getAuth(firebaseApp);
 
+/* Emulador local: permite exercitar cadastro, regras e onboarding de verdade
+ * sem tocar no projeto de produção. Ligado por NEXT_PUBLIC_USE_EMULATOR. */
+const useEmulator = process.env.NEXT_PUBLIC_USE_EMULATOR === "true";
+
+if (useEmulator && typeof window !== "undefined") {
+  const w = window as unknown as { __emuAuth?: boolean };
+  if (!w.__emuAuth) {
+    w.__emuAuth = true;
+    void import("firebase/auth").then(({ connectAuthEmulator }) => {
+      connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
+    });
+  }
+}
+
+let dbPromise: Promise<import("firebase/firestore").Firestore> | null = null;
+
 export async function getDb() {
-  const { getFirestore } = await import("firebase/firestore");
-  return getFirestore(firebaseApp);
+  dbPromise ??= (async () => {
+    const { getFirestore, connectFirestoreEmulator } = await import("firebase/firestore");
+    const db = getFirestore(firebaseApp);
+    if (useEmulator) connectFirestoreEmulator(db, "127.0.0.1", 8080);
+    return db;
+  })();
+  return dbPromise;
 }
 
 export async function getAppStorage() {
@@ -44,9 +65,24 @@ export async function getAppStorage() {
   return getStorage(firebaseApp);
 }
 
+let functionsPromise: Promise<import("firebase/functions").Functions> | null = null;
+
 export async function getAppFunctions() {
-  const { getFunctions } = await import("firebase/functions");
-  return getFunctions(firebaseApp, "southamerica-east1");
+  functionsPromise ??= (async () => {
+    const { getFunctions, connectFunctionsEmulator } = await import("firebase/functions");
+    const fns = getFunctions(firebaseApp, "southamerica-east1");
+    if (useEmulator) connectFunctionsEmulator(fns, "127.0.0.1", 5001);
+    return fns;
+  })();
+  return functionsPromise;
+}
+
+/** Chama uma Cloud Function tipada. */
+export async function callFunction<TInput, TOutput>(name: string, data: TInput) {
+  const fns = await getAppFunctions();
+  const { httpsCallable } = await import("firebase/functions");
+  const result = await httpsCallable<TInput, TOutput>(fns, name)(data);
+  return result.data;
 }
 
 export async function getFirebaseAnalytics() {

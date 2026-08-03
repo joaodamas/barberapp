@@ -56,7 +56,8 @@ function messageFor(error: unknown, fallback: string) {
 export default function LoginPage() {
   const router = useRouter();
   const { user, claims, loading } = useAuth();
-  const { brand } = useTenant();
+  const tenant = useTenant();
+  const { brand } = tenant;
   const [method, setMethod] = useState<Method>("phone");
 
   const [phoneStep, setPhoneStep] = useState<PhoneStep>("phone");
@@ -76,22 +77,41 @@ export default function LoginPage() {
   // Dono cai no painel, cliente cai no app — a conta decide, não a porta.
   useEffect(() => {
     if (loading || !user) return;
-    router.replace(claims.role === "owner" ? "/painel" : "/");
-  }, [loading, user, claims.role, router]);
+    const papel = claims.barbershops?.[tenant.id] ?? claims.role;
+    router.replace(papel === "owner" ? "/painel" : "/");
+  }, [loading, user, claims, tenant.id, router]);
 
-  /* O verificador só é criado quando a aba "Celular" está aberta, e é
-   * destruído ao sair: um RecaptchaVerifier consumido precisa de clear()
-   * antes de ser reusado, senão a segunda tentativa falha depois de um erro. */
-  useEffect(() => {
-    if (method !== "phone") return;
+  /**
+   * O verificador é criado SOB DEMANDA, na hora de enviar o código.
+   *
+   * Antes ele era construído na montagem do componente. Se `RecaptchaVerifier`
+   * falhasse — chave inválida, script do Google bloqueado pela CSP, rede fora —
+   * o efeito quebrava e a tela INTEIRA parava de responder, sem erro visível:
+   * a página aparecia normal e nenhum botão funcionava, inclusive a aba de
+   * e-mail, que nem usa reCAPTCHA. Só apareceu ao clicar de verdade no
+   * navegador.
+   *
+   * Um verificador consumido precisa de `clear()` antes de ser reusado, então
+   * cada tentativa recria.
+   */
+  function ensureRecaptcha() {
+    recaptchaRef.current?.clear();
     recaptchaRef.current = new RecaptchaVerifier(auth, "recaptcha-container", {
       size: "invisible",
     });
+    return recaptchaRef.current;
+  }
+
+  useEffect(() => {
     return () => {
-      recaptchaRef.current?.clear();
+      try {
+        recaptchaRef.current?.clear();
+      } catch {
+        // Verificador já descartado — nada a fazer.
+      }
       recaptchaRef.current = null;
     };
-  }, [method]);
+  }, []);
 
   async function handleGoogle() {
     setError(null);
@@ -112,17 +132,11 @@ export default function LoginPage() {
       const formatted = phone.startsWith("+")
         ? phone
         : `+55${phone.replace(/\D/g, "")}`;
-      if (!recaptchaRef.current) throw new Error("reCAPTCHA não inicializado");
-      const result = await signInWithPhoneNumber(auth, formatted, recaptchaRef.current);
+      const result = await signInWithPhoneNumber(auth, formatted, ensureRecaptcha());
       setConfirmation(result);
       setPhoneStep("code");
     } catch (err) {
       setError(messageFor(err, "Não conseguimos enviar o código. Confira o número e tente de novo."));
-      // Verificador consumido: recria para permitir nova tentativa.
-      recaptchaRef.current?.clear();
-      recaptchaRef.current = new RecaptchaVerifier(auth, "recaptcha-container", {
-        size: "invisible",
-      });
     } finally {
       setBusy(false);
     }

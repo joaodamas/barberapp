@@ -67,6 +67,30 @@ export type TenantFeatures = {
   advancedFinance: boolean;
 };
 
+/** Jornada da barbearia — sai de `lib/slots.ts` e vira configuração. */
+export type TenantSchedule = {
+  /** 0 = domingo. */
+  weekdays: number[];
+  opensAt: string;
+  closesAt: string;
+  breaks: Array<{ from: string; to: string }>;
+  slotMinutes: number;
+};
+
+export type TenantTrial = {
+  startedAt: string;
+  endsAt: string;
+};
+
+export const ONBOARDING_STEPS = ["barbearia", "servicos", "horarios", "compartilhar"] as const;
+export type OnboardingStep = (typeof ONBOARDING_STEPS)[number];
+
+export type TenantOnboarding = {
+  completedSteps: OnboardingStep[];
+  completedAt: string | null;
+  sharedLink: boolean;
+};
+
 export type Tenant = {
   id: string;
   /** Subdomínio: `osiqueira` em `osiqueira.dominio.com.br`. */
@@ -76,7 +100,47 @@ export type Tenant = {
   contact: TenantContact;
   policies: TenantPolicies;
   features: TenantFeatures;
+  schedule: TenantSchedule;
+  trial: TenantTrial | null;
+  onboarding: TenantOnboarding;
 };
+
+export const DEFAULT_SCHEDULE: TenantSchedule = {
+  weekdays: [1, 2, 3, 4, 5, 6],
+  opensAt: "09:00",
+  closesAt: "19:00",
+  breaks: [{ from: "12:00", to: "14:00" }],
+  slotMinutes: 30,
+};
+
+export const TRIAL_DAYS = 7;
+
+/** Dias restantes de teste. Negativo quando já venceu. */
+export function trialDaysLeft(trial: TenantTrial | null, now = new Date()): number | null {
+  if (!trial?.endsAt) return null;
+  const ms = new Date(trial.endsAt).getTime() - now.getTime();
+  return Math.ceil(ms / (24 * 60 * 60 * 1000));
+}
+
+/** O aviso só aparece na reta final — antes disso é ruído. */
+export function shouldWarnAboutTrial(trial: TenantTrial | null, now = new Date()) {
+  const left = trialDaysLeft(trial, now);
+  return left !== null && left <= 4;
+}
+
+export function isTrialExpired(trial: TenantTrial | null, now = new Date()) {
+  const left = trialDaysLeft(trial, now);
+  return left !== null && left <= 0;
+}
+
+/** Onde o dono parou. `null` quando terminou tudo. */
+export function nextOnboardingStep(onboarding: TenantOnboarding): OnboardingStep | null {
+  return ONBOARDING_STEPS.find((step) => !onboarding.completedSteps.includes(step)) ?? null;
+}
+
+export function isOnboardingComplete(onboarding: TenantOnboarding) {
+  return nextOnboardingStep(onboarding) === null;
+}
 
 /** Políticas padrão da plataforma — o ponto de partida de toda barbearia nova. */
 export const PLATFORM_DEFAULT_POLICIES: TenantPolicies = {
@@ -123,6 +187,16 @@ export const DEFAULT_TENANT: Tenant = {
   },
   policies: PLATFORM_DEFAULT_POLICIES,
   features: ALL_FEATURES,
+  schedule: {
+    weekdays: [1, 2, 3, 4, 5, 6],
+    opensAt: "09:00",
+    closesAt: "19:00",
+    breaks: [{ from: "12:00", to: "14:00" }],
+    slotMinutes: 30,
+  },
+  // A barbearia de referência não está em teste.
+  trial: null,
+  onboarding: { completedSteps: [...ONBOARDING_STEPS], completedAt: null, sharedLink: true },
 };
 
 /** Domínio raiz da plataforma. Tudo à esquerda dele é o slug da barbearia. */

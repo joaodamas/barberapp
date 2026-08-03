@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { LayoutDashboard } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
+import { useTenant } from "@/lib/tenant-context";
 import { cn } from "@/lib/cn";
 
 /**
@@ -11,7 +12,9 @@ import { cn } from "@/lib/cn";
  */
 export function OwnerPanelLink({ className }: { className?: string }) {
   const { claims } = useAuth();
-  if (claims.role !== "owner") return null;
+  const tenant = useTenant();
+  const papel = claims.barbershops?.[tenant.id] ?? claims.role;
+  if (papel !== "owner") return null;
 
   return (
     <Link

@@ -5,10 +5,12 @@ import { cert, getApp, getApps, initializeApp, applicationDefault } from "fireba
 import { getFirestore } from "firebase-admin/firestore";
 import {
   ALL_FEATURES,
+  DEFAULT_SCHEDULE,
   DEFAULT_TENANT,
   PLATFORM_DEFAULT_POLICIES,
   slugFromHost,
   type Tenant,
+  type TenantTrial,
 } from "@/lib/tenant";
 
 /**
@@ -88,6 +90,9 @@ function toTenant(id: string, data: Record<string, unknown>): Tenant {
     // viraria NaN em cálculo de reembolso.
     policies: { ...PLATFORM_DEFAULT_POLICIES, ...policies },
     features: { ...ALL_FEATURES, ...features },
+    schedule: { ...DEFAULT_SCHEDULE, ...((data.schedule ?? {}) as object) },
+    trial: toTrial(data.trial),
+    onboarding: toOnboarding(data.onboarding),
   };
 }
 
@@ -111,4 +116,41 @@ function adminDb() {
   } catch {
     return null;
   }
+}
+
+/**
+ * Timestamp do Firestore → ISO.
+ *
+ * O tenant atravessa de Server para Client Component. `Timestamp` é uma classe
+ * e o React recusa: "Only plain objects can be passed to Client Components".
+ * TODA data que sai daqui precisa passar por esta função — foi assim que o
+ * `onboarding.completedAt` derrubou a rota inteira com 500.
+ */
+function toISO(value: unknown): string | null {
+  if (!value) return null;
+  if (typeof value === "string") return value;
+  if (typeof (value as { toDate?: () => Date }).toDate === "function") {
+    return (value as { toDate: () => Date }).toDate().toISOString();
+  }
+  if (value instanceof Date) return value.toISOString();
+  return null;
+}
+
+function toTrial(raw: unknown): TenantTrial | null {
+  if (!raw || typeof raw !== "object") return null;
+  const value = raw as { startedAt?: unknown; endsAt?: unknown };
+  const startedAt = toISO(value.startedAt);
+  const endsAt = toISO(value.endsAt);
+  return startedAt && endsAt ? { startedAt, endsAt } : null;
+}
+
+function toOnboarding(raw: unknown): Tenant["onboarding"] {
+  const value = (raw ?? {}) as Record<string, unknown>;
+  return {
+    completedSteps: Array.isArray(value.completedSteps)
+      ? (value.completedSteps as Tenant["onboarding"]["completedSteps"])
+      : [],
+    completedAt: toISO(value.completedAt),
+    sharedLink: value.sharedLink === true,
+  };
 }
