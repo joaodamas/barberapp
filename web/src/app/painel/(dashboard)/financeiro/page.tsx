@@ -20,16 +20,9 @@ import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
 import { KpiTile, signTone } from "@/components/ui/kpi-tile";
 import { formatBRL, safePct } from "@/lib/format";
-import { computeDre, DRE_DAYS_IN_MONTH } from "@/lib/dre";
-import {
-  cashProjection,
-  commercialStats,
-  dailyCashHistory,
-  monthExpenses,
-  mrr,
-  paymentGateways,
-  revenueBreakdown,
-} from "@/lib/mock-data";
+import { useFinanceiro, mesAtual, rotuloDoMes } from "@/lib/db/use-financeiro";
+import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
+import { paymentGateways } from "@/lib/business-rules";
 
 const REVENUE_BAR_SHADES = ["bg-gold", "bg-gold/75", "bg-gold/50", "bg-gold/30"];
 
@@ -37,28 +30,50 @@ export default function FinanceiroPage() {
   const [gatewayId, setGatewayId] = useState(paymentGateways[0].id);
   const gateway = paymentGateways.find((g) => g.id === gatewayId) ?? paymentGateways[0];
 
-  /* Mesmo cálculo que a tela de DRE usa — as duas liam a mesma base e faziam a
-   * conta cada uma do seu jeito. */
-  const r = computeDre();
+  const mes = mesAtual();
+  const { dre: r, receita, caixa, projecao, raw, status } = useFinanceiro(mes);
+
+  const revenueBreakdown = [
+    { label: "Serviços avulsos", value: receita.servicos },
+    { label: "Produtos (loja)", value: receita.produtos },
+    { label: "Mensalistas", value: receita.mensalistas },
+    { label: "Encaixes", value: receita.encaixes },
+  ].filter((item) => item.value > 0);
+
+  const mrr = {
+    billed: receita.mensalistas,
+    contracted: raw.subscribers
+      .filter((s) => s.status !== "cancelado")
+      .reduce((t, s) => t + s.price, 0),
+  };
+  const ativos = raw.subscribers.filter((s) => s.status === "ativo");
+  const commercialStats = {
+    newSubscribers: ativos.length,
+    cancellations: raw.subscribers.filter((s) => s.status === "cancelado").length,
+    defaultAmount: raw.subscribers
+      .filter((s) => s.status === "suspenso")
+      .reduce((t, s) => t + s.price, 0),
+    storeRevenue: receita.produtos,
+    activeSubscribers: ativos.length,
+  };
+
   const operatingResult = r.result;
   const marginPct = Math.round(r.marginPct);
   const totalExpenses = r.totalCost;
-  const breakEvenPct = r.breakEvenDay
-    ? Math.round(safePct(r.breakEvenDay, DRE_DAYS_IN_MONTH))
-    : 100;
+  const breakEvenPct = r.breakEvenDay ? Math.round(safePct(r.breakEvenDay, r.diasNoMes)) : 100;
 
   const totalRevenueBreakdown = revenueBreakdown.reduce((s, item) => s + item.value, 0);
   const netGrowth = commercialStats.newSubscribers - commercialStats.cancellations;
-  const cashFlowMonthTotal = dailyCashHistory.reduce((s, d) => s + d.total, 0);
-  const expensesTotal = monthExpenses.reduce((s, e) => s + e.value, 0);
-  const projectedResult = cashProjection.at(-1)?.cumulative ?? 0;
+  const cashFlowMonthTotal = caixa.reduce((s, d) => s + d.total, 0);
+  const expensesTotal = raw.expenses.reduce((s, e) => s + e.value, 0);
+  const projectedResult = projecao.at(-1)?.cumulative ?? 0;
   const activeSubscriberCount = commercialStats.activeSubscribers;
 
   return (
     <div className="flex flex-col gap-8 pt-1 md:gap-12 md:pt-2">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-sm text-ivory-muted md:text-base">Fechamento de julho</p>
+          <p className="text-sm text-ivory-muted md:text-base">Fechamento de {rotuloDoMes(mes)}</p>
           <h1 className="text-xl text-ivory md:text-4xl md:tracking-tight">Financeiro</h1>
         </div>
         <Link href="/painel/financeiro/dre" className="hidden md:inline-flex">
@@ -69,6 +84,20 @@ export default function FinanceiroPage() {
         </Link>
       </div>
 
+      {status === "carregando" && <LoadingRows rows={4} />}
+
+      {status === "pronto" && receita.bruta === 0 && raw.expenses.length === 0 && (
+        <EmptyState
+          icon={Wallet}
+          title="Seu resultado aparece assim que houver movimento"
+          description="Marque um atendimento como concluído na tela Hoje e lance suas despesas fixas. Com essas duas coisas, o DRE e o ponto de equilíbrio se montam sozinhos."
+          actionLabel="Lançar despesas"
+          actionHref="/painel/financeiro/despesas"
+        />
+      )}
+
+      {(receita.bruta > 0 || raw.expenses.length > 0) && (
+      <>
       {/* ---- Seção: Financeiro ---- */}
       <section className="flex flex-col gap-5 md:gap-6">
         <SectionHeader dot="bg-success" title="Financeiro" subtitle="Caixa e resultado do mês" />
@@ -95,7 +124,7 @@ export default function FinanceiroPage() {
           <div className="flex items-center justify-between text-sm md:text-base">
             <span className="text-ivory-muted">
               {r.breakEvenDay
-                ? `Ponto de equilíbrio no dia ${r.breakEvenDay} de ${DRE_DAYS_IN_MONTH}`
+                ? `Ponto de equilíbrio no dia ${r.breakEvenDay} de ${r.diasNoMes}`
                 : "Ponto de equilíbrio não atingido no mês"}
             </span>
             <Pill tone={operatingResult >= 0 ? "success" : "danger"}>
@@ -207,7 +236,7 @@ export default function FinanceiroPage() {
               icon={Receipt}
               label="Despesas"
               value={formatBRL(expensesTotal)}
-              caption={`${monthExpenses.length} lançamentos`}
+              caption={`${raw.expenses.length} lançamentos`}
             />
             <QuickLinkCard
               href="/painel/financeiro/projecao"
@@ -255,6 +284,9 @@ export default function FinanceiroPage() {
           />
         </div>
       </section>
+
+      </>
+      )}
 
       <Link href="/painel/financeiro/dre" className="md:hidden">
         <Button variant="secondary" className="w-full">

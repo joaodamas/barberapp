@@ -1,5 +1,7 @@
-import { bookingPolicy, isOpenOn } from "@/lib/business-rules";
+import { bookingPolicy } from "@/lib/business-rules";
+import { horariosDaJornada } from "@/lib/analytics";
 import { parseISODate, toISODate } from "@/lib/format";
+import { DEFAULT_SCHEDULE, type TenantSchedule } from "@/lib/tenant";
 import type { TimeSlot } from "@/lib/types";
 
 /**
@@ -10,11 +12,17 @@ import type { TimeSlot } from "@/lib/types";
  * total dos serviços — dava para pegar 60 min no último horário da jornada.
  */
 
-/** Jornada padrão da barbearia (mesma grade do mock original). */
-export const WORKDAY_TIMES = [
-  "09:00", "09:30", "10:00", "10:30", "11:00",
-  "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", "17:00",
-];
+/**
+ * A grade de horários agora vem da jornada da barbearia, não de uma constante.
+ * Cada tenant abre e fecha na hora dele, com o próprio intervalo.
+ */
+export function workdayTimes(schedule: TenantSchedule = DEFAULT_SCHEDULE) {
+  return horariosDaJornada(schedule);
+}
+
+function isOpenOnSchedule(date: Date, schedule: TenantSchedule) {
+  return schedule.weekdays.includes(date.getDay());
+}
 
 export type BookableDay = {
   date: Date;
@@ -25,7 +33,10 @@ export type BookableDay = {
 };
 
 /** Próximos dias oferecidos, já marcando os que não são agendáveis. */
-export function bookableDays(from: Date = new Date()): BookableDay[] {
+export function bookableDays(
+  from: Date = new Date(),
+  schedule: TenantSchedule = DEFAULT_SCHEDULE
+): BookableDay[] {
   const days: BookableDay[] = [];
   const maxDate = new Date(from);
   maxDate.setDate(from.getDate() + bookingPolicy.maxAdvanceDays);
@@ -35,7 +46,7 @@ export function bookableDays(from: Date = new Date()): BookableDay[] {
     date.setDate(from.getDate() + i);
     date.setHours(0, 0, 0, 0);
 
-    const closed = !isOpenOn(date);
+    const closed = !isOpenOnSchedule(date, schedule);
     const outOfWindow = date > maxDate;
     days.push({
       date,
@@ -52,14 +63,13 @@ export function bookableDays(from: Date = new Date()): BookableDay[] {
 
 /** Índices já ocupados naquele dia — determinístico a partir da DATA, não do
  *  índice do dia na lista (antes "amanhã" tinha sempre a mesma ocupação). */
-function occupiedIndexesFor(iso: string) {
-  const seed = Number(iso.replaceAll("-", "")) % 97;
-  const total = WORKDAY_TIMES.length;
-  return new Set([
-    (seed * 2 + 2) % total,
-    (seed * 3 + 4) % total,
-    (seed * 5 + 7) % total,
-  ]);
+function occupiedIndexesFor(iso: string, ocupados: string[], horarios: string[]) {
+  /* A ocupação agora vem das reservas reais. O padrão determinístico só
+   * sobrevive para quem chamar sem passar reservas — telas de demonstração. */
+  if (ocupados.length > 0) {
+    return new Set(ocupados.map((h) => horarios.indexOf(h)).filter((i) => i >= 0));
+  }
+  return new Set<number>();
 }
 
 export type SlotOptions = {
@@ -69,6 +79,10 @@ export type SlotOptions = {
   now?: Date;
   /** Horários ocupados podem ser oferecidos como pedido de encaixe. */
   allowFitIn?: boolean;
+  /** Jornada da barbearia. Sem ela, cai no padrão da plataforma. */
+  schedule?: TenantSchedule;
+  /** Horários já tomados naquele dia (`HH:mm`), vindos das reservas. */
+  ocupados?: string[];
 };
 
 /**
@@ -76,19 +90,26 @@ export type SlotOptions = {
  * total dos serviços dentro da jornada sem colidir com horário ocupado.
  */
 export function slotsForDate(iso: string, options: SlotOptions = {}): TimeSlot[] {
-  const { durationMin = bookingPolicy.slotMinutes, now = new Date(), allowFitIn = true } = options;
+  const {
+    now = new Date(),
+    allowFitIn = true,
+    schedule = DEFAULT_SCHEDULE,
+    ocupados = [],
+  } = options;
+  const durationMin = options.durationMin || schedule.slotMinutes;
+  const horarios = workdayTimes(schedule);
 
   /* Defesa em profundidade: a tela já esconde dia fechado, mas quem chamar
    * direto não deve receber horário nenhum num domingo. */
-  if (!isOpenOn(parseISODate(iso))) {
-    return WORKDAY_TIMES.map((time) => ({ time, available: false }));
+  if (!isOpenOnSchedule(parseISODate(iso), schedule)) {
+    return horarios.map((time) => ({ time, available: false }));
   }
 
-  const occupied = occupiedIndexesFor(iso);
-  const slotsNeeded = Math.max(1, Math.ceil(durationMin / bookingPolicy.slotMinutes));
+  const occupied = occupiedIndexesFor(iso, ocupados, horarios);
+  const slotsNeeded = Math.max(1, Math.ceil(durationMin / schedule.slotMinutes));
   const earliest = new Date(now.getTime() + bookingPolicy.minAdvanceMinutes * 60_000);
 
-  return WORKDAY_TIMES.map((time, index) => {
+  return horarios.map((time, index) => {
     const start = new Date(`${iso}T${time}:00`);
 
     // Antecedência mínima: horário que já passou (ou passa em menos de 1h) some.
@@ -97,7 +118,7 @@ export function slotsForDate(iso: string, options: SlotOptions = {}): TimeSlot[]
     }
 
     // A duração precisa caber: todos os slots consecutivos livres e contíguos.
-    const fits = fitsDuration(index, slotsNeeded, occupied);
+    const fits = fitsDuration(index, slotsNeeded, occupied, horarios, schedule);
     if (!fits.ok) {
       return {
         time,
@@ -111,8 +132,14 @@ export function slotsForDate(iso: string, options: SlotOptions = {}): TimeSlot[]
   });
 }
 
-function fitsDuration(startIndex: number, slotsNeeded: number, occupied: Set<number>) {
-  if (startIndex + slotsNeeded > WORKDAY_TIMES.length) {
+function fitsDuration(
+  startIndex: number,
+  slotsNeeded: number,
+  occupied: Set<number>,
+  horarios: string[],
+  schedule: TenantSchedule
+) {
+  if (startIndex + slotsNeeded > horarios.length) {
     return { ok: false, reason: "fim_da_jornada" as const };
   }
 
@@ -123,15 +150,15 @@ function fitsDuration(startIndex: number, slotsNeeded: number, occupied: Set<num
     }
     // Os slots precisam ser contíguos no relógio — 11:00 e 14:00 são vizinhos
     // na lista, mas há um intervalo de almoço entre eles.
-    if (i > 0 && !isContiguous(WORKDAY_TIMES[index - 1], WORKDAY_TIMES[index])) {
+    if (i > 0 && !isContiguous(horarios[index - 1], horarios[index], schedule.slotMinutes)) {
       return { ok: false, reason: "fim_da_jornada" as const };
     }
   }
   return { ok: true as const, reason: undefined };
 }
 
-function isContiguous(previous: string, next: string) {
-  return toMinutes(next) - toMinutes(previous) === bookingPolicy.slotMinutes;
+function isContiguous(previous: string, next: string, slotMinutes: number) {
+  return toMinutes(next) - toMinutes(previous) === slotMinutes;
 }
 
 function toMinutes(time: string) {

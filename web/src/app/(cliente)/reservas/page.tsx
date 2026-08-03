@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
+
 import { CalendarX2, Phone } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
@@ -10,13 +10,12 @@ import { Modal } from "@/components/ui/modal";
 import { bookingStatusMeta } from "@/lib/booking-status";
 import { paymentMethodLabel } from "@/lib/payment-method";
 import { formatBRL, formatDatePtBR } from "@/lib/format";
-import {
-  barbershop,
-  bookingHistory,
-  getServicesByIds,
-  loyalty,
-  nextBooking,
-} from "@/lib/mock-data";
+import { useTenant } from "@/lib/tenant-context";
+import { useAuth } from "@/lib/auth-context";
+import { useMyBookings, useServices } from "@/lib/db/use-shop-data";
+import { patchDoc } from "@/lib/db/repository";
+import { OCCUPIES_SLOT } from "@/lib/domain";
+import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { bookableDays, firstBookableIndex, slotsForDate } from "@/lib/slots";
 import {
   cancellationPolicy,
@@ -49,44 +48,67 @@ function refundFor(booking: Booking) {
     refund.tier === "sem_pagamento"
       ? "Como o pagamento seria no salão, não há valor a devolver."
       : refund.tier === "integral"
-        ? `Faltam mais de ${cancellationPolicy.fullRefundHours}h: você recebe ${formatBRL(refund.amount)} de volta (100%).`
+        ? `Faltam mais de ${cancellationPolicy.fullRefundHours}h: você recebe ${formatBRL(refund?.amount ?? 0)} de volta (100%).`
         : refund.tier === "parcial"
-          ? `Faltam menos de ${cancellationPolicy.fullRefundHours}h: retemos ${refund.retainedPct}% de taxa de cancelamento e devolvemos ${formatBRL(refund.amount)}.`
+          ? `Faltam menos de ${cancellationPolicy.fullRefundHours}h: retemos ${refund.retainedPct}% de taxa de cancelamento e devolvemos ${formatBRL(refund?.amount ?? 0)}.`
           : `Faltam menos de ${cancellationPolicy.partialRefundHours}h para o horário: não há devolução prevista na política.`;
 
   return { hoursUntil: hours, ...refund, label };
 }
 
 export default function ReservasPage() {
+  const tenant = useTenant();
+  const { user } = useAuth();
+  const { items: minhas, status } = useMyBookings(user?.uid);
+  const { items: services } = useServices();
+
+  const barbershop = { whatsapp: tenant.contact.whatsapp };
+  const loyalty = {
+    stamps: 0,
+    goal: tenant.policies.loyalty.stampsForReward,
+    reward: tenant.policies.loyalty.reward,
+  };
+  const getServicesByIds = (ids: string[]) =>
+    ids.map((id) => services.find((s) => s.id === id)).filter(Boolean) as Array<{
+      id: string; name: string; durationMin: number;
+    }>;
+
+  const hoje = new Date().toISOString().slice(0, 10);
+  const futuras = minhas.filter((b) => b.date >= hoje && OCCUPIES_SLOT.includes(b.status));
+  const bookingHistory = minhas.filter((b) => b.status === "completed");
+
   const [tab, setTab] = useState<Tab>("futuras");
-  const [booking, setBooking] = useState<Booking>(nextBooking);
+  const booking = (futuras[futuras.length - 1] ?? null) as (typeof minhas)[number] | null;
+  const statusMeta = booking ? bookingStatusMeta[booking.status] : null;
+  const bookingServices = booking ? getServicesByIds(booking.serviceIds) : [];
+  const duracaoDaReserva = bookingServices.reduce((sum, s) => sum + s.durationMin, 0);
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
-  const [dayIndex, setDayIndex] = useState(() => firstBookableIndex(bookableDays()));
+  const [dayIndex, setDayIndex] = useState(() => firstBookableIndex(bookableDays(new Date(), tenant.schedule)));
   const [time, setTime] = useState<string | null>(null);
   const [rescheduleCount, setRescheduleCount] = useState(0);
 
-  const days = useMemo(() => bookableDays(), []);
+  const days = useMemo(() => bookableDays(new Date(), tenant.schedule), [tenant.schedule]);
   const selectedDay = days[dayIndex];
-  const bookingDuration = getServicesByIds(nextBooking.serviceIds).reduce(
-    (sum, s) => sum + s.durationMin,
-    0
-  );
+
   const slots = selectedDay
-    ? slotsForDate(selectedDay.iso, { durationMin: bookingDuration, allowFitIn: false })
+    ? slotsForDate(selectedDay.iso, {
+        durationMin: duracaoDaReserva,
+        allowFitIn: false,
+        schedule: tenant.schedule,
+        ocupados: minhas.filter((b) => b.date === selectedDay.iso).map((b) => b.time),
+      })
     : [];
 
-  const statusMeta = bookingStatusMeta[booking.status];
-  const bookingServices = getServicesByIds(booking.serviceIds);
-  const active = booking.status !== "cancelled_by_client";
-  const refund = refundFor(booking);
+  const active = !!booking;
+  const refund = booking ? refundFor(booking) : null;
 
   const totalSpentHistory = bookingHistory.reduce((s, b) => s + b.value, 0);
   const stampsLeft = loyalty.goal - loyalty.stamps;
 
   /* Reagendar era grátis, ilimitado e sem prazo — dava para reagendar 10 min
    * antes e cancelar depois com 100% de volta, anulando a política inteira. */
-  const horasAteReserva = hoursUntil(booking);
+  const horasAteReserva = booking ? hoursUntil(booking) : 0;
   const podeReagendar =
     active &&
     horasAteReserva >= reschedulePolicy.minHoursBefore &&
@@ -103,14 +125,21 @@ export default function ReservasPage() {
   }
 
   function confirmReschedule() {
-    if (!time || !selectedDay || !podeReagendar) return;
-    setBooking((b) => ({ ...b, date: selectedDay.iso, time, status: "confirmed" }));
+    if (!time || !selectedDay || !podeReagendar || !booking) return;
+    void patchDoc(tenant.id, "bookings", booking.id, {
+      date: selectedDay.iso,
+      time,
+      status: "confirmed",
+    }).catch((e) => console.error("[reservas] falha ao reagendar", e));
     setRescheduleCount((n) => n + 1);
     setRescheduleOpen(false);
   }
 
   function confirmCancel() {
-    setBooking((b) => ({ ...b, status: "cancelled_by_client" }));
+    if (!booking) return;
+    void patchDoc(tenant.id, "bookings", booking.id, {
+      status: "cancelled_by_client",
+    }).catch((e) => console.error("[reservas] falha ao cancelar", e));
     setCancelOpen(false);
   }
 
@@ -149,7 +178,9 @@ export default function ReservasPage() {
           ))}
         </div>
 
-        {tab === "futuras" ? (
+        {status === "carregando" ? (
+          <LoadingRows rows={2} />
+        ) : tab === "futuras" ? (
           active ? (
             <Card className="flex flex-col gap-3 md:max-w-xl md:p-6">
               <div className="flex items-start justify-between gap-2">
@@ -158,17 +189,17 @@ export default function ReservasPage() {
                     {bookingServices.map((s) => s.name).join(" + ")}
                   </p>
                   <p className="text-sm capitalize text-ivory-muted md:text-base">
-                    {formatDatePtBR(booking.date)} às {booking.time}
+                    {booking ? `${formatDatePtBR(booking.date)} às ${booking.time}` : ""}
                   </p>
                 </div>
-                <Pill tone={statusMeta.tone}>{statusMeta.label}</Pill>
+                {statusMeta && <Pill tone={statusMeta.tone}>{statusMeta.label}</Pill>}
               </div>
               <div className="flex items-center justify-between border-t border-border pt-2 text-sm md:pt-3 md:text-base">
                 <span className="text-ivory-muted">
-                  {booking.paymentMethod === "local" ? "A pagar no salão" : "Valor pago"}
+                  {booking?.paymentMethod === "local" ? "A pagar no salão" : "Valor pago"}
                 </span>
                 <span className="font-display font-semibold text-ivory md:text-lg">
-                  {formatBRL(booking.value)}
+                  {formatBRL(booking?.value ?? 0)}
                 </span>
               </div>
               <div className="flex gap-2">
@@ -200,16 +231,13 @@ export default function ReservasPage() {
               </p>
             </Card>
           ) : (
-            <Card className="flex flex-col items-center gap-3 py-10 text-center md:max-w-xl md:py-14">
-              <CalendarX2 size={22} className="text-ivory-muted" />
-              <div>
-                <p className="text-sm text-ivory md:text-base">Reserva cancelada</p>
-                <p className="mt-1 text-xs text-ivory-muted md:text-sm">{refund.label}</p>
-              </div>
-              <Link href="/agendar">
-                <Button>Agendar novo horário</Button>
-              </Link>
-            </Card>
+            <EmptyState
+              icon={CalendarX2}
+              title="Você não tem reserva futura"
+              description="Escolha o serviço e o horário que der certo pra você — leva menos de um minuto."
+              actionLabel="Agendar horário"
+              actionHref="/agendar"
+            />
           )
         ) : bookingHistory.length > 0 ? (
           <div className="flex flex-col gap-2 md:max-w-xl">
@@ -312,7 +340,7 @@ export default function ReservasPage() {
         open={rescheduleOpen}
         onClose={() => setRescheduleOpen(false)}
         title="Reagendar"
-        description={`${bookingServices.map((s) => s.name).join(" + ")} · ${formatBRL(booking.value)}`}
+        description={`${bookingServices.map((s) => s.name).join(" + ")} · ${formatBRL(booking?.value ?? 0)}`}
         footer={
           <>
             <Button variant="ghost" onClick={() => setRescheduleOpen(false)}>
@@ -385,7 +413,7 @@ export default function ReservasPage() {
         open={cancelOpen}
         onClose={() => setCancelOpen(false)}
         title="Cancelar reserva"
-        description={`${formatDatePtBR(booking.date)} às ${booking.time}`}
+        description={booking ? `${formatDatePtBR(booking.date)} às ${booking.time}` : ""}
         className="max-w-md"
         footer={
           <>
@@ -399,11 +427,11 @@ export default function ReservasPage() {
         }
       >
         <div className="flex flex-col gap-3">
-          <p className="text-sm text-ivory">{refund.label}</p>
+          <p className="text-sm text-ivory">{refund?.label}</p>
           <div className="flex items-center justify-between rounded-xl border border-border bg-surface-raised px-4 py-3 text-sm">
             <span className="text-ivory-muted">Valor a devolver</span>
             <span className="font-display font-semibold text-ivory">
-              {formatBRL(refund.amount)}
+              {formatBRL(refund?.amount ?? 0)}
             </span>
           </div>
           <p className="text-xs text-ivory-muted">

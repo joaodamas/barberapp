@@ -7,7 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
 import { Modal } from "@/components/ui/modal";
 import { formatBRL } from "@/lib/format";
-import { products as initialProducts } from "@/lib/mock-data";
+import { useProducts } from "@/lib/db/use-shop-data";
+import { useTenant } from "@/lib/tenant-context";
+import { createDoc } from "@/lib/db/repository";
+import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { commissionSplit, splitSale, taxRatePct } from "@/lib/business-rules";
 
 /* `profitPct` é margem sobre o PREÇO de venda (preço = custo ÷ (1 − m)), não
@@ -24,7 +27,8 @@ const emptyForm = {
 };
 
 export default function LojaPage() {
-  const [products, setProducts] = useState(initialProducts);
+  const { id: barbershopId } = useTenant();
+  const { items: products, status } = useProducts();
   const [simPrice, setSimPrice] = useState(45);
   const [simCost, setSimCost] = useState(18);
   const [modalOpen, setModalOpen] = useState(false);
@@ -65,17 +69,16 @@ export default function LojaPage() {
       return;
     }
     setFormError(null);
-    setProducts((prev) => [
-      ...prev,
-      {
-        id: `prod_${Date.now()}`,
-        name: form.name.trim(),
-        cost: preview.cost,
-        price: Math.round(preview.price * 100) / 100,
-        stock: Number(form.stock) || 0,
-        minStock: Number(form.minStock) || 0,
-      },
-    ]);
+    void createDoc(barbershopId, "products", {
+      name: form.name.trim(),
+      cost: preview.cost,
+      price: Math.round(preview.price * 100) / 100,
+      stock: Number(form.stock) || 0,
+      minStock: Number(form.minStock) || 0,
+    }).catch((err) => {
+      console.error("[loja] falha ao cadastrar", err);
+      setFormError("Não foi possível cadastrar. Tente de novo.");
+    });
     setModalOpen(false);
   }
 
@@ -111,6 +114,17 @@ export default function LojaPage() {
           <h2 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:mb-3 md:text-sm">
             <Package size={12} /> Produtos
           </h2>
+          {status === "carregando" && <LoadingRows rows={3} />}
+          {status === "pronto" && products.length === 0 && (
+            <EmptyState
+              icon={Package}
+              title="Nenhum produto cadastrado"
+              description="Cadastre o que você revende. O sistema calcula preço de venda, comissão e imposto a partir do custo."
+              actionLabel="Adicionar produto"
+              onAction={openModal}
+            />
+          )}
+          {products.length > 0 && (
           <Card className="flex flex-col gap-3 md:gap-4 md:p-6">
             {products.map((p) => {
               const belowMin = p.stock < p.minStock;
@@ -134,6 +148,7 @@ export default function LojaPage() {
               );
             })}
           </Card>
+          )}
         </section>
 
         <section>

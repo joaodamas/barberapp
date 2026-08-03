@@ -25,10 +25,6 @@ jobs:
       - run: npm run lint
       - run: npm run test
 
-      # Confere que os números do dataset fecham entre si (caixa × receita,
-      # MRR × assinantes, despesa fixa × eventual).
-      - run: npx tsx scripts/check-consistency.ts
-
       - name: Build de produção
         # Chaves fictícias: o build só precisa que a config exista. As reais
         # ficam no ambiente de deploy.

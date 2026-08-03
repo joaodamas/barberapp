@@ -3,9 +3,13 @@ import {
   bookableDays,
   firstBookableIndex,
   slotsForDate,
-  WORKDAY_TIMES,
+  workdayTimes,
 } from "@/lib/slots";
-import { bookingPolicy, isOpenOn } from "@/lib/business-rules";
+import { bookingPolicy } from "@/lib/business-rules";
+import { DEFAULT_SCHEDULE } from "@/lib/tenant";
+
+const WORKDAY_TIMES = workdayTimes(DEFAULT_SCHEDULE);
+const isOpenOn = (d: Date) => DEFAULT_SCHEDULE.weekdays.includes(d.getDay());
 
 // Quinta-feira, 02/07/2026 — dia útil, usado como referência estável.
 const QUINTA = "2026-07-02";
@@ -51,9 +55,13 @@ describe("duração total dos serviços", () => {
     expect(slots.find((s) => s.time === ultimo)?.available).toBe(false);
   });
 
-  it("não atravessa o intervalo entre 11:00 e 14:00", () => {
+  it("não atravessa o intervalo do almoço", () => {
+    // Último horário antes do intervalo: um serviço de 60 min não cabe nele,
+    // porque o slot seguinte na grade já é depois do almoço.
+    const antesDoAlmoco = WORKDAY_TIMES[WORKDAY_TIMES.indexOf("14:00") - 1];
     const slots = slotsForDate(QUINTA, { durationMin: 60, now: madrugada });
-    expect(slots.find((s) => s.time === "11:00")?.available).toBe(false);
+    expect(slots.find((s) => s.time === antesDoAlmoco)?.available).toBe(false);
+    expect(slots.find((s) => s.time === "14:00")?.available).toBe(true);
   });
 
   it("um serviço curto ainda cabe onde o longo não cabe", () => {
@@ -67,19 +75,35 @@ describe("duração total dos serviços", () => {
 
 describe("encaixes", () => {
   it("horário ocupado vira encaixe quando permitido", () => {
-    const slots = slotsForDate(QUINTA, { now: madrugada, allowFitIn: true });
-    expect(slots.some((s) => s.isFitIn)).toBe(true);
+    const slots = slotsForDate(QUINTA, {
+      now: madrugada, allowFitIn: true, ocupados: ["10:00"],
+    });
+    expect(slots.find((s) => s.time === "10:00")?.isFitIn).toBe(true);
   });
 
   it("no reagendamento não há encaixe", () => {
-    const slots = slotsForDate(QUINTA, { now: madrugada, allowFitIn: false });
+    const slots = slotsForDate(QUINTA, {
+      now: madrugada, allowFitIn: false, ocupados: ["10:00"],
+    });
     expect(slots.every((s) => !s.isFitIn)).toBe(true);
+    expect(slots.find((s) => s.time === "10:00")?.available).toBe(false);
   });
 
-  it("ocupação depende da data, não da posição na lista", () => {
-    const a = slotsForDate(QUINTA, { now: madrugada });
-    const b = slotsForDate("2026-07-03", { now: new Date("2026-07-03T06:00:00") });
-    expect(a.map((s) => s.available).join()).not.toBe(b.map((s) => s.available).join());
+  it("a ocupação vem das reservas, não de padrão inventado", () => {
+    const semReservas = slotsForDate(QUINTA, { now: madrugada });
+    expect(semReservas.every((s) => s.available)).toBe(true);
+
+    const comReserva = slotsForDate(QUINTA, { now: madrugada, ocupados: ["09:00"] });
+    expect(comReserva.find((s) => s.time === "09:00")?.available).toBe(false);
+  });
+
+  it("respeita a jornada do tenant, não uma grade fixa", () => {
+    const curta = slotsForDate(QUINTA, {
+      now: madrugada,
+      schedule: { weekdays: [1,2,3,4,5,6], opensAt: "09:00", closesAt: "11:00", breaks: [], slotMinutes: 30 },
+    });
+    expect(curta).toHaveLength(4);
+    expect(curta.map((s) => s.time)).toEqual(["09:00", "09:30", "10:00", "10:30"]);
   });
 
   it("dia fechado não é oferecido pelo seletor", () => {

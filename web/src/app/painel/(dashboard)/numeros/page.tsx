@@ -12,60 +12,10 @@ import {
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
-import { formatBRL, safeDiv } from "@/lib/format";
-import {
-  clientRecurrence,
-  type ClientRecurrenceStatus,
-  hourlyHeatmap,
-  MAX_MONTH_OFFSET,
-  monthKpis,
-  noShowStats,
-  PERIOD_MONTHS,
-  periodFactor,
-  topServices,
-} from "@/lib/mock-data";
-
-type Period = "mes" | "trimestre" | "semestre" | "ano";
-
-const PERIOD_LABELS: Record<Period, string> = {
-  mes: "Mês",
-  trimestre: "Trimestre",
-  semestre: "Semestre",
-  ano: "Ano",
-};
-
-const MONTH_NAMES = [
-  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
-];
-
-// "Hoje" no mock é 31 de julho de 2026 — mês 6 (0-indexado).
-const BASE_YEAR = 2026;
-const BASE_MONTH = 6;
-
-function periodLabel(period: Period, offset: number): string {
-  if (period === "mes") {
-    const total = BASE_YEAR * 12 + BASE_MONTH + offset;
-    const year = Math.floor(total / 12);
-    const month = ((total % 12) + 12) % 12;
-    return `${MONTH_NAMES[month]} de ${year}`;
-  }
-  if (period === "trimestre") {
-    const baseQuarter = Math.floor(BASE_MONTH / 3);
-    const total = BASE_YEAR * 4 + baseQuarter + offset;
-    const year = Math.floor(total / 4);
-    const quarter = ((total % 4) + 4) % 4;
-    return `${quarter + 1}º trimestre de ${year}`;
-  }
-  if (period === "semestre") {
-    const baseSemester = Math.floor(BASE_MONTH / 6);
-    const total = BASE_YEAR * 2 + baseSemester + offset;
-    const year = Math.floor(total / 2);
-    const semester = ((total % 2) + 2) % 2;
-    return `${semester + 1}º semestre de ${year}`;
-  }
-  return `${BASE_YEAR + offset}`;
-}
+import { formatBRL } from "@/lib/format";
+import { useFinanceiro, mesAtual, rotuloDoMes } from "@/lib/db/use-financeiro";
+import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
+import type { StatusRecorrencia as ClientRecurrenceStatus } from "@/lib/analytics";
 
 function heatColor(pct: number) {
   if (pct >= 80) return "bg-gold";
@@ -118,118 +68,55 @@ function Delta({
 }
 
 export default function NumerosPage() {
-  const [period, setPeriod] = useState<Period>("mes");
   const [offset, setOffset] = useState(0);
 
-  function changePeriod(p: Period) {
-    setPeriod(p);
-    setOffset(0);
-  }
+  const mes = mesAtual(Math.abs(offset));
+  const mesAnterior = mesAtual(Math.abs(offset) + 1);
+  const atual = useFinanceiro(mes);
+  const anterior = useFinanceiro(mesAnterior);
 
-  const sortedRecurrence = [...clientRecurrence].sort(
+  const kpis = atual.kpis;
+  const prevKpis = anterior.kpis;
+  const avgTicket = kpis.avgTicket;
+  const prevAvgTicket = prevKpis.avgTicket;
+  const periodServices = atual.tops;
+  const periodNoShow = kpis;
+  const hourlyHeatmap = atual.heatmap;
+  const sortedRecurrence = [...atual.recorrencia].sort(
     (a, b) => STATUS_PRIORITY[a.status] - STATUS_PRIORITY[b.status] || b.lastVisitDaysAgo - a.lastVisitDaysAgo
   );
 
-  /* Agrega o mock para o período escolhido. Valores acumuláveis (faturamento,
-   * atendimentos) somam os meses do período; taxas (ocupação, no-show) usam a
-   * média mensal, senão um trimestre teria 180% de ocupação. */
-  const months = PERIOD_MONTHS[period];
-  const back = Math.abs(offset);
-  /* O DRE limita a navegação com MAX_MONTH_OFFSET; aqui era ilimitada — dava
-   * para chegar a "Janeiro de 1524" com os dados repetindo a cada 12 meses. */
-  const maxOffsetForPeriod = Math.floor((MAX_MONTH_OFFSET + 1) / months) - 1;
-  const factor = periodFactor(period, back);
-  const prevFactor = periodFactor(period, back + 1);
-  const monthlyAvg = factor / months;
-  const prevMonthlyAvg = prevFactor / months;
-
-  const clamp = (v: number, max = 100) =>
-    Math.min(Math.max(Math.round(v * 10) / 10, 0), max);
-
-  /** Faltas sobem quando a agenda enche; a relação é fraca, não inversa. */
-  const noShowRateFor = (avg: number) => clamp(monthKpis.noShowPct * (0.85 + 0.15 * avg));
-
-  const kpis = {
-    revenue: Math.round(monthKpis.revenue * factor),
-    appointments: Math.round(monthKpis.appointments * factor),
-    occupancyPct: clamp(monthKpis.occupancyPct * monthlyAvg),
-    /* No-show é contagem ÷ agendamentos, não taxa dividida por fator de
-     * receita — isso fazia a falta "cair" sempre que o faturamento subia. */
-    noShowPct: noShowRateFor(monthlyAvg),
-  };
-  const prevKpis = {
-    revenue: Math.round(monthKpis.revenue * prevFactor),
-    appointments: Math.round(monthKpis.appointments * prevFactor),
-    occupancyPct: clamp(monthKpis.occupancyPct * prevMonthlyAvg),
-    noShowPct: noShowRateFor(prevMonthlyAvg),
-  };
-  // Ticket médio é derivado — assim nunca fica inconsistente com receita/atendimentos.
-  const avgTicket = Math.round(safeDiv(kpis.revenue, kpis.appointments));
-  const prevAvgTicket = Math.round(safeDiv(prevKpis.revenue, prevKpis.appointments));
-
-  const periodServices = topServices.map((s) => ({
-    ...s,
-    count: Math.round(s.count * factor),
-    revenue: Math.round(s.revenue * factor),
-  }));
-
-  /* O card de insight dizia "Sexta e sábado... 90%+" fixo no JSX, idêntico em
-   * qualquer período. Agora sai do próprio mapa de calor. */
   const heatCells = hourlyHeatmap.days.flatMap((day, i) =>
-    hourlyHeatmap.values[i].map((basePct, j) => ({
-      day,
-      hour: hourlyHeatmap.hours[j],
-      pct: Math.min(Math.round(basePct * monthlyAvg), 100),
-    }))
+    hourlyHeatmap.values[i].map((pct, j) => ({ day, hour: hourlyHeatmap.hours[j], pct }))
   );
-  const peak = heatCells.reduce((a, b) => (b.pct > a.pct ? b : a), heatCells[0]);
-  const idle = heatCells.reduce((a, b) => (b.pct < a.pct ? b : a), heatCells[0]);
+  const peak = heatCells.reduce((a, b) => (b.pct > a.pct ? b : a), heatCells[0] ?? { day: "", hour: "", pct: 0 });
+  const idle = heatCells.reduce((a, b) => (b.pct < a.pct ? b : a), heatCells[0] ?? { day: "", hour: "", pct: 0 });
 
-  const periodNoShow = {
-    noShowCount: Math.round(noShowStats.noShowCount * factor),
-    lateCancelCount: Math.round(noShowStats.lateCancelCount * factor),
-    totalBookings: Math.round(noShowStats.totalBookings * factor),
-  };
+  const semDados = atual.status === "pronto" && kpis.totalBookings === 0;
 
   return (
     <div className="flex flex-col gap-6 pt-1 md:gap-10 md:pt-2">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-sm text-ivory-muted md:text-base">Filtros livres</p>
+          <p className="text-sm text-ivory-muted md:text-base">Seu mês</p>
           <h1 className="text-xl text-ivory md:text-4xl md:tracking-tight">Números</h1>
         </div>
 
         <div className="flex flex-col gap-2 md:items-end">
-          <div className="flex gap-2 rounded-xl border border-border bg-surface p-1 md:w-fit">
-            {(Object.keys(PERIOD_LABELS) as Period[]).map((p) => (
-              <button
-                key={p}
-                onClick={() => changePeriod(p)}
-                className={
-                  "flex-1 rounded-lg py-2 text-sm font-medium transition-colors md:px-5 md:py-2 " +
-                  (period === p
-                    ? "bg-gold text-ivory"
-                    : "text-ivory-muted hover:text-ivory")
-                }
-              >
-                {PERIOD_LABELS[p]}
-              </button>
-            ))}
-          </div>
           <div className="flex items-center gap-1 text-sm text-ivory-muted">
             <button
-              aria-label="Período anterior"
-              disabled={back >= maxOffsetForPeriod}
-              onClick={() => setOffset((o) => Math.max(o - 1, -maxOffsetForPeriod))}
+              aria-label="Mês anterior"
+              disabled={Math.abs(offset) >= 11}
+              onClick={() => setOffset((o) => Math.max(o - 1, -11))}
               className="flex h-11 w-11 items-center justify-center md:h-8 md:w-8 rounded-lg transition-colors hover:bg-surface-raised hover:text-ivory disabled:opacity-30 disabled:hover:bg-transparent"
             >
               <ChevronLeft size={16} />
             </button>
             <span className="min-w-36 text-center font-medium text-ivory">
-              {periodLabel(period, offset)}
+              {rotuloDoMes(mes)}
             </span>
             <button
-              aria-label="Próximo período"
+              aria-label="Próximo mês"
               onClick={() => setOffset((o) => Math.min(o + 1, 0))}
               disabled={offset >= 0}
               className="flex h-11 w-11 items-center justify-center md:h-8 md:w-8 rounded-lg transition-colors hover:bg-surface-raised hover:text-ivory disabled:opacity-30 disabled:hover:bg-transparent"
@@ -240,6 +127,20 @@ export default function NumerosPage() {
         </div>
       </div>
 
+      {atual.status === "carregando" && <LoadingRows rows={5} />}
+
+      {semDados && (
+        <EmptyState
+          icon={Scissors}
+          title={`Nenhum atendimento em ${rotuloDoMes(mes)}`}
+          description="Seus indicadores aparecem depois dos primeiros atendimentos concluídos. Marque um como concluído na tela Hoje."
+          actionLabel="Ir para Hoje"
+          actionHref="/painel"
+        />
+      )}
+
+      {!semDados && atual.status !== "carregando" && (
+      <>
       <div className="grid grid-cols-2 gap-2 md:grid-cols-5 md:gap-4">
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-6">
           <p className="text-[11px] uppercase text-ivory-muted md:text-xs md:tracking-wide">Faturamento</p>
@@ -347,8 +248,8 @@ export default function NumerosPage() {
             {hourlyHeatmap.days.map((day, i) => (
               <Fragment key={day}>
                 <span className="text-xs text-ivory-muted md:text-sm">{day}</span>
-                {hourlyHeatmap.values[i].map((basePct, j) => {
-                  const pct = Math.min(Math.round(basePct * monthlyAvg), 100);
+                {hourlyHeatmap.values[i].map((pct, j) => {
+                  // A ocupação já vem calculada das reservas do período.
                   return (
                     <div
                       key={`${day}-${j}`}
@@ -398,6 +299,8 @@ export default function NumerosPage() {
           </Card>
         </div>
       </section>
+      </>
+      )}
     </div>
   );
 }

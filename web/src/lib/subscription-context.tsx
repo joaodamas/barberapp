@@ -1,7 +1,8 @@
 "use client";
 
 import { createContext, useContext, useState } from "react";
-import { plans } from "@/lib/mock-data";
+import type { PlanDoc } from "@/lib/domain";
+import type { Doc } from "@/lib/db/repository";
 
 /**
  * Assinatura do cliente logado.
@@ -13,7 +14,7 @@ import { plans } from "@/lib/mock-data";
  */
 export type Billing = "cartao" | "pix";
 
-export type Plan = (typeof plans)[number];
+export type Plan = Doc<PlanDoc>;
 
 type SubscriptionState = {
   plan: Plan | null;

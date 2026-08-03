@@ -11,7 +11,7 @@ import {
 /**
  * A barbearia como unidade de configuração.
  *
- * Tudo que hoje está escrito em `mock-data.ts` como "O Siqueira" e em
+ * Tudo que estava escrito no código como "O Siqueira" e em
  * `business-rules.ts` como constante da plataforma passa a ser campo do tenant.
  * A ferramenta nasceu resolvendo a dor de UMA barbearia; este arquivo é a linha
  * que separa "produto interno" de "produto que se vende".

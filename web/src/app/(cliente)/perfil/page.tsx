@@ -21,7 +21,8 @@ import { useAuth } from "@/lib/auth-context";
 import { formatBRL, formatDateShortPtBR } from "@/lib/format";
 import { useSubscription } from "@/lib/subscription-context";
 import { cancellationPolicy } from "@/lib/business-rules";
-import { barbershop, bookingHistory, loyalty } from "@/lib/mock-data";
+import { useTenant } from "@/lib/tenant-context";
+import { useMyBookings } from "@/lib/db/use-shop-data";
 
 type MenuKey = "dados" | "plano" | "notificacoes" | "politica" | "ajuda";
 
@@ -43,7 +44,21 @@ const MODAL_TITLE: Record<MenuKey, string> = {
 
 export default function PerfilPage() {
   const { user } = useAuth();
+  const tenant = useTenant();
+  const { items: minhas } = useMyBookings(user?.uid);
   const { plan: activePlan, nextChargeISO } = useSubscription();
+
+  const bookingHistory = minhas.filter((b) => b.status === "completed");
+  const loyalty = {
+    stamps: bookingHistory.length % tenant.policies.loyalty.stampsForReward,
+    goal: tenant.policies.loyalty.stampsForReward,
+  };
+  const barbershop = {
+    name: tenant.brand.name,
+    address: tenant.contact.address,
+    whatsapp: tenant.contact.whatsapp,
+    instagram: tenant.contact.instagram ?? "",
+  };
   const [openMenu, setOpenMenu] = useState<MenuKey | null>(null);
 
   const [name, setName] = useState("");

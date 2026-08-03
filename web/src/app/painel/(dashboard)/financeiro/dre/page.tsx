@@ -5,18 +5,9 @@ import { ChevronDown, ChevronLeft, ChevronRight, SlidersHorizontal, TrendingDown
 import { Card } from "@/components/ui/card";
 import { KpiTile } from "@/components/ui/kpi-tile";
 import { formatBRL } from "@/lib/format";
-import { computeDre } from "@/lib/dre";
-import { taxRatePct as dreTaxRatePct } from "@/lib/business-rules";
-import {
-  MAX_MONTH_OFFSET,
-  monthExpenses,
-  monthLabelFor,
-  monthRevenueFactor,
-  products,
-  productMovements,
-  revenueBreakdown,
-  topServices,
-} from "@/lib/mock-data";
+import { useFinanceiro, mesAtual, rotuloDoMes } from "@/lib/db/use-financeiro";
+import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
+import { useTenant } from "@/lib/tenant-context";
 
 type DreItem = {
   key: string;
@@ -44,11 +35,23 @@ export default function DrePage() {
     });
   }
 
-  /** Receita e custos variáveis acompanham o mês; custo fixo é fixo. */
-  const f = monthRevenueFactor(monthOffset);
-  const scale = (value: number) => Math.round(value * f);
+  const tenant = useTenant();
+  const mes = mesAtual(monthOffset);
+  const { dre: r, receita, raw, status } = useFinanceiro(mes);
+  const dreTaxRatePct = tenant.policies.taxRatePct;
 
-  const r = computeDre({ revenueFactor: f });
+  const monthExpenses = raw.expenses.filter((e) => e.date.startsWith(mes));
+  const products = raw.products;
+  const nomeProduto = new Map(raw.services.map((s) => [s.id, s.name]));
+
+  const revenueBreakdown = [
+    { label: "Serviços avulsos", value: receita.servicos },
+    { label: "Produtos (loja)", value: receita.produtos },
+    { label: "Mensalistas", value: receita.mensalistas },
+    { label: "Encaixes", value: receita.encaixes },
+  ].filter((i) => i.value > 0);
+
+  const topServices = raw.tops;
   const {
     grossRevenue,
     variableCost: custoVariavelTotal,
@@ -59,28 +62,38 @@ export default function DrePage() {
     result: resultadoDoMes,
   } = r;
 
-  const scenario = computeDre({ revenueFactor: f * (1 + scenarioPct / 100) });
+  /* Simulação: escala receita e custo variável, mantém o fixo. É o que revela
+   * o impacto real na margem antes de investir em crescimento. */
+  const fator = 1 + scenarioPct / 100;
+  const scenario = {
+    grossRevenue: Math.round(grossRevenue * fator),
+    variableCost: Math.round(custoVariavelTotal * fator),
+    contributionMargin: Math.round(grossRevenue * fator - custoVariavelTotal * fator),
+    fixedCost: custoFixoTotal,
+    result: Math.round(grossRevenue * fator - custoVariavelTotal * fator - custoFixoTotal),
+  };
 
-  const servicosAvulsos = revenueBreakdown.find((r) => r.label === "Serviços avulsos")?.value ?? 0;
-  const outrosServicos = servicosAvulsos - topServices.reduce((s, t) => s + t.revenue, 0);
+
+  const servicosAvulsos = receita.servicos;
+  const outrosServicos = Math.max(servicosAvulsos - topServices.reduce((s, t) => s + t.revenue, 0), 0);
 
   const receitaTree: DreItem[] = revenueBreakdown.map((r) => {
     if (r.label === "Serviços avulsos") {
       return {
         key: "receita.servicos",
         label: r.label,
-        value: scale(r.value),
+        value: r.value,
         children: [
           ...topServices.map((s) => ({
             key: `receita.servicos.${s.name}`,
             label: s.name,
-            value: scale(s.revenue),
-            caption: `${Math.round(s.count * f)} atendimentos`,
+            value: s.revenue,
+            caption: `${s.count} atendimentos`,
           })),
           {
             key: "receita.servicos.outros",
             label: "Outros serviços",
-            value: scale(outrosServicos),
+            value: outrosServicos,
           },
         ],
       };
@@ -89,24 +102,28 @@ export default function DrePage() {
       return {
         key: "receita.produtos",
         label: r.label,
-        value: scale(r.value),
-        children: productMovements.map((m) => ({
-          key: `receita.produtos.${m.productId}`,
-          label: products.find((p) => p.id === m.productId)?.name ?? m.productId,
-          value: scale(m.soldRevenue),
-          caption: `${Math.round(m.sold * f)} un.`,
-        })),
+        value: r.value,
+        children: raw.movements
+          .filter((m) => m.kind === "venda" && m.date.startsWith(mes))
+          .map((m) => ({
+            key: `receita.produtos.${m.id}`,
+            label: products.find((p) => p.id === m.productId)?.name ?? nomeProduto.get(m.productId) ?? m.productId,
+            value: m.value,
+            caption: `${m.quantity} un.`,
+          })),
       };
     }
-    return { key: `receita.${r.label}`, label: r.label, value: scale(r.value) };
+    return { key: `receita.${r.label}`, label: r.label, value: r.value };
   });
 
-  const cmvTree: DreItem[] = productMovements.map((m) => ({
-    key: `cmv.${m.productId}`,
-    label: products.find((p) => p.id === m.productId)?.name ?? m.productId,
-    value: scale(m.purchaseCost),
-    caption: `${Math.round(m.purchased * f)} un. compradas`,
-  }));
+  const cmvTree: DreItem[] = raw.movements
+    .filter((m) => m.kind === "compra" && m.date.startsWith(mes))
+    .map((m) => ({
+      key: `cmv.${m.id}`,
+      label: products.find((p) => p.id === m.productId)?.name ?? m.productId,
+      value: m.value,
+      caption: `${m.quantity} un. compradas`,
+    }));
 
   const variaveisTree: DreItem[] = [
     { key: "var.gateway", label: "Taxas de gateway", value: r.gatewayFees },
@@ -147,14 +164,14 @@ export default function DrePage() {
         <div className="flex items-center gap-1 text-sm text-ivory-muted">
           <button
             aria-label="Mês anterior"
-            disabled={monthOffset >= MAX_MONTH_OFFSET}
-            onClick={() => setMonthOffset((o) => Math.min(o + 1, MAX_MONTH_OFFSET))}
+            disabled={monthOffset >= 11}
+            onClick={() => setMonthOffset((o) => Math.min(o + 1, 11))}
             className="flex h-11 w-11 items-center justify-center md:h-8 md:w-8 rounded-lg transition-colors hover:bg-surface-raised hover:text-ivory disabled:cursor-not-allowed disabled:opacity-30"
           >
             <ChevronLeft size={16} />
           </button>
           <span className="min-w-32 text-center font-medium text-ivory">
-            {monthLabelFor(monthOffset)}
+            {rotuloDoMes(mes)}
           </span>
           <button
             aria-label="Próximo mês"
@@ -167,6 +184,20 @@ export default function DrePage() {
         </div>
       </div>
 
+      {status === "carregando" && <LoadingRows rows={5} />}
+
+      {status === "pronto" && grossRevenue === 0 && monthExpenses.length === 0 && (
+        <EmptyState
+          icon={Wallet}
+          title={`Sem movimento em ${rotuloDoMes(mes)}`}
+          description="O DRE se monta a partir dos atendimentos concluídos e das despesas lançadas. Faltam os dois neste mês."
+          actionLabel="Lançar despesas"
+          actionHref="/painel/financeiro/despesas"
+        />
+      )}
+
+      {(grossRevenue > 0 || monthExpenses.length > 0) && (
+      <>
       <div className="grid grid-cols-2 gap-2 md:grid-cols-5 md:gap-4">
         <KpiTile tone="neutral" icon={Wallet} label="Receita" value={formatBRL(grossRevenue)} />
         <KpiTile
@@ -354,6 +385,8 @@ export default function DrePage() {
           </table>
         </div>
       </Card>
+      </>
+      )}
     </div>
   );
 }

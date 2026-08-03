@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
 import { Modal } from "@/components/ui/modal";
 import { formatBRL, formatDateShortPtBR, safeDiv } from "@/lib/format";
-import { plans } from "@/lib/mock-data";
+import { usePlans } from "@/lib/db/use-shop-data";
+import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import {
   addOneMonthISO,
   useSubscription,
@@ -21,6 +22,8 @@ const BILLING_LABEL: Record<Billing, string> = {
 };
 
 export default function PlanosPage() {
+  const { items: plans, status } = usePlans();
+
   const {
     plan: activePlan,
     billing: activeBilling,
@@ -81,6 +84,19 @@ export default function PlanosPage() {
         </Card>
       )}
 
+      {status === "carregando" && <LoadingRows rows={3} />}
+
+      {status === "pronto" && plans.length === 0 && (
+        <EmptyState
+          icon={Sparkles}
+          title="Nenhum plano disponível ainda"
+          description="A barbearia ainda não criou planos de mensalista. Você pode agendar normalmente no avulso."
+          actionLabel="Agendar horário"
+          actionHref="/agendar"
+        />
+      )}
+
+      {plans.length > 0 && (
       <div className="flex flex-col gap-3 pb-4 md:grid md:grid-cols-3 md:gap-5 md:pb-0">
         {plans.map((plan) => {
           const breakEvenVisits = Math.max(1, Math.ceil(safeDiv(plan.price, plan.priceAvulso, 1)));
@@ -148,7 +164,9 @@ export default function PlanosPage() {
           );
         })}
       </div>
+      )}
 
+      {plans.length > 0 && (
       <Card className="flex flex-col gap-3 md:max-w-2xl md:gap-4 md:p-6">
         <p className="text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm">
           Como funciona a cobrança
@@ -166,6 +184,7 @@ export default function PlanosPage() {
           Cancele quando quiser — vale até o fim do ciclo já pago.
         </div>
       </Card>
+      )}
 
       <Modal
         open={!!checkoutPlan}

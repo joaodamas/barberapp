@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import {
   AlertCircle,
@@ -19,67 +18,69 @@ import { Button } from "@/components/ui/button";
 import { bookingStatusMeta } from "@/lib/booking-status";
 import { paymentMethodLabel } from "@/lib/payment-method";
 import { formatBRL, safePct } from "@/lib/format";
-import {
-  getServicesByIds,
-  needsYou,
-  todayBookings,
-  todayKpis,
-} from "@/lib/mock-data";
 import { bookingPolicy } from "@/lib/business-rules";
 import { useTenant } from "@/lib/tenant-context";
-import type { Booking } from "@/lib/types";
-
-/** Um encaixe pendente ainda não ocupa horário — só ocupa depois de aprovado. */
-const OCCUPIES_SLOT: Booking["status"][] = [
-  "pending_payment",
-  "confirmed",
-  "confirmed_by_client",
-  "completed",
-  "no_show",
-];
+import { useBookings, useServices } from "@/lib/db/use-shop-data";
+import { patchDoc } from "@/lib/db/repository";
+import { capacidadeDiaria, caixaDoDia } from "@/lib/analytics";
+import { OCCUPIES_SLOT } from "@/lib/domain";
+import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
+import { toISODate } from "@/lib/format";
+import type { BookingDoc } from "@/lib/domain";
+import type { Doc } from "@/lib/db/repository";
 
 export default function PainelHojePage() {
-  const [bookings, setBookings] = useState<Booking[]>(todayBookings);
-  const { brand } = useTenant();
+  const tenant = useTenant();
+  const { brand } = tenant;
+  const { items: todas, status } = useBookings();
+  const { items: services } = useServices();
+
+  const hoje = toISODate(new Date());
+  const bookings = todas.filter((b) => b.date === hoje);
+
+  const getServicesByIds = (ids: string[]) =>
+    ids.map((id) => services.find((s) => s.id === id)).filter(Boolean) as Array<{ name: string }>;
+
+  const totalSlots = capacidadeDiaria(tenant.schedule);
 
   const fitInRequests = bookings.filter((b) => b.status === "fit_in_requested");
   const agendados = bookings.filter((b) => OCCUPIES_SLOT.includes(b.status));
 
   const confirmedCount = agendados.length;
-  const horariosLivres = Math.max(todayKpis.totalSlots - agendados.length, 0);
-  const ocupacaoPct = Math.round(safePct(agendados.length, todayKpis.totalSlots));
+  const horariosLivres = Math.max(totalSlots - agendados.length, 0);
+  const ocupacaoPct = Math.round(safePct(agendados.length, totalSlots));
 
   const previsaoHoje = agendados.reduce((s, b) => s + b.value, 0);
 
-  /* Pix e cartão contam assim que confirmados; dinheiro só quando o cliente é
-   * atendido e marcado como concluído. */
-  const recebidas = agendados.filter(
-    (b) => b.status === "completed" || b.paymentMethod !== "local"
-  );
-  const recebidoReal = recebidas.reduce((s, b) => s + b.value, 0);
+  /* "Precisa de você" derivado do estado real, não de uma lista fixa. */
+  const precisaDeVoce = [
+    fitInRequests.length > 0 && {
+      id: "fit-in",
+      label: `${fitInRequests.length} encaixe(s) aguardando sua resposta`,
+      href: "/painel",
+      tone: "gold" as const,
+    },
+    services.length === 0 && {
+      id: "servicos",
+      label: "Nenhum serviço cadastrado — o cliente não tem o que agendar",
+      href: "/comecar",
+      tone: "danger" as const,
+    },
+  ].filter(Boolean) as Array<{ id: string; label: string; href: string; tone: "gold" | "danger" }>;
 
-  /* Caixa derivado das próprias reservas — antes eram três números fixos que
-   * não batiam com a agenda exibida logo acima. */
-  const caixaHoje = {
-    pix: sumBy(recebidas, (b) => (b.paymentMethod === "pix" ? b.value : 0)),
-    cartao: sumBy(recebidas, (b) => (b.paymentMethod === "cartao" ? b.value : 0)),
-    dinheiro: sumBy(recebidas, (b) => (b.paymentMethod === "local" ? b.value : 0)),
-  };
+  const caixaHoje = caixaDoDia(agendados);
+  const recebidoReal = caixaHoje.total;
 
   function complete(id: string) {
-    setBookings((prev) =>
-      prev.map((b) => (b.id === id ? { ...b, status: "completed" } : b))
+    void patchDoc(tenant.id, "bookings", id, { status: "completed" }).catch((e) =>
+      console.error("[hoje] falha ao concluir", e)
     );
   }
 
-  function resolveFitIn(booking: Booking, approve: boolean) {
-    setBookings((prev) =>
-      prev.map((b) =>
-        b.id === booking.id
-          ? { ...b, status: approve ? "confirmed" : "cancelled_by_shop" }
-          : b
-      )
-    );
+  function resolveFitIn(booking: Doc<BookingDoc>, approve: boolean) {
+    void patchDoc(tenant.id, "bookings", booking.id, {
+      status: approve ? "confirmed" : "cancelled_by_shop",
+    }).catch((e) => console.error("[hoje] falha ao resolver encaixe", e));
 
     const firstName = booking.clientName.split(" ")[0];
     const serviceNames = getServicesByIds(booking.serviceIds)
@@ -213,13 +214,13 @@ export default function PainelHojePage() {
         </Card>
       </section>
 
-      {needsYou.length > 0 && (
+      {precisaDeVoce.length > 0 && (
         <section className="md:col-start-2 md:row-start-4">
           <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm">
             Precisa de você
           </h2>
           <div className="flex flex-col gap-2 md:gap-3">
-            {needsYou.map((item) => (
+            {precisaDeVoce.map((item) => (
               <Link key={item.id} href={item.href}>
                 <Card interactive className="flex flex-row items-center gap-3 py-3">
                   <AlertCircle
@@ -288,6 +289,16 @@ export default function PainelHojePage() {
         <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm">
           Agenda do dia
         </h2>
+        {status === "carregando" && <LoadingRows rows={3} />}
+        {status === "pronto" && bookings.length === 0 && (
+          <EmptyState
+            icon={CalendarCheck}
+            title="Nenhum horário marcado para hoje"
+            description="Compartilhe seu link com os clientes para começar a receber agendamentos."
+            actionLabel="Ver meu link"
+            actionHref="/comecar"
+          />
+        )}
         <div className="flex flex-col gap-2 md:gap-3">
           {bookings
             .filter((b) => b.status !== "fit_in_requested")
@@ -334,6 +345,3 @@ export default function PainelHojePage() {
   );
 }
 
-function sumBy<T>(items: T[], value: (item: T) => number) {
-  return items.reduce((total, item) => total + value(item), 0);
-}

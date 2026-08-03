@@ -7,12 +7,20 @@ import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
 import { Modal } from "@/components/ui/modal";
 import { formatBRL, formatDateShortPtBR } from "@/lib/format";
-import { expenseCategories, type Expense, type ExpensePaymentMethod } from "@/lib/mock-data";
+import {
+  expenseCategories,
+  expensePaymentMethods,
+  type ExpensePaymentMethod,
+} from "@/lib/business-rules";
+import type { ExpenseDoc } from "@/lib/domain";
+import type { Doc } from "@/lib/db/repository";
+
+type Expense = Doc<ExpenseDoc>;
 import { useTenant } from "@/lib/tenant-context";
 import { useShopCollection } from "@/lib/db/use-collection";
 import { createDoc, patchDoc, removeDoc } from "@/lib/db/repository";
 
-const PAYMENT_METHODS: ExpensePaymentMethod[] = ["Pix", "Boleto", "Cartão", "Transferência"];
+const PAYMENT_METHODS = expensePaymentMethods;
 
 const emptyForm = {
   description: "",

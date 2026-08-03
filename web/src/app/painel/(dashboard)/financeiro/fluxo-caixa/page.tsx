@@ -4,9 +4,12 @@ import { Calendar, TrendingUp, Wallet } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { KpiTile } from "@/components/ui/kpi-tile";
 import { formatBRL, formatWeekdayAndDay, safeDiv, safePct } from "@/lib/format";
-import { dailyCashHistory, monthLabelFor } from "@/lib/mock-data";
+import { useFinanceiro, mesAtual, rotuloDoMes } from "@/lib/db/use-financeiro";
+import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 
 export default function FluxoCaixaPage() {
+  const mes = mesAtual();
+  const { caixa: dailyCashHistory, status } = useFinanceiro(mes);
   const total = dailyCashHistory.reduce((s, d) => s + d.total, 0);
   const avgPerDay = safeDiv(total, dailyCashHistory.length);
   const bestDay = dailyCashHistory.reduce(
@@ -29,7 +32,7 @@ export default function FluxoCaixaPage() {
       <div>
         {/* A tela não dizia de que mês eram os números. */}
         <p className="text-sm text-ivory-muted md:text-base">
-          Histórico diário · {monthLabelFor(0)}
+          Histórico diário · {rotuloDoMes(mes)}
         </p>
         <h1 className="text-xl text-ivory md:text-3xl md:tracking-tight">Fluxo de Caixa</h1>
         <p className="mt-1 text-xs text-ivory-muted md:text-sm">
@@ -55,6 +58,17 @@ export default function FluxoCaixaPage() {
         />
       </div>
 
+      {status === "carregando" && <LoadingRows rows={4} />}
+      {status === "pronto" && dailyCashHistory.length === 0 && (
+        <EmptyState
+          icon={Wallet}
+          title="Nenhum movimento neste mês"
+          description="Cada atendimento marcado como concluído na tela Hoje entra aqui automaticamente, separado por meio de pagamento."
+          actionLabel="Ir para Hoje"
+          actionHref="/painel"
+        />
+      )}
+      {dailyCashHistory.length > 0 && (
       <Card className="table-scroll overflow-x-auto p-0">
         <table className="w-full min-w-[640px] text-sm">
           <thead>
@@ -119,6 +133,7 @@ export default function FluxoCaixaPage() {
           </tfoot>
         </table>
       </Card>
+      )}
     </div>
   );
 }

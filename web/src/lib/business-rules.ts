@@ -127,3 +127,54 @@ export const loyaltyPolicy = {
   stampsForReward: 10,
   reward: "1 corte grátis",
 } as const;
+
+/* ------------------------------------------------------------------ */
+/* Catálogos de configuração                                           */
+/* ------------------------------------------------------------------ */
+
+/** Categorias de despesa oferecidas no lançamento (PRD §11). */
+export const expenseCategories = [
+  "Aluguel",
+  "Energia/Água",
+  "Insumos e produtos",
+  "Marketing",
+  "Manutenção de equipamentos",
+  "Internet e telefonia",
+  "Software e assinaturas",
+  "Outras despesas",
+];
+
+export type ExpensePaymentMethod = "Pix" | "Boleto" | "Cartão" | "Transferência";
+
+export const expensePaymentMethods: ExpensePaymentMethod[] = [
+  "Pix", "Boleto", "Cartão", "Transferência",
+];
+
+/**
+ * Taxas de mercado por gateway, para comparação na tela de Financeiro.
+ * Não é o que a barbearia paga — é referência. As taxas efetivas dela vão
+ * viver em `/barbershops/{id}` quando o gateway entrar, versionadas por
+ * vigência (PRD §5).
+ */
+export const paymentGateways = [
+  {
+    id: "stone",
+    name: "Stone",
+    fees: [
+      { method: "Pix", pct: 0.99 },
+      { method: "Débito", pct: 1.99 },
+      { method: "Crédito à vista", pct: 3.15 },
+      { method: "Crédito parcelado (6x)", pct: 8.5 },
+    ],
+  },
+  {
+    id: "infinitepay",
+    name: "InfinitePay",
+    fees: [
+      { method: "Pix", pct: 0.75 },
+      { method: "Débito", pct: 1.55 },
+      { method: "Crédito à vista", pct: 2.69 },
+      { method: "Crédito parcelado (6x)", pct: 7.99 },
+    ],
+  },
+];

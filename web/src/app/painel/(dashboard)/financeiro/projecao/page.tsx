@@ -5,9 +5,12 @@ import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
 import { KpiTile, signTone } from "@/components/ui/kpi-tile";
 import { formatBRL, formatDateShortPtBR, formatWeekdayAndDay } from "@/lib/format";
-import { cashProjection } from "@/lib/mock-data";
+import { useFinanceiro, mesAtual } from "@/lib/db/use-financeiro";
+import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 
 export default function ProjecaoPage() {
+  const { projecao: cashProjection, status, raw } = useFinanceiro(mesAtual());
+  const semBase = raw.expenses.length === 0 && raw.bookings.length === 0;
   const openDays = cashProjection.filter((d) => !d.isClosed);
 
   const confirmedRevenue = openDays
@@ -67,6 +70,17 @@ export default function ProjecaoPage() {
         />
       </div>
 
+      {status === "carregando" && <LoadingRows rows={4} />}
+      {status === "pronto" && semBase && (
+        <EmptyState
+          icon={AlertTriangle}
+          title="A projeção precisa de histórico"
+          description="Ela combina suas reservas futuras, a cobrança dos mensalistas e as despesas recorrentes. Comece lançando suas despesas fixas."
+          actionLabel="Lançar despesas"
+          actionHref="/painel/financeiro/despesas"
+        />
+      )}
+      {!semBase && (
       <Card className="table-scroll overflow-x-auto p-0">
         <table className="w-full min-w-[640px] text-sm">
           <thead>
@@ -125,6 +139,7 @@ export default function ProjecaoPage() {
           </tbody>
         </table>
       </Card>
+      )}
     </div>
   );
 }

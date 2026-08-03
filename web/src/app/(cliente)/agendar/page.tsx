@@ -13,7 +13,10 @@ import {
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
-import { services } from "@/lib/mock-data";
+import { useServices } from "@/lib/db/use-shop-data";
+import { useTenant } from "@/lib/tenant-context";
+import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
+import { CalendarX2 } from "lucide-react";
 import { formatBRL } from "@/lib/format";
 import { bookableDays, firstBookableIndex, slotsForDate } from "@/lib/slots";
 import { bookingPolicy } from "@/lib/business-rules";
@@ -29,6 +32,19 @@ const STEP_LABELS: Record<Step, string> = {
 };
 
 export default function AgendarPage() {
+  const tenant = useTenant();
+  const { items: servicosDoc, status: statusServicos } = useServices();
+
+  const services = servicosDoc
+    .filter((s) => s.active !== false)
+    .map((s) => ({
+      id: s.id,
+      name: s.name,
+      durationMin: s.durationMin,
+      price: s.price,
+      priceFrom: s.priceFrom,
+    }));
+
   const [step, setStep] = useState<Step>(1);
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
   const [selectedDayIndex, setSelectedDayIndex] = useState(() =>
@@ -37,7 +53,7 @@ export default function AgendarPage() {
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("pix");
 
-  const days = useMemo(() => bookableDays(), []);
+  const days = useMemo(() => bookableDays(new Date(), tenant.schedule), [tenant.schedule]);
 
   const selectedServices = services.filter((s) =>
     selectedServiceIds.includes(s.id)
@@ -55,7 +71,10 @@ export default function AgendarPage() {
   // Sem useMemo: o React Compiler memoiza sozinho e o memo manual o faz
   // desistir de otimizar o componente inteiro.
   const slots = selectedDay
-    ? slotsForDate(selectedDay.iso, { durationMin: totalDuration })
+    ? slotsForDate(selectedDay.iso, {
+        durationMin: totalDuration,
+        schedule: tenant.schedule,
+      })
     : [];
 
   const isFitIn = Boolean(selectedSlot?.isFitIn);
@@ -114,7 +133,17 @@ export default function AgendarPage() {
         ))}
       </div>
 
-      {step === 1 && (
+      {step === 1 && statusServicos === "carregando" && <LoadingRows rows={4} />}
+
+      {step === 1 && statusServicos === "pronto" && services.length === 0 && (
+        <EmptyState
+          icon={CalendarX2}
+          title="Nenhum serviço disponível ainda"
+          description="A barbearia ainda não cadastrou os serviços. Volte em instantes ou fale com ela pelo WhatsApp."
+        />
+      )}
+
+      {step === 1 && services.length > 0 && (
         <div className="grid gap-3 pb-24 md:grid-cols-2">
           {services.map((service) => {
             const checked = selectedServiceIds.includes(service.id);
