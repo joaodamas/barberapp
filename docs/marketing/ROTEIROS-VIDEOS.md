@@ -28,6 +28,20 @@
 | **VOZ:** | O que é falado |
 | `⟨…⟩` | Trocar pelo dado real na hora de gravar |
 
+### 🔴 Bloqueio ativo — não grave os vídeos do pilar B ainda
+
+A [auditoria financeira de 03/08](../AUDITORIA-FINANCEIRA-2026-08-03.md) encontrou que **o DRE não contabiliza o custo do trabalho** (comissão sobre serviço e pró-labore). Medido no código real: margem de contribuição de **94,6%** e resultado de **60% da receita**, contra 15–30% que o Sebrae aponta para o setor.
+
+**Consequência direta para o conteúdo:** os vídeos **B2** ("faturou R$ 12.469, sobrou quanto?"), **B3** (simulador) e **A2** (ponto de equilíbrio) mostrariam na tela um número 2 a 4× acima da realidade — e o número é errado **para cima**, que é o pior caso: o dono que conferir contra o extrato dele descarta o produto na hora.
+
+| Pilar | Situação |
+|---|---|
+| A1, A3, A5, A6 · C1–C6 · D · E1 · F | ✅ pode gravar — não dependem do DRE |
+| **A2, A4, B1, B2, B3, B4** | 🔴 **esperar as correções P0/P1 da auditoria** |
+| **E3** (reação ao primeiro DRE) | 🔴 **esperar** — é irrepetível, e gravar a reação a um número errado queima o melhor ativo do plano |
+
+Isso não atrasa a Fase 0: sobram 14 roteiros liberados, e o pilar A (diagnóstico) — que é 30% do calendário e o de maior alcance — está inteiro fora do bloqueio, exceto A2 e A4.
+
 ### Números de referência
 
 Os roteiros usam a barbearia de referência do [`PLANOS-E-FUNCIONALIDADES §3.4`](../PLANOS-E-FUNCIONALIDADES.md): **R$ 12.469/mês · 168 atendimentos · ticket R$ 74 · 7 faltas/mês (R$ 518 perdidos)**.
