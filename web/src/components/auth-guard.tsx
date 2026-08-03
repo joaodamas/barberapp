@@ -27,11 +27,19 @@ export function AuthGuard({
   const isOwner = papel === "owner";
   const authorized = !!user && (!requireOwner || isOwner);
 
+  /* Senha provisória vem antes de tudo: a conta só é dele depois que a senha
+   * que mandamos por mensagem parar de funcionar. */
+  const precisaTrocarSenha = !!user && claims.mustChangePassword === true;
+
   // Dono com onboarding pela metade não deve cair num painel vazio.
   const precisaOnboarding = isOwner && !isOnboardingComplete(tenant.onboarding);
 
   useEffect(() => {
     if (loading) return;
+    if (precisaTrocarSenha) {
+      router.replace("/trocar-senha");
+      return;
+    }
     if (precisaOnboarding) {
       router.replace("/comecar");
       return;
@@ -39,9 +47,9 @@ export function AuthGuard({
     if (authorized) return;
     // Sem conta → login. Com conta, mas sem permissão → área do cliente.
     router.replace(user ? "/" : "/login");
-  }, [loading, authorized, user, router, precisaOnboarding]);
+  }, [loading, authorized, user, router, precisaOnboarding, precisaTrocarSenha]);
 
-  if (loading || !authorized || precisaOnboarding) {
+  if (loading || !authorized || precisaOnboarding || precisaTrocarSenha) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-bg">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-gold border-t-transparent" />

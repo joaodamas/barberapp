@@ -47,7 +47,7 @@ const PASSOS: Record<OnboardingStep, { titulo: string; porque: string }> = {
 
 export default function ComecarPage() {
   const router = useRouter();
-  const { user, loading } = useAuth();
+  const { user, claims, loading } = useAuth();
   const tenant = useTenant();
 
   const [step, setStep] = useState<OnboardingStep>(
@@ -69,6 +69,13 @@ export default function ComecarPage() {
 
   if (!user) {
     router.replace("/login");
+    return null;
+  }
+
+  /* O onboarding é a segunda porta: a primeira é a senha provisória. Sem esta
+   * checagem dá para pular a troca digitando /comecar na barra de endereço. */
+  if (claims.mustChangePassword) {
+    router.replace("/trocar-senha");
     return null;
   }
 

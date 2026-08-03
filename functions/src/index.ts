@@ -25,6 +25,7 @@ export {
   completeOnboardingStep,
 } from "./signup";
 export { creditLoyaltyOnCompletion, redeemLoyaltyReward } from "./loyalty";
+export { changeInitialPassword } from "./account";
 export { createBooking, cancelBooking } from "./booking";
 export { TEMPLATES } from "./whatsapp/templates";
 export type {

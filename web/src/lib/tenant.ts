@@ -142,6 +142,32 @@ export function isOnboardingComplete(onboarding: TenantOnboarding) {
   return nextOnboardingStep(onboarding) === null;
 }
 
+/**
+ * Nome curto — o que aparece sob o ícone na tela inicial do celular.
+ *
+ * Cortar por caractere parte a palavra no meio: "O Siqueira Barbearia" virava
+ * "O Siqueira Bar". A função já existia corrigida no cadastro self-service
+ * (`functions/src/signup.ts`), mas o onboarding guiado gravava com `slice(14)`
+ * e reintroduziu o defeito — foi assim que a barbearia piloto ficou com
+ * "O Siqueira Bar" no ícone, no cabeçalho e no título da aba.
+ *
+ * A cópia entre `web` e `functions` é intencional: são pacotes que não
+ * compartilham código. Mudar uma exige mudar a outra — os testes dos dois lados
+ * cobrem o mesmo caso justamente para essa divergência aparecer.
+ */
+export function shortNameFrom(name: string, max = 14): string {
+  const limpo = name.trim().replace(/\s+/g, " ");
+  if (limpo.length <= max) return limpo;
+
+  let curto = "";
+  for (const palavra of limpo.split(" ")) {
+    const proximo = curto ? `${curto} ${palavra}` : palavra;
+    if (proximo.length > max) break;
+    curto = proximo;
+  }
+  return curto || limpo.slice(0, max).trim();
+}
+
 /** Políticas padrão da plataforma — o ponto de partida de toda barbearia nova. */
 export const PLATFORM_DEFAULT_POLICIES: TenantPolicies = {
   cancellation: defaultCancellationPolicy,

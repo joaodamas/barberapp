@@ -77,6 +77,11 @@ export default function LoginPage() {
   // Dono cai no painel, cliente cai no app — a conta decide, não a porta.
   useEffect(() => {
     if (loading || !user) return;
+    // Senha provisória não abre porta nenhuma até ser trocada.
+    if (claims.mustChangePassword) {
+      router.replace("/trocar-senha");
+      return;
+    }
     const papel = claims.barbershops?.[tenant.id] ?? claims.role;
     router.replace(papel === "owner" ? "/painel" : "/");
   }, [loading, user, claims, tenant.id, router]);

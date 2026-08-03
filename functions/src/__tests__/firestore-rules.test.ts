@@ -279,9 +279,37 @@ describe("negar por padrão", () => {
     await assertFails(getDoc(doc(as(SUPORTE), "coisa_nova", "x")));
   });
 
-  it("🔒 anônimo não lê barbearia nem agenda", async () => {
-    await assertFails(getDoc(doc(anon(), "barbershops", ALFA)));
+  it("🔒 ninguém alcança platform_users — nem o dono, nem o suporte", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "platform_users", DONO_ALFA.sub), {
+        initialPasswordHash: "abc",
+      });
+    });
+    // É onde vive o hash da senha provisória: leitura por cliente é vazamento.
+    await assertFails(getDoc(doc(as(DONO_ALFA), "platform_users", DONO_ALFA.sub)));
+    await assertFails(getDoc(doc(as(SUPORTE), "platform_users", DONO_ALFA.sub)));
+    await assertFails(
+      setDoc(doc(as(DONO_ALFA), "platform_users", DONO_ALFA.sub), { initialPasswordHash: "x" })
+    );
+  });
+
+  /**
+   * A ficha da barbearia virou PÚBLICA quando a resolução do subdomínio passou
+   * a ler o Firestore pela API REST, sem login — é o que pinta a página antes
+   * de existir usuário. Este teste afirmava o contrário e ficou vermelho a
+   * partir daquela mudança, sem que ninguém percebesse.
+   *
+   * O que precisa continuar valendo é a fronteira: vitrine sim, agenda não.
+   */
+  it("anônimo lê a ficha da barbearia — é vitrine, como a fachada", async () => {
+    await assertSucceeds(getDoc(doc(anon(), "barbershops", ALFA)));
+  });
+
+  it("🔒 anônimo não lê agenda, nem contrato, nem quem trabalha lá", async () => {
     await assertFails(getDoc(doc(anon(), `barbershops/${ALFA}/bookings`, "bk-1")));
+    await assertFails(getDoc(doc(anon(), `barbershops/${ALFA}/private`, "contract")));
+    await assertFails(getDoc(doc(anon(), `barbershops/${ALFA}/members`, DONO_ALFA.sub)));
+    await assertFails(getDoc(doc(anon(), `barbershops/${ALFA}/expenses`, "e1")));
   });
 });
 

@@ -77,6 +77,19 @@ service cloud.firestore {
     }
 
     /* ------------------------------------------------------------------ */
+    /* Conta de operação da plataforma — só o servidor                     */
+    /* ------------------------------------------------------------------ */
+
+    match /platform_users/{userId} {
+      /* Guarda o hash da senha provisória enquanto ela existe. Negado para
+       * TODO MUNDO, inclusive o próprio dono e o suporte: só o Admin SDK
+       * escreve e lê aqui, e ele não passa por regra. Declarado explicitamente
+       * em vez de depender do fallback do fim do arquivo, porque um dia alguém
+       * vai abrir uma coleção acima e este documento não pode vir junto. */
+      allow read, write: if false;
+    }
+
+    /* ------------------------------------------------------------------ */
     /* A barbearia                                                         */
     /* ------------------------------------------------------------------ */
 

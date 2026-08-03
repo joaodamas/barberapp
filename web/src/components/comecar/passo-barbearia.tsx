@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import type { Tenant } from "@/lib/tenant";
+import { shortNameFrom, type Tenant } from "@/lib/tenant";
 
 /** Paleta validada: toda cor aqui dá contraste ≥4,5:1 com texto escuro.
  *  Seletor livre deixaria o dono escolher um dourado claro e derrubar a
@@ -41,7 +41,7 @@ export function PassoBarbearia({
         e.preventDefault();
         onSubmit({
           "brand.name": nome.trim(),
-          "brand.shortName": nome.trim().slice(0, 14).trim(),
+          "brand.shortName": shortNameFrom(nome),
           "brand.accentColor": cor,
           "contact.address": endereco.trim(),
           "contact.whatsapp": digitos.startsWith("55") ? digitos : `55${digitos}`,

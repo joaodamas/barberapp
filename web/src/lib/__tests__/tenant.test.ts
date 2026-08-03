@@ -3,6 +3,7 @@ import {
   ALL_FEATURES,
   DEFAULT_TENANT,
   PLATFORM_DEFAULT_POLICIES,
+  shortNameFrom,
   slugFromHost,
   tenantCssVars,
   tenantUrl,
@@ -80,5 +81,23 @@ describe("host atrás de proxy", () => {
     // inteiro em silêncio.
     expect(slugFromHost("ssraxonbarber-n75dlgtbka-uc.a.run.app")).toBeNull();
     expect(slugFromHost("osiqueira.jpproject.com.br")).toBe("osiqueira");
+  });
+});
+
+describe("nome curto sob o ícone", () => {
+  it("corta por palavra, não no meio dela", () => {
+    // O caso real: a barbearia piloto ficou com "O Siqueira Bar" no ícone do
+    // celular porque o onboarding cortava por caractere.
+    expect(shortNameFrom("O Siqueira Barbearia")).toBe("O Siqueira");
+    expect(shortNameFrom("Barbearia do Zé")).toBe("Barbearia do");
+  });
+
+  it("deixa passar o que já cabe", () => {
+    expect(shortNameFrom("Corte Fino")).toBe("Corte Fino");
+    expect(shortNameFrom("  Studio  Rei ")).toBe("Studio Rei");
+  });
+
+  it("uma palavra sozinha maior que o limite ainda precisa caber", () => {
+    expect(shortNameFrom("Barbeariadoseuze").length).toBeLessThanOrEqual(14);
   });
 });
