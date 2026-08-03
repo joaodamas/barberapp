@@ -58,7 +58,7 @@ Onboarding, passo extra:  [ Conectar WhatsApp ]
   grava em /barbershops/{id}/integrations/whatsapp
         │
         ▼
-  push automático dos 16 templates para a WABA dela
+  push automático dos 34 templates para a WABA dela
 ```
 
 O que você guarda por barbearia:
@@ -73,7 +73,7 @@ O que você guarda por barbearia:
 
 ### Os templates
 
-Templates vivem **por WABA** — cada barbearia tem os dela. Mas você não pede para o dono escrever nada: assim que ele conecta, sua função empurra os 16 templates do catálogo (`functions/src/whatsapp/templates.ts`) para a WABA dele via API, e acompanha a aprovação pelo webhook.
+Templates vivem **por WABA** — cada barbearia tem os dela. Mas você não pede para o dono escrever nada: assim que ele conecta, sua função empurra os 31 templates da barbearia (`functions/src/whatsapp/templates.ts`) para a WABA dele via API, e acompanha a aprovação pelo webhook.
 
 Como os textos já são padronizados e passam na validação de regras da Meta, a aprovação de UTILITY costuma sair em minutos a horas. **MARKETING** (reativação, aniversário, comunicado) demora mais e exige opt-in registrado.
 
@@ -182,8 +182,9 @@ Um teste trava isso: toda mensagem com `audience: "cliente"` precisa ter `sender
 
 | # | Item | Depende de |
 |---|---|---|
-| 1 | Cadastro como Tech Provider na Meta | conta comercial verificada |
-| 2 | **Submeter os 16 templates** | nada — pode ser feito hoje |
+| 0 | **Verificação comercial da empresa na Meta** | CNPJ e comprovantes |
+| 1 | Cadastro como Tech Provider na Meta | 0 |
+| 2 | **Submeter os 34 templates** | 1 |
 | 3 | Client da Cloud API (envio + status) | credenciais |
 | 4 | Embedded Signup no onboarding | 1 |
 | 5 | Push automático dos templates por WABA | 1, 3 |
@@ -195,7 +196,9 @@ Um teste trava isso: toda mensagem com `audience: "cliente"` precisa ter `sender
 | 11 | Painel de mensagens no produto (log e falhas) | 7 |
 | 12 | Caixa de entrada — só se for adotar o modelo C | 3, 6 |
 
-**O item 2 não depende de nada e é caminho crítico.** A aprovação leva dias e os textos já passam na validação automatizada. Submeter agora, em paralelo com o resto, é a única decisão desta lista que custa zero e economiza uma semana.
+**O item 0 é o gargalo real e ninguém lembra dele.** Sem verificação comercial, a conta fica presa em **250 destinatários únicos por 24h** — o que dá umas 20 barbearias. Com verificação, sobe para 1.000 e cresce daí. A análise da Meta leva de dias a semanas e depende de documento, não de código.
+
+**Começar por ele é o que destrava o resto.** Enquanto a verificação corre, dá para montar o ambiente de teste com o número gratuito da Meta e construir os gatilhos — nada disso depende do número definitivo.
 
 ---
 
