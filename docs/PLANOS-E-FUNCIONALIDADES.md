@@ -136,11 +136,11 @@ Corte por **camada de necessidade**:
 
 ### 3.3 Por que essas linhas, e não outras
 
-**WhatsApp no plano de entrada.** É a decisão que mais importa. O Trinks cobra como add-on, o Booksy tem função limitada, e é a primeira coisa que o dono pergunta. Colocar no plano base transforma o argumento de venda inteiro em uma frase: *"no Trinks o WhatsApp é à parte; aqui vem no plano de R$ 59"*. O custo por conversa da Meta é baixo o bastante para absorver — e é o que faz o cliente ficar.
+**WhatsApp no plano de entrada.** É a decisão que mais importa. O Trinks cobra como add-on, o Booksy tem função limitada, e é a primeira coisa que o dono pergunta. Colocar no plano base transforma o argumento de venda inteiro em uma frase: *"no Trinks o WhatsApp é à parte; aqui vem já no plano de entrada"*. UTILITY custa uma fração de MARKETING, e é o que faz o cliente ficar. Quem paga a Meta é decisão à parte — ver [`WHATSAPP-ARQUITETURA.md`](./WHATSAPP-ARQUITETURA.md) §6.
 
 **Fidelidade no meio, não na entrada.** Fidelidade não resolve dor de quem está começando; resolve retenção de quem já tem base. Quem não tem 50 clientes recorrentes não usa. Deixar no meio dá um motivo concreto para subir.
 
-**Mensalistas no meio.** É o argumento do BestBarbers ("barbearias com clube faturam 3× mais") e o principal motor de upgrade. Cobra R$ 60 a mais e destrava receita recorrente — o cálculo se paga com **um** mensalista.
+**Mensalistas no meio.** É o argumento do BestBarbers ("barbearias com clube faturam 3× mais") e o principal motor de upgrade. Custa R$ 100 a mais e destrava receita recorrente — se paga com **um** mensalista de R$ 149.
 
 **Financeiro no topo, inteiro.** DRE, projeção, ponto de equilíbrio e fechamento em PDF são o que nenhum concorrente entrega. Fragmentar isso entre planos dilui o diferencial: metade de um DRE não é meio produto, é um produto que não decide nada. Ou o dono tem a leitura completa do negócio, ou não tem.
 
