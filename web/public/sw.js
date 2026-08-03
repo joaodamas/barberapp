@@ -1,4 +1,4 @@
-const CACHE_NAME = "o-siqueira-v3";
+const CACHE_NAME = "barbearia-v4";
 const OFFLINE_URL = "/offline";
 const APP_SHELL = [
   OFFLINE_URL,
@@ -96,13 +96,44 @@ self.addEventListener("fetch", (event) => {
    * anterior. Vale para payloads RSC (`?_rsc=`), rotas de API e qualquer
    * resposta marcada como privada. */
   const url = new URL(request.url);
-  const isPrivate =
+
+  /* Rota de API pode devolver dado de UM usuário: nunca entra no cache, que é
+   * compartilhado pelo dispositivo. */
+  if (url.pathname.startsWith("/api/")) {
+    event.respondWith(fetch(request));
+    return;
+  }
+
+  /* Payload de navegação (RSC). Contém a casca da tela e a marca da barbearia
+   * — o mesmo para todo visitante DESTE subdomínio, porque o conteúdo logado é
+   * renderizado no cliente depois do AuthGuard. Cada barbearia tem sua origem,
+   * então o cache do navegador já as separa.
+   *
+   * Serve do cache na hora e revalida atrás: é o que faz trocar de tela ser
+   * instantâneo em vez de esperar a rede a cada clique.
+   *
+   * ⚠️ Se algum dia uma page renderizar dado de usuário no servidor, este
+   * bloco tem de sair junto — senão a tela de um cliente é servida ao próximo.
+   */
+  const isRsc =
     url.searchParams.has("_rsc") ||
-    url.pathname.startsWith("/api/") ||
     request.headers.get("Accept")?.includes("text/x-component");
 
-  if (isPrivate) {
-    event.respondWith(fetch(request));
+  if (isRsc) {
+    event.respondWith(
+      caches.match(request).then((cached) => {
+        const rede = fetch(request)
+          .then((response) => {
+            if (response.ok) {
+              const clone = response.clone();
+              caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+            }
+            return response;
+          })
+          .catch(() => cached);
+        return cached || rede;
+      })
+    );
     return;
   }
 

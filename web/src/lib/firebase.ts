@@ -52,8 +52,27 @@ let dbPromise: Promise<import("firebase/firestore").Firestore> | null = null;
 
 export async function getDb() {
   dbPromise ??= (async () => {
-    const { getFirestore, connectFirestoreEmulator } = await import("firebase/firestore");
-    const db = getFirestore(firebaseApp);
+    const {
+      initializeFirestore,
+      persistentLocalCache,
+      persistentMultipleTabManager,
+      connectFirestoreEmulator,
+    } = await import("firebase/firestore");
+
+    /* Cache em IndexedDB, não em memória.
+     *
+     * Sem isto, sair de uma tela e voltar refaz TODA a busca no servidor: o
+     * dono percebe como lentidão a cada troca de aba. Com cache persistente, o
+     * que já foi visto aparece na hora e o SDK revalida em segundo plano.
+     *
+     * `persistentMultipleTabManager` porque o painel costuma ficar aberto em
+     * mais de uma aba — sem ele, a segunda aba falha ao abrir o cache. */
+    const db = initializeFirestore(firebaseApp, {
+      localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager(),
+      }),
+    });
+
     if (useEmulator) connectFirestoreEmulator(db, "127.0.0.1", 8080);
     return db;
   })();

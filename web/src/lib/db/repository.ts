@@ -57,6 +57,23 @@ function constraintsFrom(options: ListOptions = {}): QueryConstraint[] {
  *
  * Devolve a função de cancelamento — sempre chamar no cleanup do efeito.
  */
+type Assinatura = {
+  unsubscribe: () => void;
+  ouvintes: Set<(items: Doc<DocumentData>[]) => void>;
+  erros: Set<(e: Error) => void>;
+  ultimo: Doc<DocumentData>[] | null;
+};
+
+/**
+ * Assinaturas compartilhadas por (barbearia, coleção, filtros).
+ *
+ * Sem isto, cada componente abre o próprio listener: a tela de Números
+ * chamava `useFinanceiro` duas vezes e abria DOZE listeners sobre as mesmas
+ * seis coleções, porque o recorte de mês acontece em memória. Agora o segundo
+ * assinante entra de carona e recebe na hora o último resultado conhecido.
+ */
+const assinaturas = new Map<string, Assinatura>();
+
 export function subscribeToCollection<T extends DocumentData>(
   barbershopId: string,
   collectionName: ShopCollection,
@@ -66,28 +83,69 @@ export function subscribeToCollection<T extends DocumentData>(
   },
   options?: ListOptions
 ): () => void {
-  let unsubscribe: (() => void) | null = null;
-  let cancelled = false;
+  const chave = `${barbershopId}:${collectionName}:${JSON.stringify(options ?? {})}`;
 
-  getDb()
-    .then((db) => {
-      if (cancelled) return;
-      const ref = collection(db, shopCollectionPath(barbershopId, collectionName));
-      unsubscribe = onSnapshot(
-        query(ref, ...constraintsFrom(options)),
-        (snapshot) => {
-          handlers.onData(
-            snapshot.docs.map((d) => ({ id: d.id, ...(d.data() as T) }))
-          );
-        },
-        (error) => handlers.onError?.(error)
-      );
-    })
-    .catch((error) => handlers.onError?.(error as Error));
+  const onData = handlers.onData as (items: Doc<DocumentData>[]) => void;
+  const onError = handlers.onError ?? (() => {});
+
+  let assinatura = assinaturas.get(chave);
+
+  if (!assinatura) {
+    const nova: Assinatura = {
+      unsubscribe: () => {},
+      ouvintes: new Set(),
+      erros: new Set(),
+      ultimo: null,
+    };
+    assinaturas.set(chave, nova);
+    assinatura = nova;
+
+    let cancelado = false;
+    getDb()
+      .then((db) => {
+        if (cancelado) return;
+        const ref = collection(db, shopCollectionPath(barbershopId, collectionName));
+        const parar = onSnapshot(
+          query(ref, ...constraintsFrom(options)),
+          (snapshot) => {
+            const items = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+            nova.ultimo = items;
+            nova.ouvintes.forEach((fn) => fn(items));
+          },
+          (error) => nova.erros.forEach((fn) => fn(error))
+        );
+        nova.unsubscribe = () => {
+          cancelado = true;
+          parar();
+        };
+      })
+      .catch((error) => nova.erros.forEach((fn) => fn(error as Error)));
+  }
+
+  assinatura.ouvintes.add(onData);
+  assinatura.erros.add(onError);
+
+  // Quem chega depois não espera a rede: recebe o que já se sabe.
+  if (assinatura.ultimo) onData(assinatura.ultimo);
 
   return () => {
-    cancelled = true;
-    unsubscribe?.();
+    const atual = assinaturas.get(chave);
+    if (!atual) return;
+    atual.ouvintes.delete(onData);
+    atual.erros.delete(onError);
+
+    /* Não cancela na hora: navegar para outra tela e voltar recriaria o
+     * listener e refaria a busca. Uma folga curta cobre a troca de tela sem
+     * segurar assinatura de tela que ninguém está vendo. */
+    if (atual.ouvintes.size === 0) {
+      setTimeout(() => {
+        const ainda = assinaturas.get(chave);
+        if (ainda && ainda.ouvintes.size === 0) {
+          ainda.unsubscribe();
+          assinaturas.delete(chave);
+        }
+      }, 30_000);
+    }
   };
 }
 
