@@ -7,6 +7,7 @@ import { KpiTile, signTone } from "@/components/ui/kpi-tile";
 import { formatBRL, formatDateShortPtBR, formatWeekdayAndDay } from "@/lib/format";
 import { useFinanceiro, mesAtual } from "@/lib/db/use-financeiro";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
+import { LineChart } from "@/components/ui/chart";
 
 export default function ProjecaoPage() {
   const { projecao: cashProjection, status, raw } = useFinanceiro(mesAtual());
@@ -80,6 +81,31 @@ export default function ProjecaoPage() {
           actionHref="/painel/financeiro/despesas"
         />
       )}
+      {/* O gráfico responde de relance a única pergunta que importa aqui: em
+          que dia o caixa vira negativo. A tabela continua abaixo, com o
+          detalhe — e é ela que o leitor de tela lê. */}
+      {!semBase && cashProjection.length > 1 && (
+        <Card className="flex flex-col gap-3">
+          <div className="flex items-baseline justify-between">
+            <p className="text-sm font-medium text-ivory">Saldo acumulado</p>
+            <p className={`font-display text-lg ${signTone(resultadoProjetado) === "success" ? "text-success" : "text-danger"}`}>
+              {formatBRL(resultadoProjetado)}
+            </p>
+          </div>
+          <LineChart
+            label={`Saldo acumulado projetado para os próximos ${cashProjection.length} dias.`}
+            data={cashProjection.map((d) => ({
+              label: formatDateShortPtBR(d.date),
+              value: d.cumulative,
+            }))}
+          />
+          <p className="text-xs text-ivory-muted">
+            A linha tracejada é o zero. Onde a curva cruza para baixo dela, o
+            caixa fecha negativo naquele dia.
+          </p>
+        </Card>
+      )}
+
       {!semBase && (
       <Card className="table-scroll overflow-x-auto p-0">
         <table className="w-full min-w-[640px] text-sm">

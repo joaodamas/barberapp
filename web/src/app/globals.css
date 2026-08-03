@@ -33,11 +33,29 @@
   --background: var(--color-bg);
   --foreground: var(--color-ivory);
 
-  /* Elevation — profundidade em camadas, do fundo ao flutuante */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
-  --shadow-md: 0 6px 20px -8px rgba(0, 0, 0, 0.55);
-  --shadow-lg: 0 24px 60px -20px rgba(0, 0, 0, 0.7);
-  --shadow-gold: 0 8px 24px -10px rgba(200, 162, 75, 0.35);
+  /* Elevation.
+   *
+   * Estes valores vinham do tempo em que o app era ESCURO: preto a 35%, 55% e
+   * 70% de opacidade. Sobre um fundo escuro, sombra preta densa cria
+   * profundidade. Sobre `#ffffff` e creme, ela não afunda o cartão — suja o
+   * fundo em volta, e o resultado lê como acabamento malfeito, não como
+   * camada.
+   *
+   * A troca é de tinta e de forma: opacidade baixa, duas sombras por nível (uma
+   * curta que define a borda, outra longa e difusa que dá a distância), e o tom
+   * puxado para o marrom da identidade em vez de preto puro — sombra
+   * neutra sobre fundo quente parece cinza sujo.
+   */
+  --shadow-sm:
+    0 1px 2px rgba(60, 45, 20, 0.06),
+    0 1px 3px rgba(60, 45, 20, 0.04);
+  --shadow-md:
+    0 2px 4px rgba(60, 45, 20, 0.05),
+    0 8px 20px -6px rgba(60, 45, 20, 0.10);
+  --shadow-lg:
+    0 4px 8px rgba(60, 45, 20, 0.05),
+    0 24px 48px -16px rgba(60, 45, 20, 0.16);
+  --shadow-gold: 0 8px 24px -10px rgba(184, 134, 58, 0.28);
 }
 
 @theme inline {
@@ -115,9 +133,15 @@ h1, h2, h3, h4, .font-display {
   padding-top: env(safe-area-inset-top);
 }
 
-/* Elevation — cartão com profundidade real: gradiente sutil de vidro + sombra */
+/* Elevation — cartão com profundidade real.
+ *
+ * O gradiente escurecia o TOPO do cartão (preto a 1,5% descendo para
+ * transparente). Num app escuro isso simula luz vindo de baixo; num app claro
+ * inverte a leitura — a superfície fica mais suja em cima do que embaixo, ao
+ * contrário de tudo que a luz faz. Agora clareia o topo, que é como um objeto
+ * iluminado de cima se comporta. */
 .card-elevated {
-  background-image: linear-gradient(180deg, rgba(0, 0, 0, 0.015), transparent);
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.5), transparent 60%);
   box-shadow: var(--shadow-sm);
 }
 
