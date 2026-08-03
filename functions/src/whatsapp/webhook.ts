@@ -238,6 +238,34 @@ async function aplicarBotao(
     return;
   }
 
+  /* ---- Quem tocou o botão tem a ver com esta reserva? ----
+   *
+   * O payload diz de qual reserva é o toque, mas não prova quem tocou. Faltava
+   * conferir, e com um número ÚNICO para toda a plataforma isso passa a
+   * importar: todos os clientes de todas as barbearias conversam com o MESMO
+   * número, então uma mensagem que chegue com o payload de outra pessoa é
+   * indistinguível da legítima só pelo conteúdo.
+   *
+   * A regra é simples: confirmar ou cancelar é do cliente da reserva; aprovar
+   * ou recusar encaixe é de quem toca a barbearia. */
+  const donoDaReserva = String(reserva.get("clientWhatsapp") ?? "").replace(/\D/g, "");
+  const conf = await db.doc(`barbershops/${barbershopId}/private/whatsapp`).get();
+  const shopDoc = await db.doc(`barbershops/${barbershopId}`).get();
+  const numerosDaLoja = [conf.get("ownerWhatsapp"), shopDoc.get("contact.whatsapp")]
+    .map((n) => String(n ?? "").replace(/\D/g, ""))
+    .filter(Boolean);
+
+  const ehDaLoja = numerosDaLoja.includes(de);
+  const ehOCliente = !!donoDaReserva && donoDaReserva === de;
+  const acaoDaLoja = action === "APPROVE_FITIN" || action === "DECLINE_FITIN";
+
+  if (acaoDaLoja ? !ehDaLoja : !(ehOCliente || ehDaLoja)) {
+    console.warn(
+      `[whatsapp] ${action} de ${de} recusado: não é o cliente da reserva ${bookingId} nem a barbearia`
+    );
+    return;
+  }
+
   /* Reserva já encerrada não volta atrás por toque de botão. O lembrete fica
    * no celular do cliente e ele pode tocar em "Confirmo" dias depois — sem
    * esta guarda, isso ressuscitaria uma reserva cancelada. */
