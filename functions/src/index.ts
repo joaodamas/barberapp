@@ -26,6 +26,8 @@ export {
 } from "./signup";
 export { creditLoyaltyOnCompletion, redeemLoyaltyReward } from "./loyalty";
 export { changeInitialPassword } from "./account";
+export { notifyBookingCreated } from "./whatsapp/notify";
+export { whatsappWebhook } from "./whatsapp/webhook";
 export { createBooking, cancelBooking } from "./booking";
 export { TEMPLATES } from "./whatsapp/templates";
 export type {

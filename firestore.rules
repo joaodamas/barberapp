@@ -80,6 +80,14 @@ service cloud.firestore {
     /* Conta de operação da plataforma — só o servidor                     */
     /* ------------------------------------------------------------------ */
 
+    match /whatsapp_numbers/{phoneNumberId} {
+      /* Número da Cloud API → barbearia. O webhook é público e precisa desta
+       * tradução para saber de quem é a mensagem que chegou; só o servidor
+       * lê e escreve. Exposto, revelaria o mapa de quais barbearias usam a
+       * plataforma e qual número é de quem. */
+      allow read, write: if false;
+    }
+
     match /platform_users/{userId} {
       /* Guarda o hash da senha provisória enquanto ela existe. Negado para
        * TODO MUNDO, inclusive o próprio dono e o suporte: só o Admin SDK
