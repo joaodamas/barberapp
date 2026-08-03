@@ -107,9 +107,13 @@ Corte por **camada de necessidade**:
 
 ### 3.2 A proposta
 
+> **Revisão de 02/08 — os preços subiram.** A versão anterior era R$ 59/119/229,
+> ancorada no Barbeiro.app. Isso é *price-taking*: define o preço pelo
+> concorrente mais barato em vez de pelo valor entregue. Ver seção 4.
+
 | | **Agenda** | **Crescimento** | **Gestão** |
 |---|---|---|---|
-| **Preço** | R$ 59/mês | R$ 119/mês | R$ 229/mês |
+| **Preço** | R$ 97/mês | R$ 197/mês | R$ 297/mês |
 | **A dor** | "perco horário e cliente some" | "quero faturar mais e ter previsibilidade" | "não sei se estou ganhando dinheiro" |
 | Agendamento online 24h | ✅ | ✅ | ✅ |
 | PWA com sua marca e subdomínio | ✅ | ✅ | ✅ |
@@ -144,33 +148,59 @@ Corte por **camada de necessidade**:
 
 ### 3.4 Sobre os preços
 
+Barbearia de referência: **R$ 12.469/mês**, 168 atendimentos, ticket de R$ 74, 7 no-shows por mês (R$ 518 perdidos).
+
+| Preço | % da receita | Se paga com |
+|---|---|---|
+| R$ 97 | 0,78% | 1,3 no-show evitado |
+| R$ 197 | 1,58% | 2,7 no-shows — ou **1 mensalista** (R$ 149/mês) |
+| R$ 297 | 2,38% | 4 no-shows |
+
+Gastar 1–2% do faturamento no sistema que roda a operação inteira é normal e defensável. A R$ 59 estávamos capturando 0,47% — menos que o valor de **um único** no-show evitado por mês.
+
 | Referência | Preço | Nosso posicionamento |
 |---|---|---|
-| Barbeiro.app Pro | R$ 59,90 | **Agenda R$ 59** — empata, mas com PWA de marca própria |
-| Trinks (1–2 prof.) | ~R$ 76–110 + add-ons | **Crescimento R$ 119** — mais barato que Trinks com WhatsApp e clube somados |
-| Barbeiro.app Enterprise | R$ 139,90 | entre Crescimento e Gestão |
-| BestBarbers app exclusivo | R$ 299 | **Gestão R$ 229** — 23% abaixo, e com DRE que eles não têm |
+| Barbeiro.app Pro | R$ 59,90 | **Agenda R$ 97** — 60% acima, com PWA de marca própria e WhatsApp incluso |
+| Trinks (1–2 prof.) | ~R$ 76–110 + add-ons | **Crescimento R$ 197** — com WhatsApp e clube somados, o Trinks passa disso |
+| BestBarbers app exclusivo | R$ 299 | **Gestão R$ 297** — empata, e entrega DRE que eles não têm |
 
-**Sempre por barbearia, nunca por profissional.** Uma equipe de 5 paga R$ 300–500/mês no Trinks ou Booksy. Aqui paga R$ 229 no plano de cima. Esse é o comparativo que fecha venda de barbearia com equipe.
+**Sempre por barbearia, nunca por profissional.** Uma equipe de 5 paga R$ 300–500/mês no Trinks ou Booksy. Aqui paga R$ 297 no plano de cima, e é o comparativo que fecha venda de barbearia com equipe.
 
-**Anual com 2 meses grátis** (−17%). Melhora o caixa e reduz churn no período em que o produto ainda está amadurecendo.
+**Anual com 2 meses grátis** (−17%). Melhora o caixa e reduz churn enquanto o produto amadurece.
+
+**Preço de fundador:** as primeiras 20 barbearias pagam 50% por 12 meses, travado. Isso compra adoção e referência **sem destruir a âncora** — descontar é fácil e gera boa vontade; subir preço de quem já é cliente churna.
 
 ---
 
-## 4. Minha opinião franca sobre a separação
+## 4. Por que os preços subiram — e o que eu erraria de novo
 
-**Três planos é o certo para agora.** Dois não dão espaço para upgrade; quatro confundem quem decide em 5 minutos no balcão.
+**O erro da primeira proposta foi ancorar no concorrente.** Defini R$ 59 porque o Barbeiro.app Pro custa R$ 59,90. Isso entra numa guerra de preço com quem já tem base maior e custo marginal menor — e ainda comunica que somos "o outro barato", não o produto que enxerga o negócio.
 
-**O risco real da proposta acima é o plano de entrada ser bom demais.** Com agenda, WhatsApp, PWA de marca própria, encaixe, política de cancelamento e caixa do dia por R$ 59, muita barbearia solo nunca precisa subir. Isso é bom para adoção e ruim para receita média.
+O que corrigi:
 
-Duas formas de tratar, e eu prefiro a primeira:
+1. **Âncora no valor, não no concorrente.** Um no-show custa R$ 74. O produto que evita no-show não pode custar menos que um no-show.
+2. **Paramos de dar de graça o que o líder cobra R$ 299.** O PWA com marca própria entrega ~90% do valor do app white-label do BestBarbers. Cobrar R$ 59 por isso é entregar duas vezes o diferencial: a função e a margem.
+3. **A assimetria de errar.** Baixar preço é fácil e gera boa vontade; subir preço de quem já é cliente churna. Com pouca informação, errar para cima é reversível — errar para baixo, não. Daí o preço de fundador em vez de lista barata.
 
-1. **Aceitar.** Barbearia solo não paga R$ 229 de qualquer jeito — vai para o concorrente de R$ 59. Melhor tê-la pagando R$ 59 e virando referência do que perdê-la. O plano de cima é vendido para quem tem equipe e sente a dor financeira, não para todo mundo.
-2. Tirar o caixa do dia da entrada. **Não recomendo:** é o que faz o dono abrir o app todo dia, e sem hábito diário não há renovação.
+### O que continua sendo risco
 
-**O que eu mudaria se os números mostrarem o contrário:** se depois de 30 clientes ninguém subir de plano, o problema não é o preço — é que o financeiro não está sendo *demonstrado*. Aí a correção é a prévia com cadeado mostrando o DRE real do dono, não encarecer a entrada.
+**O plano de entrada ainda pode ser bom demais.** Com agenda, WhatsApp, PWA de marca própria, encaixe e caixa do dia por R$ 97, barbearia solo talvez nunca precise subir.
 
-**Uma coisa que não deve virar plano:** limite de agendamentos. É o corte que o TopAgenda usa (60/mês no grátis) e pune exatamente o cliente que está indo bem. Se precisar de um plano grátis para captação, limite por *tempo* (trial), não por *volume*.
+Continuo recomendando **aceitar**: ela não pagaria R$ 297 de jeito nenhum, iria para o concorrente. Melhor tê-la a R$ 97 e virando referência. O plano de cima vende para quem tem equipe e sente a dor financeira.
+
+**Se depois de 30 clientes ninguém subir**, o problema não é preço — é que o financeiro não está sendo *demonstrado*. A correção é a prévia com cadeado mostrando o DRE real do dono, não encarecer a entrada.
+
+### O que não deve virar plano
+
+**Limite de agendamentos.** É o corte do TopAgenda (60/mês no grátis) e pune exatamente o cliente que está indo bem. Se precisar de captação, limite por *tempo* (trial), não por *volume*.
+
+### O que ainda não dá para saber
+
+Estes preços são a melhor hipótese com a informação de hoje, não uma conclusão. Faltam três coisas:
+
+- **O produto não é vendável ainda.** Sem envio de WhatsApp e sem gateway, o plano de entrada não entrega o que a tabela promete. Preço fechado antes disso é preço de algo que não existe.
+- **Custo variável do WhatsApp desconhecido.** A Meta cobra por mensagem, e a partir de outubro de 2026 passa a cobrar também as respostas de serviço. Sem histórico de consumo, não dá para saber quanto do R$ 97 sobra. Ver [`WHATSAPP-ARQUITETURA.md`](./WHATSAPP-ARQUITETURA.md) §6.
+- **Uma conversa que vale mais que a planilha:** perguntar ao dono da O Siqueira quanto ele pagaria, e quanto ele acha que perde por mês com horário furado. A resposta dele vale mais que qualquer comparação com o Trinks.
 
 ---
 
