@@ -22,7 +22,7 @@ import { formatBRL, formatDateShortPtBR } from "@/lib/format";
 import { useSubscription } from "@/lib/subscription-context";
 import { cancellationPolicy } from "@/lib/business-rules";
 import { useTenant } from "@/lib/tenant-context";
-import { useMyBookings } from "@/lib/db/use-shop-data";
+import { useLoyalty, useMyBookings } from "@/lib/db/use-shop-data";
 
 type MenuKey = "dados" | "plano" | "notificacoes" | "politica" | "ajuda";
 
@@ -49,10 +49,7 @@ export default function PerfilPage() {
   const { plan: activePlan, nextChargeISO } = useSubscription();
 
   const bookingHistory = minhas.filter((b) => b.status === "completed");
-  const loyalty = {
-    stamps: bookingHistory.length % tenant.policies.loyalty.stampsForReward,
-    goal: tenant.policies.loyalty.stampsForReward,
-  };
+  const loyalty = useLoyalty(user?.uid);
   const barbershop = {
     name: tenant.brand.name,
     address: tenant.contact.address,

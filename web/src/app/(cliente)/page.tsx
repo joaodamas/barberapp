@@ -11,7 +11,7 @@ import { bookingStatusMeta } from "@/lib/booking-status";
 import { formatBRL, formatDatePtBR } from "@/lib/format";
 import { useTenant } from "@/lib/tenant-context";
 import { useAuth } from "@/lib/auth-context";
-import { useMyBookings, useServices } from "@/lib/db/use-shop-data";
+import { useLoyalty, useMyBookings, useServices } from "@/lib/db/use-shop-data";
 import { OCCUPIES_SLOT } from "@/lib/domain";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { CalendarPlus } from "lucide-react";
@@ -35,13 +35,8 @@ export default function InicioPage() {
     : [];
   const statusMeta = nextBooking ? bookingStatusMeta[nextBooking.status] : null;
 
-  const loyalty = {
-    stamps: minhas.filter((b) => b.status === "completed").length %
-      tenant.policies.loyalty.stampsForReward,
-    goal: tenant.policies.loyalty.stampsForReward,
-    reward: tenant.policies.loyalty.reward,
-  };
-  const stampsLeft = loyalty.goal - loyalty.stamps;
+  const loyalty = useLoyalty(user?.uid);
+  const stampsLeft = loyalty.faltam;
   const barbershop = {
     name: tenant.brand.name,
     address: tenant.contact.address,
@@ -153,7 +148,9 @@ export default function InicioPage() {
               {loyalty.stamps} de {loyalty.goal} carimbos
             </p>
             <p className="text-xs text-gold-light md:text-sm">
-              faltam {stampsLeft} para {loyalty.reward}
+              {loyalty.podeResgatar
+                ? `${loyalty.reward} liberado!`
+                : `faltam ${stampsLeft} para ${loyalty.reward}`}
             </p>
           </div>
           <div className="flex gap-1.5">

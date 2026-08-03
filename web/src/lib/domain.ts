@@ -86,11 +86,33 @@ export type ExpenseDoc = {
   observations?: string;
 };
 
-/** Fidelidade do cliente na barbearia. */
-export type LoyaltyDoc = {
+/**
+ * Uma movimentação de fidelidade. O saldo é a SOMA das transações do cliente —
+ * nunca uma contagem de atendimentos, que não sobrevive ao primeiro resgate.
+ */
+export type LoyaltyTransactionDoc = {
   clientId: string;
+  kind: "credito" | "resgate" | "estorno";
+  /** Positivo credita, negativo resgata. */
   stamps: number;
+  bookingId?: string;
+  rewardLabel?: string;
 };
+
+/** Saldo de carimbos e progresso até a recompensa. */
+export function saldoDeFidelidade(
+  transacoes: Array<{ stamps: number }>,
+  meta: number
+) {
+  const saldo = transacoes.reduce((total, t) => total + (t.stamps ?? 0), 0);
+  const stamps = Math.max(saldo, 0);
+  return {
+    stamps,
+    goal: meta,
+    faltam: Math.max(meta - stamps, 0),
+    podeResgatar: stamps >= meta && meta > 0,
+  };
+}
 
 /** Taxa do gateway, versionada por vigência (PRD §5). */
 export type GatewayFeeDoc = {

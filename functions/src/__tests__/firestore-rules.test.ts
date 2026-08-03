@@ -285,6 +285,36 @@ describe("negar por padrão", () => {
   });
 });
 
+describe("fidelidade", () => {
+  it("o cliente lê o próprio extrato", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `barbershops/${ALFA}/loyalty_transactions`, "t1"), {
+        clientId: CLIENTE.sub, kind: "credito", stamps: 1,
+      });
+    });
+    await assertSucceeds(
+      getDoc(doc(as(CLIENTE), `barbershops/${ALFA}/loyalty_transactions`, "t1"))
+    );
+  });
+
+  it("🔒 o cliente NÃO credita carimbo para si mesmo", async () => {
+    // Senão o cartão fidelidade vira campo livre.
+    await assertFails(
+      setDoc(doc(as(CLIENTE), `barbershops/${ALFA}/loyalty_transactions`, "forjado"), {
+        clientId: CLIENTE.sub, kind: "credito", stamps: 999,
+      })
+    );
+  });
+
+  it("🔒 nem o dono grava fidelidade direto — é do servidor", async () => {
+    await assertFails(
+      setDoc(doc(as(DONO_ALFA), `barbershops/${ALFA}/loyalty_transactions`, "x"), {
+        clientId: CLIENTE.sub, kind: "credito", stamps: 1,
+      })
+    );
+  });
+});
+
 describe("cobertura", () => {
   it("nenhuma barbearia enxerga a outra, em nenhuma coleção declarada", async () => {
     const colecoes = [

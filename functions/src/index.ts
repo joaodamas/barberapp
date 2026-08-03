@@ -24,6 +24,7 @@ export {
   checkSlugAvailability,
   completeOnboardingStep,
 } from "./signup";
+export { creditLoyaltyOnCompletion, redeemLoyaltyReward } from "./loyalty";
 export { TEMPLATES } from "./whatsapp/templates";
 export type {
   TemplateDef,

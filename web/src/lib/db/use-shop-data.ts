@@ -1,9 +1,11 @@
 "use client";
 
 import { useShopCollection } from "@/lib/db/use-collection";
+import { saldoDeFidelidade } from "@/lib/domain";
+import { useTenant } from "@/lib/tenant-context";
 import type {
-  BookingDoc, ExpenseDoc, InventoryMovementDoc, PlanDoc,
-  ProductDoc, ServiceDoc, SubscriberDoc,
+  BookingDoc, ExpenseDoc, InventoryMovementDoc, LoyaltyTransactionDoc,
+  PlanDoc, ProductDoc, ServiceDoc, SubscriberDoc,
 } from "@/lib/domain";
 
 /**
@@ -43,6 +45,25 @@ export const useMyBookings = (clientId: string | undefined) =>
     direction: "desc",
     enabled: !!clientId,
   });
+
+/**
+ * Fidelidade do cliente: saldo somado das transações, não contagem de
+ * atendimentos — a contagem volta a subir sozinha depois de um resgate.
+ */
+export function useLoyalty(clientId: string | undefined) {
+  const tenant = useTenant();
+  const { items, status } = useShopCollection<LoyaltyTransactionDoc>("loyaltyTransactions", {
+    equals: { clientId },
+    enabled: !!clientId,
+  });
+
+  return {
+    ...saldoDeFidelidade(items, tenant.policies.loyalty.stampsForReward),
+    reward: tenant.policies.loyalty.reward,
+    transacoes: items,
+    status,
+  };
+}
 
 /** Combina os estados de várias coleções numa só resposta. */
 export function combineStatus(

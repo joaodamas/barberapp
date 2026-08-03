@@ -12,23 +12,23 @@
       "collectionGroup": "bookings",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "date", "order": "ASCENDING" },
-        { "fieldPath": "time", "order": "ASCENDING" }
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "ASCENDING" }
       ]
     },
     {
-      "collectionGroup": "bookings",
+      "collectionGroup": "loyalty_transactions",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "date", "order": "ASCENDING" }
+        { "fieldPath": "clientId", "order": "ASCENDING" },
+        { "fieldPath": "at", "order": "DESCENDING" }
       ]
     },
     {
       "collectionGroup": "expenses",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "category", "order": "ASCENDING" },
+        { "fieldPath": "recurring", "order": "ASCENDING" },
         { "fieldPath": "date", "order": "DESCENDING" }
       ]
     },

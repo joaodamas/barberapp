@@ -12,7 +12,7 @@ import { paymentMethodLabel } from "@/lib/payment-method";
 import { formatBRL, formatDatePtBR } from "@/lib/format";
 import { useTenant } from "@/lib/tenant-context";
 import { useAuth } from "@/lib/auth-context";
-import { useMyBookings, useServices } from "@/lib/db/use-shop-data";
+import { useLoyalty, useMyBookings, useServices } from "@/lib/db/use-shop-data";
 import { patchDoc } from "@/lib/db/repository";
 import { OCCUPIES_SLOT } from "@/lib/domain";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
@@ -63,11 +63,7 @@ export default function ReservasPage() {
   const { items: services } = useServices();
 
   const barbershop = { whatsapp: tenant.contact.whatsapp };
-  const loyalty = {
-    stamps: 0,
-    goal: tenant.policies.loyalty.stampsForReward,
-    reward: tenant.policies.loyalty.reward,
-  };
+  const loyalty = useLoyalty(user?.uid);
   const getServicesByIds = (ids: string[]) =>
     ids.map((id) => services.find((s) => s.id === id)).filter(Boolean) as Array<{
       id: string; name: string; durationMin: number;
@@ -87,6 +83,26 @@ export default function ReservasPage() {
   const [dayIndex, setDayIndex] = useState(() => firstBookableIndex(bookableDays(new Date(), tenant.schedule)));
   const [time, setTime] = useState<string | null>(null);
   const [rescheduleCount, setRescheduleCount] = useState(0);
+  const [resgatando, setResgatando] = useState(false);
+  const [erroResgate, setErroResgate] = useState<string | null>(null);
+
+  /* O resgate acontece no servidor: a transação lê o saldo e grava o resgate
+   * junto, senão dois toques no botão resgatam duas vezes com um saldo só. */
+  async function resgatar() {
+    setResgatando(true);
+    setErroResgate(null);
+    try {
+      const { callFunction } = await import("@/lib/firebase");
+      await callFunction("redeemLoyaltyReward", { barbershopId: tenant.id });
+    } catch (err) {
+      console.error("[fidelidade]", err);
+      setErroResgate(
+        (err as { message?: string })?.message ?? "Não foi possível resgatar agora."
+      );
+    } finally {
+      setResgatando(false);
+    }
+  }
 
   const days = useMemo(() => bookableDays(new Date(), tenant.schedule), [tenant.schedule]);
   const selectedDay = days[dayIndex];
@@ -104,7 +120,7 @@ export default function ReservasPage() {
   const refund = booking ? refundFor(booking) : null;
 
   const totalSpentHistory = bookingHistory.reduce((s, b) => s + b.value, 0);
-  const stampsLeft = loyalty.goal - loyalty.stamps;
+  const stampsLeft = loyalty.faltam;
 
   /* Reagendar era grátis, ilimitado e sem prazo — dava para reagendar 10 min
    * antes e cancelar depois com 100% de volta, anulando a política inteira. */
@@ -284,7 +300,7 @@ export default function ReservasPage() {
                 {loyalty.stamps} de {loyalty.goal} carimbos
               </p>
               <p className="text-xs text-gold-light md:text-sm">
-                faltam {stampsLeft} para {loyalty.reward}
+                {loyalty.podeResgatar ? "pronto para resgatar" : `faltam ${stampsLeft}`}
               </p>
             </div>
             <div className="flex gap-1.5">
@@ -299,6 +315,16 @@ export default function ReservasPage() {
                 />
               ))}
             </div>
+            {loyalty.podeResgatar && (
+              <Button onClick={resgatar} disabled={resgatando}>
+                {resgatando ? "Resgatando…" : `Resgatar ${loyalty.reward}`}
+              </Button>
+            )}
+            {erroResgate && (
+              <p role="alert" className="text-xs text-danger">
+                {erroResgate}
+              </p>
+            )}
           </Card>
         </section>
 
