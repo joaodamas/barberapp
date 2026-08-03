@@ -183,4 +183,5 @@ Cada sim desses transforma o produto em consultoria com login. A defesa é o lim
 - [`AUDITORIA-2026-08-02.md`](./AUDITORIA-2026-08-02.md) — estado do código
 - [`REVISAO-UIUX-2026-08-02.md`](./REVISAO-UIUX-2026-08-02.md) — interface e re-auditoria
 - [`ONBOARDING-SELF-SERVICE.md`](./ONBOARDING-SELF-SERVICE.md) — cadastro, onboarding guiado e trial
+- [`PLANOS-E-FUNCIONALIDADES.md`](./PLANOS-E-FUNCIONALIDADES.md) — inventário e separação por planos
 - [`../prd-app-barbearia.md`](../prd-app-barbearia.md) §3 e §13 — fases e entidades
