@@ -126,9 +126,43 @@ if (ensaio) {
 }
 
 const token = lerToken();
+
+/**
+ * Nomes já existentes na WABA, consultados ANTES de submeter.
+ *
+ * A primeira versão detectava duplicata pelo texto do erro ("already exists").
+ * A Meta responde no idioma da conta — veio "Já existe conteúdo em Portuguese
+ * (BR) para esse modelo", o padrão não bateu, e 5 templates que estavam no
+ * lugar certo foram reportados como falha. Perguntar o que existe não depende
+ * de idioma nenhum.
+ */
+async function nomesExistentes() {
+  const nomes = new Set();
+  let url = `https://graph.facebook.com/${VERSAO_API}/${wabaId}/message_templates?fields=name&limit=200`;
+  while (url) {
+    const r = await fetch(url, { headers: { authorization: `Bearer ${token}` } });
+    const corpo = await r.json();
+    if (!r.ok) {
+      const msg = corpo.error?.error_user_msg ?? corpo.error?.message ?? "erro desconhecido";
+      console.error(`Não consegui listar os templates da WABA: ${msg}`);
+      process.exit(1);
+    }
+    for (const t of corpo.data ?? []) nomes.add(t.name);
+    url = corpo.paging?.next ?? null;
+  }
+  return nomes;
+}
+
+const existentes = await nomesExistentes();
 const resultados = { criados: [], jaExistiam: [], falharam: [] };
 
 for (const t of escolhidos) {
+  if (existentes.has(t.name)) {
+    console.log(`= ${t.name} — já existia nesta WABA`);
+    resultados.jaExistiam.push(t.name);
+    continue;
+  }
+
   const r = await fetch(
     `https://graph.facebook.com/${VERSAO_API}/${wabaId}/message_templates`,
     {
@@ -149,9 +183,9 @@ for (const t of escolhidos) {
   }
 
   const msg = corpo.error?.error_user_msg ?? corpo.error?.message ?? JSON.stringify(corpo);
-  /* Nome duplicado não é falha: o script é idempotente de propósito, para poder
-   * rodar de novo depois de corrigir um texto sem apagar o resto. */
-  if (/already exists/i.test(msg)) {
+  /* Rede de segurança para a corrida entre a listagem e o POST — quem decide
+   * "já existe" é a consulta lá em cima, não este texto. */
+  if (/already exists|já existe/i.test(msg)) {
     console.log(`= ${t.name} — já existia nesta WABA`);
     resultados.jaExistiam.push(t.name);
   } else {

@@ -79,7 +79,7 @@ quem não vem avisa com um toque, e o horário volta pra agenda a tempo.
 > Confirma que você vem? É só tocar em um dos botões abaixo.
 
 `primeiroNome · nomeBarbearia · hora · servicos`
-Botões: **Confirmo ✅** · **Preciso cancelar ❌**
+Botões: **Confirmo que vou** · **Preciso cancelar**
 
 ### 3. `cancelamento_reserva` · UTILITY
 **Dispara:** cancelamento confirmado, por qualquer um dos lados.
@@ -118,7 +118,7 @@ quando precisa fechar. Essa é a dor que ele reconhece na hora.
 >
 > Motivo: **{{4}}**
 >
-> Escolha um novo horário em um toque pelo link **{{5}}**.
+> Escolha um novo horário em um toque pelo link **{{5}}** — leva menos de um minuto.
 
 `primeiroNome · data · hora · motivo · linkReagendamento`
 Botão: **Escolher novo horário**
@@ -283,7 +283,7 @@ precisa dizer isso, senão vira aflição à toa.
 
 > Oi **{{1}}**, este é o último aviso sobre a mensalidade do plano **{{2}}** (**{{3}}**), vencida em **{{4}}**.
 >
-> Se não for regularizada, seu plano será suspenso e os benefícios ficam pausados até o pagamento. Você resolve agora pelo link **{{5}}**.
+> Se não for regularizada, seu plano será suspenso e os benefícios ficam pausados até o pagamento. Você resolve agora pelo link **{{5}}** e mantém tudo ativo.
 
 `primeiroNome · nomePlano · valor · vencimento · linkPagamento`
 
@@ -427,7 +427,7 @@ mão. Dois botões no WhatsApp resolvem sem ele largar o cliente da cadeira.
 > Responda em até 45 minutos — depois disso o pedido expira e o cliente recebe horários alternativos automaticamente.
 
 `nomeCliente · servicos · data · hora · valor · formaPagamento`
-Botões: **Aprovar ✅** · **Recusar ❌**
+Botões: **Aprovar encaixe** · **Recusar**
 
 ### 29. `resumo_do_dia` · UTILITY
 **Dispara:** todo dia às 7h (ajustável).
