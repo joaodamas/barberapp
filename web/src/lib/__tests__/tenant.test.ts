@@ -72,3 +72,13 @@ describe("tenant padrão", () => {
     expect(tenantUrl("osiqueira", "/agendar")).toMatch(/\/agendar$/);
   });
 });
+
+describe("host atrás de proxy", () => {
+  it("o subdomínio sobrevive ao encaminhamento do Hosting", () => {
+    // O Firebase Hosting reescreve `Host` para *.run.app e guarda o original
+    // em `x-forwarded-host`. Ler o header errado derruba o multi-tenant
+    // inteiro em silêncio.
+    expect(slugFromHost("ssraxonbarber-n75dlgtbka-uc.a.run.app")).toBeNull();
+    expect(slugFromHost("osiqueira.jpproject.com.br")).toBe("osiqueira");
+  });
+});

@@ -52,28 +52,33 @@ let dbPromise: Promise<import("firebase/firestore").Firestore> | null = null;
 
 export async function getDb() {
   dbPromise ??= (async () => {
-    const {
-      initializeFirestore,
-      persistentLocalCache,
-      persistentMultipleTabManager,
-      connectFirestoreEmulator,
-    } = await import("firebase/firestore");
+    const mod = await import("firebase/firestore");
+    const noNavegador = typeof window !== "undefined";
 
-    /* Cache em IndexedDB, não em memória.
+    /* Cache em IndexedDB, SÓ no navegador.
      *
-     * Sem isto, sair de uma tela e voltar refaz TODA a busca no servidor: o
-     * dono percebe como lentidão a cada troca de aba. Com cache persistente, o
-     * que já foi visto aparece na hora e o SDK revalida em segundo plano.
+     * Sem cache persistente, sair de uma tela e voltar refaz toda a busca — é
+     * o que o dono sente como lentidão a cada troca de aba.
+     *
+     * Mas `persistentLocalCache` depende de IndexedDB, que NÃO EXISTE no Node.
+     * Aplicá-lo no servidor faz `getDoc` falhar em silêncio: a resolução do
+     * subdomínio cai no tenant padrão, o app inteiro passa a consultar uma
+     * barbearia que não existe, e o dono é expulso do próprio painel porque o
+     * claim dele não bate com o id errado. Custou um deploy inteiro para
+     * aparecer, porque em desenvolvimento o servidor e o navegador são a mesma
+     * máquina e o sintoma não surge.
      *
      * `persistentMultipleTabManager` porque o painel costuma ficar aberto em
      * mais de uma aba — sem ele, a segunda aba falha ao abrir o cache. */
-    const db = initializeFirestore(firebaseApp, {
-      localCache: persistentLocalCache({
-        tabManager: persistentMultipleTabManager(),
-      }),
-    });
+    const db = noNavegador
+      ? mod.initializeFirestore(firebaseApp, {
+          localCache: mod.persistentLocalCache({
+            tabManager: mod.persistentMultipleTabManager(),
+          }),
+        })
+      : mod.getFirestore(firebaseApp);
 
-    if (useEmulator) connectFirestoreEmulator(db, "127.0.0.1", 8080);
+    if (useEmulator) mod.connectFirestoreEmulator(db, "127.0.0.1", 8080);
     return db;
   })();
   return dbPromise;

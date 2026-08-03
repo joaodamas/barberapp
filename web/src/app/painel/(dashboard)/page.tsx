@@ -33,7 +33,7 @@ export default function PainelHojePage() {
   const tenant = useTenant();
   const { brand } = tenant;
   const { items: todas, status } = useBookings();
-  const { items: services } = useServices();
+  const { items: services, status: statusServicos } = useServices();
 
   const hoje = toISODate(new Date());
   const bookings = todas.filter((b) => b.date === hoje);
@@ -60,7 +60,9 @@ export default function PainelHojePage() {
       href: "/painel",
       tone: "gold" as const,
     },
-    services.length === 0 && {
+    /* Só acusa falta de serviço depois que a consulta responde — antes disso
+     * a lista está vazia porque ainda não chegou, não porque não existe. */
+    statusServicos === "pronto" && services.length === 0 && {
       id: "servicos",
       label: "Nenhum serviço cadastrado — o cliente não tem o que agendar",
       href: "/comecar",

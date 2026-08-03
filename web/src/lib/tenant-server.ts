@@ -1,8 +1,6 @@
 import "server-only";
 import { cache } from "react";
 import { headers } from "next/headers";
-import { doc, getDoc } from "firebase/firestore";
-import { getDb } from "@/lib/firebase";
 import {
   ALL_FEATURES,
   DEFAULT_SCHEDULE,
@@ -16,19 +14,22 @@ import {
 /**
  * Resolve a barbearia do subdomínio, no servidor.
  *
- * Usa o SDK CLIENTE, não o Admin, e a leitura passa pelas Security Rules como
- * qualquer outra. Isso é possível porque a ficha da barbearia é pública — é
- * vitrine, a mesma informação que está na fachada. Contrato e cobrança vivem em
- * `/barbershops/{id}/private`, que ninguém de fora alcança.
+ * Lê pela API REST do Firestore, com `fetch`, sem SDK nenhum. São dois
+ * documentos públicos — a ficha da barbearia é vitrine, a mesma informação que
+ * está na fachada; contrato e cobrança vivem em `/barbershops/{id}/private`,
+ * que ninguém de fora alcança.
  *
- * Duas razões para não usar `firebase-admin` aqui:
+ * Por que nem Admin SDK nem SDK cliente:
  *
- * 1. O Turbopack o externaliza com um nome hasheado que não resolve em
- *    execução — o servidor sobe e devolve 500 em TODA rota. O pacote está no
- *    bundle; o especificador é que não bate. Custou um deploy inteiro para
- *    aparecer, porque em desenvolvimento o módulo resolve normalmente.
- * 2. Admin SDK ignora as regras. Para ler dado público isso é poder demais: um
- *    erro de caminho passaria a expor exatamente o que as regras protegem.
+ * 1. `firebase-admin` é externalizado pelo Turbopack com um nome hasheado que
+ *    não resolve em execução — o servidor sobe e devolve 500 em TODA rota.
+ * 2. O SDK cliente é feito para navegador. Em Node ele falha em silêncio aqui:
+ *    a resolução caía no tenant padrão, o app passava a consultar uma barbearia
+ *    inexistente e o dono era expulso do próprio painel, porque o claim dele
+ *    não batia com o id errado. Sem erro no log — o pior tipo de falha.
+ *
+ * `fetch` não tem bundler no caminho, não tem dependência, e o Next ainda
+ * cacheia a resposta por conta própria.
  *
  * CONSEQUÊNCIA ARQUITETURAL: ler o `host` torna a rota dinâmica. O app era 100%
  * estático; com subdomínio por barbearia ele deixa de ser — não se prerenderiza
@@ -41,7 +42,22 @@ import {
  */
 export const getTenant = cache(async function getTenant(): Promise<Tenant> {
   const headerList = await headers();
-  const slug = slugFromHost(headerList.get("host"));
+
+  /* `x-forwarded-host` ANTES de `host`.
+   *
+   * O Firebase Hosting encaminha para o Cloud Run reescrevendo o `Host` para o
+   * domínio interno `*.run.app`. Lendo só `host`, o subdomínio da barbearia
+   * some no caminho: `slugFromHost` devolve nulo, o app cai no tenant padrão e
+   * o dono é expulso do próprio painel — tudo isso SEM erro em log nenhum,
+   * porque nada falhou, só chegou informação errada.
+   *
+   * Em desenvolvimento não existe proxy, então o sintoma não aparece: só surge
+   * no primeiro acesso real em produção. */
+  const host =
+    headerList.get("x-forwarded-host") ??
+    headerList.get("host");
+
+  const slug = slugFromHost(host);
 
   if (!slug) return DEFAULT_TENANT;
 
@@ -61,25 +77,69 @@ export const getTenant = cache(async function getTenant(): Promise<Tenant> {
  * duas leituras por barbearia a cada `s-maxage`, não por visita.
  */
 async function loadTenantBySlug(slug: string): Promise<Tenant | null> {
+  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+  if (!projectId) return null;
+
+  const base = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
+
   try {
-    const db = await getDb();
+    // O documento de slug quase nunca muda: uma hora de cache é conservador.
+    const slugRes = await fetch(`${base}/slugs/${encodeURIComponent(slug)}`, {
+      next: { revalidate: 3600 },
+    });
+    if (!slugRes.ok) return null;
 
-    const slugDoc = await getDoc(doc(db, "slugs", slug));
-    if (!slugDoc.exists()) return null;
-
-    const barbershopId = slugDoc.data()?.barbershopId as string | undefined;
+    const barbershopId = readString((await slugRes.json())?.fields?.barbershopId);
     if (!barbershopId) return null;
 
-    const shopDoc = await getDoc(doc(db, "barbershops", barbershopId));
-    if (!shopDoc.exists()) return null;
+    // A ficha muda quando o dono edita a marca: cinco minutos.
+    const shopRes = await fetch(`${base}/barbershops/${barbershopId}`, {
+      next: { revalidate: 300 },
+    });
+    if (!shopRes.ok) return null;
 
-    return toTenant(barbershopId, shopDoc.data() ?? {});
+    const fields = (await shopRes.json())?.fields;
+    if (!fields) return null;
+
+    return toTenant(barbershopId, decode(fields) as Record<string, unknown>);
   } catch (error) {
     // Barbearia fora do ar é pior que barbearia com a marca da plataforma:
     // degrada em vez de derrubar, e o erro fica no log.
     console.error(`[tenant] falha ao carregar "${slug}"`, error);
     return null;
   }
+}
+
+/**
+ * A REST do Firestore devolve valores tipados (`{ stringValue }`,
+ * `{ mapValue: { fields } }`). Converte para objeto comum.
+ */
+function decode(value: unknown): unknown {
+  if (value === null || typeof value !== "object") return value;
+  const v = value as Record<string, unknown>;
+
+  if ("stringValue" in v) return v.stringValue;
+  if ("booleanValue" in v) return v.booleanValue;
+  if ("integerValue" in v) return Number(v.integerValue);
+  if ("doubleValue" in v) return Number(v.doubleValue);
+  if ("timestampValue" in v) return v.timestampValue;
+  if ("nullValue" in v) return null;
+  if ("arrayValue" in v) {
+    const values = (v.arrayValue as { values?: unknown[] })?.values ?? [];
+    return values.map(decode);
+  }
+  if ("mapValue" in v) {
+    const fields = (v.mapValue as { fields?: Record<string, unknown> })?.fields ?? {};
+    return decode(fields);
+  }
+
+  // Já é um mapa de campos.
+  return Object.fromEntries(Object.entries(v).map(([k, item]) => [k, decode(item)]));
+}
+
+function readString(field: unknown): string | undefined {
+  const value = decode(field);
+  return typeof value === "string" ? value : undefined;
 }
 
 /** Documento do Firestore → `Tenant`, com o padrão da plataforma no que faltar. */
