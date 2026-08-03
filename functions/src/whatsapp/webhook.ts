@@ -19,6 +19,18 @@ import { parseButtonPayload, type ButtonAction } from "./templates";
 const VERIFY_TOKEN = defineSecret("WHATSAPP_VERIFY_TOKEN");
 const APP_SECRET = defineSecret("WHATSAPP_APP_SECRET");
 
+/**
+ * Segredo sem espaço em volta.
+ *
+ * Segredo entra no Secret Manager por arquivo ou por colagem, e os dois trazem
+ * `\n` no fim sem pedir licença. O valor guardado passa a ser "abc\n", a
+ * comparação com o que a Meta manda falha, e o sintoma é um 403 na verificação
+ * do webhook que parece problema DELES. Foi exatamente o que aconteceu aqui.
+ */
+function segredo(param: { value(): string }): string {
+  return (param.value() ?? "").trim();
+}
+
 /** Status de reserva resultante de cada botão. */
 const EFEITO: Record<ButtonAction, string | null> = {
   CONFIRM_BOOKING: "confirmed_by_client",
@@ -59,7 +71,7 @@ export const whatsappWebhook = onRequest(
       const modo = req.query["hub.mode"];
       const token = req.query["hub.verify_token"];
       const desafio = req.query["hub.challenge"];
-      if (modo === "subscribe" && token === VERIFY_TOKEN.value()) {
+      if (modo === "subscribe" && token === segredo(VERIFY_TOKEN)) {
         res.status(200).send(String(desafio ?? ""));
         return;
       }
@@ -72,7 +84,7 @@ export const whatsappWebhook = onRequest(
       return;
     }
 
-    if (!assinaturaConfere(req.rawBody, req.get("x-hub-signature-256"), APP_SECRET.value())) {
+    if (!assinaturaConfere(req.rawBody, req.get("x-hub-signature-256"), segredo(APP_SECRET))) {
       console.warn("[whatsapp] assinatura inválida — requisição descartada");
       res.status(401).send("Unauthorized");
       return;
