@@ -5,7 +5,121 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
 ## [Não publicado]
 
-### Adicionado
+### Plataforma multi-barbearia
+
+O produto nasceu para uma barbearia e passou a ser preparado para muitas. A
+barbearia original vira o tenant piloto, não o único cliente.
+
+**Isolamento e acesso**
+- Dados isolados por subcoleção sob `/barbershops/{id}` — uma regra no nível do
+  pai protege tudo abaixo, e é impossível "esquecer o filtro" e vazar o
+  financeiro de uma barbearia para outra, que é o risco permanente do modelo com
+  coleções na raiz e campo `tenantId`.
+- Vínculo pessoa↔barbearia no claim `barbershops: { id: papel }`. Ler claim
+  dentro da regra é grátis; ler documento de vínculo custaria uma leitura
+  cobrada por avaliação. O cliente final não tem claim — acessa o que é dele por
+  `clientId`.
+- **37 testes de regra contra o emulador** provam o isolamento nas 14
+  subcoleções, os papéis dentro da casa, o que o dono NÃO pode (mudar plano,
+  status, slug; criar ou excluir barbearia; sequestrar slug) e a imutabilidade
+  do log de auditoria.
+- Regras e 5 índices aplicados em produção. O banco Firestore não existia no
+  projeto e foi criado em `southamerica-east1` — **a região de um banco não pode
+  ser alterada depois**.
+
+**Endereço e marca**
+- Cada barbearia tem subdomínio próprio e vira um PWA instalável distinto, com
+  nome e ícone dela na tela do celular — o essencial de um app white-label sem
+  passar por loja de aplicativo.
+- As 35 ocorrências da marca em 12 arquivos saíram para a configuração do
+  tenant. Personaliza-se nome, logo, cor de destaque e parâmetros de política;
+  fundo, cor de texto e semânticas continuam da plataforma, para o contraste
+  medido não depender da cor que o lojista escolher.
+- **Consequência:** ler o host tornou as 19 rotas dinâmicas. Mitigado com cache
+  de borda por host — o render acontece uma vez por barbearia, não por visita.
+
+**Cadastro e onboarding**
+- Cadastro self-service com slug atômico, e-mail verificado obrigatório e limite
+  de uma barbearia por conta. Trial de 7 dias com tudo liberado.
+- Onboarding guiado de 4 passos, pedindo só o que impede a primeira reserva:
+  identidade, serviços, horários e o link compartilhado. Despesas, planos e
+  produtos são pedidos dentro da própria tela, quando o dono chegar lá.
+- O passo dos horários tem prévia ao vivo da grade; o dos serviços vem com
+  quatro linhas pré-preenchidas — tabela vazia gera abandono.
+- A cor é uma paleta de seis validadas, não seletor livre: dourado escolhido a
+  esmo derruba o contraste do botão primário.
+
+### Persistência
+
+- `mock-data.ts` foi apagado. Nenhuma tela lê dado fictício.
+- O mock guardava resultado pronto — DRE, caixa diário, KPIs e projeção eram
+  literais que precisavam bater entre si na mão e não batiam. Agora tudo desce
+  de reservas e despesas por funções puras em `lib/analytics.ts`, com 39 testes.
+- O motor de slots deixou de ter grade fixa: a jornada vem do tenant e a
+  ocupação vem das reservas.
+- Sete telas ganharam estado vazio que explica o que falta e oferece a ação.
+
+### Fidelidade
+
+- Saldo por transação, não por contagem. `atendimentos % 10` funcionava até o
+  primeiro resgate — depois a conta voltava a subir sozinha — e não sobrevivia a
+  estorno, que o PRD §9 exige.
+- Crédito automático quando o atendimento é concluído, com id derivado da
+  reserva: reprocessar o gatilho não credita duas vezes. Reserva desmarcada
+  devolve o carimbo.
+- Resgate em transação que lê o saldo e grava junto, para dois toques no botão
+  não resgatarem duas vezes.
+
+### WhatsApp
+
+- Catálogo de 16 para **34 templates**, cobrindo todos os estados do sistema.
+  `pending_payment` e `expired` existiam no código sem nenhuma mensagem: o
+  cliente perdia o horário sem ser avisado.
+- Campo `sender` separa duas conversas que não podem sair do mesmo número: as 31
+  da barbearia saem da WABA dela; trial e cobrança do SaaS saem da da
+  plataforma.
+- `pagamento_antecipado_exigido` foi escrito sem tom de punição de propósito:
+  mensagem acusatória gera bloqueio, bloqueio derruba a nota de qualidade do
+  número, e nota baixa reduz o limite de envio de todas as barbearias.
+
+### Corrigido — plataforma e persistência
+
+- **Regras de segurança eram single-tenant.** `isOwner()` checava apenas
+  `role == 'owner'`, global, sobre coleções na raiz — com duas barbearias, o
+  dono da A leria as despesas da B. Corrigido antes de existir qualquer dado.
+- **Cinco defeitos que só apareceram rodando no navegador**, nenhum detectável
+  por typecheck, lint ou teste unitário:
+  - CSP sem `unsafe-eval` em desenvolvimento e `allowedDevOrigins` ausente — a
+    página carregava inteira e **nenhum botão respondia**, sem erro no console.
+  - `upgrade-insecure-requests` forçando https em subdomínio local e derrubando
+    todos os assets.
+  - `Timestamp` do Firestore atravessando para Client Component, derrubando a
+    rota com 500.
+  - `RecaptchaVerifier` construído na montagem: qualquer falha dele matava o
+    login inteiro em silêncio, inclusive a aba de e-mail que nem o usa.
+  - `shortName` cortando no meio da palavra — é o texto sob o ícone no celular
+    do cliente.
+- **Cinco regressões introduzidas pelas próprias correções**, achadas em
+  re-auditoria: o seletor de dias abrindo num domingo (reprodutível toda
+  semana), o motor devolvendo horários em dia fechado, divisões sem guarda que
+  sobreviveram à primeira varredura e órfãos criados pela limpeza.
+- `slugFromHost` contava rótulos de domínio e quebrava em `.com.br`, que tem
+  três no apex.
+
+### Documentação
+
+- `ESTRATEGIA-SAAS.md` — isolamento, subdomínio, o que é personalizável e o que
+  não é.
+- `ONBOARDING-SELF-SERVICE.md` — campos, textos de orientação e o problema
+  honesto do trial de 7 dias mostrar a agenda e esconder o financeiro.
+- `PLANOS-E-FUNCIONALIDADES.md` — inventário do que existe e o corte em três
+  planos, por camada de dor e nunca por profissional.
+- `WHATSAPP-ARQUITETURA.md` — de qual número sai a mensagem, Embedded Signup, a
+  amarração por `bookingId`/`wamid`, e a verificação comercial como gargalo.
+- `REVISAO-UIUX-2026-08-02.md`, `AUDITORIA-2026-08-02.md`, `ARQUITETURA.md`,
+  `COMPARATIVO-MERCADO-2026-08.md`.
+
+### Adicionado — auditoria de 02/08
 
 **Auditoria e documentação**
 - `docs/AUDITORIA-2026-08-02.md` — 47 achados priorizados com evidência e
@@ -37,7 +151,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
   dias fechados e soma de durações.
 - `lib/dre.ts` — cálculo do resultado do mês, fonte única para Financeiro e DRE.
 
-### Corrigido
+### Corrigido — auditoria de 02/08
 
 - **Duas telas financeiras exibiam o dia da semana no lugar da data.**
   `formatDatePtBR(...).split(",")[0]` devolve "domingo", não "05 de julho" — as
@@ -114,6 +228,18 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 - Provider **Phone/SMS** no Firebase Authentication: enquanto não for
   habilitado, a aba "Celular" do login não funciona (e-mail/senha e Google
   funcionam normalmente).
+
+---
+
+### Em aberto
+
+- **O nome da plataforma.** Trava o domínio raiz, os slugs reservados e a
+  assinatura dos templates. Depois que barbearias externas instalarem o PWA,
+  trocar o domínio quebra o app na mão dos clientes delas — decidir antes do
+  primeiro cliente de fora.
+- Envio de WhatsApp, gateway de pagamento, estorno via API e cobrança do próprio
+  SaaS. Sem eles o produto não é vendável.
+- Verificação comercial na Meta — sem ela, 250 destinatários únicos por 24h.
 
 ---
 
