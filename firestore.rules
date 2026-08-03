@@ -80,6 +80,18 @@ service cloud.firestore {
     /* Conta de operação da plataforma — só o servidor                     */
     /* ------------------------------------------------------------------ */
 
+    /* Índices do WhatsApp para o número ÚNICO da plataforma: id da mensagem →
+     * barbearia, e telefone do cliente → última barbearia. São o mapa de volta
+     * que o webhook usa quando o `phone_number_id` não identifica mais a dona.
+     * Só o servidor escreve e lê — exposto, o segundo é uma lista de quem é
+     * cliente de qual barbearia. */
+    match /whatsapp_sent/{messageId} {
+      allow read, write: if false;
+    }
+    match /whatsapp_conversations/{telefone} {
+      allow read, write: if false;
+    }
+
     match /whatsapp_numbers/{phoneNumberId} {
       /* Número da Cloud API → barbearia. O webhook é público e precisa desta
        * tradução para saber de quem é a mensagem que chegou; só o servidor

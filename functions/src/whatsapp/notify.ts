@@ -9,6 +9,7 @@ import {
   primeiroNome,
 } from "./format";
 import { getFirestore } from "firebase-admin/firestore";
+import { localeDoDocumento } from "../locale";
 
 /**
  * Reserva criada → avisa o dono e o cliente.
@@ -45,9 +46,10 @@ export const notifyBookingCreated = onDocumentCreated(
     const nomeBarbearia = shop.get("brand.name") ?? "sua barbearia";
     const endereco = shop.get("contact.address") ?? "";
 
+    const localeDaLoja = localeDoDocumento(shop.data());
     const servicos = listaDeServicos(reserva.serviceNames ?? []);
-    const data = dataPorExtenso(reserva.date);
-    const valor = moeda(reserva.value);
+    const data = dataPorExtenso(reserva.date, localeDaLoja);
+    const valor = moeda(reserva.value, localeDaLoja);
     const pagamento = formaPagamento(reserva.paymentMethod);
     const nomeCliente = String(reserva.clientName ?? "Cliente");
 

@@ -1,5 +1,6 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
+import { diaDaSemanaNoFuso, hojeNoFuso, instanteNoFuso, localeDoDocumento } from "./locale";
 
 /**
  * Criação de reserva.
@@ -41,16 +42,6 @@ const OCUPAM_SLOT = [
 /** Status de uma reserva ainda viva, do ponto de vista do cliente. */
 const EM_ABERTO = ["pending_payment", "confirmed", "confirmed_by_client", "fit_in_requested"];
 
-/** Hoje em São Paulo. A função roda em UTC — depois das 21h, `toISOString` já virou o dia. */
-function hojeISO(): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Sao_Paulo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
-}
-
 export const createBooking = onCall<CriarReservaInput>(async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Entre na sua conta para agendar.");
@@ -77,8 +68,13 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
   const schedule = shop.schedule ?? {};
   const policies = shop.policies ?? {};
 
+  /* Fuso da barbearia, não do servidor. A função roda em UTC: numa barbearia em
+   * Dublin, `new Date("2026-08-04T15:00:00")` erra por uma hora e em São Paulo
+   * por três — o bastante para recusar horário válido ou aceitar um que passou. */
+  const locale = localeDoDocumento(shop);
+
   /* ---- A barbearia abre nesse dia? ---- */
-  const diaSemana = new Date(`${date}T12:00:00`).getDay();
+  const diaSemana = diaDaSemanaNoFuso(date, locale.timeZone);
   const abre: number[] = policies.openWeekdays ?? schedule.weekdays ?? [1, 2, 3, 4, 5, 6];
   if (!abre.includes(diaSemana)) {
     throw new HttpsError("failed-precondition", "A barbearia não abre neste dia.");
@@ -86,7 +82,7 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
 
   /* ---- Antecedência mínima ---- */
   const minutosMinimos: number = policies.booking?.minAdvanceMinutes ?? 60;
-  const inicio = new Date(`${date}T${time}:00`);
+  const inicio = instanteNoFuso(date, time, locale.timeZone);
   if (inicio.getTime() - Date.now() < minutosMinimos * 60_000) {
     throw new HttpsError(
       "failed-precondition",
@@ -138,7 +134,7 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
      * índice faltando derruba a criação de reserva em produção. A quantidade
      * por cliente é pequena por natureza. */
     const maxAtivas: number = policies.booking?.maxActivePerClient ?? 3;
-    const hoje = hojeISO();
+    const hoje = hojeNoFuso(locale.timeZone);
     const minhas = await tx.get(shopRef.collection("bookings").where("clientId", "==", uid));
     const ativas = minhas.docs.filter((d) => {
       const b = d.data();
@@ -242,14 +238,15 @@ export const rescheduleBooking = onCall<{
   const policies = shop.policies ?? {};
   const schedule = shop.schedule ?? {};
 
-  const diaSemana = new Date(`${date}T12:00:00`).getDay();
+  const locale = localeDoDocumento(shop);
+  const diaSemana = diaDaSemanaNoFuso(date, locale.timeZone);
   const abre: number[] = policies.openWeekdays ?? schedule.weekdays ?? [1, 2, 3, 4, 5, 6];
   if (!abre.includes(diaSemana)) {
     throw new HttpsError("failed-precondition", "A barbearia não abre neste dia.");
   }
 
   const minutosMinimos: number = policies.booking?.minAdvanceMinutes ?? 60;
-  if (new Date(`${date}T${time}:00`).getTime() - Date.now() < minutosMinimos * 60_000) {
+  if (instanteNoFuso(date, time, locale.timeZone).getTime() - Date.now() < minutosMinimos * 60_000) {
     throw new HttpsError(
       "failed-precondition",
       `Reservas precisam de ao menos ${minutosMinimos} minutos de antecedência.`
@@ -260,7 +257,8 @@ export const rescheduleBooking = onCall<{
    * para a barbearia recolocar outra pessoa. */
   const horasMinimas: number = policies.reschedule?.minHoursBefore ?? 6;
   const horasAteOAtual =
-    (new Date(`${booking.date}T${booking.time}:00`).getTime() - Date.now()) / 3_600_000;
+    (instanteNoFuso(booking.date, booking.time, locale.timeZone).getTime() - Date.now()) /
+    3_600_000;
   if (!ehDono && horasAteOAtual < horasMinimas) {
     throw new HttpsError(
       "failed-precondition",
@@ -331,8 +329,9 @@ export const cancelBooking = onCall<{ barbershopId: string; bookingId: string }>
     const janelaParcial: number = politica.partialRefundHours ?? 6;
     const taxaPct: number = politica.cancellationFeePct ?? 25;
 
+    const { timeZone } = localeDoDocumento(shopSnap.data());
     const horas =
-      (new Date(`${booking.date}T${booking.time}:00`).getTime() - Date.now()) / 3_600_000;
+      (instanteNoFuso(booking.date, booking.time, timeZone).getTime() - Date.now()) / 3_600_000;
 
     let refund = 0;
     if (booking.paymentMethod !== "local") {

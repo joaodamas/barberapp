@@ -46,6 +46,38 @@ export type TenantContact = {
   since?: number;
 };
 
+/**
+ * Onde a barbearia fica, para efeito de dinheiro, data e hora.
+ *
+ * Isto NÃO é enfeite de internacionalização — é correção.
+ *
+ * O produto inteiro assumia São Paulo e real, em 21 arquivos. Numa barbearia em
+ * Dublin, "amanhã às 15:00" vira o dia errado na confirmação e a antecedência
+ * mínima calcula com três horas de diferença: o cliente reserva um horário que
+ * o sistema acha que já passou, ou aparece um dia depois. O erro não aparece em
+ * log nenhum — aparece na cadeira vazia.
+ *
+ * E fica mais caro a cada reserva gravada, porque data e hora já persistidas
+ * passam a significar coisas diferentes conforme o fuso de quem as leu.
+ *
+ * `locale` é só apresentação (como o número é escrito). `currency` é o dinheiro
+ * de verdade. `timeZone` é o que decide QUE DIA é hoje.
+ */
+export type TenantLocale = {
+  /** IANA, ex.: "America/Sao_Paulo", "Europe/Dublin". */
+  timeZone: string;
+  /** ISO 4217, ex.: "BRL", "EUR", "GBP". */
+  currency: string;
+  /** BCP 47, ex.: "pt-BR", "en-IE". */
+  locale: string;
+};
+
+export const DEFAULT_LOCALE: TenantLocale = {
+  timeZone: "America/Sao_Paulo",
+  currency: "BRL",
+  locale: "pt-BR",
+};
+
 export type TenantPolicies = {
   cancellation: typeof defaultCancellationPolicy;
   reschedule: typeof defaultReschedulePolicy;
@@ -98,6 +130,8 @@ export type Tenant = {
   status: "ativo" | "suspenso" | "trial";
   brand: TenantBrand;
   contact: TenantContact;
+  /** Fuso, moeda e formato. Decide QUE DIA é hoje e em que moeda o valor é. */
+  locale: TenantLocale;
   policies: TenantPolicies;
   features: TenantFeatures;
   schedule: TenantSchedule;
@@ -211,6 +245,7 @@ export const DEFAULT_TENANT: Tenant = {
     instagram: "@osiqueirabarbearia",
     since: 2012,
   },
+  locale: DEFAULT_LOCALE,
   policies: PLATFORM_DEFAULT_POLICIES,
   features: ALL_FEATURES,
   schedule: {

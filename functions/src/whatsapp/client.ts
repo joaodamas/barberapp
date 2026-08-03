@@ -56,7 +56,8 @@ export function normalizarNumero(bruto: string): string | null {
 export function montarComponentes(
   template: TemplateName,
   params: Record<string, string>,
-  refId?: string
+  barbershopId?: string,
+  bookingId?: string
 ): unknown[] {
   const def = TEMPLATES[template];
   const components: unknown[] = [];
@@ -69,16 +70,20 @@ export function montarComponentes(
   }
 
   /* Cada botão vira um componente próprio com o payload que o webhook lê de
-   * volta. Sem `refId`, o toque chega sem dizer QUAL reserva confirmar. */
+   * volta — barbearia e reserva juntas. Sem eles, o toque chega sem dizer nem
+   * de quem é nem do que se trata. */
   const botoes = (def as { buttons?: { action: string }[] }).buttons;
-  if (botoes?.length && refId) {
+  if (botoes?.length && barbershopId && bookingId) {
     botoes.forEach((botao, indice) => {
       components.push({
         type: "button",
         sub_type: "quick_reply",
         index: String(indice),
         parameters: [
-          { type: "payload", payload: buttonPayload(botao.action as never, refId) },
+          {
+            type: "payload",
+            payload: buttonPayload(botao.action as never, barbershopId, bookingId),
+          },
         ],
       });
     });
@@ -144,7 +149,7 @@ export async function sendTemplate(opts: {
       name: def.name,
       language: { code: def.language },
       ...(() => {
-        const c = montarComponentes(template, params, refId);
+        const c = montarComponentes(template, params, barbershopId, refId);
         return c.length ? { components: c } : {};
       })(),
     },
@@ -180,6 +185,30 @@ export async function sendTemplate(opts: {
 
     const messageId = resposta?.messages?.[0]?.id ?? null;
     await logRef.update({ status: "enviado", messageId });
+
+    /* ---- Dois índices na raiz, para o webhook achar o caminho de volta ----
+     *
+     * Com um número ÚNICO para toda a plataforma, o `phone_number_id` que chega
+     * no webhook não diz mais de qual barbearia é o evento. O botão resolve
+     * sozinho (a barbearia vai no payload), mas confirmação de entrega e
+     * resposta em texto livre não têm essa informação — só o id da mensagem e o
+     * telefone de quem respondeu. Estes dois índices são o mapa. */
+    if (messageId) {
+      await db.doc(`whatsapp_sent/${messageId}`).set({
+        barbershopId,
+        messagePath: logRef.path,
+        at: FieldValue.serverTimestamp(),
+      });
+    }
+    /* Última barbearia com quem este telefone conversou. É o melhor palpite
+     * possível para texto livre — um cliente que frequenta duas barbearias da
+     * plataforma responderia sem dizer para qual, e a mais recente é a única
+     * resposta razoável. */
+    await db.doc(`whatsapp_conversations/${to}`).set(
+      { barbershopId, at: FieldValue.serverTimestamp() },
+      { merge: true }
+    );
+
     return { ok: true, messageId };
   } catch (error) {
     const erro = error instanceof Error ? error.message : String(error);

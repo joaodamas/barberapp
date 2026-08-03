@@ -57,10 +57,39 @@ function assinaturaConfere(rawBody: Buffer, cabecalho: string | undefined, segre
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-/** De qual barbearia é o número que recebeu a mensagem. */
+/**
+ * De qual barbearia é o evento que chegou.
+ *
+ * Com um número por barbearia, bastava o `phone_number_id`. Com um número ÚNICO
+ * para toda a plataforma — que é o modelo que destrava o cadastro, porque é uma
+ * verificação na Meta em vez de uma por barbearia — esse caminho aponta sempre
+ * para a mesma. Cada tipo de evento passa a ter a sua origem de verdade:
+ *
+ * - **Botão**: a barbearia vem no payload, dentro da requisição assinada.
+ * - **Entrega/leitura**: pelo id da mensagem, em `whatsapp_sent`.
+ * - **Texto livre**: pela última conversa daquele telefone.
+ *
+ * `whatsapp_numbers` continua valendo como reserva, para quando uma barbearia
+ * tiver o próprio número.
+ */
 async function barbeariaDoNumero(phoneNumberId: string): Promise<string | null> {
   const doc = await getFirestore().doc(`whatsapp_numbers/${phoneNumberId}`).get();
-  return doc.exists ? (doc.get("barbershopId") as string) : null;
+  return doc.exists ? ((doc.get("barbershopId") as string) ?? null) : null;
+}
+
+async function barbeariaDaMensagem(messageId: string) {
+  const doc = await getFirestore().doc(`whatsapp_sent/${messageId}`).get();
+  return doc.exists
+    ? {
+        barbershopId: doc.get("barbershopId") as string,
+        messagePath: doc.get("messagePath") as string | undefined,
+      }
+    : null;
+}
+
+async function barbeariaDaConversa(telefone: string): Promise<string | null> {
+  const doc = await getFirestore().doc(`whatsapp_conversations/${telefone}`).get();
+  return doc.exists ? ((doc.get("barbershopId") as string) ?? null) : null;
 }
 
 export const whatsappWebhook = onRequest(
@@ -114,55 +143,69 @@ async function processar(corpo: unknown) {
       const phoneNumberId = (valor.metadata as { phone_number_id?: string })?.phone_number_id;
       if (!phoneNumberId) continue;
 
-      const barbershopId = await barbeariaDoNumero(phoneNumberId);
-      if (!barbershopId) {
-        console.warn(`[whatsapp] número ${phoneNumberId} não pertence a nenhuma barbearia`);
-        continue;
-      }
+      /** Barbearia dona do número, quando ela tem um só dela. */
+      const doNumero = await barbeariaDoNumero(phoneNumberId);
 
       /* ---- Confirmações de entrega e leitura ---- */
       for (const status of (valor.statuses as Record<string, unknown>[]) ?? []) {
         const messageId = status.id as string | undefined;
         if (!messageId) continue;
-        const encontrados = await db
-          .collection(`barbershops/${barbershopId}/whatsapp_messages`)
-          .where("messageId", "==", messageId)
-          .limit(1)
-          .get();
-        if (encontrados.empty) continue;
-        await encontrados.docs[0].ref.update({
+
+        const enviada = await barbeariaDaMensagem(messageId);
+        const atualizacao = {
           entrega: status.status ?? null,
           entregaEm: FieldValue.serverTimestamp(),
           ...(status.errors ? { erroEntrega: JSON.stringify(status.errors) } : {}),
-        });
+        };
+
+        // Caminho direto pelo índice — uma leitura, sem varrer coleção.
+        if (enviada?.messagePath) {
+          await db.doc(enviada.messagePath).update(atualizacao).catch(() => undefined);
+          continue;
+        }
+
+        const shop = enviada?.barbershopId ?? doNumero;
+        if (!shop) continue;
+        const encontrados = await db
+          .collection(`barbershops/${shop}/whatsapp_messages`)
+          .where("messageId", "==", messageId)
+          .limit(1)
+          .get();
+        if (!encontrados.empty) await encontrados.docs[0].ref.update(atualizacao);
       }
 
       /* ---- Mensagens recebidas ---- */
       for (const mensagem of (valor.messages as Record<string, unknown>[]) ?? []) {
         const de = String(mensagem.from ?? "");
 
-        if (mensagem.type !== "button") {
-          /* Texto livre do cliente abre a janela de 24h. Guardar é o que
-           * permite o dono ver que alguém respondeu — responder de verdade é
-           * outro passo, ainda não construído. */
-          await db.collection(`barbershops/${barbershopId}/whatsapp_messages`).add({
-            direcao: "recebida",
-            de,
-            tipo: mensagem.type ?? "desconhecido",
-            texto: (mensagem.text as { body?: string })?.body ?? null,
-            at: FieldValue.serverTimestamp(),
-          });
+        if (mensagem.type === "button") {
+          const payload = (mensagem.button as { payload?: string })?.payload ?? "";
+          const acao = parseButtonPayload(payload);
+          if (!acao) {
+            console.warn(`[whatsapp] payload de botão ilegível: "${payload}"`);
+            continue;
+          }
+          /* A barbearia vem do PAYLOAD, não do número. É o que faz um número
+           * único servir a plataforma inteira sem misturar agenda. */
+          await aplicarBotao(acao.barbershopId, acao.action, acao.bookingId, de);
           continue;
         }
 
-        const payload = (mensagem.button as { payload?: string })?.payload ?? "";
-        const acao = parseButtonPayload(payload);
-        if (!acao) {
-          console.warn(`[whatsapp] payload de botão ilegível: "${payload}"`);
+        /* Texto livre do cliente abre a janela de 24h. Guardar é o que permite
+         * o dono ver que alguém respondeu — responder de verdade é outro passo,
+         * ainda não construído. */
+        const shop = (await barbeariaDaConversa(de)) ?? doNumero;
+        if (!shop) {
+          console.warn(`[whatsapp] resposta de ${de} sem conversa conhecida`);
           continue;
         }
-
-        await aplicarBotao(barbershopId, acao.action, acao.refId, de);
+        await db.collection(`barbershops/${shop}/whatsapp_messages`).add({
+          direcao: "recebida",
+          de,
+          tipo: mensagem.type ?? "desconhecido",
+          texto: (mensagem.text as { body?: string })?.body ?? null,
+          at: FieldValue.serverTimestamp(),
+        });
       }
     }
   }

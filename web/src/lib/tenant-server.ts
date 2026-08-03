@@ -3,6 +3,7 @@ import { cache } from "react";
 import { headers } from "next/headers";
 import {
   ALL_FEATURES,
+  DEFAULT_LOCALE,
   DEFAULT_SCHEDULE,
   DEFAULT_TENANT,
   PLATFORM_DEFAULT_POLICIES,
@@ -148,6 +149,7 @@ function toTenant(id: string, data: Record<string, unknown>): Tenant {
   const contact = (data.contact ?? {}) as Partial<Tenant["contact"]>;
   const policies = (data.policies ?? {}) as Partial<Tenant["policies"]>;
   const features = (data.features ?? {}) as Partial<Tenant["features"]>;
+  const locale = (data.locale ?? {}) as Partial<Tenant["locale"]>;
 
   return {
     id,
@@ -155,6 +157,10 @@ function toTenant(id: string, data: Record<string, unknown>): Tenant {
     status: (data.status as Tenant["status"]) ?? "ativo",
     brand: { ...DEFAULT_TENANT.brand, ...brand },
     contact: { ...DEFAULT_TENANT.contact, ...contact },
+    /* Barbearia sem `locale` gravado herda o padrão da plataforma. Nunca
+     * `undefined`: `Intl` com fuso indefinido cai no fuso do SERVIDOR, que é
+     * UTC — e aí a data da confirmação escorrega um dia sem erro nenhum. */
+    locale: { ...DEFAULT_LOCALE, ...locale },
     // Política ausente cai no padrão da plataforma — nunca em undefined, que
     // viraria NaN em cálculo de reembolso.
     policies: { ...PLATFORM_DEFAULT_POLICIES, ...policies },

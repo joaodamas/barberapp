@@ -853,16 +853,35 @@ export const TEMPLATES = {
 
 export type TemplateName = keyof typeof TEMPLATES;
 
-/** Monta o payload de um botão: `ACTION:refId` — lido de volta no webhook. */
-export function buttonPayload(action: ButtonAction, refId: string) {
-  return `${action}:${refId}`;
+/**
+ * Payload de botão: `ACTION:barbershopId:bookingId`.
+ *
+ * A BARBEARIA vai junto, e não é redundância.
+ *
+ * Com um número por barbearia, o webhook descobria a dona da mensagem pelo
+ * `phone_number_id`. Num número ÚNICO para toda a plataforma esse caminho
+ * aponta sempre para a mesma barbearia — e o toque de "Confirmo que vou" de um
+ * cliente cairia na agenda de outro salão.
+ *
+ * O payload volta pela Meta dentro de uma requisição assinada, então ele é tão
+ * confiável quanto o resto do corpo: é a fonte mais segura para saber de quem é
+ * o botão, e a única que não depende do número que enviou.
+ *
+ * Limite da Meta: 128 caracteres. Ação + dois ids do Firestore dão ~62.
+ */
+export function buttonPayload(
+  action: ButtonAction,
+  barbershopId: string,
+  bookingId: string
+) {
+  return `${action}:${barbershopId}:${bookingId}`;
 }
 
 /** Lê um payload de botão devolvido pelo webhook. */
 export function parseButtonPayload(
   payload: string
-): { action: ButtonAction; refId: string } | null {
-  const [action, refId] = payload.split(":");
-  if (!action || !refId) return null;
-  return { action: action as ButtonAction, refId };
+): { action: ButtonAction; barbershopId: string; bookingId: string } | null {
+  const [action, barbershopId, bookingId] = String(payload ?? "").split(":");
+  if (!action || !barbershopId || !bookingId) return null;
+  return { action: action as ButtonAction, barbershopId, bookingId };
 }

@@ -8,6 +8,9 @@ import {
   primeiroNome,
 } from "../format";
 import { parseButtonPayload } from "../templates";
+import { DEFAULT_LOCALE } from "../../locale";
+
+const DUBLIN = { timeZone: "Europe/Dublin", currency: "EUR", locale: "en-IE" };
 
 describe("número de destino", () => {
   it("põe o DDI que o dono não digita", () => {
@@ -52,22 +55,27 @@ describe("componentes da mensagem", () => {
     const componentes = montarComponentes(
       "lembrete_confirmacao",
       { primeiroNome: "João", nomeBarbearia: "O Siqueira", hora: "16:30", servicos: "Corte" },
+      "shop-1",
       "bk-123"
     ) as { type: string; parameters: { payload?: string }[] }[];
 
     const botoes = componentes.filter((c) => c.type === "button");
     expect(botoes).toHaveLength(2);
+    /* A barbearia vai no payload: com um número ÚNICO para toda a plataforma,
+     * é a única informação que diz de quem é o toque. */
     expect(parseButtonPayload(botoes[0].parameters[0].payload!)).toEqual({
       action: "CONFIRM_BOOKING",
-      refId: "bk-123",
+      barbershopId: "shop-1",
+      bookingId: "bk-123",
     });
     expect(parseButtonPayload(botoes[1].parameters[0].payload!)).toEqual({
       action: "CANCEL_BOOKING",
-      refId: "bk-123",
+      barbershopId: "shop-1",
+      bookingId: "bk-123",
     });
   });
 
-  it("sem refId não manda botão — payload vazio chegaria sem dizer qual reserva", () => {
+  it("sem barbearia ou reserva não manda botão — chegaria sem dizer de quem é", () => {
     const componentes = montarComponentes("lembrete_confirmacao", {
       primeiroNome: "João", nomeBarbearia: "O Siqueira", hora: "16:30", servicos: "Corte",
     }) as { type: string }[];
@@ -79,13 +87,20 @@ describe("formatação do que o cliente lê", () => {
   it("a data não escorrega um dia por causa do fuso", () => {
     // A função roda em UTC na Cloud Function: `new Date("2026-08-03")` lá é
     // 03/08 00:00Z, que no Brasil ainda é dia 2. Uma segunda vira "domingo".
-    expect(dataPorExtenso("2026-08-03")).toBe("segunda-feira, 03 de agosto");
-    expect(dataPorExtenso("2026-01-01")).toBe("quinta-feira, 01 de janeiro");
+    expect(dataPorExtenso("2026-08-03", DEFAULT_LOCALE)).toBe("segunda-feira, 03 de agosto");
+    expect(dataPorExtenso("2026-01-01", DEFAULT_LOCALE)).toBe("quinta-feira, 01 de janeiro");
   });
 
-  it("valor em real, com vírgula", () => {
-    expect(moeda(90)).toMatch(/R\$\s?90,00/);
-    expect(moeda(0)).toMatch(/R\$\s?0,00/);
+  it("valor na moeda da barbearia", () => {
+    expect(moeda(90, DEFAULT_LOCALE)).toMatch(/R\$\s?90,00/);
+    expect(moeda(0, DEFAULT_LOCALE)).toMatch(/R\$\s?0,00/);
+    // Uma barbearia em Dublin cobra em euro, e o cliente lê em euro.
+    expect(moeda(90, DUBLIN)).toMatch(/€\s?90\.00/);
+  });
+
+  it("a data sai no idioma e no fuso da barbearia", () => {
+    expect(dataPorExtenso("2026-08-03", DUBLIN)).toMatch(/Monday/);
+    expect(dataPorExtenso("2026-08-03", DUBLIN)).not.toMatch(/ de /);
   });
 
   it("trata pelo primeiro nome — nome completo soa a cobrança de banco", () => {
