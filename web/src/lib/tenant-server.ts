@@ -1,8 +1,8 @@
 import "server-only";
 import { cache } from "react";
 import { headers } from "next/headers";
-import { cert, getApp, getApps, initializeApp, applicationDefault } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { doc, getDoc } from "firebase/firestore";
+import { getDb } from "@/lib/firebase";
 import {
   ALL_FEATURES,
   DEFAULT_SCHEDULE,
@@ -16,10 +16,24 @@ import {
 /**
  * Resolve a barbearia do subdomínio, no servidor.
  *
- * CONSEQUÊNCIA ARQUITETURAL: ler o `host` torna a rota dinâmica. O app era
- * 100% estático; com subdomínio por barbearia ele deixa de ser — não dá para
- * prerender uma marca que só se conhece na requisição. A mitigação é o cache de
- * borda por host em `next.config.ts`.
+ * Usa o SDK CLIENTE, não o Admin, e a leitura passa pelas Security Rules como
+ * qualquer outra. Isso é possível porque a ficha da barbearia é pública — é
+ * vitrine, a mesma informação que está na fachada. Contrato e cobrança vivem em
+ * `/barbershops/{id}/private`, que ninguém de fora alcança.
+ *
+ * Duas razões para não usar `firebase-admin` aqui:
+ *
+ * 1. O Turbopack o externaliza com um nome hasheado que não resolve em
+ *    execução — o servidor sobe e devolve 500 em TODA rota. O pacote está no
+ *    bundle; o especificador é que não bate. Custou um deploy inteiro para
+ *    aparecer, porque em desenvolvimento o módulo resolve normalmente.
+ * 2. Admin SDK ignora as regras. Para ler dado público isso é poder demais: um
+ *    erro de caminho passaria a expor exatamente o que as regras protegem.
+ *
+ * CONSEQUÊNCIA ARQUITETURAL: ler o `host` torna a rota dinâmica. O app era 100%
+ * estático; com subdomínio por barbearia ele deixa de ser — não se prerenderiza
+ * marca que só se conhece na requisição. A mitigação é o cache de borda por
+ * host em `next.config.ts`.
  *
  * `cache()` do React deduplica a leitura DENTRO de uma mesma requisição: o
  * layout raiz, o `generateMetadata` e o manifest chamam `getTenant()` cada um
@@ -40,29 +54,24 @@ export const getTenant = cache(async function getTenant(): Promise<Tenant> {
 });
 
 /**
- * Carrega a barbearia pelo slug: `/slugs/{slug}` → `/barbershops/{id}`.
+ * `/slugs/{slug}` → `/barbershops/{id}`.
  *
- * Duas leituras por requisição não cacheada. O documento quase nunca muda, e o
+ * Duas leituras por render não cacheado. O documento quase nunca muda, e o
  * cache de borda faz o render acontecer uma vez por barbearia — na prática são
  * duas leituras por barbearia a cada `s-maxage`, não por visita.
  */
 async function loadTenantBySlug(slug: string): Promise<Tenant | null> {
-  const db = adminDb();
-  if (!db) {
-    // Sem credenciais (desenvolvimento local sem emulador), o tenant de
-    // referência mantém o app funcionando em vez de derrubar toda rota.
-    return slug === DEFAULT_TENANT.slug ? DEFAULT_TENANT : null;
-  }
-
   try {
-    const slugDoc = await db.doc(`slugs/${slug}`).get();
-    if (!slugDoc.exists) return null;
+    const db = await getDb();
+
+    const slugDoc = await getDoc(doc(db, "slugs", slug));
+    if (!slugDoc.exists()) return null;
 
     const barbershopId = slugDoc.data()?.barbershopId as string | undefined;
     if (!barbershopId) return null;
 
-    const shopDoc = await db.doc(`barbershops/${barbershopId}`).get();
-    if (!shopDoc.exists) return null;
+    const shopDoc = await getDoc(doc(db, "barbershops", barbershopId));
+    if (!shopDoc.exists()) return null;
 
     return toTenant(barbershopId, shopDoc.data() ?? {});
   } catch (error) {
@@ -94,28 +103,6 @@ function toTenant(id: string, data: Record<string, unknown>): Tenant {
     trial: toTrial(data.trial),
     onboarding: toOnboarding(data.onboarding),
   };
-}
-
-/**
- * Admin SDK para leitura no servidor.
- *
- * Em Cloud Run / Cloud Functions as credenciais vêm do ambiente. Localmente,
- * `FIREBASE_SERVICE_ACCOUNT` (JSON) ou o emulador via `FIRESTORE_EMULATOR_HOST`.
- */
-function adminDb() {
-  try {
-    if (getApps().length === 0) {
-      const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
-      initializeApp(
-        serviceAccount
-          ? { credential: cert(JSON.parse(serviceAccount)) }
-          : { credential: applicationDefault() }
-      );
-    }
-    return getFirestore(getApp());
-  } catch {
-    return null;
-  }
 }
 
 /**

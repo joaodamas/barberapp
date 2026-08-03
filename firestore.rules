@@ -82,9 +82,11 @@ service cloud.firestore {
 
     match /barbershops/{barbershopId} {
 
-      // Ficha pública: nome, endereço, horário — o app do cliente precisa
-      // renderizar isso antes de qualquer vínculo existir.
-      allow read: if isSignedIn();
+      /* Ficha PÚBLICA. Nome, endereço, horário e marca precisam ser legíveis
+       * sem login: é o que o servidor lê para pintar a página antes de saber
+       * quem está acessando, e é informação de vitrine — a mesma que está na
+       * fachada. Contrato e cobrança ficam na subcoleção `private`. */
+      allow read: if true;
       // Criar e excluir barbearia é ato da plataforma, não do lojista.
       allow create, delete: if isPlatformAdmin();
       // O dono edita a própria barbearia, menos o que define o contrato.
@@ -92,6 +94,13 @@ service cloud.firestore {
                     || (isOwnerOf(barbershopId)
                         && !request.resource.data.diff(resource.data)
                              .affectedKeys().hasAny(['slug', 'plan', 'status', 'createdAt']));
+
+      /* -------- contrato com a plataforma: nunca público -------- */
+
+      match /private/{docId} {
+        allow read: if isOwnerOf(barbershopId) || isPlatformAdmin();
+        allow write: if isPlatformAdmin();
+      }
 
       /* -------- quem trabalha aqui -------- */
 
