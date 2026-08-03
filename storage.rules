@@ -1,11 +1,24 @@
 rules_version = '2';
 
 /**
- * Regras do Cloud Storage — O Siqueira Barbearia.
+ * Regras do Cloud Storage — plataforma multi-barbearia.
  *
- * Nenhuma tela faz upload hoje. O arquivo existe fechado porque `firebase.json`
- * o referencia (sem ele, `firebase deploy` falha) e porque o default do console
- * não deve ser a fonte da verdade — regra de segurança se versiona.
+ * Este arquivo tinha ficado para trás. Enquanto o Firestore migrou para
+ * subcoleções por barbearia e claim `barbershops: { id: papel }`, aqui ainda
+ * valia o modelo antigo: caminhos GLOBAIS (`/products/{id}`, `/reports/{file}`)
+ * e o claim aposentado `role == 'owner'`. Duas consequências, as duas ruins:
+ *
+ * - Qualquer dono com o claim antigo leria os relatórios de TODAS as
+ *   barbearias, porque `/reports` não tinha dono.
+ * - Um dono novo — que só tem `barbershops` — não conseguiria escrever nada.
+ *
+ * Não era explorável porque nenhuma tela faz upload. Mas logo e fotos do salão
+ * são o próximo item da lista, e a hora de consertar é antes do primeiro
+ * arquivo existir, não depois.
+ *
+ * MESMO PRINCÍPIO DO FIRESTORE: o isolamento é o CAMINHO. Tudo de uma barbearia
+ * vive sob `/barbershops/{barbershopId}/`, e a regra do pai protege o que está
+ * abaixo. Não existe caminho global para alguém copiar por descuido.
  */
 service firebase.storage {
   match /b/{bucket}/o {
@@ -14,8 +27,37 @@ service firebase.storage {
       return request.auth != null;
     }
 
-    function isOwner() {
-      return isSignedIn() && request.auth.token.role == 'owner';
+    function isSelf(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /* `in` antes de indexar: sem a checagem de chave, avaliar
+     * `token.barbershops[id]` para quem não tem vínculo derruba a regra com
+     * erro em vez de negar — e regra que quebra não é regra que protege. */
+    function temVinculo(barbershopId) {
+      return isSignedIn()
+             && 'barbershops' in request.auth.token
+             && barbershopId in request.auth.token.barbershops;
+    }
+
+    function isOwnerOf(barbershopId) {
+      return temVinculo(barbershopId)
+             && request.auth.token.barbershops[barbershopId] == 'owner';
+    }
+
+    function isStaffOf(barbershopId) {
+      return temVinculo(barbershopId)
+             && request.auth.token.barbershops[barbershopId] in ['owner', 'staff'];
+    }
+
+    /* `in` antes de comparar, de novo: nas regras do Storage, ler propriedade
+     * que não existe no token levanta exceção ("Property platformAdmin is
+     * undefined on object") em vez de devolver nulo. A regra não nega — ela
+     * QUEBRA, e o resultado depende de qual outra cláusula sobrou. */
+    function isPlatformAdmin() {
+      return isSignedIn()
+             && 'platformAdmin' in request.auth.token
+             && request.auth.token.platformAdmin == true;
     }
 
     function isImageUnder(maxMB) {
@@ -23,23 +65,63 @@ service firebase.storage {
              && request.resource.size < maxMB * 1024 * 1024;
     }
 
-    // Foto de perfil: cada um mexe só na sua.
-    match /users/{userId}/avatar/{fileName} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn() && request.auth.uid == userId && isImageUnder(5);
-    }
+    /* ------------------------------------------------------------------ */
+    /* Relatórios — fechamento financeiro                                  */
+    /*                                                                      */
+    /* ATENÇÃO: regra de segurança NÃO é first-match. Toda regra que casa   */
+    /* com o caminho é avaliada, e basta UMA permitir para o acesso passar. */
+    /* Declarar este bloco antes do genérico não protege nada — o           */
+    /* `{tipo}` abaixo também casa com `reports/...`, e foi assim que o     */
+    /* barbeiro passou a ler o fechamento do dono. Quem exclui `reports` é  */
+    /* a lista de tipos lá embaixo, não a ordem daqui.                      */
+    /* ------------------------------------------------------------------ */
 
-    // Fotos de produto da loja: leitura para quem está logado, escrita só do dono.
-    match /products/{productId}/{fileName} {
-      allow read: if isSignedIn();
-      allow write: if isOwner() && isImageUnder(5);
-    }
-
-    // Fechamentos mensais em PDF e outros relatórios: só o dono.
-    match /reports/{fileName} {
-      allow read: if isOwner();
+    match /barbershops/{barbershopId}/reports/{fileName} {
+      // Gerado pelo servidor. Nem o dono escreve — se pudesse, o "fechamento
+      // do mês" deixaria de ser um documento confiável.
+      allow read: if isOwnerOf(barbershopId) || isPlatformAdmin();
       allow write: if false;
     }
+
+    /* ------------------------------------------------------------------ */
+    /* Marca, fotos e produtos                                             */
+    /* ------------------------------------------------------------------ */
+
+    match /barbershops/{barbershopId}/{tipo}/{allPaths=**} {
+
+      /* A lista de tipos vem PRIMEIRO e vale para leitura e escrita. É ela que
+       * impede este bloco de alcançar `reports/` — e qualquer pasta futura que
+       * alguém crie sem pensar. Tipo novo nasce negado e só entra aqui de
+       * propósito.
+       *
+       * Vitrine é pública: a logo aparece na tela de login, antes de existir
+       * usuário. Exigir autenticação deixaria o app sem logo justamente para
+       * quem ainda não entrou — mesma decisão já tomada para a ficha da
+       * barbearia no Firestore. */
+      allow read: if tipo in ['brand', 'photos', 'products'];
+
+      // Só o dono publica a cara da própria barbearia.
+      allow write: if tipo in ['brand', 'photos', 'products']
+                   && isOwnerOf(barbershopId)
+                   && isImageUnder(5);
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* Foto de perfil — atravessa barbearias, pertence à pessoa            */
+    /* ------------------------------------------------------------------ */
+
+    match /users/{userId}/avatar/{fileName} {
+      /* Só o dono da foto. Antes era "qualquer um logado", o que permitia a
+       * qualquer cliente de qualquer barbearia ler a foto de qualquer pessoa
+       * sabendo o uid. Quando o painel precisar mostrar a foto do cliente, o
+       * caminho é uma cópia sob a barbearia — não reabrir isto. */
+      allow read: if isSelf(userId) || isPlatformAdmin();
+      allow write: if isSelf(userId) && isImageUnder(5);
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* Fallback                                                            */
+    /* ------------------------------------------------------------------ */
 
     match /{allPaths=**} {
       allow read, write: if false;

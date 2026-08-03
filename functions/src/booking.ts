@@ -29,6 +29,28 @@ type CriarReservaInput = {
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const HORA = /^\d{2}:\d{2}$/;
 
+/** Status que ocupam um horário na agenda. */
+const OCUPAM_SLOT = [
+  "pending_payment",
+  "confirmed",
+  "confirmed_by_client",
+  "completed",
+  "no_show",
+];
+
+/** Status de uma reserva ainda viva, do ponto de vista do cliente. */
+const EM_ABERTO = ["pending_payment", "confirmed", "confirmed_by_client", "fit_in_requested"];
+
+/** Hoje em São Paulo. A função roda em UTC — depois das 21h, `toISOString` já virou o dia. */
+function hojeISO(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
 export const createBooking = onCall<CriarReservaInput>(async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Entre na sua conta para agendar.");
@@ -104,6 +126,32 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
   const bookingRef = shopRef.collection("bookings").doc();
 
   await db.runTransaction(async (tx) => {
+    /* ---- Quantas este cliente já tem em aberto ----
+     *
+     * Sem teto, uma conta só ocupa a agenda inteira: são 60 dias de horizonte
+     * e nada impedia um laço de criar reserva em todos os horários. Não é
+     * roubo de dado, é sequestro de agenda — e para uma barbearia dá no mesmo,
+     * porque ninguém mais consegue marcar.
+     *
+     * O filtro de status e data é em memória, e não na query, de propósito:
+     * `where('clientId').where('date','>=')` exigiria índice composto, e um
+     * índice faltando derruba a criação de reserva em produção. A quantidade
+     * por cliente é pequena por natureza. */
+    const maxAtivas: number = policies.booking?.maxActivePerClient ?? 3;
+    const hoje = hojeISO();
+    const minhas = await tx.get(shopRef.collection("bookings").where("clientId", "==", uid));
+    const ativas = minhas.docs.filter((d) => {
+      const b = d.data();
+      return EM_ABERTO.includes(b.status) && String(b.date) >= hoje;
+    }).length;
+
+    if (ativas >= maxAtivas) {
+      throw new HttpsError(
+        "resource-exhausted",
+        `Você já tem ${ativas} horário(s) marcado(s). Cancele um antes de marcar outro.`
+      );
+    }
+
     /* Encaixe não disputa slot: ele existe justamente para pedir um horário
      * já ocupado. Reserva normal, sim. */
     if (!isFitIn) {
@@ -114,11 +162,7 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
           .where("time", "==", time)
       );
 
-      const ocupado = conflitos.docs.some((d) =>
-        ["pending_payment", "confirmed", "confirmed_by_client", "completed", "no_show"].includes(
-          d.data().status
-        )
-      );
+      const ocupado = conflitos.docs.some((d) => OCUPAM_SLOT.includes(d.data().status));
       if (ocupado) {
         throw new HttpsError(
           "already-exists",
@@ -146,6 +190,108 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
   });
 
   return { bookingId: bookingRef.id, value, status, durationMin };
+});
+
+/**
+ * Reagendamento pelo cliente.
+ *
+ * A tela fazia isso escrevendo direto no Firestore — e as regras negam, porque
+ * o cliente não pode gravar `status`. O `catch` só chamava `console.error`: o
+ * modal fechava, o cliente via a tela dizer que remarcou, e a agenda do
+ * barbeiro continuava com o horário antigo. Falha silenciosa dos dois lados.
+ *
+ * Aqui o novo horário disputa slot na mesma transação, igual a uma reserva
+ * nova — senão remarcar seria a porta dos fundos para furar a fila.
+ */
+export const rescheduleBooking = onCall<{
+  barbershopId: string;
+  bookingId: string;
+  date: string;
+  time: string;
+}>(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Entre na sua conta.");
+
+  const { barbershopId, bookingId, date, time } = request.data ?? {};
+  if (!barbershopId || !bookingId) {
+    throw new HttpsError("invalid-argument", "Reserva não informada.");
+  }
+  if (!ISO_DATE.test(date ?? "")) throw new HttpsError("invalid-argument", "Data inválida.");
+  if (!HORA.test(time ?? "")) throw new HttpsError("invalid-argument", "Horário inválido.");
+
+  const db = getFirestore();
+  const shopRef = db.doc(`barbershops/${barbershopId}`);
+  const bookingRef = shopRef.collection("bookings").doc(bookingId);
+
+  const [shopSnap, bookingSnap] = await Promise.all([shopRef.get(), bookingRef.get()]);
+  if (!shopSnap.exists) throw new HttpsError("not-found", "Barbearia não encontrada.");
+  if (!bookingSnap.exists) throw new HttpsError("not-found", "Reserva não encontrada.");
+
+  const booking = bookingSnap.data() ?? {};
+  const ehDono =
+    (request.auth?.token.barbershops as Record<string, string> | undefined)?.[barbershopId] ===
+    "owner";
+  if (booking.clientId !== uid && !ehDono) {
+    throw new HttpsError("permission-denied", "Essa reserva não é sua.");
+  }
+  if (!EM_ABERTO.includes(booking.status)) {
+    throw new HttpsError("failed-precondition", "Essa reserva não está mais aberta.");
+  }
+
+  const shop = shopSnap.data() ?? {};
+  const policies = shop.policies ?? {};
+  const schedule = shop.schedule ?? {};
+
+  const diaSemana = new Date(`${date}T12:00:00`).getDay();
+  const abre: number[] = policies.openWeekdays ?? schedule.weekdays ?? [1, 2, 3, 4, 5, 6];
+  if (!abre.includes(diaSemana)) {
+    throw new HttpsError("failed-precondition", "A barbearia não abre neste dia.");
+  }
+
+  const minutosMinimos: number = policies.booking?.minAdvanceMinutes ?? 60;
+  if (new Date(`${date}T${time}:00`).getTime() - Date.now() < minutosMinimos * 60_000) {
+    throw new HttpsError(
+      "failed-precondition",
+      `Reservas precisam de ao menos ${minutosMinimos} minutos de antecedência.`
+    );
+  }
+
+  /* Janela de remarcação: depois dela o horário já está reservado perto demais
+   * para a barbearia recolocar outra pessoa. */
+  const horasMinimas: number = policies.reschedule?.minHoursBefore ?? 6;
+  const horasAteOAtual =
+    (new Date(`${booking.date}T${booking.time}:00`).getTime() - Date.now()) / 3_600_000;
+  if (!ehDono && horasAteOAtual < horasMinimas) {
+    throw new HttpsError(
+      "failed-precondition",
+      `Remarcação só até ${horasMinimas}h antes do horário. Fale com a barbearia.`
+    );
+  }
+
+  await db.runTransaction(async (tx) => {
+    const conflitos = await tx.get(
+      shopRef.collection("bookings").where("date", "==", date).where("time", "==", time)
+    );
+    const ocupado = conflitos.docs.some(
+      (d) => d.id !== bookingId && OCUPAM_SLOT.includes(d.data().status)
+    );
+    if (ocupado) {
+      throw new HttpsError(
+        "already-exists",
+        "Esse horário acabou de ser reservado. Escolha outro, por favor."
+      );
+    }
+
+    tx.update(bookingRef, {
+      date,
+      time,
+      status: "confirmed",
+      rescheduledFrom: { date: booking.date, time: booking.time },
+      rescheduledAt: FieldValue.serverTimestamp(),
+    });
+  });
+
+  return { date, time };
 });
 
 /**

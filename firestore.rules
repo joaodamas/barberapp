@@ -155,12 +155,19 @@ service cloud.firestore {
         allow read: if isStaffOf(barbershopId)
                     || (isSignedIn() && resource.data.clientId == request.auth.uid);
 
-        // O cliente cria a própria reserva, mas status e valor são decididos no
-        // servidor — senão dá para marcar "confirmado" sem pagar.
-        allow create: if isSignedIn()
-                      && request.resource.data.clientId == request.auth.uid
-                      && !request.resource.data.keys().hasAny(
-                           ['status', 'value', 'paidAt', 'refundedAmount']);
+        /* Criar reserva é SÓ pela Cloud Function `createBooking`.
+         *
+         * Esta regra permitia o cliente gravar direto, desde que não mexesse em
+         * status e valor. Era o que existia antes de o servidor criar reservas —
+         * e ficou aberta depois. Duas coisas passavam por ela:
+         *
+         * 1. Reserva sem `status`, que não bloqueia horário na checagem de
+         *    conflito e mesmo assim aparece na agenda do dono.
+         * 2. Criação em massa, sem passar pelo limite por cliente nem pela
+         *    validação de dia, horário e antecedência.
+         *
+         * Nenhuma tela grava reserva direto: o app inteiro chama a função. */
+        allow create: if false;
 
         // Cancelar e reagendar passam por Cloud Function: aplicam a política,
         // calculam o reembolso e registram a ocorrência.

@@ -144,8 +144,17 @@ describe("cliente final", () => {
     await assertSucceeds(getDoc(doc(as(CLIENTE), `barbershops/${ALFA}/services`, "corte")));
   });
 
-  it("cria a própria reserva", async () => {
-    await assertSucceeds(
+  /**
+   * Criar reserva passou a ser EXCLUSIVIDADE da Cloud Function.
+   *
+   * A regra antiga deixava o cliente gravar direto desde que não tocasse em
+   * status e valor. Duas coisas passavam por ali: reserva sem `status`, que não
+   * bloqueia horário na checagem de conflito e ainda assim aparece na agenda do
+   * dono; e criação em massa, sem o limite por cliente nem a validação de dia,
+   * horário e antecedência — ou seja, dava para ocupar a agenda inteira.
+   */
+  it("🔒 NÃO cria reserva direto no banco, nem bem-comportada", async () => {
+    await assertFails(
       setDoc(doc(as(CLIENTE), `barbershops/${ALFA}/bookings`, "nova"), {
         clientId: CLIENTE.sub,
         date: "2026-08-10",
@@ -154,19 +163,15 @@ describe("cliente final", () => {
     );
   });
 
-  it("🔒 NÃO cria reserva em nome de outro", async () => {
+  it("🔒 NÃO cria reserva em nome de outro, nem com status e valor forjados", async () => {
     await assertFails(
       setDoc(doc(as(CLIENTE), `barbershops/${ALFA}/bookings`, "nova"), {
         clientId: OUTRO_CLIENTE.sub,
         date: "2026-08-10",
       })
     );
-  });
-
-  it("🔒 NÃO define status nem valor da própria reserva", async () => {
-    // Senão dá para marcar "confirmed" de R$ 0 sem passar pelo pagamento.
     await assertFails(
-      setDoc(doc(as(CLIENTE), `barbershops/${ALFA}/bookings`, "nova"), {
+      setDoc(doc(as(CLIENTE), `barbershops/${ALFA}/bookings`, "nova2"), {
         clientId: CLIENTE.sub,
         status: "confirmed",
         value: 0,
@@ -174,11 +179,19 @@ describe("cliente final", () => {
     );
   });
 
-  it("🔒 NÃO cancela a própria reserva direto no banco", async () => {
-    // Cancelamento passa por Cloud Function: aplica política e calcula reembolso.
+  it("🔒 NÃO cancela nem remarca a própria reserva direto no banco", async () => {
+    /* As duas passam por Cloud Function: aplicam política, calculam reembolso e
+     * disputam o horário. A tela escrevia direto e só fazia `console.error` no
+     * erro — o modal fechava, o cliente achava que tinha cancelado, e a agenda
+     * do barbeiro continuava com ele. */
     await assertFails(
       updateDoc(doc(as(CLIENTE), `barbershops/${ALFA}/bookings`, "bk-1"), {
         status: "cancelled_by_client",
+      })
+    );
+    await assertFails(
+      updateDoc(doc(as(CLIENTE), `barbershops/${ALFA}/bookings`, "bk-1"), {
+        date: "2026-09-02", time: "11:00", status: "confirmed",
       })
     );
   });
