@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { ArrowRight, Check } from "lucide-react";
 import { Reveal, RevealPalavras } from "@/components/landing/reveal";
+import { AssinaturaCorteHub, SimboloCorteHub } from "@/components/landing/marca";
 import { AgendaDoDia, ProjecaoCurta, ResumoDoMes } from "@/components/landing/telas";
 
 export const metadata: Metadata = {
@@ -38,9 +39,7 @@ export default function LandingPage() {
       {/* Topo                                                              */}
       {/* ---------------------------------------------------------------- */}
       <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-6 md:px-8">
-        <span className="font-brand text-2xl tracking-tight text-ivory">
-          CorteHub
-        </span>
+        <AssinaturaCorteHub className="text-ivory" />
         <Link
           href="/login"
           className="text-sm text-ivory-muted transition-colors hover:text-ivory"
@@ -213,6 +212,80 @@ export default function LandingPage() {
       </section>
 
       {/* ---------------------------------------------------------------- */}
+      {/* Tudo que tem — e tudo que está chegando                           */}
+      {/*                                                                    */}
+      {/* Separado com rótulo, de propósito. Listar junto o que existe e o   */}
+      {/* que não existe é o erro que derruba a confiança do primeiro        */}
+      {/* cliente: ele entra procurando o que leu, não acha, e a partir daí  */}
+      {/* duvida do resto — inclusive do que funciona. Marcado como          */}
+      {/* "chegando", a mesma informação vira expectativa em vez de mentira. */}
+      {/* ---------------------------------------------------------------- */}
+      <section className="mx-auto w-full max-w-6xl px-5 py-16 md:px-8 md:py-28">
+        <Reveal>
+          <h2 className="text-balance font-brand text-2xl leading-tight text-ivory md:text-4xl">
+            O que você tem no primeiro dia
+          </h2>
+        </Reveal>
+
+        <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {[
+            ["Agenda com link próprio", "Seu endereço, sua marca. O cliente escolhe serviço, barbeiro e horário sem falar com ninguém."],
+            ["Equipe de qualquer tamanho", "Cada barbeiro com a própria agenda, jornada, serviços e comissão. Três cadeiras não viram conflito de horário."],
+            ["Horário livre de verdade", "O sistema só oferece o que está vago — e considera a duração do serviço, para o combo caber antes do almoço."],
+            ["DRE gerencial", "Margem de contribuição, custo fixo, imposto e ponto de equilíbrio calculados do seu custo real."],
+            ["Projeção de caixa", "De um mês a um ano, dizendo quanto do número é estimativa. Você vê o dia em que o caixa vira antes de ele virar."],
+            ["Fluxo de caixa e despesas", "Quanto entrou por dia e por meio de pagamento; aluguel, luz e produtos lançados uma vez."],
+            ["Fidelidade por carimbo", "Saldo por transação, não por contagem — sobrevive a resgate e a estorno."],
+            ["Mensalistas e loja", "Clube de assinatura e revenda de produto, com comissão calculada sobre o lucro, não sobre o preço cheio."],
+            ["Números da operação", "Mapa de calor por dia e horário, taxa de ocupação, recorrência de cliente e serviços que mais rendem."],
+          ].map(([titulo, texto], i) => (
+            <Reveal key={titulo} delay={(i % 3) * 80}>
+              <div className="flex h-full flex-col gap-2 rounded-2xl border border-border bg-surface/60 p-5">
+                <div className="flex items-start gap-2.5">
+                  <Check size={16} className="mt-0.5 shrink-0 text-gold-light" />
+                  <p className="text-sm font-medium text-ivory">{titulo}</p>
+                </div>
+                <p className="pl-[26px] text-sm leading-relaxed text-ivory-muted">{texto}</p>
+              </div>
+            </Reveal>
+          ))}
+        </div>
+
+        <Reveal>
+          <div className="mt-14 flex items-center gap-3">
+            <SimboloCorteHub className="h-6 w-6 shrink-0 text-ivory-muted" />
+            <h2 className="text-balance font-brand text-2xl leading-tight text-ivory md:text-3xl">
+              O que está sendo construído agora
+            </h2>
+          </div>
+          <p className="mt-3 max-w-xl text-sm leading-relaxed text-ivory-muted">
+            Está aqui porque você vai receber sem pagar mais por isso — e porque
+            preferimos dizer o que ainda não existe a você descobrir sozinho.
+          </p>
+        </Reveal>
+
+        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {[
+            ["WhatsApp automático", "Confirmação da reserva, lembrete no dia e aviso de encaixe. As 34 mensagens já estão escritas e aprovadas pela Meta — falta o número entrar no ar."],
+            ["Pagamento antecipado", "Pix e cartão na hora de reservar, para o horário deixar de ficar em aberto quando o cliente não aparece."],
+            ["Ficha do cliente", "Histórico por pessoa: quantas vezes veio, quanto gastou, quando foi a última. É o que liga a reativação de quem sumiu."],
+          ].map(([titulo, texto], i) => (
+            <Reveal key={titulo} delay={i * 80}>
+              <div className="flex h-full flex-col gap-2 rounded-2xl border border-dashed border-border p-5">
+                <div className="flex items-center gap-2">
+                  <span className="rounded-full bg-gold/10 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-gold-light">
+                    Chegando
+                  </span>
+                </div>
+                <p className="text-sm font-medium text-ivory">{titulo}</p>
+                <p className="text-sm leading-relaxed text-ivory-muted">{texto}</p>
+              </div>
+            </Reveal>
+          ))}
+        </div>
+      </section>
+
+      {/* ---------------------------------------------------------------- */}
       {/* Preço                                                             */}
       {/* ---------------------------------------------------------------- */}
       <section className="mx-auto w-full max-w-6xl px-5 py-16 md:px-8 md:py-28">
@@ -283,7 +356,7 @@ export default function LandingPage() {
 
       <footer className="border-t border-border">
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-2 px-5 py-8 text-xs text-ivory-muted md:flex-row md:items-center md:justify-between md:px-8">
-          <span className="font-brand text-lg text-ivory">CorteHub</span>
+          <AssinaturaCorteHub className="text-ivory" />
           <span>Feito para quem corta cabelo e precisa saber de dinheiro.</span>
         </div>
       </footer>
