@@ -222,28 +222,35 @@ export const ALL_FEATURES: TenantFeatures = {
 };
 
 /**
- * O tenant de referência — a barbearia que originou o produto.
- * Serve de fallback enquanto o Firestore não entra e de exemplo do formato.
+ * O tenant da PLATAFORMA — o que vale quando o host não tem subdomínio de
+ * barbearia, e o que preenche campo faltante de qualquer barbearia.
+ *
+ * Era a ficha da barbearia piloto, com endereço e WhatsApp inventados. Isso
+ * tinha duas consequências ruins: quem abrisse o domínio raiz via a marca de um
+ * cliente, e qualquer barbearia com um campo de contato vazio herdava "Rua das
+ * Tesouras, 120" em silêncio — endereço falso na tela do cliente dela, sem erro
+ * em lugar nenhum.
+ *
+ * Agora é a JPBarber, e os contatos nascem VAZIOS: campo em branco é honesto,
+ * campo com dado de outro é mentira.
  */
 export const DEFAULT_TENANT: Tenant = {
-  id: "osiqueira",
-  slug: "osiqueira",
+  id: "jpbarber",
+  slug: "jpbarber",
   status: "ativo",
   brand: {
-    name: "O Siqueira Barbearia",
-    shortName: "O Siqueira",
-    logo: "/logo.svg",
-    logoHorizontal: "/logo-horizontal.svg",
+    name: "JPBarber",
+    shortName: "JPBarber",
+    logo: "/jpbarber-marca.svg",
+    logoHorizontal: "/jpbarber-horizontal.svg",
     accentColor: "#b8863a",
     themeColor: "#ffffff",
     panelLabel: "Painel do dono",
     clientTagline: "Sua barbearia",
   },
   contact: {
-    address: "Rua das Tesouras, 120 — Centro",
-    whatsapp: "5511999999999",
-    instagram: "@osiqueirabarbearia",
-    since: 2012,
+    address: "",
+    whatsapp: "",
   },
   locale: DEFAULT_LOCALE,
   policies: PLATFORM_DEFAULT_POLICIES,

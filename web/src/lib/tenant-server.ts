@@ -71,6 +71,19 @@ export const getTenant = cache(async function getTenant(): Promise<Tenant> {
 });
 
 /**
+ * O host é o domínio da PLATAFORMA, sem barbearia?
+ *
+ * Serve para o domínio raiz mostrar a landing em vez do app do cliente. Sem
+ * isso a página da plataforma existe em `/landing` e ninguém chega nela: quem
+ * digita o domínio cai numa tela de login de uma barbearia que não existe.
+ */
+export const isPlatformRoot = cache(async function isPlatformRoot(): Promise<boolean> {
+  const headerList = await headers();
+  const host = headerList.get("x-forwarded-host") ?? headerList.get("host");
+  return slugFromHost(host) === null;
+});
+
+/**
  * `/slugs/{slug}` → `/barbershops/{id}`.
  *
  * Duas leituras por render não cacheado. O documento quase nunca muda, e o
