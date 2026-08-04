@@ -71,6 +71,8 @@ export const checkSlugAvailability = onCall<{ slug: string }>(async (request) =>
 type SignUpInput = {
   slug: string;
   name: string;
+  /** Nome do DONO — vira o primeiro barbeiro e o tratamento nas mensagens. */
+  ownerName?: string;
   address?: string;
   whatsapp?: string;
   accentColor?: string;
@@ -94,6 +96,9 @@ export const signUpBarbershop = onCall<SignUpInput>(async (request) => {
 
   const slug = String(request.data?.slug ?? "").trim().toLowerCase();
   const name = String(request.data?.name ?? "").trim();
+  const ownerName =
+    String(request.data?.ownerName ?? "").trim() ||
+    String(request.auth?.token.name ?? "").trim();
 
   const format = validateSlug(slug);
   if (!format.available) {
@@ -166,6 +171,25 @@ export const signUpBarbershop = onCall<SignUpInput>(async (request) => {
       role: "owner",
       email: request.auth?.token.email ?? null,
       addedAt: FieldValue.serverTimestamp(),
+    });
+
+    /* A barbearia NUNCA nasce sem barbeiro.
+     *
+     * Não é conveniência: com pelo menos um garantido, nenhum caminho do
+     * código precisa tratar "e se não houver barbeiro?" — o estado não existe.
+     * E o dono de uma barbearia solo nunca vê a palavra "barbeiro" na tela,
+     * porque a escolha só aparece a partir do segundo. */
+    tx.set(shopRef.collection("staff").doc(), {
+      name: ownerName || "Eu",
+      active: true,
+      uid,
+      // Vazio significa TODOS os serviços — barbeiro sem serviço marcado não
+      // atenderia ninguém, e o dono acharia que o sistema quebrou.
+      serviceIds: [],
+      commissionPct: null,
+      schedule: null,
+      order: 1,
+      createdAt: FieldValue.serverTimestamp(),
     });
 
     for (const service of SEED_SERVICES) {

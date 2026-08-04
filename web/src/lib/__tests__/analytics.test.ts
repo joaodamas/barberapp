@@ -11,7 +11,7 @@ import type { BookingDoc, ExpenseDoc, InventoryMovementDoc, SubscriberDoc } from
 const P = mesPeriodo("2026-07");
 
 const bk = (o: Partial<BookingDoc> & { id: string }): Doc<BookingDoc> => ({
-  clientId: "c1", clientName: "João", clientWhatsapp: "5511", serviceIds: ["corte"],
+  clientId: "c1", staffId: "s1", clientName: "João", clientWhatsapp: "5511", serviceIds: ["corte"],
   date: "2026-07-10", time: "10:00", status: "completed", value: 90,
   paymentMethod: "pix", ...o,
 });

@@ -124,6 +124,17 @@ export const provisionBarbershop = onCall<ProvisionInput>(async (request) => {
 
     tx.set(slugRef, { barbershopId: shopRef.id });
 
+    tx.set(shopRef.collection("staff").doc(), {
+      name: owner.displayName || "Eu",
+      active: true,
+      uid: owner.uid,
+      serviceIds: [],
+      commissionPct: null,
+      schedule: null,
+      order: 1,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+
     tx.set(shopRef.collection("members").doc(owner.uid), {
       role: "owner",
       email: ownerEmail,

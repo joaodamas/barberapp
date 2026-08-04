@@ -18,6 +18,8 @@ import { diaDaSemanaNoFuso, hojeNoFuso, instanteNoFuso, localeDoDocumento } from
 
 type CriarReservaInput = {
   barbershopId: string;
+  /** Qual barbeiro atende. Opcional na entrada: com um só, o servidor resolve. */
+  staffId?: string;
   serviceIds: string[];
   date: string;
   time: string;
@@ -73,11 +75,62 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
    * por três — o bastante para recusar horário válido ou aceitar um que passou. */
   const locale = localeDoDocumento(shop);
 
+  /* ---- Qual barbeiro ----
+   *
+   * A barbearia SEMPRE tem ao menos um (criado no cadastro), então com uma
+   * cadeira só o cliente não escolhe nada e o servidor preenche. É o caso mais
+   * comum da base: obrigar o dono de uma barbearia solo a escolher a si mesmo
+   * seria atrito puro.
+   *
+   * Com dois ou mais, escolher deixa de ser opcional — reserva sem dono some do
+   * cálculo de comissão e não bate com capacidade nenhuma. */
+  const equipe = await shopRef.collection("staff").where("active", "==", true).get();
+  if (equipe.empty) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Esta barbearia ainda não tem barbeiro cadastrado."
+    );
+  }
+
+  let staffId = String(request.data?.staffId ?? "");
+  if (!staffId) {
+    if (equipe.size > 1) {
+      throw new HttpsError("invalid-argument", "Escolha com qual barbeiro você quer cortar.");
+    }
+    staffId = equipe.docs[0].id;
+  }
+
+  const barbeiro = equipe.docs.find((d) => d.id === staffId);
+  if (!barbeiro) {
+    throw new HttpsError("failed-precondition", "Esse barbeiro não está disponível.");
+  }
+
+  /* Lista vazia significa TODOS os serviços, não nenhum — senão um barbeiro
+   * recém-cadastrado, sem serviços marcados, não atenderia ninguém e o dono
+   * acharia que o sistema quebrou. */
+  const fazTudo = !(barbeiro.get("serviceIds")?.length > 0);
+  const atende: string[] = fazTudo ? [] : barbeiro.get("serviceIds");
+  if (!fazTudo && !serviceIds.every((id) => atende.includes(String(id)))) {
+    throw new HttpsError(
+      "failed-precondition",
+      `${barbeiro.get("name")} não faz um dos serviços escolhidos.`
+    );
+  }
+
   /* ---- A barbearia abre nesse dia? ---- */
   const diaSemana = diaDaSemanaNoFuso(date, locale.timeZone);
-  const abre: number[] = policies.openWeekdays ?? schedule.weekdays ?? [1, 2, 3, 4, 5, 6];
+  /* Jornada do BARBEIRO quando ele tem uma; senão a da loja. Folga na segunda
+   * e entrada às 10h são o normal de uma equipe. */
+  const jornadaDele = barbeiro.get("schedule");
+  const abre: number[] =
+    jornadaDele?.weekdays ?? policies.openWeekdays ?? schedule.weekdays ?? [1, 2, 3, 4, 5, 6];
   if (!abre.includes(diaSemana)) {
-    throw new HttpsError("failed-precondition", "A barbearia não abre neste dia.");
+    throw new HttpsError(
+      "failed-precondition",
+      jornadaDele
+        ? `${barbeiro.get("name")} não atende neste dia.`
+        : "A barbearia não abre neste dia."
+    );
   }
 
   /* ---- Antecedência mínima ---- */
@@ -151,6 +204,12 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
     /* Encaixe não disputa slot: ele existe justamente para pedir um horário
      * já ocupado. Reserva normal, sim. */
     if (!isFitIn) {
+      /* Conflito é por CADEIRA, não pela barbearia.
+       *
+       * Antes bastava `date + time`: três barbeiros às 15h viravam conflito e
+       * dois terços da agenda sumiam. O filtro por `staffId` é em memória e não
+       * na query de propósito — três cláusulas de igualdade exigiriam índice
+       * composto, e índice faltando derruba a criação de reserva em produção. */
       const conflitos = await tx.get(
         shopRef
           .collection("bookings")
@@ -158,7 +217,9 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
           .where("time", "==", time)
       );
 
-      const ocupado = conflitos.docs.some((d) => OCUPAM_SLOT.includes(d.data().status));
+      const ocupado = conflitos.docs.some(
+        (d) => d.data().staffId === staffId && OCUPAM_SLOT.includes(d.data().status)
+      );
       if (ocupado) {
         throw new HttpsError(
           "already-exists",
@@ -169,6 +230,8 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
 
     tx.set(bookingRef, {
       clientId: uid,
+      staffId,
+      staffName: String(barbeiro.get("name") ?? ""),
       clientName: String(request.data?.clientName ?? request.auth?.token.name ?? "Cliente"),
       clientWhatsapp: String(request.data?.clientWhatsapp ?? "").replace(/\D/g, ""),
       serviceIds,
@@ -185,7 +248,7 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
     });
   });
 
-  return { bookingId: bookingRef.id, value, status, durationMin };
+  return { bookingId: bookingRef.id, value, status, durationMin, staffId };
 });
 
 /**
@@ -271,7 +334,10 @@ export const rescheduleBooking = onCall<{
       shopRef.collection("bookings").where("date", "==", date).where("time", "==", time)
     );
     const ocupado = conflitos.docs.some(
-      (d) => d.id !== bookingId && OCUPAM_SLOT.includes(d.data().status)
+      (d) =>
+        d.id !== bookingId &&
+        d.data().staffId === booking.staffId &&
+        OCUPAM_SLOT.includes(d.data().status)
     );
     if (ocupado) {
       throw new HttpsError(

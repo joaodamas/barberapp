@@ -151,6 +151,17 @@ service cloud.firestore {
         allow write: if isOwnerOf(barbershopId);
       }
 
+      /* -------- a equipe -------- */
+
+      match /staff/{staffId} {
+        /* Legível por quem está logado, como o catálogo: o CLIENTE precisa
+         * ver os barbeiros para escolher com quem vai cortar. É vitrine —
+         * nome e serviços que a pessoa atende, nada mais. Comissão fica em
+         * `commissions`, que o cliente não alcança. */
+        allow read: if isSignedIn();
+        allow write: if isOwnerOf(barbershopId);
+      }
+
       match /plans/{planId} {
         allow read: if isSignedIn();
         allow write: if isOwnerOf(barbershopId);
@@ -195,8 +206,20 @@ service cloud.firestore {
 
       match /expenses/{expenseId}         { allow read, write: if isOwnerOf(barbershopId); }
       match /cash_entries/{entryId}       { allow read, write: if isOwnerOf(barbershopId); }
-      match /commissions/{commissionId}   { allow read: if isStaffOf(barbershopId);
-                                            allow write: if isOwnerOf(barbershopId); }
+      /* Comissão é da PESSOA, não da equipe.
+       *
+       * A regra anterior era `isStaffOf`, ou seja: qualquer barbeiro lia a
+       * comissão de todos os colegas. Com uma cadeira só isso nunca apareceu —
+       * o único `staff` era o dono. Com equipe, é vazamento de salário entre
+       * colegas, que é o tipo de coisa que destrói uma barbearia por dentro.
+       *
+       * O dono lê tudo, porque é ele quem paga. Cada barbeiro lê o que é dele.
+       * O vínculo é por `uid` gravado no documento pelo servidor. */
+      match /commissions/{commissionId} {
+        allow read: if isOwnerOf(barbershopId)
+                    || (isStaffOf(barbershopId) && resource.data.uid == request.auth.uid);
+        allow write: if false;
+      }
       match /inventory_movements/{moveId} { allow read, write: if isStaffOf(barbershopId); }
 
       /* -------- escrita exclusiva do servidor -------- */
