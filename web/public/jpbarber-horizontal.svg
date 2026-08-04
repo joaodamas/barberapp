@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 160" width="720" height="160" role="img" aria-label="JPBarber">
+  <!--
+    Assinatura horizontal — para cabeçalho, e-mail e rodapé.
+
+    O símbolo à esquerda e o nome à direita, separados por um fio vertical. O
+    fio existe porque sem ele o "JP" do selo e o "JP" da palavra se leem como
+    repetição; com ele, viram símbolo e nome.
+
+    "JP" em peso 700 e "Barber" em 400: a marca é uma palavra só, e o contraste
+    de peso é o que separa as duas partes sem espaço nem hífen — que quebrariam
+    o nome em dois.
+  -->
+  <defs>
+    <linearGradient id="subidaH" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0%" stop-color="#8c5f1e"/>
+      <stop offset="100%" stop-color="#d9a44f"/>
+    </linearGradient>
+    <mask id="vazadoH">
+      <rect x="0" y="0" width="160" height="160" fill="#fff"/>
+      <text x="80" y="105"
+            font-family="Oswald, 'Arial Narrow', Impact, sans-serif"
+            font-size="78" font-weight="700" letter-spacing="-2"
+            text-anchor="middle" fill="#000">JP</text>
+    </mask>
+  </defs>
+
+  <g>
+    <rect x="8" y="8" width="144" height="144" rx="34" fill="#17140f"/>
+    <path d="M 30,114 C 52,112 62,102 80,92 C 100,80 112,64 140,44"
+          fill="none" stroke="url(#subidaH)" stroke-width="11"
+          stroke-linecap="round" stroke-linejoin="round"
+          transform="translate(-2,-2)"/>
+    <line x1="28" y1="97" x2="136" y2="97"
+          stroke="#d9a44f" stroke-width="4" stroke-linecap="round"
+          stroke-dasharray="1 11" opacity="0.75"/>
+    <rect x="8" y="8" width="144" height="144" rx="34" fill="#17140f"
+          mask="url(#vazadoH)" opacity="0.88"/>
+    <rect x="10" y="10" width="140" height="140" rx="32"
+          fill="none" stroke="#b8863a" stroke-width="1.5" opacity="0.35"/>
+  </g>
+
+  <line x1="186" y1="44" x2="186" y2="116" stroke="#e1d8c5" stroke-width="2"/>
+
+  <text x="216" y="103"
+        font-family="Oswald, 'Arial Narrow', Impact, sans-serif"
+        font-size="66" letter-spacing="1" fill="#17140f">
+    <tspan font-weight="700">JP</tspan><tspan font-weight="400">Barber</tspan>
+  </text>
+</svg>

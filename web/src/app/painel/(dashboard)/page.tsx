@@ -82,6 +82,8 @@ export default function PainelHojePage() {
     },
   ].filter(Boolean) as Array<{ id: string; label: string; href: string; tone: "gold" | "danger" }>;
 
+
+  const semColunaLateral = precisaDeVoce.length === 0 && fitInRequests.length === 0;
   const caixaHoje = caixaDoDia(agendados);
   const recebidoReal = caixaHoje.total;
 
@@ -299,7 +301,18 @@ export default function PainelHojePage() {
         </section>
       )}
 
-      <section className="md:col-start-1 md:row-start-4 md:row-span-2">
+      {/* A coluna lateral de 360px só existe quando há algo nela — "precisa de
+          você" ou encaixe pendente. Vazia, ela deixava a agenda parando no meio
+          da tela com um vão à direita, enquanto os blocos de cima iam até a
+          borda. Sem nada ao lado, a agenda ocupa a largura inteira: é a tabela
+          com mais colunas do painel, e é onde a largura faz diferença. */}
+      <section
+        className={
+          semColunaLateral
+            ? "md:col-span-2"
+            : "md:col-start-1 md:row-start-4 md:row-span-2"
+        }
+      >
         <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm">
           Agenda do dia
         </h2>
