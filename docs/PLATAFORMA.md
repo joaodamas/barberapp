@@ -1,4 +1,4 @@
-# NoCorte — documentação técnica e funcional
+# CorteHub — documentação técnica e funcional
 
 Este é o documento de referência da plataforma: o que existe, como se conecta,
 quem pode o quê, e o que acontece em cada fluxo. Onde uma decisão parece
@@ -12,7 +12,7 @@ real, e apagar o motivo é convidar o defeito de volta.
 ## 1. O que a plataforma é
 
 Um SaaS multi-barbearia. Cada barbearia tem o **próprio endereço**
-(`osiqueira.nocorte.com.br`), a própria marca, o próprio catálogo e o próprio
+(`osiqueira.cortehub.com.br`), a própria marca, o próprio catálogo e o próprio
 financeiro. O cliente final agenda num app que parece daquela barbearia, não da
 plataforma.
 
@@ -46,7 +46,7 @@ Navegador
 
 ### 2.1 Como o subdomínio vira barbearia
 
-`osiqueira.nocorte.com.br` → `slugFromHost` extrai `osiqueira` →
+`osiqueira.cortehub.com.br` → `slugFromHost` extrai `osiqueira` →
 `/slugs/osiqueira` → `barbershopId` → `/barbershops/{id}`.
 
 Três armadilhas que já custaram produção parada, todas documentadas em
@@ -215,7 +215,7 @@ dono. Detalhados em `MENSAGENS-WHATSAPP.md`.
 
 **Um número para toda a plataforma.** Um número por barbearia significaria uma
 verificação na Meta por cliente — semanas cada. O custo é que o remetente é o
-NoCorte e a nota de qualidade é compartilhada.
+CorteHub e a nota de qualidade é compartilhada.
 
 Isso quebrava o webhook, que descobria a barbearia pelo `phone_number_id`. Cada
 evento passou a ter a própria origem de verdade:

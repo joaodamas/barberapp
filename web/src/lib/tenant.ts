@@ -305,18 +305,18 @@ export function acessoDaBarbearia(tenant: Tenant, agora = new Date()): Acesso {
  * Tesouras, 120" em silêncio — endereço falso na tela do cliente dela, sem erro
  * em lugar nenhum.
  *
- * Agora é a NoCorte, e os contatos nascem VAZIOS: campo em branco é honesto,
+ * Agora é a CorteHub, e os contatos nascem VAZIOS: campo em branco é honesto,
  * campo com dado de outro é mentira.
  */
 export const DEFAULT_TENANT: Tenant = {
-  id: "nocorte",
-  slug: "nocorte",
+  id: "cortehub",
+  slug: "cortehub",
   status: "ativo",
   brand: {
-    name: "NoCorte",
-    shortName: "NoCorte",
-    logo: "/nocorte-marca.svg",
-    logoHorizontal: "/nocorte-horizontal.svg",
+    name: "CorteHub",
+    shortName: "CorteHub",
+    logo: "/cortehub-marca.svg",
+    logoHorizontal: "/cortehub-horizontal.svg",
     accentColor: "#b8863a",
     themeColor: "#ffffff",
     panelLabel: "Painel do dono",
@@ -350,7 +350,7 @@ const RESERVED_SLUGS = new Set(["www", "app", "admin", "api", "status", "docs"])
 /**
  * Slug a partir do host.
  *
- * `osiqueira.nocorte.com.br` → "osiqueira".
+ * `osiqueira.cortehub.com.br` → "osiqueira".
  *
  * A comparação é contra o domínio raiz configurado, não por contagem de
  * rótulos: `jpproject.com.br` tem três rótulos e é o apex, enquanto

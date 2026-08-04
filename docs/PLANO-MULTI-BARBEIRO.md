@@ -19,7 +19,7 @@ pertence cada reserva histórica quando ninguém registrou isso.
 **É o cliente que paga mais.** O InBarber cobra **por profissional**
 (R$ 32,90 cada) justamente porque barbearia de 2 a 5 cadeiras é a norma. Uma
 equipe de três tem mais dor de agenda, mais conflito de horário e comissão para
-calcular — e é exatamente quem hoje não consegue usar o NoCorte.
+calcular — e é exatamente quem hoje não consegue usar o CorteHub.
 
 **Metade da fundação já existe.** `commissionSplit` está nas políticas, a
 coleção `commissions` já está declarada nas regras, e `members` já guarda papel
