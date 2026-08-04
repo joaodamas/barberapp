@@ -66,3 +66,66 @@ export function Reveal({
     </div>
   );
 }
+
+/**
+ * Revela palavra a palavra.
+ *
+ * Escalonar por PALAVRA e não por letra: letra a letra vira efeito de
+ * apresentação de slide e atrasa a leitura do que é a promessa da página.
+ * Palavra dá cadência sem custar tempo — 45 ms entre elas some como percepção
+ * e aparece como intenção.
+ */
+export function RevealPalavras({
+  texto,
+  className = "",
+  destaque,
+  classeDestaque = "",
+}: {
+  texto: string;
+  className?: string;
+  /** Palavras que recebem tratamento próprio. */
+  destaque?: string[];
+  classeDestaque?: string;
+}) {
+  const [visivel, setVisivel] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setVisivel(true);
+      return;
+    }
+    const el = ref.current;
+    if (!el) return;
+    const o = new IntersectionObserver(
+      ([e]) => {
+        if (e.isIntersecting) {
+          setVisivel(true);
+          o.disconnect();
+        }
+      },
+      { threshold: 0.2 }
+    );
+    o.observe(el);
+    return () => o.disconnect();
+  }, []);
+
+  return (
+    <span ref={ref} className={className}>
+      {texto.split(" ").map((palavra, i) => (
+        <span
+          key={`${palavra}-${i}`}
+          style={{ transitionDelay: `${i * 45}ms` }}
+          className={
+            "inline-block transition-[opacity,transform] duration-500 ease-out motion-reduce:transition-none " +
+            (visivel ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0") +
+            (destaque?.includes(palavra) ? ` ${classeDestaque}` : "")
+          }
+        >
+          {palavra}
+          {"\u00A0"}
+        </span>
+      ))}
+    </span>
+  );
+}

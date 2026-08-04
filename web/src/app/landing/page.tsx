@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { ArrowRight, Check } from "lucide-react";
-import { Reveal } from "@/components/landing/reveal";
+import { Reveal, RevealPalavras } from "@/components/landing/reveal";
 import { AgendaDoDia, ProjecaoCurta, ResumoDoMes } from "@/components/landing/telas";
 
 export const metadata: Metadata = {
@@ -59,9 +59,12 @@ export default function LandingPage() {
             {/* `text-balance` evita a linha órfã de uma palavra, que é o que
                 mais denuncia título grande mal quebrado. */}
             <h1 className="text-balance font-display text-4xl leading-[1.05] tracking-tight text-ivory sm:text-5xl md:text-6xl">
-              Você sabe quanto faturou.
+              <RevealPalavras texto="Você sabe quanto faturou." />
               <br />
-              <span className="text-gold-light">Sabe quanto sobrou?</span>
+              <RevealPalavras
+                texto="Sabe quanto sobrou?"
+                className="text-gold-light"
+              />
             </h1>
             <p className="mt-6 max-w-lg text-base leading-relaxed text-ivory-muted md:text-lg">
               Agenda que o cliente usa sozinho, e um financeiro que desconta

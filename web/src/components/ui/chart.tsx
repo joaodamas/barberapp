@@ -49,10 +49,23 @@ export function LineChart({
   data,
   height = 160,
   label,
+  desenhar = false,
 }: {
   data: Ponto[];
   height?: number;
   label: string;
+  /**
+   * Desenha a linha da esquerda para a direita ao entrar na tela.
+   *
+   * É movimento que MOSTRA o produto, em vez de decorar a página. Fundo
+   * animado e vidro fosco custam repintura de tela inteira num Android médio
+   * — que é o aparelho do cliente — e não dizem nada. Uma curva sendo traçada
+   * diz "isto aqui é o seu caixa".
+   *
+   * Só na vitrine: dentro do painel o dono abre a tela para LER o número, e
+   * fazer ele esperar meio segundo por uma animação é atrito diário.
+   */
+  desenhar?: boolean;
 }) {
   const id = useId();
   const [ativo, setAtivo] = useState<number | null>(null);
@@ -100,6 +113,7 @@ export function LineChart({
           strokeLinejoin="round"
           strokeLinecap="round"
           vectorEffect="non-scaling-stroke"
+          className={desenhar ? "linha-desenhando" : undefined}
         />
 
         {mostraZero && (

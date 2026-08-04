@@ -111,6 +111,7 @@ export function ProjecaoCurta() {
       </div>
       <LineChart
         height={120}
+        desenhar
         label="Saldo acumulado projetado para os próximos 20 dias."
         data={dados}
       />

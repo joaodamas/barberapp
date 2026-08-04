@@ -202,3 +202,29 @@ table td,
 table th {
   font-variant-numeric: tabular-nums;
 }
+
+/* Linha que se desenha ao entrar na tela.
+ *
+ * `pathLength="1"` normalizaria o traço, mas nem todo navegador o aplica a
+ * `stroke-dasharray` em porcentagem — usar um comprimento grande e fixo é o
+ * que funciona em todos. A curva da projeção nunca chega perto de 1000
+ * unidades de viewBox, então o valor cobre com folga.
+ *
+ * Sem `prefers-reduced-motion` a linha nasce pronta: quem marcou essa
+ * preferência não pode receber a página com um elemento se construindo. */
+.linha-desenhando {
+  stroke-dasharray: 1000;
+  stroke-dashoffset: 1000;
+  animation: desenhar-linha 1.6s cubic-bezier(0.22, 1, 0.36, 1) 0.15s forwards;
+}
+
+@keyframes desenhar-linha {
+  to { stroke-dashoffset: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .linha-desenhando {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}
