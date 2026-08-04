@@ -16,6 +16,7 @@ import { agruparProjecaoPorMes } from "@/lib/analytics";
 import { Segmented } from "@/components/ui/segmented";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { LineChart } from "@/components/ui/chart";
+import { Voltar } from "@/components/ui/voltar";
 
 export default function ProjecaoPage() {
   const [horizonte, setHorizonte] = useState<Horizonte>("mensal");
@@ -48,6 +49,8 @@ export default function ProjecaoPage() {
 
   return (
     <div className="flex flex-col gap-6 pt-1 md:gap-8 md:pt-2">
+      <Voltar />
+
       <div>
         <p className="text-sm text-ivory-muted md:text-base">
           Próximos {HORIZONTES[horizonte].dias} dias

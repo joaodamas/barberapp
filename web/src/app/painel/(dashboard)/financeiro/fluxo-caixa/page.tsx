@@ -7,6 +7,7 @@ import { formatBRL, formatWeekdayAndDay, safeDiv, safePct } from "@/lib/format";
 import { useFinanceiro, mesAtual, rotuloDoMes } from "@/lib/db/use-financeiro";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { BarChart } from "@/components/ui/chart";
+import { Voltar } from "@/components/ui/voltar";
 
 export default function FluxoCaixaPage() {
   const mes = mesAtual();
@@ -30,6 +31,8 @@ export default function FluxoCaixaPage() {
 
   return (
     <div className="flex flex-col gap-6 pt-1 md:gap-8 md:pt-2">
+      <Voltar />
+
       <div>
         {/* A tela não dizia de que mês eram os números. */}
         <p className="text-sm text-ivory-muted md:text-base">

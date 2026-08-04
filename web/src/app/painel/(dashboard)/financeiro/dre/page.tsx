@@ -8,6 +8,7 @@ import { formatBRL } from "@/lib/format";
 import { useFinanceiro, mesAtual, rotuloDoMes } from "@/lib/db/use-financeiro";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { useTenant } from "@/lib/tenant-context";
+import { Voltar } from "@/components/ui/voltar";
 
 type DreItem = {
   key: string;
@@ -154,6 +155,7 @@ export default function DrePage() {
   return (
     <div className="flex flex-col gap-6 pt-1 md:gap-8 md:pt-2">
       <div className="flex items-center justify-between gap-3">
+        <Voltar />
         <div>
           <h1 className="text-xl text-ivory md:text-3xl md:tracking-tight">DRE Gerencial</h1>
           <p className="text-xs text-ivory-muted md:text-sm">
