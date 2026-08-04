@@ -1,52 +1,36 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="JPBarber">
   <!--
-    JPBarber — marca principal.
+    JPBarber — símbolo: a LINHA QUE CRUZA O ZERO.
 
-    A ideia: a LINHA QUE CRUZA O ZERO.
+    O dia em que a barbearia sai do vermelho. Barbearia tem dois clichês
+    visuais — poste listrado e tesoura — e os dois já estão em todo concorrente.
 
-    Barbearia tem dois clichês visuais, o poste listrado e a tesoura, e os dois
-    já estão em todo concorrente. O que só este produto tem é a curva de caixa
-    acumulado com o zero tracejado por cima — o dia em que a barbearia sai do
-    vermelho. Isso é ownable, é abstrato, e nenhum gerador de logo produz.
+    Duas versões antes desta:
+    v1 juntava monograma e símbolo, com "JP" vazado num bloco escuro sobre fundo
+    escuro: dentro das letras aparecia a mesma cor de fora, e não se via nada.
+    v2 acertou a legibilidade mas a barra do zero era escura demais — a linha
+    subia sozinha e o cruzamento, que é a ideia inteira, não se lia.
 
-    Construção: monograma JP recortado do bloco escuro (não desenhado POR CIMA
-    dele), a linha dourada ascendendo por trás, e o zero tracejado atravessando.
-    Em 32px o traço fino some e sobra um bloco com um corte diagonal — que
-    continua legível, que é o único teste que importa num ícone de app.
+    Aqui a barra é dourada e ATRAVESSA a diagonal em toda a largura, e a linha
+    passa por cima com um contorno escuro que separa as duas. É o contorno que
+    faz o cruzamento existir: sem ele, dourado sobre dourado vira mancha.
   -->
-  <defs>
-    <linearGradient id="subida" x1="0" y1="1" x2="1" y2="0">
-      <stop offset="0%" stop-color="#8c5f1e"/>
-      <stop offset="100%" stop-color="#d9a44f"/>
-    </linearGradient>
-
-    <!-- O bloco com o monograma VAZADO. Recortar em vez de sobrepor faz o
-         dourado da linha aparecer dentro das letras. -->
-    <mask id="vazado">
-      <rect x="0" y="0" width="512" height="512" fill="#fff"/>
-      <text x="256" y="336"
-            font-family="Oswald, 'Arial Narrow', Impact, sans-serif"
-            font-size="248" font-weight="700" letter-spacing="-6"
-            text-anchor="middle" fill="#000">JP</text>
-    </mask>
-  </defs>
-
   <rect width="512" height="512" rx="116" fill="#17140f"/>
 
-  <!-- A curva: começa abaixo do zero e termina bem acima dele. -->
-  <path d="M 76,372 C 148,368 176,338 232,306 C 292,272 330,222 436,150"
-        fill="none" stroke="url(#subida)" stroke-width="30"
+  <!-- O zero. Atravessa de ponta a ponta: é uma referência, não um detalhe. -->
+  <line x1="88" y1="304" x2="424" y2="304"
+        stroke="#b8863a" stroke-width="16" stroke-linecap="round" opacity="0.55"/>
+
+  <!-- Contorno escuro sob a diagonal: cria o vão que faz o cruzamento aparecer. -->
+  <path d="M 122,392 L 220,336 L 302,258 L 392,150"
+        fill="none" stroke="#17140f" stroke-width="76"
         stroke-linecap="round" stroke-linejoin="round"/>
 
-  <!-- O zero. Tracejado, como no gráfico da projeção. -->
-  <line x1="76" y1="318" x2="436" y2="318"
-        stroke="#d9a44f" stroke-width="9" stroke-linecap="round"
-        stroke-dasharray="2 30" opacity="0.75"/>
+  <!-- A subida. -->
+  <path d="M 122,392 L 220,336 L 302,258 L 392,150"
+        fill="none" stroke="#d9a44f" stroke-width="46"
+        stroke-linecap="round" stroke-linejoin="round"/>
 
-  <!-- O bloco por cima, com JP vazado: a linha aparece dentro das letras. -->
-  <rect width="512" height="512" rx="116" fill="#17140f" mask="url(#vazado)" opacity="0.88"/>
-
-  <!-- Contorno interno sutil, para o selo não sumir sobre fundo escuro. -->
-  <rect x="6" y="6" width="500" height="500" rx="110"
-        fill="none" stroke="#b8863a" stroke-width="3" opacity="0.35"/>
+  <!-- Chegou. -->
+  <circle cx="392" cy="150" r="31" fill="#f8f5ee"/>
 </svg>

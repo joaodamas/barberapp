@@ -21,9 +21,11 @@ export const metadata: Metadata = {
  *    defesa mais forte contra parecer template — nenhum gerador inventa
  *    "ponto de equilíbrio no dia 17".
  *
- * 2. **Nenhuma prova social inflada.** Uma barbearia, com nome. Dizer "2.400
+ * 2. **Nenhuma prova social inflada, e nenhum cliente nomeado.** Dizer "2.400
  *    barbearias" quando existe uma é o tipo de mentira que o primeiro cliente
- *    descobre — e a confiança dele é o ativo mais caro nesta fase.
+ *    descobre. E citar o nome da barbearia piloto exigiria autorização dela —
+ *    ninguém vira caso de sucesso sem ser consultado. A origem é contada sem
+ *    nome: vale pela substância, não pela referência.
  *
  * 3. **O produto se mostra, não se descreve.** Os blocos de tela usam os
  *    componentes REAIS do painel, com os mesmos tokens e o mesmo gráfico.
@@ -191,15 +193,17 @@ export default function LandingPage() {
       <section className="border-y border-border bg-surface/60">
         <div className="mx-auto w-full max-w-3xl px-5 py-16 text-center md:px-8 md:py-24">
           <Reveal>
-            <p className="text-sm text-gold-light">Quem usa</p>
+            <p className="text-sm text-gold-light">De onde veio</p>
             <p className="mt-5 text-balance font-display text-xl leading-snug text-ivory md:text-3xl">
-              O JPBarber nasceu resolvendo a dor de uma barbearia só — a{" "}
-              <span className="text-gold-light">O Siqueira</span>, em Cajamar.
+              O JPBarber nasceu dentro de{" "}
+              <span className="text-gold-light">uma barbearia só</span>, para
+              resolver o problema de um barbeiro só.
             </p>
             <p className="mx-auto mt-5 max-w-xl leading-relaxed text-ivory-muted">
-              Cada tela aqui existe porque um barbeiro de verdade perdeu dinheiro
-              sem ela. Não somos os maiores. Somos os que sabem por que cada
-              número está onde está.
+              Cada tela aqui existe porque alguém perdeu dinheiro sem ela — a
+              falta que ninguém somou, a comissão calculada sobre o preço errado,
+              o mês que fechou no vermelho sem aviso. Não somos os maiores. Somos
+              os que sabem por que cada número está onde está.
             </p>
           </Reveal>
         </div>

@@ -18,7 +18,7 @@
     <mask id="vazadoH">
       <rect x="0" y="0" width="160" height="160" fill="#fff"/>
       <text x="80" y="105"
-            font-family="Oswald, 'Arial Narrow', Impact, sans-serif"
+            font-family="Oswald, 'Oswald Fallback', 'Haettenschweiler', 'Arial Narrow', 'Liberation Sans Narrow', Impact, sans-serif"
             font-size="78" font-weight="700" letter-spacing="-2"
             text-anchor="middle" fill="#000">JP</text>
     </mask>
@@ -42,7 +42,7 @@
   <line x1="186" y1="44" x2="186" y2="116" stroke="#e1d8c5" stroke-width="2"/>
 
   <text x="216" y="103"
-        font-family="Oswald, 'Arial Narrow', Impact, sans-serif"
+        font-family="Oswald, 'Oswald Fallback', 'Haettenschweiler', 'Arial Narrow', 'Liberation Sans Narrow', Impact, sans-serif"
         font-size="66" letter-spacing="1" fill="#17140f">
     <tspan font-weight="700">JP</tspan><tspan font-weight="400">Barber</tspan>
   </text>
