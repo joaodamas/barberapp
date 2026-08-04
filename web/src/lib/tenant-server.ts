@@ -181,6 +181,7 @@ function toTenant(id: string, data: Record<string, unknown>): Tenant {
     id,
     slug: String(data.slug ?? id),
     status: (data.status as Tenant["status"]) ?? "ativo",
+    plan: typeof data.plan === "string" ? data.plan : undefined,
     brand: { ...DEFAULT_TENANT.brand, ...brand },
     contact: { ...DEFAULT_TENANT.contact, ...contact },
     /* Barbearia sem `locale` gravado herda o padrão da plataforma. Nunca
@@ -190,7 +191,11 @@ function toTenant(id: string, data: Record<string, unknown>): Tenant {
     // Política ausente cai no padrão da plataforma — nunca em undefined, que
     // viraria NaN em cálculo de reembolso.
     policies: { ...PLATFORM_DEFAULT_POLICIES, ...policies },
-    features: { ...ALL_FEATURES, ...features },
+    /* Sem espalhar ALL_FEATURES por cima: fazer isso daria tudo a todo mundo e
+     * é exatamente o motivo de o plano nunca ter valido nada. O que o plano
+     * libera é decidido em `acessoDaBarbearia`; aqui fica só o que o documento
+     * declarar explicitamente. */
+    features: features as Tenant["features"],
     schedule: { ...DEFAULT_SCHEDULE, ...((data.schedule ?? {}) as object) },
     trial: toTrial(data.trial),
     onboarding: toOnboarding(data.onboarding),

@@ -128,6 +128,8 @@ export type Tenant = {
   /** Subdomínio: `osiqueira` em `osiqueira.dominio.com.br`. */
   slug: string;
   status: "ativo" | "suspenso" | "trial";
+  /** Plano contratado. Decide o que `acessoDaBarbearia` libera. */
+  plan?: string;
   brand: TenantBrand;
   contact: TenantContact;
   /** Fuso, moeda e formato. Decide QUE DIA é hoje e em que moeda o valor é. */
@@ -220,6 +222,78 @@ export const ALL_FEATURES: TenantFeatures = {
   whatsapp: true,
   advancedFinance: true,
 };
+
+/** O que cada plano entrega. O trial libera tudo. */
+export const FEATURES_POR_PLANO: Record<string, TenantFeatures> = {
+  agenda: {
+    subscriptions: false,
+    store: false,
+    loyalty: false,
+    whatsapp: true,
+    advancedFinance: false,
+  },
+  crescimento: {
+    subscriptions: true,
+    store: true,
+    loyalty: true,
+    whatsapp: true,
+    advancedFinance: false,
+  },
+  gestao: ALL_FEATURES,
+  completo: ALL_FEATURES,
+};
+
+/**
+ * O que a barbearia pode FAZER agora.
+ *
+ * `features` e `trial` existiam no modelo e não eram consultados por tela
+ * nenhuma — plano de R$ 97 enxergava DRE, e teste vencido funcionava para
+ * sempre. Cobrança sem isto é cobrança voluntária.
+ *
+ * Modo LEITURA em vez de bloqueio: barbearia que perde a agenda no meio de um
+ * sábado não volta para negociar, cria caso. O cliente final continua
+ * agendando, o dono continua vendo o que existe — o que trava é editar e o que
+ * é do plano de cima.
+ */
+export type Acesso = {
+  /** Pode alterar dados: catálogo, despesas, equipe, horários. */
+  podeEditar: boolean;
+  /** O que o plano libera, já considerando trial e suspensão. */
+  features: TenantFeatures;
+  /** Por que está em leitura, quando está. */
+  motivo: "trial_vencido" | "suspensa" | "cancelada" | null;
+};
+
+const NADA: TenantFeatures = {
+  subscriptions: false,
+  store: false,
+  loyalty: false,
+  whatsapp: false,
+  advancedFinance: false,
+};
+
+export function acessoDaBarbearia(tenant: Tenant, agora = new Date()): Acesso {
+  const trialAcabou = isTrialExpired(tenant.trial, agora);
+
+  if (tenant.status === "suspenso") {
+    return { podeEditar: false, features: NADA, motivo: "suspensa" };
+  }
+  if (tenant.status === "trial") {
+    return trialAcabou
+      ? { podeEditar: false, features: NADA, motivo: "trial_vencido" }
+      : { podeEditar: true, features: ALL_FEATURES, motivo: null };
+  }
+
+  /* Barbearia ativa: vale o plano contratado. `features` gravado no documento
+   * ainda tem a palavra final — é como o suporte libera algo pontualmente sem
+   * mexer no plano. */
+  const doPlano = FEATURES_POR_PLANO[tenant.plan ?? ""] ?? ALL_FEATURES;
+  return {
+    podeEditar: true,
+    features: { ...doPlano, ...tenant.features },
+    motivo: null,
+  };
+}
 
 /**
  * O tenant da PLATAFORMA — o que vale quando o host não tem subdomínio de
