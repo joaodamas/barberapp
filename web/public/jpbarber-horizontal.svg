@@ -1,37 +1,24 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 660 160" width="660" height="160" role="img" aria-label="JPBarber">
   <!--
-    Assinatura horizontal — cabeçalho, e-mail, rodapé.
+    Assinatura horizontal. O símbolo é o MESMO do ícone, reduzido — marca em que
+    o lockup difere do ícone é marca que ninguém reconhece no celular.
 
-    O símbolo é o MESMO do ícone, reduzido: a linha que cruza o zero. Marca em
-    que o símbolo do lockup difere do ícone do app é marca que ninguém reconhece
-    no celular.
-
-    ⚠️ O nome está como TEXTO, não como curvas. Dentro do app funciona, porque a
-    página carrega Oswald; num arquivo aberto solto, num e-mail ou num programa
-    de design, cai na fonte substituta e o desenho muda. Para uso fora do app,
-    este texto precisa ser convertido em curvas — é a única forma de a assinatura
-    ficar idêntica em qualquer lugar.
+    ⚠️ O nome é TEXTO com fonte. Dentro do app funciona, porque a página carrega
+    Oswald; solto, num e-mail ou num editor, cai numa substituta e o desenho
+    muda. Para uso fora do app este texto precisa virar curvas.
   -->
-
-  <!-- Símbolo -->
   <g>
     <rect x="8" y="8" width="144" height="144" rx="33" fill="#17140f"/>
-    <line x1="33" y1="93" x2="127" y2="93"
-          stroke="#b8863a" stroke-width="4.5" stroke-linecap="round" opacity="0.55"/>
-    <path d="M 42,118 L 69,102 L 92,80 L 118,50"
-          fill="none" stroke="#17140f" stroke-width="21"
-          stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="M 42,118 L 69,102 L 92,80 L 118,50"
-          fill="none" stroke="#d9a44f" stroke-width="13"
-          stroke-linecap="round" stroke-linejoin="round"/>
-    <circle cx="118" cy="50" r="8.7" fill="#f8f5ee"/>
+    <g fill="none" stroke="#f8f5ee" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M 68,50 L 68,88 A 15,15 0 0 1 39,88"/>
+      <path d="M 91,110 L 91,50 L 105,50 A 16,16 0 0 1 105,81 L 91,81"/>
+    </g>
+    <line x1="39" y1="120" x2="121" y2="120"
+          stroke="#d9a44f" stroke-width="6" stroke-linecap="round"/>
   </g>
 
-  <!-- Fio separador: sem ele o selo e a palavra se leem como um bloco só. -->
   <line x1="186" y1="46" x2="186" y2="114" stroke="#e1d8c5" stroke-width="2"/>
 
-  <!-- Nome. "JP" em 700 e "Barber" em 400: uma palavra só, separada por peso —
-       espaço ou hífen quebrariam o nome em dois. -->
   <text x="216" y="104"
         font-family="Oswald, 'Haettenschweiler', 'Arial Narrow', 'Liberation Sans Narrow', Impact, sans-serif"
         font-size="68" letter-spacing="0.5" fill="#17140f">
