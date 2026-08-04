@@ -20,6 +20,8 @@ import { useTenant } from "@/lib/tenant-context";
 import { useShopCollection } from "@/lib/db/use-collection";
 import { createDoc, patchDoc, removeDoc } from "@/lib/db/repository";
 import { Voltar } from "@/components/ui/voltar";
+import { BloqueioPlano } from "@/components/ui/bloqueio-plano";
+import { useAcesso } from "@/lib/tenant-context";
 
 const PAYMENT_METHODS = expensePaymentMethods;
 
@@ -148,6 +150,14 @@ export default function DespesasPage() {
     } finally {
       setPendingDelete(null);
     }
+  }
+
+  /* O financeiro avançado é o que separa o plano Gestão dos outros.
+   * A saída fica DEPOIS dos hooks: React não aceita hook condicional, e
+   * a tela precisa dos mesmos dados para o caso liberado. */
+  const acesso = useAcesso();
+  if (!acesso.features.advancedFinance) {
+    return <BloqueioPlano titulo="Controle de despesas" descricao="Lance aluguel, luz, produtos e pró-labore uma vez e veja o lucro de verdade nas outras telas." />;
   }
 
   return (

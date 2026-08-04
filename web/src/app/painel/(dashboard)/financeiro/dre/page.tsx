@@ -9,6 +9,8 @@ import { useFinanceiro, mesAtual, rotuloDoMes } from "@/lib/db/use-financeiro";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { useTenant } from "@/lib/tenant-context";
 import { Voltar } from "@/components/ui/voltar";
+import { BloqueioPlano } from "@/components/ui/bloqueio-plano";
+import { useAcesso } from "@/lib/tenant-context";
 
 type DreItem = {
   key: string;
@@ -151,6 +153,14 @@ export default function DrePage() {
       value: e.value,
       caption: e.category,
     }));
+
+  /* O financeiro avançado é o que separa o plano Gestão dos outros.
+   * A saída fica DEPOIS dos hooks: React não aceita hook condicional, e
+   * a tela precisa dos mesmos dados para o caso liberado. */
+  const acesso = useAcesso();
+  if (!acesso.features.advancedFinance) {
+    return <BloqueioPlano titulo="DRE Gerencial" descricao="Veja quanto sobra depois de comissão, custo fixo e imposto — com margem de contribuição e ponto de equilíbrio calculados do seu custo real." />;
+  }
 
   return (
     <div className="flex flex-col gap-6 pt-1 md:gap-8 md:pt-2">

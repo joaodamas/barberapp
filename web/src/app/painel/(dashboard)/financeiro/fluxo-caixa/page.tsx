@@ -8,6 +8,8 @@ import { useFinanceiro, mesAtual, rotuloDoMes } from "@/lib/db/use-financeiro";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { BarChart } from "@/components/ui/chart";
 import { Voltar } from "@/components/ui/voltar";
+import { BloqueioPlano } from "@/components/ui/bloqueio-plano";
+import { useAcesso } from "@/lib/tenant-context";
 
 export default function FluxoCaixaPage() {
   const mes = mesAtual();
@@ -28,6 +30,14 @@ export default function FluxoCaixaPage() {
     }),
     { pix: 0, cartao: 0, dinheiro: 0 }
   );
+
+  /* O financeiro avançado é o que separa o plano Gestão dos outros.
+   * A saída fica DEPOIS dos hooks: React não aceita hook condicional, e
+   * a tela precisa dos mesmos dados para o caso liberado. */
+  const acesso = useAcesso();
+  if (!acesso.features.advancedFinance) {
+    return <BloqueioPlano titulo="Fluxo de caixa" descricao="Quanto entrou por dia e por meio de pagamento, com o formato do mês em um gráfico." />;
+  }
 
   return (
     <div className="flex flex-col gap-6 pt-1 md:gap-8 md:pt-2">
