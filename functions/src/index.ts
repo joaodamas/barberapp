@@ -29,6 +29,7 @@ export { changeInitialPassword } from "./account";
 export { notifyBookingCreated } from "./whatsapp/notify";
 export { whatsappWebhook } from "./whatsapp/webhook";
 export { createBooking, cancelBooking, rescheduleBooking } from "./booking";
+export { availableSlots } from "./availability";
 export { TEMPLATES } from "./whatsapp/templates";
 export type {
   TemplateDef,

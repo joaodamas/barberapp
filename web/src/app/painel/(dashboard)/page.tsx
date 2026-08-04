@@ -20,7 +20,7 @@ import { paymentMethodLabel } from "@/lib/payment-method";
 import { formatBRL, formatPhonePtBR, safePct } from "@/lib/format";
 import { bookingPolicy } from "@/lib/business-rules";
 import { useTenant } from "@/lib/tenant-context";
-import { useBookings, useServices } from "@/lib/db/use-shop-data";
+import { useBookings, useServices, useStaff } from "@/lib/db/use-shop-data";
 import { patchDoc } from "@/lib/db/repository";
 import { capacidadeDiaria, caixaDoDia } from "@/lib/analytics";
 import { OCCUPIES_SLOT } from "@/lib/domain";
@@ -34,6 +34,7 @@ export default function PainelHojePage() {
   const { brand } = tenant;
   const { items: todas, status } = useBookings();
   const { items: services, status: statusServicos } = useServices();
+  const { items: equipe } = useStaff();
 
   const hoje = toISODate(new Date());
   const bookings = todas.filter((b) => b.date === hoje);
@@ -41,7 +42,11 @@ export default function PainelHojePage() {
   const getServicesByIds = (ids: string[]) =>
     ids.map((id) => services.find((s) => s.id === id)).filter(Boolean) as Array<{ name: string }>;
 
-  const totalSlots = capacidadeDiaria(tenant.schedule);
+  /* Capacidade é POR CADEIRA. Com três barbeiros são três agendas paralelas —
+   * calcular como se fosse uma faz a tela mostrar "lotado" com duas cadeiras
+   * vazias, e a taxa de ocupação sair três vezes maior que a real. */
+  const barbeirosAtivos = Math.max(equipe.filter((b) => b.active !== false).length, 1);
+  const totalSlots = capacidadeDiaria(tenant.schedule) * barbeirosAtivos;
 
   const fitInRequests = bookings.filter((b) => b.status === "fit_in_requested");
 

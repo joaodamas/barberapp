@@ -3,7 +3,7 @@
 import { useTenant } from "@/lib/tenant-context";
 import {
   useBookings, useExpenses, useInventoryMovements,
-  useProducts, useServices, useSubscribers, combineStatus,
+  useProducts, useServices, useStaff, useSubscribers, combineStatus,
 } from "@/lib/db/use-shop-data";
 import {
   caixaDiario, capacidadeDiaria, horariosDaJornada, indicadores,
@@ -45,6 +45,7 @@ export function useFinanceiro(mes: string, horizonte: Horizonte = "mensal") {
   const movements = useInventoryMovements();
   const subscribers = useSubscribers();
   const services = useServices();
+  const staff = useStaff();
   const products = useProducts();
 
   const periodo = mesPeriodo(mes);
@@ -72,7 +73,12 @@ export function useFinanceiro(mes: string, horizonte: Horizonte = "mensal") {
   });
 
   const diasAbertos = tenant.schedule.weekdays.length;
-  const capacidadeMes = capacidadeDiaria(tenant.schedule) * diasAbertos * 4.3;
+  /* Capacidade do mês × barbeiros ativos. Sem isso, a ocupação de uma equipe
+   * de três sai três vezes maior que a real — e o dono decide preço e horário
+   * em cima de um número inventado. */
+  const barbeirosAtivos = Math.max(staff.items.filter((b) => b.active !== false).length, 1);
+  const capacidadeMes =
+    capacidadeDiaria(tenant.schedule) * diasAbertos * 4.3 * barbeirosAtivos;
 
   const kpis = indicadores({
     bookings: bookings.items,
