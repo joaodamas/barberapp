@@ -1,6 +1,6 @@
 # Changelog
 
-Histórico de mudanças do app da O Siqueira Barbearia.
+Histórico de mudanças do JPBarber — plataforma de gestão para barbearias.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
 ## [Não publicado]
@@ -242,6 +242,172 @@ barbearia original vira o tenant piloto, não o único cliente.
 - Verificação comercial na Meta — sem ela, 250 destinatários únicos por 24h.
 
 ---
+
+## [2026-08-04]
+
+### Multi-barbeiro
+
+A agenda inteira assumia **uma cadeira**. Não existia `staffId` em lugar nenhum:
+nem no modelo, nem na geração de horários, nem na criação de reserva. Barbearia
+com duas ou mais cadeiras — que é a maioria das que pagam mais — não conseguia
+usar o produto.
+
+- Coleção `staff`, com barbeiro como **recurso e não usuário**: `uid` opcional.
+  `members` é quem tem login; existe barbeiro sem e-mail e sem vontade de
+  aplicativo, e se ele só existisse com conta o dono não cadastraria metade da
+  equipe.
+- **A barbearia nunca tem zero barbeiros.** Um é criado no cadastro, a partir do
+  dono. Com isso nenhum caminho do código precisa tratar "e se não houver
+  barbeiro?" — o estado não existe. E o dono de uma barbearia solo nunca vê a
+  palavra "barbeiro" na tela: a escolha só aparece a partir do segundo.
+- **Conflito de horário passou a ser por cadeira.** Era `date == X && time == Y`:
+  três barbeiros às 15h viravam conflito e dois terços da agenda sumiam.
+- Jornada do barbeiro sobrepõe a da loja (folga na segunda, entrada às 10h são o
+  normal de uma equipe), e `serviceIds` vazio significa TODOS os serviços —
+  barbeiro recém-cadastrado sem nada marcado nasceria invisível na agenda.
+- Tela de **Equipe** no painel. Não dá para ficar com zero ativos, e ao passar de
+  um a tela avisa que a capacidade multiplicou: a taxa de ocupação vai cair sem o
+  movimento cair, e sem esse aviso o dono contrata alguém e o produto parece
+  dizer que ele piorou.
+- Seletor de barbeiro no agendamento, só a partir do segundo. Capacidade × cadeiras
+  na tela Hoje e no mês.
+- Migração aplicada com a base vazia — hoje a atribuição é óbvia; depois do
+  segundo barbeiro, decidir a quem pertence uma reserva antiga é adivinhação.
+
+**Furo corrigido:** a comissão era legível por `isStaffOf` — qualquer barbeiro
+lia o salário dos colegas. Com uma cadeira só nunca apareceu, porque o único
+`staff` era o dono.
+
+### Disponibilidade real
+
+**A tela de agendar mostrava todo horário como livre, inclusive os reservados.**
+As regras proíbem o cliente de ler reserva alheia — e devem proibir. A
+consequência ficou sem tratamento: o cliente escolhia, tocava em confirmar, e só
+então o servidor respondia que o horário já era de outra pessoa.
+
+`availableSlots` faz a conta no servidor e devolve só as horas livres:
+disponibilidade sem entregar a agenda. Verificado em produção — 43 livres,
+reservei um, sobraram 42; com combo de 90 min sobram 38, porque o atendimento
+inteiro precisa caber.
+
+### WhatsApp
+
+- **Um número para toda a plataforma.** Um por barbearia significaria uma
+  verificação na Meta por cliente. Isso quebrava o webhook, que descobria a
+  barbearia pelo `phone_number_id`: cada evento passou a ter a própria origem de
+  verdade — botão pelo payload assinado, entrega por índice de mensagem, texto
+  livre pela última conversa.
+- **O webhook não conferia QUEM tocou o botão.** Com número compartilhado, todos
+  os clientes de todas as barbearias falam com o mesmo número. Provado em
+  produção com duas barbearias: cada toque foi para a reserva certa e três
+  tentativas de impostor foram recusadas.
+- Os 34 templates submetidos e aprovados na Meta. Três regras descobertas só na
+  submissão: botão não aceita emoji (corpo aceita), variável no fim seguida de
+  pontuação ainda conta como "no fim", e a Meta responde erro no idioma da conta.
+
+### Internacionalização — fuso e moeda por barbearia
+
+Não é preparação, é correção. O produto assumia São Paulo e real em 21 arquivos.
+A Cloud Function roda em UTC: `hojeISO()` decidia errado o que era reserva futura
+depois das 21h, e a data da confirmação escorregava um dia. **Sem erro em log
+nenhum.** Tem teste inclusive para horário de verão — uma reserva de dezembro em
+Dublin não tem o mesmo deslocamento que uma de julho.
+
+### Financeiro
+
+- **Projeção com horizonte**: mensal, trimestral, semestral e anual. Acima de um
+  mês, tabela e gráfico por mês.
+- A tela diz **quanto do número é estimativa**, e acima de 80% manda tratar como
+  cenário. Projeção anual com a mesma confiança da mensal é número bonito que
+  induz decisão errada.
+- **Mensalidade era cobrada uma vez, não todo mês.** Em 30 dias passava
+  despercebido; em 12 meses cada mensalista pagaria uma vez no ano inteiro, e a
+  projeção subestimaria a receita recorrente em mais de 90% com um número
+  plausível.
+
+### Segurança
+
+- **Regras do Storage estavam no modelo single-tenant** — caminhos globais e o
+  claim aposentado `role == 'owner'`. Qualquer dono com o claim antigo leria o
+  fechamento financeiro de todas as barbearias. Reescritas, com 14 testes que
+  acharam dois erros meus na mesma hora: regra de segurança não é first-match, e
+  ler propriedade ausente do token levanta exceção em vez de negar.
+- **Criar reserva direto no Firestore foi fechado.** Passava reserva sem
+  `status`, que não bloqueia horário e mesmo assim aparece na agenda.
+- **Teto de 3 reservas ativas por cliente.** Sem ele, uma conta ocupava os 60 dias
+  de horizonte inteiros.
+- **Backup diário do Firestore**, 7 dias de retenção. Não havia nenhum.
+- Troca obrigatória da senha provisória no primeiro acesso, com recusa da mesma
+  senha de volta.
+
+### Interface
+
+- **Gráficos**, em SVG puro e sem biblioteca: linha de saldo na Projeção com o
+  zero por cima, barras por dia no Fluxo. Cinco telas financeiras eram só tabela.
+- **Elevação recalibrada**: as sombras eram de tema escuro (`rgba(0,0,0,0.7)`)
+  num app de fundo branco, e o gradiente do cartão escurecia o topo.
+- Agenda do dia virou tabela com telefone clicável para o WhatsApp — **e estava
+  fora de ordem**, vinha na ordem da coleção.
+- Telas de Financeiro não tinham saída: no celular a barra de baixo não tem
+  submenu, e num PWA instalado o botão do navegador não existe.
+- Esqueletos de tabela e KPI; o zero que não saía do simulador de comissão.
+
+### Marca e vitrine
+
+- Marca do JPBarber, na terceira tentativa. As duas primeiras foram reprovadas: a
+  primeira vazava o monograma sobre fundo da mesma cor; a segunda virou uma linha
+  em ascensão, que é o símbolo mais genérico que existe em software. As letras
+  são traços desenhados, não texto com fonte.
+- **Landing da plataforma**, com os componentes reais do painel em vez de mockup,
+  revelação palavra a palavra e a linha da projeção se desenhando ao entrar na
+  tela. Recusados glassmorphism, mesh gradient animado e count-up — clichês de
+  template, e caros no Android médio que é o aparelho do cliente.
+- **`DEFAULT_TENANT` era a ficha da barbearia piloto**, com contato inventado.
+  Qualquer barbearia com campo vazio herdava "Rua das Tesouras, 120" em silêncio.
+
+### Documentação
+
+`PLATAFORMA.md` (referência técnica e funcional), `PLANO-MULTI-BARBEIRO.md`,
+`MENSAGENS-WHATSAPP.md` (as 34 mensagens por público), `CHECKLIST-O-SIQUEIRA.md`.
+
+---
+
+## Pendente
+
+Ordenado por quem trava o quê. Nada aqui é bug — é o que ainda não existe.
+
+### Trava o teste com uma barbearia real
+| | |
+|---|---|
+| **Chip novo para o WhatsApp** | Código pronto e testado; falta o número. Um número que entra na API oficial não volta para o app WhatsApp Business |
+| **Resetar o App Secret da Meta** | Ele passou por um histórico de conversa |
+| **Verificação da empresa na Meta** | Em análise. Sem ela, 250 destinatários únicos por dia |
+
+### Trava vender para um desconhecido
+| | |
+|---|---|
+| **LGPD, política de privacidade e termos** | A plataforma guarda telefone e histórico de cliente de terceiros. Única pendência com exposição legal. Destravada agora que há nome |
+| **Domínio próprio** | `jpproject.com.br` já serve outro produto. A landing não tem endereço |
+| **Cobrança da plataforma** | Não existe checkout, cartão salvo nem régua de inadimplência. Hoje não há como receber de uma barbearia |
+| **Publicar o app na Meta** | Exige política de privacidade — hoje o campo está vazio |
+
+### Produto incompleto
+| | |
+|---|---|
+| **Ficha de cliente** | Não existe tela nem coleção. Sem histórico por pessoa, reativação, aniversário e regra de faltas não funcionam |
+| **Pagamento do cliente (Pix/cartão)** | Só "pagar no salão". É o pedido nº 1 nas avaliações do concorrente |
+| **Envio real de WhatsApp** | Depende do chip |
+| **Comissão por barbeiro no DRE** | O cálculo ainda aplica um percentual global sobre o lucro da loja |
+| **Nota fiscal** | Não emite |
+
+### Qualidade e operação
+| | |
+|---|---|
+| **App Check** | Não habilitado. Qualquer um chama as funções de fora do app — as regras protegem os dados, não o consumo |
+| **Observabilidade** | Ninguém é avisado se uma function começar a falhar |
+| **Tradução das telas** | 18 telas em português, cravado. Fuso e moeda já são por barbearia |
+| **Wordmark em curvas** | "JPBarber" na assinatura horizontal ainda é texto com fonte; fora do app cai numa substituta |
+| **Logo e página do O Siqueira** | Pedido no começo do dia, nunca feito. Depende das fotos do salão |
 
 ## [2026-07-31]
 
