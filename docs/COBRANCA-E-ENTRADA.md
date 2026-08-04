@@ -61,11 +61,11 @@ apenas os estados do §4.
 ## 3. O funil, ponta a ponta
 
 ```
-    landing (jpbarber.com.br)
+    landing (nocorte.com.br)
         ↓  "Testar 7 dias"
     cria conta
         ↓
-    escolhe o endereço  →  osiqueira.jpbarber.com.br
+    escolhe o endereço  →  osiqueira.nocorte.com.br
         ↓
     onboarding guiado (4 passos)
         1 barbearia · 2 serviços · 3 horários · 4 compartilhar o link
@@ -215,8 +215,8 @@ Checkout de assinatura (Preapproval), webhook assinado, e os estados do §4.
 
 | | |
 |---|---|
-| **Conta Mercado Pago da JPBarber** | Access token de produção e chave pública. Não me mande por conversa — mesmo caminho do token da Meta |
-| **CNPJ da JPBarber** | O Mercado Pago exige conta empresarial para assinatura recorrente, e a política de privacidade precisa nomear o controlador |
+| **Conta Mercado Pago da NoCorte** | Access token de produção e chave pública. Não me mande por conversa — mesmo caminho do token da Meta |
+| **CNPJ da NoCorte** | O Mercado Pago exige conta empresarial para assinatura recorrente, e a política de privacidade precisa nomear o controlador |
 | **Decisão de preço internacional** | Ou adiamos, e a primeira barbearia fora do Brasil entra com preço combinado na mão |
 
 Sem os dois primeiros, construo tudo até a borda: modelo, gating, régua e a

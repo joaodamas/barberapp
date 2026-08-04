@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="NoCorte">
+  <!--
+    NoCorte — símbolo.
+
+    Monograma NC monoline com o fio dourado embaixo. As letras são TRAÇOS
+    DESENHADOS, não texto com fonte: o desenho fica idêntico no navegador, num
+    e-mail e num editor vetorial, sem depender de fonte instalada.
+
+    Histórico de por que é assim, para ninguém refazer os mesmos erros:
+    a primeira versão vazava as letras num bloco escuro sobre fundo escuro e
+    ficava ilegível; a segunda trocou o monograma por uma linha em ascensão, que
+    é o símbolo mais genérico que existe em software — dizia "dashboard", não
+    "barbearia".
+
+    O fio dourado é o que sobra da ideia de origem: a linha do zero, o dia em que
+    a barbearia sai do vermelho. Detalhe, não protagonista.
+  -->
+  <rect width="512" height="512" rx="116" fill="#17140f"/>
+  <g fill="none" stroke="#f8f5ee" stroke-width="42" stroke-linecap="round" stroke-linejoin="round">
+    <!-- N -->
+    <path d="M 118,340 L 118,164 L 234,340 L 234,164"/>
+    <!-- C -->
+    <path d="M 396,196 A 74,74 0 1 0 396,308"/>
+  </g>
+  <line x1="118" y1="392" x2="396" y2="392"
+        stroke="#d9a44f" stroke-width="20" stroke-linecap="round"/>
+</svg>

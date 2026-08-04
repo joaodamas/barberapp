@@ -5,7 +5,7 @@ import { Reveal, RevealPalavras } from "@/components/landing/reveal";
 import { AgendaDoDia, ProjecaoCurta, ResumoDoMes } from "@/components/landing/telas";
 
 export const metadata: Metadata = {
-  title: "JPBarber — a barbearia que sabe quanto sobrou",
+  title: "NoCorte — a barbearia que sabe quanto sobrou",
   description:
     "Agenda que o cliente usa sozinho e financeiro que mostra o lucro de verdade: custo, comissão, ponto de equilíbrio e projeção de caixa.",
 };
@@ -39,7 +39,7 @@ export default function LandingPage() {
       {/* ---------------------------------------------------------------- */}
       <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-6 md:px-8">
         <span className="font-display text-lg uppercase tracking-[0.2em] text-ivory">
-          JPBarber
+          NoCorte
         </span>
         <Link
           href="/login"
@@ -198,7 +198,7 @@ export default function LandingPage() {
           <Reveal>
             <p className="text-sm text-gold-light">De onde veio</p>
             <p className="mt-5 text-balance font-display text-xl leading-snug text-ivory md:text-3xl">
-              O JPBarber nasceu dentro de{" "}
+              O NoCorte nasceu dentro de{" "}
               <span className="text-gold-light">uma barbearia só</span>, para
               resolver o problema de um barbeiro só.
             </p>
@@ -284,7 +284,7 @@ export default function LandingPage() {
       <footer className="border-t border-border">
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-2 px-5 py-8 text-xs text-ivory-muted md:flex-row md:items-center md:justify-between md:px-8">
           <span className="font-display uppercase tracking-[0.2em] text-ivory">
-            JPBarber
+            NoCorte
           </span>
           <span>Feito para quem corta cabelo e precisa saber de dinheiro.</span>
         </div>

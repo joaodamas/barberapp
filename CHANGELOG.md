@@ -1,6 +1,6 @@
 # Changelog
 
-Histórico de mudanças do JPBarber — plataforma de gestão para barbearias.
+Histórico de mudanças do NoCorte — plataforma de gestão para barbearias.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
 ## [Não publicado]
@@ -354,7 +354,7 @@ Dublin não tem o mesmo deslocamento que uma de julho.
 
 ### Marca e vitrine
 
-- Marca do JPBarber, na terceira tentativa. As duas primeiras foram reprovadas: a
+- Marca do NoCorte, na terceira tentativa. As duas primeiras foram reprovadas: a
   primeira vazava o monograma sobre fundo da mesma cor; a segunda virou uma linha
   em ascensão, que é o símbolo mais genérico que existe em software. As letras
   são traços desenhados, não texto com fonte.
@@ -406,7 +406,7 @@ Ordenado por quem trava o quê. Nada aqui é bug — é o que ainda não existe.
 | **App Check** | Não habilitado. Qualquer um chama as funções de fora do app — as regras protegem os dados, não o consumo |
 | **Observabilidade** | Ninguém é avisado se uma function começar a falhar |
 | **Tradução das telas** | 18 telas em português, cravado. Fuso e moeda já são por barbearia |
-| **Wordmark em curvas** | "JPBarber" na assinatura horizontal ainda é texto com fonte; fora do app cai numa substituta |
+| **Wordmark em curvas** | "NoCorte" na assinatura horizontal ainda é texto com fonte; fora do app cai numa substituta |
 | **Logo e página do O Siqueira** | Pedido no começo do dia, nunca feito. Depende das fotos do salão |
 
 ## [2026-07-31]
