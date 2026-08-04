@@ -5,6 +5,7 @@ import {
   Home,
   Sparkles,
   Store,
+  Users,
   Sun,
   Ticket,
   User,
@@ -48,5 +49,6 @@ export const painelNavItems: NavItem[] = [
   },
   { href: "/painel/numeros", label: "Números", icon: BarChart3 },
   { href: "/painel/mensal", label: "Mensal", icon: CalendarClock },
+  { href: "/painel/equipe", label: "Equipe", icon: Users },
   { href: "/painel/loja", label: "Loja", icon: Store },
 ];

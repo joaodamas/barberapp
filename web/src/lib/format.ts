@@ -68,3 +68,23 @@ export function safePct(part: number, total: number, max = 100) {
 function safeNumber(value: number) {
   return Number.isFinite(value) ? value : 0;
 }
+
+/**
+ * "5511961733047" → "(11) 96173-3047"
+ *
+ * O número é gravado só com dígitos e DDI (é o formato que a Cloud API do
+ * WhatsApp exige). Mostrar assim ao dono é ilegível — ele reconhece o cliente
+ * pelo DDD e pelos quatro últimos dígitos, não por uma sequência de treze.
+ */
+export function formatPhonePtBR(bruto: string): string {
+  const d = String(bruto ?? "").replace(/\D/g, "");
+  const nacional = d.startsWith("55") && d.length > 11 ? d.slice(2) : d;
+  if (nacional.length === 11) {
+    return `(${nacional.slice(0, 2)}) ${nacional.slice(2, 7)}-${nacional.slice(7)}`;
+  }
+  if (nacional.length === 10) {
+    return `(${nacional.slice(0, 2)}) ${nacional.slice(2, 6)}-${nacional.slice(6)}`;
+  }
+  // Formato desconhecido: devolver como veio é melhor que recortar errado.
+  return bruto;
+}

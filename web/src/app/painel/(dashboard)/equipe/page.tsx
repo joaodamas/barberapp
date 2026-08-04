@@ -1,0 +1,254 @@
+"use client";
+
+import { useState } from "react";
+import { Plus, Trash2, UserPlus, Users } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Pill } from "@/components/ui/pill";
+import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
+import { useServices, useStaff } from "@/lib/db/use-shop-data";
+import { createDoc, patchDoc, removeDoc } from "@/lib/db/repository";
+import { useTenant } from "@/lib/tenant-context";
+import { commissionSplit } from "@/lib/business-rules";
+
+/**
+ * A equipe.
+ *
+ * Esta tela é o que destrava o produto para barbearia com mais de uma cadeira —
+ * que é a maioria das que pagam mais. Até ela existir, o servidor aguentava N
+ * barbeiros e ninguém conseguia criar o segundo.
+ *
+ * Duas regras de comportamento que parecem detalhe e não são:
+ *
+ * 1. **Nunca dá para ficar com zero barbeiros ativos.** A barbearia sem
+ *    barbeiro não consegue receber reserva nenhuma, e o dono descobriria isso
+ *    pelo cliente reclamando. O último ativo não pode ser desativado nem
+ *    removido.
+ * 2. **Serviços vazio significa TODOS.** Um barbeiro recém-cadastrado, sem nada
+ *    marcado, precisa atender — senão ele nasce invisível na agenda e o dono
+ *    acha que o sistema quebrou.
+ */
+export default function EquipePage() {
+  const tenant = useTenant();
+  const { items: equipe, status } = useStaff();
+  const { items: servicos } = useServices();
+  const [erro, setErro] = useState<string | null>(null);
+
+  const ativos = equipe.filter((s) => s.active !== false);
+  const soloRestante = ativos.length <= 1;
+
+  async function adicionar() {
+    setErro(null);
+    try {
+      await createDoc(tenant.id, "staff", {
+        name: "",
+        active: true,
+        uid: null,
+        serviceIds: [],
+        commissionPct: null,
+        schedule: null,
+        order: equipe.length + 1,
+      });
+    } catch (e) {
+      console.error("[equipe] falha ao adicionar", e);
+      setErro("Não foi possível adicionar agora.");
+    }
+  }
+
+  async function salvar(id: string, campo: string, valor: unknown) {
+    setErro(null);
+    try {
+      await patchDoc(tenant.id, "staff", id, { [campo]: valor });
+    } catch (e) {
+      console.error("[equipe] falha ao salvar", e);
+      setErro("Não foi possível salvar. Verifique a conexão.");
+    }
+  }
+
+  async function remover(id: string) {
+    if (soloRestante) return;
+    setErro(null);
+    try {
+      await removeDoc(tenant.id, "staff", id);
+    } catch (e) {
+      console.error("[equipe] falha ao remover", e);
+      setErro("Não foi possível remover agora.");
+    }
+  }
+
+  function alternarServico(id: string, atuais: string[], serviceId: string) {
+    const tem = atuais.includes(serviceId);
+    salvar(id, "serviceIds", tem ? atuais.filter((s) => s !== serviceId) : [...atuais, serviceId]);
+  }
+
+  return (
+    <div className="flex flex-col gap-6 pt-1 md:gap-8 md:pt-2">
+      <div>
+        <p className="text-sm text-ivory-muted md:text-base">Quem atende</p>
+        <h1 className="text-xl text-ivory md:text-3xl md:tracking-tight">Equipe</h1>
+        <p className="mt-1 max-w-2xl text-xs text-ivory-muted md:text-sm">
+          Com um barbeiro só, o cliente não escolhe nada — ele marca serviço e
+          horário, como hoje. A partir do segundo, a escolha aparece sozinha no
+          agendamento.
+        </p>
+      </div>
+
+      {status === "carregando" && <LoadingRows rows={2} />}
+
+      {status === "pronto" && equipe.length === 0 && (
+        <EmptyState
+          icon={Users}
+          title="Nenhum barbeiro cadastrado"
+          description="Toda barbearia precisa de ao menos um para receber reservas. Normalmente ele é criado no cadastro — se sumiu, adicione agora."
+          actionLabel="Adicionar barbeiro"
+          onAction={adicionar}
+        />
+      )}
+
+      {equipe.map((b) => {
+        const marcados: string[] = b.serviceIds ?? [];
+        const fazTudo = marcados.length === 0;
+        const ehOUltimoAtivo = b.active !== false && soloRestante;
+
+        return (
+          <Card key={b.id} className="flex flex-col gap-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <input
+                aria-label="Nome do barbeiro"
+                defaultValue={b.name}
+                placeholder="Nome do barbeiro"
+                onBlur={(e) => {
+                  const v = e.target.value.trim();
+                  if (v && v !== b.name) salvar(b.id, "name", v);
+                }}
+                className="min-h-11 flex-1 rounded-xl border border-border bg-surface-raised px-4 text-sm text-ivory outline-none focus-visible:ring-2 focus-visible:ring-gold"
+              />
+
+              <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm text-ivory-muted">
+                <input
+                  type="checkbox"
+                  checked={b.active !== false}
+                  disabled={ehOUltimoAtivo}
+                  onChange={(e) => salvar(b.id, "active", e.target.checked)}
+                  className="h-4 w-4 accent-[var(--color-gold)]"
+                />
+                Atendendo
+              </label>
+
+              <button
+                type="button"
+                aria-label={`Remover ${b.name || "barbeiro"}`}
+                onClick={() => remover(b.id)}
+                disabled={soloRestante}
+                title={
+                  soloRestante
+                    ? "A barbearia precisa de ao menos um barbeiro para receber reservas"
+                    : undefined
+                }
+                className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-xl text-ivory-muted transition-colors hover:bg-danger/10 hover:text-danger disabled:cursor-not-allowed disabled:opacity-30"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-[200px_1fr]">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-ivory-muted">
+                  Comissão dele
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    defaultValue={b.commissionPct ?? ""}
+                    placeholder={String(commissionSplit.barberPct)}
+                    onBlur={(e) => {
+                      const v = e.target.value.trim();
+                      salvar(b.id, "commissionPct", v === "" ? null : Number(v));
+                    }}
+                    className="min-h-11 w-24 rounded-xl border border-border bg-surface-raised px-3 text-sm text-ivory"
+                  />
+                  <span className="text-sm text-ivory-muted">% do lucro</span>
+                </div>
+                <p className="text-xs text-ivory-muted">
+                  Em branco usa o padrão da barbearia ({commissionSplit.barberPct}%).
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-ivory-muted">
+                  O que ele faz
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {servicos.map((s) => {
+                    const ativo = fazTudo || marcados.includes(s.id);
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        aria-pressed={ativo}
+                        onClick={() => alternarServico(b.id, marcados, s.id)}
+                        className={
+                          "min-h-11 cursor-pointer rounded-xl border px-3 text-sm transition-colors " +
+                          (ativo
+                            ? "border-gold bg-gold/10 text-ivory"
+                            : "border-border text-ivory-muted hover:border-gold/50 hover:text-ivory")
+                        }
+                      >
+                        {s.name}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-ivory-muted">
+                  {fazTudo
+                    ? "Nada marcado — ele atende todos os serviços."
+                    : `Atende ${marcados.length} de ${servicos.length} serviços.`}
+                </p>
+              </div>
+            </div>
+
+            {b.uid ? (
+              <Pill tone="success">Tem acesso ao sistema</Pill>
+            ) : (
+              <p className="text-xs text-ivory-muted">
+                Sem acesso ao sistema — ele aparece na agenda, mas não entra no app.
+              </p>
+            )}
+          </Card>
+        );
+      })}
+
+      {equipe.length > 0 && (
+        <button
+          type="button"
+          onClick={adicionar}
+          className="flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-border text-sm text-ivory-muted transition-colors hover:border-gold/50 hover:text-ivory"
+        >
+          <UserPlus size={16} /> Adicionar barbeiro
+        </button>
+      )}
+
+      {erro && (
+        <p role="alert" className="text-sm text-danger">
+          {erro}
+        </p>
+      )}
+
+      {ativos.length > 1 && (
+        <Card className="flex flex-col gap-2 border-gold/30 bg-gold/5">
+          <p className="text-sm font-medium text-ivory">
+            <Plus size={14} className="mr-1 inline" />O agendamento mudou
+          </p>
+          <p className="text-xs text-ivory-muted">
+            Com {ativos.length} barbeiros atendendo, o cliente agora escolhe com
+            quem quer cortar. E a capacidade da agenda multiplicou: sua taxa de
+            ocupação vai cair mesmo sem o movimento cair — são mais horários
+            disponíveis para o mesmo número de clientes.
+          </p>
+        </Card>
+      )}
+    </div>
+  );
+}
