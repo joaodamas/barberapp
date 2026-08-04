@@ -232,7 +232,22 @@ Tema **claro** — fundo branco, detalhes em dourado e preto:
 --color-success: #4f8542;       --color-danger: #ab4a3a;
 ```
 
-> ⚠️ **A nomenclatura mente.** `--color-ivory` é o texto quase preto (#17140f), não um marfim. `--color-gold-light` (#8c5f1e) é *mais escuro* que `--color-gold` (#b8863a) — existe para ter contraste suficiente como texto sobre fundo claro. As sombras (`rgba(0,0,0,0.35–0.7)`) ainda são as de um tema escuro. Renomear é trabalho pendente; enquanto isso, **não presuma pelo nome**.
+> ### O tema é CLARO
+>
+> Fundo `#ffffff`, superfícies em creme (`#f8f5ee`), texto quase preto. Está
+> escrito em destaque porque a nomenclatura dos tokens sugere o contrário e já
+> induziu leitor a descrever o produto como "dark minimalist".
+>
+> ⚠️ **A nomenclatura mente.** `--color-ivory` é o texto quase preto (#17140f),
+> não um marfim. `--color-gold-light` (#8c5f1e) é *mais escuro* que
+> `--color-gold` (#b8863a) — existe para ter contraste suficiente como texto
+> sobre fundo claro. Renomear é trabalho pendente; enquanto isso, **não presuma
+> pelo nome**.
+>
+> As sombras **eram** as de um tema escuro (`rgba(0,0,0, 0.35–0.7)`), herança de
+> quando o app era escuro de fato. Corrigidas em 03/08/2026: agora são duas
+> camadas de baixa opacidade em tom marrom (`#3c2d14`), porque preto denso sobre
+> fundo creme suja o entorno em vez de afundar o cartão.
 
 Os tokens são expostos ao Tailwind v4 via `@theme inline`, o que gera as utilitárias `bg-bg`, `text-ivory-muted`, `border-border`, `text-gold-light` etc.
 
