@@ -372,3 +372,83 @@ describe("cobertura", () => {
     expect(colecoes).toHaveLength(14);
   });
 });
+
+describe("a equipe", () => {
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, `barbershops/${ALFA}/staff`, "s1"), {
+        name: "Rômulo", active: true, uid: BARBEIRO_ALFA.sub,
+      });
+      await setDoc(doc(db, `barbershops/${ALFA}/staff`, "s2"), {
+        name: "Léo", active: true, uid: "outro-barbeiro",
+      });
+      await setDoc(doc(db, `barbershops/${ALFA}/commissions`, "c1"), {
+        uid: BARBEIRO_ALFA.sub, value: 1200,
+      });
+      await setDoc(doc(db, `barbershops/${ALFA}/commissions`, "c2"), {
+        uid: "outro-barbeiro", value: 3400,
+      });
+    });
+  });
+
+  it("o cliente lê a equipe — precisa, para escolher com quem cortar", async () => {
+    await assertSucceeds(getDoc(doc(as(CLIENTE), `barbershops/${ALFA}/staff`, "s1")));
+  });
+
+  it("🔒 o cliente NÃO cadastra nem edita barbeiro", async () => {
+    await assertFails(
+      setDoc(doc(as(CLIENTE), `barbershops/${ALFA}/staff`, "novo"), { name: "Eu mesmo", active: true })
+    );
+    await assertFails(
+      updateDoc(doc(as(CLIENTE), `barbershops/${ALFA}/staff`, "s1"), { active: false })
+    );
+  });
+
+  it("🔒 o barbeiro NÃO edita a própria ficha — comissão está nela", async () => {
+    await assertFails(
+      updateDoc(doc(as(BARBEIRO_ALFA), `barbershops/${ALFA}/staff`, "s1"), { commissionPct: 90 })
+    );
+  });
+
+  it("o dono cadastra e edita a equipe", async () => {
+    await assertSucceeds(
+      setDoc(doc(as(DONO_ALFA), `barbershops/${ALFA}/staff`, "s3"), { name: "Novo", active: true })
+    );
+  });
+
+  it("🔒 o dono da Alfa NÃO mexe na equipe da Beta", async () => {
+    await assertFails(
+      setDoc(doc(as(DONO_ALFA), `barbershops/${BETA}/staff`, "invasor"), { name: "X", active: true })
+    );
+  });
+
+  it("o barbeiro lê a PRÓPRIA comissão", async () => {
+    await assertSucceeds(getDoc(doc(as(BARBEIRO_ALFA), `barbershops/${ALFA}/commissions`, "c1")));
+  });
+
+  it("🔒 o barbeiro NÃO lê a comissão do colega", async () => {
+    /* A regra era `isStaffOf`: qualquer barbeiro lia o salário de todos. Com
+     * uma cadeira só nunca apareceu, porque o único `staff` era o dono. Numa
+     * equipe é vazamento de salário entre colegas. */
+    await assertFails(getDoc(doc(as(BARBEIRO_ALFA), `barbershops/${ALFA}/commissions`, "c2")));
+  });
+
+  it("o dono lê a comissão de todo mundo — é ele quem paga", async () => {
+    await assertSucceeds(getDoc(doc(as(DONO_ALFA), `barbershops/${ALFA}/commissions`, "c1")));
+    await assertSucceeds(getDoc(doc(as(DONO_ALFA), `barbershops/${ALFA}/commissions`, "c2")));
+  });
+
+  it("🔒 ninguém escreve comissão — quem calcula é o servidor", async () => {
+    await assertFails(
+      setDoc(doc(as(DONO_ALFA), `barbershops/${ALFA}/commissions`, "forjada"), { uid: "x", value: 0 })
+    );
+    await assertFails(
+      updateDoc(doc(as(BARBEIRO_ALFA), `barbershops/${ALFA}/commissions`, "c1"), { value: 99999 })
+    );
+  });
+
+  it("🔒 o cliente não alcança comissão nenhuma", async () => {
+    await assertFails(getDoc(doc(as(CLIENTE), `barbershops/${ALFA}/commissions`, "c1")));
+  });
+});
