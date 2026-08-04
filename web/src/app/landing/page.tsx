@@ -38,7 +38,7 @@ export default function LandingPage() {
       {/* Topo                                                              */}
       {/* ---------------------------------------------------------------- */}
       <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-6 md:px-8">
-        <span className="font-display text-lg uppercase tracking-[0.2em] text-ivory">
+        <span className="font-brand text-2xl tracking-tight text-ivory">
           CorteHub
         </span>
         <Link
@@ -58,7 +58,7 @@ export default function LandingPage() {
             <p className="mb-5 text-sm text-gold-light">Para donos de barbearia</p>
             {/* `text-balance` evita a linha órfã de uma palavra, que é o que
                 mais denuncia título grande mal quebrado. */}
-            <h1 className="text-balance font-display text-4xl leading-[1.05] tracking-tight text-ivory sm:text-5xl md:text-6xl">
+            <h1 className="text-balance font-brand text-4xl leading-[1.05] tracking-tight text-ivory sm:text-5xl md:text-6xl">
               <RevealPalavras texto="Você sabe quanto faturou." />
               <br />
               <RevealPalavras
@@ -112,7 +112,7 @@ export default function LandingPage() {
       <section className="border-y border-border bg-surface/60">
         <div className="mx-auto w-full max-w-6xl px-5 py-16 md:px-8 md:py-24">
           <Reveal>
-            <h2 className="max-w-2xl text-balance font-display text-2xl leading-tight text-ivory md:text-4xl">
+            <h2 className="max-w-2xl text-balance font-brand text-2xl leading-tight text-ivory md:text-4xl">
               A conta que quase nenhuma barbearia faz
             </h2>
           </Reveal>
@@ -161,7 +161,7 @@ export default function LandingPage() {
         <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-20">
           <Reveal>
             <p className="text-sm text-gold-light">Projeção de caixa</p>
-            <h2 className="mt-3 text-balance font-display text-2xl leading-tight text-ivory md:text-4xl">
+            <h2 className="mt-3 text-balance font-brand text-2xl leading-tight text-ivory md:text-4xl">
               O dia em que o caixa vira, antes de virar
             </h2>
             <p className="mt-5 max-w-md leading-relaxed text-ivory-muted">
@@ -197,7 +197,7 @@ export default function LandingPage() {
         <div className="mx-auto w-full max-w-3xl px-5 py-16 text-center md:px-8 md:py-24">
           <Reveal>
             <p className="text-sm text-gold-light">De onde veio</p>
-            <p className="mt-5 text-balance font-display text-xl leading-snug text-ivory md:text-3xl">
+            <p className="mt-5 text-balance font-brand text-xl leading-snug text-ivory md:text-3xl">
               O CorteHub nasceu dentro de{" "}
               <span className="text-gold-light">uma barbearia só</span>, para
               resolver o problema de um barbeiro só.
@@ -217,7 +217,7 @@ export default function LandingPage() {
       {/* ---------------------------------------------------------------- */}
       <section className="mx-auto w-full max-w-6xl px-5 py-16 md:px-8 md:py-28">
         <Reveal>
-          <h2 className="text-balance font-display text-2xl leading-tight text-ivory md:text-4xl">
+          <h2 className="text-balance font-brand text-2xl leading-tight text-ivory md:text-4xl">
             Preço por barbearia, não por barbeiro
           </h2>
           <p className="mt-4 max-w-xl leading-relaxed text-ivory-muted">
@@ -260,7 +260,7 @@ export default function LandingPage() {
       <section className="border-t border-border">
         <div className="mx-auto w-full max-w-3xl px-5 py-20 text-center md:px-8 md:py-28">
           <Reveal>
-            <h2 className="text-balance font-display text-3xl leading-tight text-ivory md:text-5xl">
+            <h2 className="text-balance font-brand text-3xl leading-tight text-ivory md:text-5xl">
               Sete dias para ver o seu próprio número
             </h2>
             <p className="mx-auto mt-5 max-w-md leading-relaxed text-ivory-muted">
@@ -283,9 +283,7 @@ export default function LandingPage() {
 
       <footer className="border-t border-border">
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-2 px-5 py-8 text-xs text-ivory-muted md:flex-row md:items-center md:justify-between md:px-8">
-          <span className="font-display uppercase tracking-[0.2em] text-ivory">
-            CorteHub
-          </span>
+          <span className="font-brand text-lg text-ivory">CorteHub</span>
           <span>Feito para quem corta cabelo e precisa saber de dinheiro.</span>
         </div>
       </footer>

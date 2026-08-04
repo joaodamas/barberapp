@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Oswald, Manrope } from "next/font/google";
+import { Fraunces, Manrope } from "next/font/google";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
 import { AuthProvider } from "@/lib/auth-context";
 import { TenantProvider } from "@/lib/tenant-context";
@@ -7,10 +7,21 @@ import { getTenant } from "@/lib/tenant-server";
 import { tenantCssVars } from "@/lib/tenant";
 import "./globals.css";
 
-const oswald = Oswald({
-  variable: "--font-oswald",
+/* Fraunces é a voz da MARCA — landing, assinatura, títulos de campanha.
+ * Nenhum concorrente usa serifada, então ela separa antes de o texto ser lido,
+ * e conversa com a paleta creme/dourado, que já é editorial.
+ *
+ * `opsz` é o eixo óptico: em corpo grande a fonte afina os contrastes sozinha,
+ * que é o que faz serifada de display não parecer serifada de texto ampliada. */
+const fraunces = Fraunces({
+  variable: "--font-fraunces",
   subsets: ["latin"],
-  weight: ["500", "600", "700"],
+  /* Sem `weight`: com `axes` declarado, o Next exige a fonte variável inteira —
+   * pedir pesos fixos junto quebra o build. Variável também é melhor aqui: o
+   * peso vem do CSS, e o eixo óptico ajusta o contraste sozinho conforme o
+   * corpo, que é o que faz serifada de display não parecer serifada de texto
+   * ampliada. */
+  axes: ["SOFT", "WONK", "opsz"],
 });
 
 const manrope = Manrope({
@@ -63,7 +74,7 @@ export default async function RootLayout({
   return (
     <html
       lang="pt-BR"
-      className={`${oswald.variable} ${manrope.variable} h-full antialiased`}
+      className={`${fraunces.variable} ${manrope.variable} h-full antialiased`}
       /* A cor de destaque da barbearia entra como variável CSS no servidor —
        * assim a marca já chega pintada no primeiro HTML, sem piscar. */
       style={tenantCssVars(tenant)}

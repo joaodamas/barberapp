@@ -75,8 +75,19 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
 
-  --font-display: var(--font-oswald);
+  /* Duas famílias com papéis separados.
+   *
+   * `display` é a face do PRODUTO — títulos de tela e, principalmente, valor em
+   * dinheiro. Era Oswald, uma condensada: dígito estreito e apertado é o pior
+   * caso para ler coluna de valor, e num produto cuja tese é "o número que você
+   * vê é verdade", o número é o que mais precisa de clareza. Passou a ser a
+   * mesma sans do corpo, que tem figuras tabulares abertas.
+   *
+   * `brand` é a voz da MARCA — landing, assinatura, campanha. Só aparece onde a
+   * plataforma fala por si, nunca onde ela informa um dado. */
+  --font-display: var(--font-manrope);
   --font-sans: var(--font-manrope);
+  --font-brand: var(--font-fraunces);
 }
 
 html,
@@ -96,7 +107,19 @@ body {
 
 h1, h2, h3, h4, .font-display {
   font-family: var(--font-display), Arial, Helvetica, sans-serif;
-  letter-spacing: 0.02em;
+  font-weight: 700;
+  /* Oswald pedia espaçamento positivo por ser condensada. Manrope em peso alto
+   * já é aberta — o mesmo `0.02em` aqui empurraria as letras e afrouxaria o
+   * título. Negativo leve fecha e dá aparência de titulação. */
+  letter-spacing: -0.015em;
+}
+
+/* A voz da marca. Aplicada à mão, nunca por elemento: um `h1` dentro do painel
+ * é informação do produto, não fala da plataforma. */
+.font-brand {
+  font-family: var(--font-brand), Georgia, "Times New Roman", serif;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 /* Assinatura visual: listra diagonal do barber pole */
