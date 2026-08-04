@@ -2,8 +2,14 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { ArrowRight, Check } from "lucide-react";
 import { Reveal, RevealPalavras } from "@/components/landing/reveal";
-import { AssinaturaCorteHub, SimboloCorteHub } from "@/components/landing/marca";
-import { AgendaDoDia, ProjecaoCurta, ResumoDoMes } from "@/components/landing/telas";
+import { AssinaturaCorteHub } from "@/components/landing/marca";
+import {
+  AgendaDoDia,
+  EquipeResumo,
+  MapaDeCalor,
+  ProjecaoCurta,
+  ResumoDoMes,
+} from "@/components/landing/telas";
 
 export const metadata: Metadata = {
   title: "CorteHub — a barbearia que sabe quanto sobrou",
@@ -212,76 +218,113 @@ export default function LandingPage() {
       </section>
 
       {/* ---------------------------------------------------------------- */}
-      {/* Tudo que tem — e tudo que está chegando                           */}
+      {/* O que tem — mostrado, não listado                                  */}
       {/*                                                                    */}
-      {/* Separado com rótulo, de propósito. Listar junto o que existe e o   */}
-      {/* que não existe é o erro que derruba a confiança do primeiro        */}
-      {/* cliente: ele entra procurando o que leu, não acha, e a partir daí  */}
-      {/* duvida do resto — inclusive do que funciona. Marcado como          */}
-      {/* "chegando", a mesma informação vira expectativa em vez de mentira. */}
+      {/* Eram nove cartões idênticos numa grade. É o padrão que a página     */}
+      {/* inteira existe para evitar: parece gerado, e texto sobre texto não  */}
+      {/* prova nada. Agora cada bloco mostra a TELA — o que nenhum           */}
+      {/* concorrente copia sem ter o produto.                                */}
       {/* ---------------------------------------------------------------- */}
-      <section className="mx-auto w-full max-w-6xl px-5 py-16 md:px-8 md:py-28">
+      <section className="mx-auto w-full max-w-6xl px-5 py-16 md:px-8 md:py-24">
         <Reveal>
-          <h2 className="text-balance font-brand text-2xl leading-tight text-ivory md:text-4xl">
-            O que você tem no primeiro dia
+          <h2 className="max-w-xl text-balance font-brand text-2xl leading-tight text-ivory md:text-4xl">
+            Três telas que a sua planilha não tem
           </h2>
         </Reveal>
 
-        <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {[
-            ["Agenda com link próprio", "Seu endereço, sua marca. O cliente escolhe serviço, barbeiro e horário sem falar com ninguém."],
-            ["Equipe de qualquer tamanho", "Cada barbeiro com a própria agenda, jornada, serviços e comissão. Três cadeiras não viram conflito de horário."],
-            ["Horário livre de verdade", "O sistema só oferece o que está vago — e considera a duração do serviço, para o combo caber antes do almoço."],
-            ["DRE gerencial", "Margem de contribuição, custo fixo, imposto e ponto de equilíbrio calculados do seu custo real."],
-            ["Projeção de caixa", "De um mês a um ano, dizendo quanto do número é estimativa. Você vê o dia em que o caixa vira antes de ele virar."],
-            ["Fluxo de caixa e despesas", "Quanto entrou por dia e por meio de pagamento; aluguel, luz e produtos lançados uma vez."],
-            ["Fidelidade por carimbo", "Saldo por transação, não por contagem — sobrevive a resgate e a estorno."],
-            ["Mensalistas e loja", "Clube de assinatura e revenda de produto, com comissão calculada sobre o lucro, não sobre o preço cheio."],
-            ["Números da operação", "Mapa de calor por dia e horário, taxa de ocupação, recorrência de cliente e serviços que mais rendem."],
-          ].map(([titulo, texto], i) => (
-            <Reveal key={titulo} delay={(i % 3) * 80}>
-              <div className="flex h-full flex-col gap-2 rounded-2xl border border-border bg-surface/60 p-5">
-                <div className="flex items-start gap-2.5">
-                  <Check size={16} className="mt-0.5 shrink-0 text-gold-light" />
-                  <p className="text-sm font-medium text-ivory">{titulo}</p>
-                </div>
-                <p className="pl-[26px] text-sm leading-relaxed text-ivory-muted">{texto}</p>
-              </div>
+        <div className="mt-12 flex flex-col gap-16 md:gap-24">
+          {/* Equipe */}
+          <div className="grid items-center gap-8 lg:grid-cols-2 lg:gap-16">
+            <Reveal>
+              <p className="text-sm text-gold-light">Equipe</p>
+              <h3 className="mt-2 text-balance font-brand text-xl leading-snug text-ivory md:text-3xl">
+                Três cadeiras não viram conflito de horário
+              </h3>
+              <p className="mt-4 max-w-md leading-relaxed text-ivory-muted">
+                Cada barbeiro tem a própria agenda, jornada, serviços e comissão.
+                O cliente escolhe com quem quer cortar — e quando você contrata
+                alguém, a conta não aumenta.
+              </p>
             </Reveal>
-          ))}
+            <Reveal delay={100}>
+              <EquipeResumo />
+            </Reveal>
+          </div>
+
+          {/* Números */}
+          <div className="grid items-center gap-8 lg:grid-cols-2 lg:gap-16">
+            <Reveal className="lg:order-2">
+              <p className="text-sm text-gold-light">Números da operação</p>
+              <h3 className="mt-2 text-balance font-brand text-xl leading-snug text-ivory md:text-3xl">
+                O horário vazio aparece antes de você sentir
+              </h3>
+              <p className="mt-4 max-w-md leading-relaxed text-ivory-muted">
+                Mapa de calor por dia e horário, taxa de ocupação, recorrência de
+                cliente e os serviços que mais rendem. É onde você descobre qual
+                promoção fazer, e quando.
+              </p>
+            </Reveal>
+            <Reveal delay={100} className="lg:order-1">
+              <MapaDeCalor />
+            </Reveal>
+          </div>
         </div>
 
+        {/* O resto, em lista compacta: são recursos que o dono confere, não
+            que precisam ser vendidos um a um. */}
         <Reveal>
-          <div className="mt-14 flex items-center gap-3">
-            <SimboloCorteHub className="h-6 w-6 shrink-0 text-ivory-muted" />
-            <h2 className="text-balance font-brand text-2xl leading-tight text-ivory md:text-3xl">
-              O que está sendo construído agora
-            </h2>
+          <div className="mt-16 grid gap-x-10 gap-y-3 border-t border-border pt-8 sm:grid-cols-2 lg:grid-cols-3">
+            {[
+              "Agenda com link e marca próprios",
+              "Horário livre calculado no servidor",
+              "Fluxo de caixa por meio de pagamento",
+              "Despesas fixas lançadas uma vez",
+              "Fidelidade por carimbo, à prova de estorno",
+              "Mensalistas e clube de assinatura",
+              "Loja com comissão sobre o lucro",
+              "Cancelamento e remarcação com política",
+              "Encaixe com aprovação do barbeiro",
+            ].map((t) => (
+              <p key={t} className="flex items-start gap-2 text-sm text-ivory-muted">
+                <Check size={15} className="mt-0.5 shrink-0 text-gold-light" />
+                {t}
+              </p>
+            ))}
           </div>
-          <p className="mt-3 max-w-xl text-sm leading-relaxed text-ivory-muted">
-            Está aqui porque você vai receber sem pagar mais por isso — e porque
-            preferimos dizer o que ainda não existe a você descobrir sozinho.
-          </p>
         </Reveal>
+      </section>
 
-        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {[
-            ["WhatsApp automático", "Confirmação da reserva, lembrete no dia e aviso de encaixe. As 34 mensagens já estão escritas e aprovadas pela Meta — falta o número entrar no ar."],
-            ["Pagamento antecipado", "Pix e cartão na hora de reservar, para o horário deixar de ficar em aberto quando o cliente não aparece."],
-            ["Ficha do cliente", "Histórico por pessoa: quantas vezes veio, quanto gastou, quando foi a última. É o que liga a reativação de quem sumiu."],
-          ].map(([titulo, texto], i) => (
-            <Reveal key={titulo} delay={i * 80}>
-              <div className="flex h-full flex-col gap-2 rounded-2xl border border-dashed border-border p-5">
-                <div className="flex items-center gap-2">
-                  <span className="rounded-full bg-gold/10 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-gold-light">
-                    Chegando
-                  </span>
+      {/* ---------------------------------------------------------------- */}
+      {/* O que ainda não existe — dito, não escondido                       */}
+      {/* ---------------------------------------------------------------- */}
+      <section className="border-y border-border bg-surface/60">
+        <div className="mx-auto w-full max-w-6xl px-5 py-14 md:px-8 md:py-16">
+          <Reveal>
+            <div className="flex flex-col gap-3 md:flex-row md:items-baseline md:justify-between">
+              <h2 className="text-balance font-brand text-xl leading-tight text-ivory md:text-2xl">
+                O que ainda não está pronto
+              </h2>
+              <p className="max-w-md text-sm leading-relaxed text-ivory-muted">
+                Você recebe sem pagar mais por isso. Está aqui porque preferimos
+                dizer do que você descobrir sozinho.
+              </p>
+            </div>
+          </Reveal>
+
+          <div className="mt-8 grid gap-x-10 gap-y-6 sm:grid-cols-3">
+            {[
+              ["WhatsApp automático", "Confirmação, lembrete no dia e aviso de encaixe. As 34 mensagens já estão aprovadas pela Meta — falta o número entrar no ar."],
+              ["Pagamento antecipado", "Pix e cartão na reserva, para o horário não ficar em aberto quando o cliente não aparece."],
+              ["Ficha do cliente", "Quantas vezes veio, quanto gastou, quando foi a última. É o que liga a reativação de quem sumiu."],
+            ].map(([titulo, texto], i) => (
+              <Reveal key={titulo} delay={i * 80}>
+                <div className="flex flex-col gap-1.5 border-t border-gold/30 pt-3">
+                  <p className="text-sm font-medium text-ivory">{titulo}</p>
+                  <p className="text-sm leading-relaxed text-ivory-muted">{texto}</p>
                 </div>
-                <p className="text-sm font-medium text-ivory">{titulo}</p>
-                <p className="text-sm leading-relaxed text-ivory-muted">{texto}</p>
-              </div>
-            </Reveal>
-          ))}
+              </Reveal>
+            ))}
+          </div>
         </div>
       </section>
 

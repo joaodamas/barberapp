@@ -122,3 +122,92 @@ export function ProjecaoCurta() {
     </div>
   );
 }
+
+/** Mapa de calor de ocupação — o elemento visual mais forte do painel. */
+export function MapaDeCalor() {
+  const dias = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+  const horas = ["09", "10", "11", "12", "14", "15", "16", "17", "18"];
+  // Padrão fixo: sábado cheio, meio de semana à tarde vazio. É como uma
+  // barbearia de verdade se comporta, e é o que a tela revela ao dono.
+  const ocupacao = [
+    [40, 60, 30, 20, 10, 30, 50, 40, 20],
+    [30, 50, 40, 20, 20, 40, 60, 50, 30],
+    [50, 70, 50, 30, 30, 50, 70, 60, 40],
+    [60, 80, 60, 40, 40, 60, 80, 70, 50],
+    [80, 100, 80, 50, 60, 90, 100, 90, 70],
+    [100, 100, 90, 70, 80, 100, 100, 80, 40],
+  ];
+
+  return (
+    <div className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-5 shadow-[var(--shadow-md)]">
+      <p className="text-xs font-semibold uppercase tracking-wider text-ivory-muted">
+        Ocupação por dia e horário
+      </p>
+      <div className="flex gap-2">
+        <div className="flex flex-col gap-1 pt-[18px]">
+          {dias.map((d) => (
+            <span key={d} className="h-5 text-[10px] leading-5 text-ivory-muted">{d}</span>
+          ))}
+        </div>
+        <div className="flex-1">
+          <div className="mb-1 flex gap-1">
+            {horas.map((h) => (
+              <span key={h} className="flex-1 text-center text-[10px] text-ivory-muted">{h}</span>
+            ))}
+          </div>
+          <div className="flex flex-col gap-1">
+            {ocupacao.map((linha, i) => (
+              <div key={dias[i]} className="flex gap-1">
+                {linha.map((v, j) => (
+                  <span
+                    key={`${i}-${j}`}
+                    className="h-5 flex-1 rounded"
+                    style={{
+                      backgroundColor: "var(--color-gold)",
+                      // Opacidade e não cores diferentes: a escala fica ordenável
+                      // a olho, que é o que um mapa de calor precisa entregar.
+                      opacity: 0.06 + (v / 100) * 0.85,
+                    }}
+                  />
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <p className="text-xs text-ivory-muted">
+        Sábado às 10h lota. Quarta às 12h está vazia — é ali que uma promoção
+        rende.
+      </p>
+    </div>
+  );
+}
+
+/** A equipe, como ela aparece no painel. */
+export function EquipeResumo() {
+  const barbeiros = [
+    { nome: "Rômulo", atendimentos: 84, valor: "R$ 6.240", pct: 100 },
+    { nome: "Léo", atendimentos: 61, valor: "R$ 4.180", pct: 72 },
+    { nome: "Vinícius", atendimentos: 38, valor: "R$ 2.740", pct: 45 },
+  ];
+  return (
+    <div className="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-5 shadow-[var(--shadow-md)]">
+      <p className="text-xs font-semibold uppercase tracking-wider text-ivory-muted">
+        Equipe no mês
+      </p>
+      {barbeiros.map((b) => (
+        <div key={b.nome} className="flex flex-col gap-1.5">
+          <div className="flex items-baseline justify-between text-sm">
+            <span className="text-ivory">{b.nome}</span>
+            <span className="text-ivory-muted">
+              {b.atendimentos} atendimentos · <span className="text-ivory">{b.valor}</span>
+            </span>
+          </div>
+          <div className="h-1.5 overflow-hidden rounded-full bg-surface-raised">
+            <span className="block h-full rounded-full bg-gold" style={{ width: `${b.pct}%` }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
