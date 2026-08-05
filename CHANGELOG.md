@@ -64,6 +64,37 @@ o concorrente não desconta.
 Achado na auditoria financeira da branch `claude/barbershop-video-strategy-do3jzc`
 (F1), confirmado por execução contra o código corrente.
 
+### Fotografia na landing
+
+Duas fotos geradas, não três, e só onde a seção fala de gente: a origem e a
+equipe. Espalhar foto pelo resto devolveria a página ao território de banco de
+imagens, que é o que ela existe para evitar.
+
+- **"De onde veio"** era o único bloco sem nada visual. Virou duas colunas com o
+  retrato vertical.
+- **Equipe**: a horizontal com o cartão de equipe sobreposto **à esquerda** — as
+  duas cadeiras ocupadas estão à direita do quadro e são elas que sustentam o
+  título. Na primeira versão o cartão tapava justo os barbeiros.
+
+Três coisas nos arquivos originais:
+
+1. **A vertical tinha a marca d'água do Gemini** — estrela branca de quatro
+   pontas na barra da camisa. Cortada fora. A horizontal estava limpa.
+2. **8,2 MB de PNG cada** → 120 KB e 92 KB em WebP. No celular o navegador baixa
+   a variante de 640px: **91 KB de foto na página inteira**. É o mesmo argumento
+   de desempenho que descartou glassmorphism e mesh gradient.
+3. A terceira imagem ficou de fora: frasco azul brigando com a paleta quente e
+   uma interface falsa borrada no celular — o tipo de detalhe que denuncia
+   geração por IA.
+
+Importadas estaticamente, então o Next calcula dimensão e desfoque de
+carregamento sozinho (sem pulo de layout), e carregam preguiçosamente por
+estarem abaixo da dobra.
+
+⚠️ As imagens carregam SynthID, a marca d'água invisível do Google. Não aparece
+nem atrapalha, mas são detectáveis como geradas por IA — não usar em material
+que afirme serem fotos de uma barbearia parceira real.
+
 ### Plataforma multi-barbearia
 
 O produto nasceu para uma barbearia e passou a ser preparado para muitas. A
@@ -462,11 +493,44 @@ Ordenado por quem trava o quê. Nada aqui é bug — é o que ainda não existe.
 ### Qualidade e operação
 | | |
 |---|---|
-| **App Check** | Não habilitado. Qualquer um chama as funções de fora do app — as regras protegem os dados, não o consumo |
+| **App Check** | **Em andamento.** O app está registrado no console; falta criar as chaves reCAPTCHA v3, instalar o SDK e só então aplicar. Ver abaixo |
 | **Observabilidade** | Ninguém é avisado se uma function começar a falhar |
 | **Tradução das telas** | 18 telas em português, cravado. Fuso e moeda já são por barbearia |
 | **Wordmark em curvas** | "CorteHub" na assinatura horizontal ainda é texto com fonte; fora do app cai numa substituta |
 | **Logo e página do O Siqueira** | Pedido no começo do dia, nunca feito. Depende das fotos do salão |
+
+### Achados vizinhos, abertos no motor financeiro
+
+Vieram da mesma auditoria que originou a correção do DRE
+(`claude/barbershop-video-strategy-do3jzc`, ainda não mesclada).
+
+| | |
+|---|---|
+| **A projeção não desconta custo variável** (F2) | "Resultado projetado" e "Resultado do mês" são grandezas diferentes com nome parecido. **Piorou com a correção do DRE**: a distância entre as duas telas passou de ~20% para mais de 200%. Ou as duas usam a mesma cadeia, ou a projeção passa a se chamar "Saldo de caixa projetado" |
+| **Mensalista ignora o período** (F3) | Todo mês do histórico recebe o MRR de hoje — inclusive meses anteriores à existência do clube de assinatura. Distorce a comparação mês a mês, que é o indicador para o qual a tela existe |
+| **Assinante é contado duas vezes** | Não existe vínculo entre mensalista e reserva. A visita de um assinante entra na receita pelo valor da reserva **e** pela mensalidade |
+
+### App Check — onde parou
+
+O provedor escolhido é **reCAPTCHA v3**, não Enterprise: Enterprise cobra acima
+de 10 mil verificações/mês e exige habilitar API no Cloud.
+
+1. ✅ App registrado no console do Firebase
+2. ⬜ Criar as chaves em `google.com/recaptcha/admin/create` — domínios
+   `axon-barber.web.app`, `axon-barber.firebaseapp.com`, `jpproject.com.br`
+   (cobre os subdomínios), `localhost` e, quando existir, `cortehub.com.br`
+3. ⬜ Secret key no console; **site key** vai para o código
+4. ⬜ `initializeAppCheck` + `ReCaptchaV3Provider`, com token de debug para o
+   ambiente local — sem ele, emulador e `lvh.me` param de funcionar
+5. ⬜ `enforceAppCheck: true` em cada `onCall`, e só então aplicar
+
+⚠️ **Registrar é inerte; aplicar não.** Ligar a aplicação antes de o SDK estar em
+produção derruba o agendamento do O Siqueira. Olhar as métricas de requisições
+com e sem atestado por alguns dias primeiro.
+
+A CSP **não precisa mudar**: `script-src` já libera `www.google.com` e
+`www.gstatic.com`, e `frame-src` já tem `www.google.com` — foram parar lá por
+causa do login por SMS.
 
 ## [2026-07-31]
 
