@@ -2,6 +2,7 @@ import {
   bookingPolicy as defaultBookingPolicy,
   cancellationPolicy as defaultCancellationPolicy,
   commissionSplit as defaultCommissionSplit,
+  gatewayFeePct as defaultGatewayFeePct,
   loyaltyPolicy as defaultLoyaltyPolicy,
   openWeekdays as defaultOpenWeekdays,
   reschedulePolicy as defaultReschedulePolicy,
@@ -84,6 +85,8 @@ export type TenantPolicies = {
   booking: typeof defaultBookingPolicy;
   loyalty: typeof defaultLoyaltyPolicy;
   commissionSplit: typeof defaultCommissionSplit;
+  /** Taxa da maquininha/gateway por meio de recebimento, em %. */
+  gatewayFeePct: typeof defaultGatewayFeePct;
   taxRatePct: number;
   /** Dias em que abre (0 = domingo). */
   openWeekdays: number[];
@@ -211,6 +214,7 @@ export const PLATFORM_DEFAULT_POLICIES: TenantPolicies = {
   booking: defaultBookingPolicy,
   loyalty: defaultLoyaltyPolicy,
   commissionSplit: defaultCommissionSplit,
+  gatewayFeePct: defaultGatewayFeePct,
   taxRatePct: defaultTaxRatePct,
   openWeekdays: defaultOpenWeekdays,
 };

@@ -9,6 +9,8 @@
  * Se um número de política aparece em JSX, ele veio daqui.
  */
 
+import type { PaymentMethod } from "@/lib/types";
+
 /* ------------------------------------------------------------------ */
 /* Cancelamento e reagendamento (PRD §4 e §6)                          */
 /* ------------------------------------------------------------------ */
@@ -87,15 +89,42 @@ export function isOpenOn(date: Date) {
 /* ------------------------------------------------------------------ */
 
 /**
- * Rateio do LUCRO BRUTO da venda entre profissional e barbearia.
- * O PRD exige `barberPct + shopPct === 100`, validado pelo sistema — mesmo na
- * operação solo, para separar o "salário do dono como barbeiro" do resultado
- * da empresa.
+ * Rateio entre profissional e barbearia.
+ *
+ * ⚠️ A BASE MUDA CONFORME O QUE FOI VENDIDO, e confundir as duas foi o erro
+ * que fez o DRE informar 60% de margem:
+ *
+ * - **Serviço** (corte, barba): incide sobre o VALOR DO ATENDIMENTO. É assim
+ *   que o mercado brasileiro paga barbeiro — 35% a 60% do faturamento — e é a
+ *   maior linha de custo de uma barbearia com equipe.
+ * - **Produto** (loja): incide sobre o LUCRO BRUTO da venda, porque o custo de
+ *   compra não é receita de ninguém.
+ *
+ * Cada barbeiro pode ter percentual próprio (`StaffDoc.commissionPct`); este é
+ * o padrão de quem não tem.
  */
 export const commissionSplit = {
   barberPct: 40,
   shopPct: 60,
 } as const;
+
+/**
+ * Taxa efetiva por meio de recebimento, em percentual.
+ *
+ * Referência da Stone, usada até a barbearia configurar a dela. O padrão é
+ * proposital: zero seria uma afirmação FALSA — quem recebe por cartão paga a
+ * maquininha —, e errado para baixo num custo é errado para cima no lucro.
+ *
+ * `local` é o que se paga no balcão (dinheiro ou maquininha da casa) e não
+ * passa por gateway nenhum. O tipo é `Record<PaymentMethod, number>` de
+ * propósito: um meio de pagamento novo passa a NÃO COMPILAR até alguém decidir
+ * qual é a taxa dele, em vez de entrar valendo zero em silêncio.
+ */
+export const gatewayFeePct: Record<PaymentMethod, number> = {
+  pix: 0.99,
+  cartao: 3.15,
+  local: 0,
+};
 
 /** Alíquota efetiva estimada do Simples Nacional sobre o lucro bruto. */
 export const taxRatePct = 6;

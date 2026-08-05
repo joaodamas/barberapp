@@ -1,6 +1,9 @@
+import Image from "next/image";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { ArrowRight, Check } from "lucide-react";
+import fotoEquipe from "@/assets/fotos/barbearia-equipe.webp";
+import fotoDono from "@/assets/fotos/dono-no-salao.webp";
 import { Reveal, RevealPalavras } from "@/components/landing/reveal";
 import { AssinaturaCorteHub } from "@/components/landing/marca";
 import {
@@ -26,7 +29,8 @@ export const metadata: Metadata = {
  * 1. **Nenhum número redondo.** "R$ 12.469" é o faturamento real da barbearia
  *    que originou o produto; "R$ 12 mil" seria enfeite. Especificidade é a
  *    defesa mais forte contra parecer template — nenhum gerador inventa
- *    "ponto de equilíbrio no dia 17".
+ *    "ponto de equilíbrio no dia 18". Eles também precisam FECHAR na conta e
+ *    ser plausíveis para o setor — ver `telas.tsx`, onde ambos já falharam.
  *
  * 2. **Nenhuma prova social inflada, e nenhum cliente nomeado.** Dizer "2.400
  *    barbearias" quando existe uma é o tipo de mentira que o primeiro cliente
@@ -37,6 +41,13 @@ export const metadata: Metadata = {
  * 3. **O produto se mostra, não se descreve.** Os blocos de tela usam os
  *    componentes REAIS do painel, com os mesmos tokens e o mesmo gráfico.
  *    Mockup envelhece no primeiro ajuste; isto muda junto com o produto.
+ *
+ * 4. **Duas fotos, não uma galeria.** As imagens são geradas e entram só onde
+ *    a seção fala de gente — a origem e a equipe. Espalhar foto pelo resto
+ *    devolveria a página ao território de banco de imagens, que é exatamente
+ *    o que ela evita. Elas também são o único conteúdo pesado aqui: por isso
+ *    são importadas estaticamente (o Next calcula dimensão e desfoque de
+ *    carregamento sozinho) e ficam abaixo da dobra, sem `priority`.
  */
 export default function LandingPage() {
   return (
@@ -132,15 +143,15 @@ export default function LandingPage() {
               },
               {
                 numero: "40%",
-                titulo: "vão para o barbeiro",
+                titulo: "saem em comissão",
                 texto:
-                  "A comissão sai do lucro, não do preço cheio. Quem calcula sobre o preço paga a mais todo mês.",
+                  "Incide sobre o faturamento do serviço, e é a maior despesa da barbearia. Quem soma só o que entrou no caixa nunca desconta isso.",
               },
               {
-                numero: "dia 17",
+                numero: "dia 18",
                 titulo: "o mês vira lucro",
                 texto:
-                  "Antes disso você trabalhou para pagar aluguel, luz e produto. Depois, o dinheiro é seu.",
+                  "Antes disso você trabalhou para pagar aluguel, luz e a cadeira ao lado. Depois, o dinheiro é seu.",
               },
             ].map((item, i) => (
               <Reveal key={item.titulo} delay={i * 90}>
@@ -199,21 +210,37 @@ export default function LandingPage() {
       {/* Uma barbearia, com nome                                           */}
       {/* ---------------------------------------------------------------- */}
       <section className="border-y border-border bg-surface/60">
-        <div className="mx-auto w-full max-w-3xl px-5 py-16 text-center md:px-8 md:py-24">
-          <Reveal>
-            <p className="text-sm text-gold-light">De onde veio</p>
-            <p className="mt-5 text-balance font-brand text-xl leading-snug text-ivory md:text-3xl">
-              O CorteHub nasceu dentro de{" "}
-              <span className="text-gold-light">uma barbearia só</span>, para
-              resolver o problema de um barbeiro só.
-            </p>
-            <p className="mx-auto mt-5 max-w-xl leading-relaxed text-ivory-muted">
-              Cada tela aqui existe porque alguém perdeu dinheiro sem ela — a
-              falta que ninguém somou, a comissão calculada sobre o preço errado,
-              o mês que fechou no vermelho sem aviso. Não somos os maiores. Somos
-              os que sabem por que cada número está onde está.
-            </p>
-          </Reveal>
+        <div className="mx-auto w-full max-w-6xl px-5 py-16 md:px-8 md:py-24">
+          <div className="grid items-center gap-10 lg:grid-cols-[0.8fr_1fr] lg:gap-16">
+            <Reveal>
+              {/* Retrato e não paisagem: a seção fala de UMA barbearia e de um
+                  barbeiro só. Enquadramento fechado diz isso antes do texto. */}
+              <div className="relative mx-auto max-w-sm overflow-hidden rounded-2xl border border-border shadow-[var(--shadow-md)] lg:max-w-none">
+                <Image
+                  src={fotoDono}
+                  alt="Dono de barbearia consultando o celular no balcão enquanto dois barbeiros atendem ao fundo."
+                  sizes="(min-width: 1024px) 28rem, (min-width: 640px) 24rem, 100vw"
+                  className="h-full w-full object-cover"
+                  placeholder="blur"
+                />
+              </div>
+            </Reveal>
+
+            <Reveal delay={100}>
+              <p className="text-sm text-gold-light">De onde veio</p>
+              <p className="mt-5 text-balance font-brand text-xl leading-snug text-ivory md:text-3xl">
+                O CorteHub nasceu dentro de{" "}
+                <span className="text-gold-light">uma barbearia só</span>, para
+                resolver o problema de um barbeiro só.
+              </p>
+              <p className="mt-5 max-w-xl leading-relaxed text-ivory-muted">
+                Cada tela aqui existe porque alguém perdeu dinheiro sem ela — a
+                falta que ninguém somou, a comissão calculada sobre o preço
+                errado, o mês que fechou no vermelho sem aviso. Não somos os
+                maiores. Somos os que sabem por que cada número está onde está.
+              </p>
+            </Reveal>
+          </div>
         </div>
       </section>
 
@@ -246,8 +273,28 @@ export default function LandingPage() {
                 alguém, a conta não aumenta.
               </p>
             </Reveal>
+            {/* Foto e tela na mesma pilha: em cima o que acontece no salão,
+                embaixo o que o sistema mostra disso. Separados, seriam duas
+                afirmações; sobrepostos, são a mesma. É a composição do topo da
+                página, repetida de propósito. */}
             <Reveal delay={100}>
-              <EquipeResumo />
+              <div className="relative mx-auto max-w-md lg:max-w-none">
+                <div className="overflow-hidden rounded-2xl border border-border shadow-[var(--shadow-md)]">
+                  <Image
+                    src={fotoEquipe}
+                    alt="Dois barbeiros atendendo em cadeiras vizinhas enquanto o dono acompanha pelo tablet."
+                    sizes="(min-width: 1024px) 32rem, (min-width: 640px) 28rem, 100vw"
+                    className="h-full w-full object-cover"
+                    placeholder="blur"
+                  />
+                </div>
+                {/* Cartão à ESQUERDA de propósito: as duas cadeiras ocupadas
+                    estão à direita do quadro, e são elas que sustentam o
+                    título. O que fica coberto é o balcão. */}
+                <div className="relative z-10 -mt-10 mr-auto w-[86%] sm:-mt-14">
+                  <EquipeResumo />
+                </div>
+              </div>
             </Reveal>
           </div>
 

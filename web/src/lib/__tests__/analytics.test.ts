@@ -6,7 +6,7 @@ import {
 } from "@/lib/analytics";
 import { PLATFORM_DEFAULT_POLICIES } from "@/lib/tenant";
 import type { Doc } from "@/lib/db/repository";
-import type { BookingDoc, ExpenseDoc, InventoryMovementDoc, SubscriberDoc } from "@/lib/domain";
+import type { BookingDoc, ExpenseDoc, InventoryMovementDoc, StaffDoc, SubscriberDoc } from "@/lib/domain";
 
 const P = mesPeriodo("2026-07");
 
@@ -21,6 +21,9 @@ const ex = (o: Partial<ExpenseDoc> & { id: string }): Doc<ExpenseDoc> => ({
 });
 const mv = (o: Partial<InventoryMovementDoc> & { id: string }): Doc<InventoryMovementDoc> => ({
   productId: "p1", kind: "venda", quantity: 1, value: 45, date: "2026-07-10", ...o,
+});
+const st = (o: Partial<StaffDoc> & { id: string }): Doc<StaffDoc> => ({
+  name: "Rômulo", active: true, ...o,
 });
 const sub = (o: Partial<SubscriberDoc> & { id: string }): Doc<SubscriberDoc> => ({
   clientId: "c1", name: "João", planId: "p", planName: "Ilimitado", price: 149,
@@ -114,22 +117,22 @@ describe("caixa diário", () => {
 
 describe("resultado do mês", () => {
   const base = () => {
-    const bookings = [bk({ id: "1", value: 1000 })];
+    const bookings = [bk({ id: "1", value: 1000, paymentMethod: "local" })];
     const movements = [mv({ id: "v", kind: "venda", value: 500 }), mv({ id: "c", kind: "compra", value: 200 })];
     const receita = receitaDoMes({ bookings, movements, subscribers: [], periodo: P });
-    return { receita, movements };
+    return { receita, movements, bookings, staff: [st({ id: "s1" })] };
   };
 
   it("margem = receita − custo variável", () => {
-    const { receita, movements } = base();
-    const r = resultadoDoMes({ receita, expenses: [], movements, periodo: P, policies: PLATFORM_DEFAULT_POLICIES });
+    const b = base();
+    const r = resultadoDoMes({ ...b, expenses: [], periodo: P, policies: PLATFORM_DEFAULT_POLICIES });
     expect(r.contributionMargin).toBe(r.grossRevenue - r.variableCost);
   });
 
   it("só despesa recorrente é custo fixo", () => {
-    const { receita, movements } = base();
+    const b = base();
     const r = resultadoDoMes({
-      receita, movements, periodo: P, policies: PLATFORM_DEFAULT_POLICIES,
+      ...b, periodo: P, policies: PLATFORM_DEFAULT_POLICIES,
       expenses: [ex({ id: "1", value: 1800, recurring: true }), ex({ id: "2", value: 200, recurring: false })],
     });
     expect(r.fixedExpenses).toBe(1800);
@@ -137,25 +140,114 @@ describe("resultado do mês", () => {
   });
 
   it("não cobra imposto sobre prejuízo", () => {
-    const { receita, movements } = base();
+    const b = base();
     const r = resultadoDoMes({
-      receita, movements, periodo: P, policies: PLATFORM_DEFAULT_POLICIES,
+      ...b, periodo: P, policies: PLATFORM_DEFAULT_POLICIES,
       expenses: [ex({ id: "1", value: 99999 })],
     });
     expect(r.resultBeforeTax).toBeLessThan(0);
     expect(r.tax).toBe(0);
   });
 
-  it("comissão sai do lucro da loja, no rateio do tenant", () => {
-    const { receita, movements } = base();
-    const r = resultadoDoMes({ receita, expenses: [], movements, periodo: P, policies: PLATFORM_DEFAULT_POLICIES });
-    const lucroLoja = 500 - 200;
-    expect(r.commissions).toBe(Math.round((lucroLoja * PLATFORM_DEFAULT_POLICIES.commissionSplit.barberPct) / 100));
+  /* O teste que existia aqui afirmava que a comissão saía APENAS do lucro da
+   * loja — ou seja, ele passava porque codificava o defeito. Com R$ 1.000 de
+   * serviço, o custo de mão de obra lançado era R$ 120 (40% sobre R$ 300 de
+   * lucro de produto) em vez de R$ 520. */
+  it("serviço paga comissão sobre o FATURAMENTO, produto sobre o lucro", () => {
+    const b = base();
+    const r = resultadoDoMes({ ...b, expenses: [], periodo: P, policies: PLATFORM_DEFAULT_POLICIES });
+    const pct = PLATFORM_DEFAULT_POLICIES.commissionSplit.barberPct;
+
+    expect(r.commissionsServico).toBe((1000 * pct) / 100);
+    expect(r.commissionsLoja).toBe(((500 - 200) * pct) / 100);
+    expect(r.commissions).toBe(r.commissionsServico + r.commissionsLoja);
+  });
+
+  it("cada barbeiro paga o percentual DELE, não a média", () => {
+    const bookings = [
+      bk({ id: "1", staffId: "romulo", value: 1000 }),
+      bk({ id: "2", staffId: "leo", value: 500 }),
+      bk({ id: "3", staffId: "leo", value: 500 }),
+    ];
+    const receita = receitaDoMes({ bookings, movements: [], subscribers: [], periodo: P });
+    const r = resultadoDoMes({
+      receita, bookings, expenses: [], movements: [], periodo: P,
+      policies: PLATFORM_DEFAULT_POLICIES,
+      staff: [st({ id: "romulo", name: "Rômulo", commissionPct: 50 }), st({ id: "leo", name: "Léo", commissionPct: 30 })],
+    });
+
+    expect(r.commissionsServico).toBe(500 + 300);
+    const leo = r.comissaoPorBarbeiro.find((b) => b.staffId === "leo");
+    expect(leo).toMatchObject({ nome: "Léo", base: 1000, pct: 30, valor: 300, atendimentos: 2 });
+  });
+
+  it("barbeiro sem percentual próprio cai no padrão da barbearia", () => {
+    const bookings = [bk({ id: "1", staffId: "s1", value: 1000 })];
+    const receita = receitaDoMes({ bookings, movements: [], subscribers: [], periodo: P });
+    const r = resultadoDoMes({
+      receita, bookings, expenses: [], movements: [], periodo: P,
+      policies: PLATFORM_DEFAULT_POLICIES, staff: [st({ id: "s1" })],
+    });
+    expect(r.comissaoPorBarbeiro[0].pct).toBe(PLATFORM_DEFAULT_POLICIES.commissionSplit.barberPct);
+  });
+
+  /* Reserva cujo `staffId` não corresponde a barbeiro nenhum: o corte
+   * aconteceu e alguém recebeu. Somar zero esconderia custo real. */
+  it("reserva órfã ainda gera custo, e diz que é órfã", () => {
+    const bookings = [bk({ id: "1", staffId: "fantasma", value: 1000 })];
+    const receita = receitaDoMes({ bookings, movements: [], subscribers: [], periodo: P });
+    const r = resultadoDoMes({
+      receita, bookings, expenses: [], movements: [], periodo: P,
+      policies: PLATFORM_DEFAULT_POLICIES, staff: [],
+    });
+    expect(r.commissionsServico).toBe(400);
+    expect(r.comissaoPorBarbeiro[0].nome).toMatch(/não identificado/i);
+  });
+
+  it("a taxa de recebimento depende do meio, e nunca é zero no cartão", () => {
+    const bookings = [
+      bk({ id: "1", value: 1000, paymentMethod: "cartao" }),
+      bk({ id: "2", value: 1000, paymentMethod: "pix" }),
+      bk({ id: "3", value: 1000, paymentMethod: "local" }),
+    ];
+    const receita = receitaDoMes({ bookings, movements: [], subscribers: [], periodo: P });
+    const r = resultadoDoMes({
+      receita, bookings, expenses: [], movements: [], periodo: P,
+      policies: PLATFORM_DEFAULT_POLICIES, staff: [st({ id: "s1" })],
+    });
+    const { pix, cartao } = PLATFORM_DEFAULT_POLICIES.gatewayFeePct;
+    expect(r.gatewayFees).toBe(Math.round(1000 * (cartao / 100) + 1000 * (pix / 100)));
+    expect(r.gatewayFees).toBeGreaterThan(0);
+  });
+
+  /* A trava contra a regressão que originou tudo isto. O setor opera com 15% a
+   * 30% de margem (Sebrae) e 45% a 65% de margem de contribuição. O motor
+   * chegou a informar 94,6% e 59,8% — 2 a 4 vezes a realidade — porque os 91%
+   * da receita que vêm de serviço não geravam custo de mão de obra nenhum. */
+  it("uma barbearia realista não fecha com margem de software", () => {
+    const bookings = Array.from({ length: 168 }, (_, i) =>
+      bk({ id: `b${i}`, value: 74, paymentMethod: i % 2 ? "pix" : "cartao" })
+    );
+    const movements = [mv({ id: "v", kind: "venda", value: 950 }), mv({ id: "c", kind: "compra", value: 600 })];
+    const receita = receitaDoMes({ bookings, movements, subscribers: [], periodo: P });
+    const r = resultadoDoMes({
+      receita, bookings, movements, periodo: P, policies: PLATFORM_DEFAULT_POLICIES,
+      expenses: [ex({ id: "1", value: 4230, recurring: true })],
+      staff: [st({ id: "s1" })],
+    });
+
+    expect(r.contributionMarginPct).toBeGreaterThan(45);
+    expect(r.contributionMarginPct).toBeLessThan(65);
+    expect(r.marginPct).toBeGreaterThan(10);
+    expect(r.marginPct).toBeLessThan(35);
   });
 
   it("receita zero não gera NaN", () => {
     const receita = receitaDoMes({ bookings: [], movements: [], subscribers: [], periodo: P });
-    const r = resultadoDoMes({ receita, expenses: [], movements: [], periodo: P, policies: PLATFORM_DEFAULT_POLICIES });
+    const r = resultadoDoMes({
+      receita, expenses: [], movements: [], bookings: [], staff: [],
+      periodo: P, policies: PLATFORM_DEFAULT_POLICIES,
+    });
     expect(Number.isFinite(r.marginPct)).toBe(true);
     expect(r.breakEvenDay).toBeNull();
   });

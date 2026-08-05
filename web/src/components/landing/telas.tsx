@@ -62,12 +62,26 @@ export function AgendaDoDia() {
   );
 }
 
-/** O DRE, resumido ao que o dono realmente lê. */
+/**
+ * O DRE, resumido ao que o dono realmente lê.
+ *
+ * ⚠️ Os números precisam FECHAR na subtração, e precisam ser plausíveis para o
+ * setor. Este bloco já errou nas duas coisas: mostrava "sobrou R$ 7.516" abaixo
+ * de linhas que somavam R$ 4.412, e vendia 60% de margem num ramo que opera
+ * entre 15% e 30% (Sebrae). Um barbeiro que conhece o próprio negócio lê 60% e
+ * conclui, com razão, que a página é fantasia.
+ *
+ * A comissão aparece SEPARADA e em primeiro lugar de propósito: é a maior
+ * despesa de uma barbearia com equipe e é justamente a linha que o concorrente
+ * não desconta. É o argumento inteiro do produto numa linha só.
+ */
 export function ResumoDoMes() {
   const linhas = [
     { rotulo: "Faturamento", valor: "R$ 12.469", tom: "text-ivory" },
-    { rotulo: "Custo variável", valor: "− R$ 3.104", tom: "text-ivory-muted" },
-    { rotulo: "Despesa fixa", valor: "− R$ 4.953", tom: "text-ivory-muted" },
+    { rotulo: "Comissão dos barbeiros", valor: "− R$ 4.612", tom: "text-ivory-muted" },
+    { rotulo: "Produto e maquininha", valor: "− R$ 641", tom: "text-ivory-muted" },
+    { rotulo: "Despesa fixa", valor: "− R$ 4.087", tom: "text-ivory-muted" },
+    { rotulo: "Imposto (Simples)", valor: "− R$ 188", tom: "text-ivory-muted" },
   ];
   return (
     <div className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-5 shadow-[var(--shadow-md)]">
@@ -84,10 +98,10 @@ export function ResumoDoMes() {
       </div>
       <div className="mt-1 flex items-baseline justify-between border-t border-border pt-3">
         <span className="text-sm text-ivory">Sobrou</span>
-        <span className="font-display text-2xl text-success">R$ 7.516</span>
+        <span className="font-display text-2xl text-success">R$ 2.941</span>
       </div>
       <p className="text-xs text-ivory-muted">
-        Ponto de equilíbrio no <strong className="text-ivory">dia 17</strong> — a
+        Ponto de equilíbrio no <strong className="text-ivory">dia 18</strong> — a
         partir dele, o mês vira lucro.
       </p>
     </div>

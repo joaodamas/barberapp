@@ -8,6 +8,7 @@ import {
   type ExpenseDoc,
   type InventoryMovementDoc,
   type ProductDoc,
+  type StaffDoc,
   type SubscriberDoc,
 } from "@/lib/domain";
 import type { Doc } from "@/lib/db/repository";
@@ -141,6 +142,109 @@ export function caixaDiario(params: {
 }
 
 /* ------------------------------------------------------------------ */
+/* Custo do trabalho                                                   */
+/* ------------------------------------------------------------------ */
+
+export type ComissaoDeBarbeiro = {
+  staffId: string;
+  nome: string;
+  /** Faturamento de serviço que passou pela cadeira dele no período. */
+  base: number;
+  pct: number;
+  valor: number;
+  atendimentos: number;
+};
+
+/**
+ * Quanto do faturamento de serviço vira pagamento de barbeiro.
+ *
+ * Esta é a MAIOR linha de custo de uma barbearia com equipe, e até 04/08/2026
+ * ela não existia no DRE: a comissão era calculada só sobre o lucro da loja de
+ * produtos. Com R$ 12.432 de serviço e 40% de rateio, o sistema lançava R$ 140
+ * de custo de mão de obra em vez de R$ 5.113 — e informava 60% de margem para
+ * um setor cuja margem real fica entre 15% e 30%.
+ *
+ * Cada reserva paga a taxa DO BARBEIRO que atendeu (`StaffDoc.commissionPct`),
+ * não uma média: contratar alguém com percentual diferente muda o custo de
+ * verdade, e um percentual único esconde exatamente a decisão que o dono
+ * precisa tomar.
+ *
+ * O pagamento do dono-barbeiro entra aqui também, como comissão e não como
+ * pró-labore no custo fixo. São duas escolhas contábeis defensáveis e o
+ * resultado final é idêntico; esta evita um degrau absurdo no dia da primeira
+ * contratação — a margem de contribuição cairia de 95% para 58% de um mês para
+ * o outro sem nada ter piorado — e mantém o ponto de equilíbrio na definição
+ * padrão (custo fixo ÷ margem de contribuição).
+ */
+export function comissoesDeServico(params: {
+  bookings: Doc<BookingDoc>[];
+  staff: Doc<StaffDoc>[];
+  periodo: Periodo;
+  policies: TenantPolicies;
+}): { total: number; porBarbeiro: ComissaoDeBarbeiro[] } {
+  const { bookings, staff, periodo, policies } = params;
+  const padrao = policies.commissionSplit.barberPct;
+  const porId = new Map(staff.map((s) => [s.id, s]));
+  const acc = new Map<string, ComissaoDeBarbeiro>();
+
+  for (const b of bookings) {
+    if (!isRevenue(b) || !dentroDoPeriodo(b.date, periodo)) continue;
+
+    const pessoa = porId.get(b.staffId);
+    /* Reserva órfã ainda custa dinheiro: o corte aconteceu e alguém recebeu.
+     * Cair no percentual da barbearia é melhor que somar zero — mas o nome
+     * fica explícito para o dono ver que há dado a corrigir. */
+    const pct = pessoa?.commissionPct ?? padrao;
+
+    let linha = acc.get(b.staffId);
+    if (!linha) {
+      linha = {
+        staffId: b.staffId,
+        nome: pessoa?.name ?? "Barbeiro não identificado",
+        base: 0,
+        pct,
+        valor: 0,
+        atendimentos: 0,
+      };
+      acc.set(b.staffId, linha);
+    }
+    linha.base += b.value;
+    linha.atendimentos += 1;
+  }
+
+  const porBarbeiro = [...acc.values()]
+    .map((l) => ({ ...l, valor: Math.round((l.base * l.pct) / 100) }))
+    .sort((a, b) => b.valor - a.valor);
+
+  return {
+    total: porBarbeiro.reduce((s, l) => s + l.valor, 0),
+    porBarbeiro,
+  };
+}
+
+/**
+ * O que a maquininha come, por meio de recebimento.
+ *
+ * Antes era sempre R$ 0 — a linha existia na tela e nenhum chamador fornecia o
+ * valor. Sobre R$ 13.650, a diferença entre zero e a taxa real é de R$ 135 a
+ * R$ 430 por mês que sumiam do custo.
+ */
+export function taxasDeGateway(params: {
+  bookings: Doc<BookingDoc>[];
+  periodo: Periodo;
+  policies: TenantPolicies;
+}): number {
+  const { bookings, periodo, policies } = params;
+  let total = 0;
+  for (const b of bookings) {
+    if (!isRevenue(b) || !dentroDoPeriodo(b.date, periodo)) continue;
+    const pct = policies.gatewayFeePct[b.paymentMethod] ?? 0;
+    total += (b.value * pct) / 100;
+  }
+  return Math.round(total);
+}
+
+/* ------------------------------------------------------------------ */
 /* DRE                                                                 */
 /* ------------------------------------------------------------------ */
 
@@ -150,9 +254,12 @@ export function resultadoDoMes(params: {
   receita: ReceitaDoMes;
   expenses: Doc<ExpenseDoc>[];
   movements: Doc<InventoryMovementDoc>[];
+  /** Necessários para o custo de mão de obra e a taxa de recebimento. */
+  bookings: Doc<BookingDoc>[];
+  staff: Doc<StaffDoc>[];
   periodo: Periodo;
   policies: TenantPolicies;
-  gatewayFeesTotal?: number;
+  /** Salário fixo, para quem não trabalha por comissão. Ainda sem tela. */
   payroll?: number;
 }) {
   const { receita, expenses, movements, periodo, policies } = params;
@@ -168,11 +275,20 @@ export function resultadoDoMes(params: {
     .filter((m) => m.kind === "compra" && dentroDoPeriodo(m.date, periodo))
     .reduce((s, m) => s + m.value, 0);
 
-  const gatewayFees = params.gatewayFeesTotal ?? 0;
+  const gatewayFees = taxasDeGateway({ bookings: params.bookings, periodo, policies });
 
-  // Comissão sobre o lucro bruto da loja, no rateio do tenant.
+  /* Duas bases diferentes, de propósito — ver `commissionSplit`. Serviço paga
+   * sobre o faturamento; produto paga sobre o lucro, porque o custo de compra
+   * não é receita de ninguém. */
+  const servico = comissoesDeServico({
+    bookings: params.bookings,
+    staff: params.staff,
+    periodo,
+    policies,
+  });
   const lucroLoja = Math.max(receita.produtos - cmv, 0);
-  const commissions = Math.round((lucroLoja * policies.commissionSplit.barberPct) / 100);
+  const commissionsLoja = Math.round((lucroLoja * policies.commissionSplit.barberPct) / 100);
+  const commissions = servico.total + commissionsLoja;
 
   const variableCost = cmv + gatewayFees + commissions;
   const contributionMargin = receita.bruta - variableCost;
@@ -196,6 +312,10 @@ export function resultadoDoMes(params: {
     cmv,
     gatewayFees,
     commissions,
+    /** Só a parte de serviço, aberta por pessoa — é o que a tela detalha. */
+    commissionsServico: servico.total,
+    commissionsLoja,
+    comissaoPorBarbeiro: servico.porBarbeiro,
     variableCost,
     contributionMargin,
     contributionMarginPct,

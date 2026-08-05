@@ -62,6 +62,11 @@ export function useFinanceiro(mes: string, horizonte: Horizonte = "mensal") {
     receita,
     expenses: expenses.items,
     movements: movements.items,
+    /* Sem estes dois o custo de mão de obra some do DRE — que foi exatamente o
+     * defeito corrigido em 05/08/2026. A comissão sai de cada reserva, na taxa
+     * do barbeiro que atendeu. */
+    bookings: bookings.items,
+    staff: staff.items,
     periodo,
     policies: tenant.policies,
   });

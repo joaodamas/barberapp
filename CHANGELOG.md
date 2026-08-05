@@ -5,6 +5,65 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
 ## [Não publicado]
 
+### 🔴 O DRE não contabilizava o custo do trabalho
+
+O número que é o diferencial do produto estava errado, e errado para cima.
+
+A comissão era calculada **apenas sobre o lucro da loja de produtos**. Os 91% da
+receita que vêm de serviço não geravam um centavo de custo de mão de obra. Medido
+na barbearia de referência (168 atendimentos, R$ 12.432 em serviço, rateio de
+40%):
+
+| | Antes | Depois |
+|---|---|---|
+| Custo de mão de obra lançado | R$ 140 | R$ 4.765 |
+| Taxa de recebimento | R$ 0 | R$ 257 |
+| Margem de contribuição | 94,6% | 57,8% |
+| Resultado do mês | R$ 8.159 (59,8%) | R$ 3.439 (25,2%) |
+| Ponto de equilíbrio | dia 13 | dia 24 |
+
+O setor opera com margem de 15% a 30% (Sebrae) e margem de contribuição de 45% a
+65%. O motor entregava 2 a 4 vezes isso. Num produto financeiro, errado para cima
+é o pior tipo de erro: o dono se sente bem, decide mal, e quando o extrato não
+bate ele conclui — corretamente — que o sistema mente.
+
+**O que mudou**
+
+- Comissão de **serviço** incide sobre o faturamento do atendimento; a de
+  **produto** continua sobre o lucro da venda. São bases diferentes de propósito,
+  e confundi-las foi a causa raiz.
+- Cada reserva paga o percentual **do barbeiro que atendeu**
+  (`StaffDoc.commissionPct`), não uma média. O DRE abre a comissão por pessoa,
+  com base, percentual e número de atendimentos.
+- Reserva órfã (sem barbeiro correspondente) gera custo pelo padrão da barbearia
+  e aparece nomeada como não identificada — somar zero esconderia custo real.
+- `gatewayFeePct` entra nas políticas do tenant, tipado como
+  `Record<PaymentMethod, number>`: um meio de pagamento novo passa a não compilar
+  até alguém decidir a taxa dele.
+- A linha "Custo de Folha (operação solo)" era renderizada sempre em R$ 0,00,
+  sugerindo que mão de obra estava contabilizada e custava nada. Só aparece
+  quando existe salário fixo.
+
+**Decisão contábil:** o pagamento do dono-barbeiro entra como comissão (custo
+variável), não como pró-labore no custo fixo. O resultado final é idêntico nas
+duas modelagens; esta evita um degrau absurdo no dia da primeira contratação — a
+margem de contribuição cairia de 95% para 58% sem nada ter piorado — e mantém o
+ponto de equilíbrio na definição padrão.
+
+**O teste que protegia o defeito.** Existia um caso chamado *"comissão sai do
+lucro da loja, no rateio do tenant"*: ele passava porque afirmava exatamente o
+comportamento errado. Foi substituído, e entrou uma trava que falha se a margem
+sair das faixas do setor.
+
+**A landing dizia o contrário do certo.** O texto afirmava *"a comissão sai do
+lucro, não do preço cheio"* — a premissa que causou o bug. E o card de resultado
+mostrava "sobrou R$ 7.516" abaixo de linhas que somavam R$ 4.412. Os dois foram
+corrigidos, com a comissão agora em primeiro lugar no card, porque é a linha que
+o concorrente não desconta.
+
+Achado na auditoria financeira da branch `claude/barbershop-video-strategy-do3jzc`
+(F1), confirmado por execução contra o código corrente.
+
 ### Plataforma multi-barbearia
 
 O produto nasceu para uma barbearia e passou a ser preparado para muitas. A
