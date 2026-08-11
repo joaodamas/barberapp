@@ -11,6 +11,16 @@ name: Deploy (produção)
 # de ninguém.** Toda linha carrega `--project` explícito, e antes de publicar o
 # workflow confere que o `.firebaserc` e a própria credencial pertencem ao
 # projeto esperado. Credencial de outro projeto não erra o alvo: ela para.
+#
+# Auditoria de segurança em `docs/DEPLOY.md`. Três decisões que este arquivo
+# carrega e que não são óbvias lendo os passos:
+#
+# - As Actions são fixadas por SHA, não por tag. Tag é ponteiro móvel, e este é
+#   o único workflow do repositório com credencial de produção em mãos.
+# - A credencial é escrita o mais tarde possível, depois de todo `npm ci`. Um
+#   `postinstall` de qualquer pacote transitivo roda com o mesmo usuário; se a
+#   chave já estivesse em disco, bastaria um pacote comprometido para lê-la.
+# - A credencial é apagada no fim, aconteça o que acontecer.
 
 on:
   workflow_dispatch:
@@ -24,6 +34,10 @@ on:
           - somente hosting
           - somente regras e índices
           - somente functions
+
+# Nenhum job precisa escrever no repositório.
+permissions:
+  contents: read
 
 # Dois deploys simultâneos disputariam o mesmo release do Hosting. O segundo
 # espera; nenhum é cancelado no meio.
@@ -39,23 +53,29 @@ jobs:
     name: publicar em axon-barber
     needs: qualidade
     runs-on: ubuntu-latest
-    # O ambiente é onde ficam a credencial e a configuração pública, e é onde se
-    # liga a aprovação obrigatória. Segredo de ambiente não é legível por
-    # qualquer workflow do repositório — segredo de repositório é.
+    # O ambiente é onde ficam a credencial e a configuração pública, é onde se
+    # liga a aprovação obrigatória e é o que restringe a publicação à `main`.
+    # Sem essa restrição, `workflow_dispatch` dispara de qualquer branch — e a
+    # branch traria o próprio workflow alterado junto.
     environment: producao
-    permissions:
-      contents: read
 
     env:
       PROJETO: axon-barber
 
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
 
-      - name: Autenticar como a conta de serviço de deploy
+      # A trava de alvo, antes de qualquer trabalho. Três origens independentes
+      # precisam concordar: o valor fixo aqui, o `.firebaserc` do commit e o
+      # projeto de quem assina a credencial. Uma alteração futura no workflow
+      # que aponte para outro lugar morre nesta etapa, não em produção.
+      #
+      # Lê o segredo da variável de ambiente e não escreve nada em disco: neste
+      # ponto ainda não instalamos dependência nenhuma.
+      - name: Conferir o alvo do deploy
         env:
           CREDENCIAL: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
@@ -64,20 +84,9 @@ jobs:
             echo "::error::secret FIREBASE_SERVICE_ACCOUNT ausente no ambiente 'producao'"
             exit 1
           fi
-          printf '%s' "$CREDENCIAL" > "$RUNNER_TEMP/conta-de-servico.json"
-          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/conta-de-servico.json" >> "$GITHUB_ENV"
 
-      # A trava de alvo. Três origens independentes precisam concordar antes de
-      # qualquer escrita: o valor fixo aqui, o `.firebaserc` do commit e o
-      # projeto de quem assina a credencial. Uma alteração futura no workflow
-      # que aponte para outro lugar morre nesta etapa, não em produção.
-      - name: Conferir o alvo do deploy
-        env:
-          CREDENCIAL: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-        run: |
-          set -euo pipefail
           NO_REPO=$(node -p "require('./.firebaserc').projects.default")
-          # Lido com try/catch para que um JSON malformado não jogue pedaço de
+          # try/catch para que um JSON malformado não jogue pedaço de
           # credencial no log.
           DA_CREDENCIAL=$(node -e "try{process.stdout.write(String(JSON.parse(process.env.CREDENCIAL).project_id))}catch(e){process.stdout.write('ilegivel')}")
 
@@ -94,6 +103,7 @@ jobs:
             exit 1
           fi
 
+      # ── Tudo que não precisa de credencial vem antes dela ───────────────
       - run: npm ci
         working-directory: functions
       - run: npm ci
@@ -103,19 +113,7 @@ jobs:
       - name: Habilitar webframeworks (o Hosting deste projeto é framework-aware)
         run: firebase experiments:enable webframeworks
 
-      # ── Índices e regras ────────────────────────────────────────────────
-      # Antes do código: índice novo leva minutos para ficar pronto e regra
-      # nova precisa existir antes da tela que depende dela.
-      - name: Índices do Firestore
-        if: inputs.escopo == 'tudo' || inputs.escopo == 'somente regras e índices'
-        run: firebase deploy --only firestore:indexes --project "$PROJETO" --non-interactive
-
-      - name: Regras do Firestore e do Storage
-        if: inputs.escopo == 'tudo' || inputs.escopo == 'somente regras e índices'
-        run: firebase deploy --only firestore:rules,storage --project "$PROJETO" --non-interactive
-
-      # ── Functions ───────────────────────────────────────────────────────
-      # Publicadas por NOME, uma a uma, e nunca com `--only functions` seco.
+      # Publicar functions por NOME, nunca com `--only functions` seco.
       #
       # Existe em produção uma função sem código no repositório
       # (`revisarAssinaturas`). Um deploy por escopo aberto entende que ela foi
@@ -136,19 +134,43 @@ jobs:
           echo "ALVOS_FUNCTIONS=$LISTA" >> "$GITHUB_ENV"
           echo "$LISTA" | tr ',' '\n' | sed 's/^/  · /'
 
+      # ── A partir daqui a credencial existe em disco ─────────────────────
+      # Fora do workspace, de propósito: nada que empacote o diretório do
+      # projeto a leva junto. Permissão 600 e vida curta.
+      - name: Autenticar como a conta de serviço de deploy
+        env:
+          CREDENCIAL: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+          ARQUIVO="$RUNNER_TEMP/conta-de-servico.json"
+          (umask 077 && printf '%s' "$CREDENCIAL" > "$ARQUIVO")
+          chmod 600 "$ARQUIVO"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$ARQUIVO" >> "$GITHUB_ENV"
+
       - name: Apontar functions em produção sem código no repositório
         if: inputs.escopo == 'tudo' || inputs.escopo == 'somente functions'
         continue-on-error: true
         run: |
           set -uo pipefail
-          firebase functions:list --project "$PROJETO" --json > /tmp/producao.json 2>/dev/null || exit 0
+          firebase functions:list --project "$PROJETO" --json > "$RUNNER_TEMP/producao.json" 2>/dev/null || exit 0
           node -e "
-            const publicadas = JSON.parse(require('fs').readFileSync('/tmp/producao.json','utf8')).result || [];
+            const publicadas = JSON.parse(require('fs').readFileSync(process.env.RUNNER_TEMP + '/producao.json','utf8')).result || [];
             const daqui = new Set(process.env.ALVOS_FUNCTIONS.split(',').map((a) => a.split(':')[1]));
             // ssr* é criada pelo próprio Hosting framework-aware, não pelo repo.
             const orfas = publicadas.map((f) => f.id).filter((id) => !daqui.has(id) && !id.startsWith('ssr'));
             for (const o of orfas) console.log('::warning::function \'' + o + '\' roda em produção e não tem código no repositório — este deploy não a toca');
           "
+
+      # ── Índices e regras ────────────────────────────────────────────────
+      # Antes do código: índice novo leva minutos para ficar pronto e regra
+      # nova precisa existir antes da tela que depende dela.
+      - name: Índices do Firestore
+        if: inputs.escopo == 'tudo' || inputs.escopo == 'somente regras e índices'
+        run: firebase deploy --only firestore:indexes --project "$PROJETO" --non-interactive
+
+      - name: Regras do Firestore e do Storage
+        if: inputs.escopo == 'tudo' || inputs.escopo == 'somente regras e índices'
+        run: firebase deploy --only firestore:rules,storage --project "$PROJETO" --non-interactive
 
       - name: Cloud Functions
         if: inputs.escopo == 'tudo' || inputs.escopo == 'somente functions'
@@ -182,6 +204,16 @@ jobs:
             exit 1
           fi
           firebase deploy --only hosting --project "$PROJETO" --non-interactive
+
+      # ── Sempre, mesmo se algo acima falhou ──────────────────────────────
+      - name: Apagar a credencial do runner
+        if: always()
+        run: |
+          ARQUIVO="$RUNNER_TEMP/conta-de-servico.json"
+          if [ -f "$ARQUIVO" ]; then
+            shred -u "$ARQUIVO" 2>/dev/null || rm -f "$ARQUIVO"
+            echo "credencial removida do runner"
+          fi
 
       - name: Registrar o que foi publicado
         if: always()
