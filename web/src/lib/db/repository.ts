@@ -15,7 +15,12 @@ import {
   type QueryConstraint,
 } from "firebase/firestore";
 import { getDb } from "@/lib/firebase";
-import { shopCollectionPath, shopDocPath, type ShopCollection } from "@/lib/db/paths";
+import {
+  shopCollectionPath,
+  shopDocPath,
+  shopPath,
+  type ShopCollection,
+} from "@/lib/db/paths";
 
 /**
  * Acesso a uma subcoleção da barbearia.
@@ -186,6 +191,22 @@ export async function patchDoc(
 ) {
   const db = await getDb();
   await updateDoc(doc(db, shopDocPath(barbershopId, collectionName, docId)), stripUndefined(data));
+}
+
+/**
+ * Atualiza o documento da própria barbearia.
+ *
+ * Separado de `patchDoc` porque aquele endereça subcoleções
+ * (`barbershops/{id}/{colecao}/{doc}`) e o tenant é o documento pai.
+ *
+ * Aceita caminho pontilhado (`"policies.paymentFees"`) de propósito: enviar o
+ * objeto `policies` inteiro sobrescreveria cancelamento, comissão e alíquota
+ * com o que a tela que está salvando por acaso conhece. As regras barram
+ * qualquer tentativa de tocar em campo de contrato.
+ */
+export async function patchTenant(barbershopId: string, data: DocumentData) {
+  const db = await getDb();
+  await updateDoc(doc(db, shopPath(barbershopId)), stripUndefined(data));
 }
 
 export async function removeDoc(

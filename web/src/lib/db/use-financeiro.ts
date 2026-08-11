@@ -3,10 +3,12 @@
 import { useTenant } from "@/lib/tenant-context";
 import {
   useBookings, useExpenses, useInventoryMovements,
-  useProducts, useServices, useStaff, useSubscribers, combineStatus,
+  useCommissions, usePayments, useProducts, useServices, useStaff,
+  useSubscribers, combineStatus,
 } from "@/lib/db/use-shop-data";
 import {
   caixaDiario, capacidadeDiaria, folhaMensal, horariosDaJornada, indicadores,
+  taxasDePagamento,
   mapaDeCalor, mesPeriodo, projecaoDeCaixa, receitaDoMes,
   recorrenciaDeClientes, resultadoDoMes, topServicos,
 } from "@/lib/analytics";
@@ -46,11 +48,14 @@ export function useFinanceiro(mes: string, horizonte: Horizonte = "mensal") {
   const subscribers = useSubscribers();
   const services = useServices();
   const staff = useStaff();
+  const commissions = useCommissions();
+  const payments = usePayments();
   const products = useProducts();
 
   const periodo = mesPeriodo(mes);
   const status = combineStatus(
-    bookings, expenses, movements, subscribers, services, products, staff
+    bookings, expenses, movements, subscribers, services, products, staff,
+    commissions, payments
   );
 
   const receita = receitaDoMes({
@@ -75,6 +80,13 @@ export function useFinanceiro(mes: string, horizonte: Horizonte = "mensal") {
     payroll: folhaMensal(staff.items),
     staff: staff.items,
     bookings: bookings.items,
+    /* Congeladas vencem sobre a derivação. Atendimentos anteriores ao trigger
+     * não têm comissão gravada e continuam derivando — sem esse fallback o
+     * histórico apareceria zerado no dia em que o trigger entrou. */
+    commissions: commissions.items,
+    /* A taxa da maquininha finalmente entra no resultado: era um parâmetro que
+     * nenhum chamador preenchia, e o DRE debitava zero. */
+    gatewayFeesTotal: taxasDePagamento(payments.items, periodo),
   });
 
   const caixa = caixaDiario({

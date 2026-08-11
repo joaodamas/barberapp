@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   caixaDiario, caixaDoDia, capacidadeDiaria, comissaoDeServicos, folhaMensal,
+  taxasDePagamento,
   horariosDaJornada, indicadores,
   mesPeriodo, projecaoDeCaixa, receitaDoMes, recorrenciaDeClientes,
   resultadoDoMes, topServicos,
@@ -9,7 +10,8 @@ import { mesAtual } from "@/lib/format";
 import { PLATFORM_DEFAULT_POLICIES } from "@/lib/tenant";
 import type { Doc } from "@/lib/db/repository";
 import type {
-  BookingDoc, ExpenseDoc, InventoryMovementDoc, StaffDoc, SubscriberDoc,
+  BookingDoc, CommissionDoc, ExpenseDoc, InventoryMovementDoc, PaymentDoc,
+  StaffDoc, SubscriberDoc,
 } from "@/lib/domain";
 
 const P = mesPeriodo("2026-07");
@@ -433,6 +435,82 @@ describe("mão de obra", () => {
   });
 });
 
+describe("comissão congelada vence sobre a derivação", () => {
+  const P7 = mesPeriodo("2026-07");
+  const cm = (o: Partial<CommissionDoc> & { id: string }): Doc<CommissionDoc> => ({
+    bookingId: "1", staffId: "a", uid: null, date: "2026-07-10",
+    origin: "servico", commissionPct: 40, commissionBase: 100,
+    commissionAmount: 40, ...o,
+  });
+
+  it("usa o valor gravado, não o percentual atual do barbeiro", () => {
+    /* O atendimento foi concluído quando o barbeiro estava a 40%. Ele passou
+     * para 50% depois. O fechamento daquele mês não pode mudar. */
+    const bookings = [bk({ id: "1", staffId: "a", value: 100 })];
+    const comissao = comissaoDeServicos({
+      bookings,
+      staff: [st({ id: "a", commissionPct: 50 })], // percentual de HOJE
+      periodo: P7,
+      padraoPct: 40,
+      commissions: [cm({ id: "c1", bookingId: "1", commissionPct: 40, commissionAmount: 40 })],
+    });
+    expect(comissao).toBe(40); // e não 50
+  });
+
+  it("deriva o atendimento anterior ao trigger, sem zerar o histórico", () => {
+    // Sem fallback, todo mês anterior à materialização apareceria com R$ 0,00.
+    const comissao = comissaoDeServicos({
+      bookings: [
+        bk({ id: "1", staffId: "a", value: 100 }),  // tem comissão gravada
+        bk({ id: "2", staffId: "a", value: 100 }),  // é anterior ao trigger
+      ],
+      staff: [st({ id: "a", commissionPct: 50 })],
+      periodo: P7,
+      padraoPct: 40,
+      commissions: [cm({ id: "c1", bookingId: "1", commissionAmount: 40 })],
+    });
+    expect(comissao).toBe(90); // 40 congelado + 50 derivado
+  });
+
+  it("comissão de outro período não vaza para este", () => {
+    const comissao = comissaoDeServicos({
+      bookings: [bk({ id: "1", staffId: "a", value: 100 })],
+      staff: [st({ id: "a", commissionPct: 50 })],
+      periodo: P7,
+      padraoPct: 40,
+      commissions: [cm({ id: "c1", bookingId: "1", date: "2026-06-10" })],
+    });
+    // A de junho é ignorada e a reserva de julho deriva pelos 50% atuais.
+    expect(comissao).toBe(50);
+  });
+});
+
+describe("taxa de maquininha", () => {
+  const P7 = mesPeriodo("2026-07");
+  const pg = (o: Partial<PaymentDoc> & { id: string }): Doc<PaymentDoc> => ({
+    clientId: "c1", date: "2026-07-10", paymentMethod: "cartao",
+    grossAmount: 100, feePct: 3.49, feeAmount: 3.49, netAmount: 96.51, ...o,
+  });
+
+  it("soma o que foi de fato cobrado no período", () => {
+    // Era um parâmetro que nenhum chamador preenchia: o DRE debitava zero.
+    expect(
+      taxasDePagamento([pg({ id: "1", feeAmount: 3.49 }), pg({ id: "2", feeAmount: 2 })], P7)
+    ).toBe(5);
+  });
+
+  it("ignora pagamento de outro mês", () => {
+    expect(
+      taxasDePagamento([pg({ id: "1", date: "2026-06-30", feeAmount: 50 })], P7)
+    ).toBe(0);
+  });
+
+  it("barbearia sem taxa cadastrada não recebe custo inventado", () => {
+    expect(taxasDePagamento([pg({ id: "1", feePct: 0, feeAmount: 0 })], P7)).toBe(0);
+    expect(taxasDePagamento([], P7)).toBe(0);
+  });
+});
+
 describe("mês de referência", () => {
   it("não pula meses quando hoje é dia 31", () => {
     // `setMonth` preserva o dia: 31/03 menos um mês pedia "31 de fevereiro" e
@@ -468,14 +546,27 @@ describe("jornada", () => {
 });
 
 describe("caixa do dia", () => {
-  it("dinheiro só entra quando concluído; pix e cartão contam ao confirmar", () => {
+  it("só o atendimento concluído entra no caixa, qualquer que seja o método", () => {
+    /* Pix e cartão contavam ao CONFIRMAR, e dinheiro só ao concluir — dois
+     * regimes dentro do mesmo número. Com um marco financeiro único, "Recebido"
+     * passa a ser caixa realizado; o que era previsão vive no card de previsão
+     * do dia, que já existe separado. */
     const c = caixaDoDia([
       bk({ id: "1", status: "confirmed", paymentMethod: "pix", value: 90 }),
       bk({ id: "2", status: "confirmed", paymentMethod: "local", value: 60 }),
       bk({ id: "3", status: "completed", paymentMethod: "local", value: 35 }),
+      bk({ id: "4", status: "completed", paymentMethod: "pix", value: 40 }),
     ]);
-    expect(c.pix).toBe(90);
+    expect(c.pix).toBe(40);
     expect(c.dinheiro).toBe(35);
-    expect(c.total).toBe(125);
+    expect(c.total).toBe(75);
+  });
+
+  it("reserva cancelada ou não comparecida nunca entra no caixa", () => {
+    const c = caixaDoDia([
+      bk({ id: "1", status: "no_show", paymentMethod: "pix", value: 90 }),
+      bk({ id: "2", status: "cancelled_by_client", paymentMethod: "pix", value: 60 }),
+    ]);
+    expect(c.total).toBe(0);
   });
 });

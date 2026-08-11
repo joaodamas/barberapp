@@ -78,6 +78,24 @@ export const DEFAULT_LOCALE: TenantLocale = {
   locale: "pt-BR",
 };
 
+/**
+ * Taxa de cada meio de pagamento, em percentual sobre o valor bruto.
+ *
+ * É o que a barbearia PAGA à maquininha — não a tabela de referência de mercado
+ * que a tela de Financeiro exibe. Sem isto, `gatewayFeesTotal` fica fixo em zero
+ * e o lucro aparece maior do que é: numa barbearia que passa metade do
+ * faturamento no crédito, some cerca de 1,5% do faturamento total.
+ *
+ * Sem parcelamento nesta versão. Quando entrar, `credito` vira a taxa de 1x e
+ * as demais parcelas ganham chaves próprias — por isso é objeto, não número.
+ */
+export type TenantPaymentFees = {
+  dinheiro: number;
+  pix: number;
+  debito: number;
+  credito: number;
+};
+
 export type TenantPolicies = {
   cancellation: typeof defaultCancellationPolicy;
   reschedule: typeof defaultReschedulePolicy;
@@ -87,6 +105,22 @@ export type TenantPolicies = {
   taxRatePct: number;
   /** Dias em que abre (0 = domingo). */
   openWeekdays: number[];
+  paymentFees: TenantPaymentFees;
+};
+
+/**
+ * Todas zeradas de propósito.
+ *
+ * Taxa é contrato de cada barbearia com a maquininha dela; chutar uma média de
+ * mercado faria o DRE debitar dinheiro que talvez não seja cobrado. Zero é
+ * honesto: até o dono preencher, o sistema não inventa custo — e a tela de
+ * Configurações sinaliza que o dado falta.
+ */
+export const DEFAULT_PAYMENT_FEES: TenantPaymentFees = {
+  dinheiro: 0,
+  pix: 0,
+  debito: 0,
+  credito: 0,
 };
 
 /** Recursos liberados pelo plano contratado na plataforma. */
@@ -231,6 +265,7 @@ export const PLATFORM_DEFAULT_POLICIES: TenantPolicies = {
   commissionSplit: defaultCommissionSplit,
   taxRatePct: defaultTaxRatePct,
   openWeekdays: defaultOpenWeekdays,
+  paymentFees: DEFAULT_PAYMENT_FEES,
 };
 
 export const ALL_FEATURES: TenantFeatures = {

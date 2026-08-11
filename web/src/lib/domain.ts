@@ -35,6 +35,40 @@ export type ProductDoc = {
   minStock: number;
 };
 
+/**
+ * Comissão apurada de um atendimento — escrita só pelo servidor.
+ *
+ * Guarda a BASE e o PERCENTUAL, não apenas o resultado. Com `commissionAmount`
+ * sozinho dá para saber quanto foi pago e não como se chegou lá; com os três,
+ * o histórico é auditável e a regra pode mudar sem tornar o passado indecifrável.
+ */
+export type CommissionDoc = {
+  bookingId: string;
+  staffId: string;
+  uid: string | null;
+  staffName?: string | null;
+  date: string;
+  origin: "servico" | "produto";
+  /** Congelados na conclusão. Nunca releem o cadastro. */
+  commissionPct: number;
+  commissionBase: number;
+  commissionAmount: number;
+};
+
+/** Pagamento recebido — escrito só pelo servidor. */
+export type PaymentDoc = {
+  bookingId?: string;
+  subscriptionId?: string;
+  clientId: string | null;
+  date: string;
+  paymentMethod: PaymentMethod;
+  grossAmount: number;
+  /** Congelada na conclusão: mudar a taxa não altera o passado. */
+  feePct: number;
+  feeAmount: number;
+  netAmount: number;
+};
+
 /** Entrada e saída de estoque — alimenta o CMV do DRE. */
 export type InventoryMovementDoc = {
   productId: string;
@@ -195,14 +229,22 @@ export function isRevenue(booking: Pick<BookingDoc, "status">) {
 }
 
 /**
- * Reserva já recebida.
+ * Reserva já recebida — caixa realizado.
  *
- * Pix e cartão contam assim que confirmados; dinheiro só quando o cliente é
- * atendido e marcado como concluído.
+ * Contava Pix e cartão assim que confirmados, e dinheiro só na conclusão. Isso
+ * misturava regime de caixa com competência dentro do mesmo número: o "Recebido"
+ * do dia somava dinheiro que ainda não tinha virado atendimento.
+ *
+ * O produto adota UM marco financeiro — o atendimento concluído —, que é onde
+ * `payments` e `commissions` são materializados. Numa barbearia o intervalo
+ * entre atender e receber é de minutos, e um marco só evita dois números com o
+ * mesmo nome divergindo entre telas.
+ *
+ * O que era previsão de recebimento não se perde: o painel Hoje já mostra
+ * "Previsão do dia" separado, que é o lugar certo dela.
  */
 export function isReceived(booking: Pick<BookingDoc, "status" | "paymentMethod">) {
-  if (!OCCUPIES_SLOT.includes(booking.status)) return false;
-  return booking.status === "completed" || booking.paymentMethod !== "local";
+  return booking.status === "completed";
 }
 
 /** `YYYY-MM` de uma data ISO. */

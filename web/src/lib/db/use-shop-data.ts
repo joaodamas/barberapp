@@ -4,8 +4,9 @@ import { useShopCollection } from "@/lib/db/use-collection";
 import { saldoDeFidelidade } from "@/lib/domain";
 import { useTenant } from "@/lib/tenant-context";
 import type {
-  BookingDoc, ExpenseDoc, InventoryMovementDoc, LoyaltyTransactionDoc,
-  PlanDoc, ProductDoc, ServiceDoc, StaffDoc, SubscriberDoc,
+  BookingDoc, CommissionDoc, ExpenseDoc, InventoryMovementDoc,
+  LoyaltyTransactionDoc, PaymentDoc, PlanDoc, ProductDoc, ServiceDoc,
+  StaffDoc, SubscriberDoc,
 } from "@/lib/domain";
 
 /**
@@ -19,6 +20,20 @@ export const useServices = () =>
 
 /** A equipe. `order` primeiro para o dono controlar a sequência na tela. */
 export const useStaff = () => useShopCollection<StaffDoc>("staff", { orderByField: "order" });
+
+/** Comissões apuradas — escritas pelo servidor na conclusão do atendimento. */
+export const useCommissions = () =>
+  useShopCollection<CommissionDoc>("commissions", {
+    orderByField: "date",
+    direction: "desc",
+  });
+
+/** Pagamentos recebidos — escritos pelo servidor na conclusão do atendimento. */
+export const usePayments = () =>
+  useShopCollection<PaymentDoc>("payments", {
+    orderByField: "date",
+    direction: "desc",
+  });
 
 export const usePlans = () => useShopCollection<PlanDoc>("plans", { orderByField: "price" });
 

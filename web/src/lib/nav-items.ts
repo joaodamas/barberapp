@@ -4,6 +4,7 @@ import {
   CalendarPlus,
   Home,
   Scissors,
+  Settings,
   Sparkles,
   Store,
   Users,
@@ -70,4 +71,5 @@ export const painelNavItems: NavItem[] = [
   { href: "/painel/mensal", label: "Mensal", icon: CalendarClock, feature: "subscriptions" },
   { href: "/painel/equipe", label: "Equipe", icon: Users },
   { href: "/painel/loja", label: "Loja", icon: Store, feature: "store" },
+  { href: "/painel/configuracoes", label: "Ajustes", icon: Settings },
 ];

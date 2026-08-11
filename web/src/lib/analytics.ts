@@ -7,6 +7,8 @@ import {
   type BookingDoc,
   type ExpenseDoc,
   type InventoryMovementDoc,
+  type CommissionDoc,
+  type PaymentDoc,
   type ProductDoc,
   type StaffDoc,
   type SubscriberDoc,
@@ -216,17 +218,57 @@ export function comissaoDeServicos(params: {
   staff: Doc<StaffDoc>[];
   periodo: Periodo;
   padraoPct: number;
+  /**
+   * Comissões congeladas na conclusão. Quando existe uma para a reserva, ela
+   * VENCE — é o valor que de fato foi acertado com o barbeiro naquele dia.
+   */
+  commissions?: Doc<CommissionDoc>[];
 }) {
   const pctPorStaff = new Map(params.staff.map((s) => [s.id, s.commissionPct]));
+
+  /* Atendimentos anteriores ao trigger de materialização não têm comissão
+   * gravada, e sem este fallback o histórico inteiro apareceria zerado no dia
+   * em que o trigger entrou. A derivação continua valendo para eles — com a
+   * ressalva conhecida de que relê o cadastro atual. */
+  const congeladaPorBooking = new Map(
+    (params.commissions ?? [])
+      .filter((c) => dentroDoPeriodo(c.date, params.periodo))
+      .map((c) => [c.bookingId, c])
+  );
 
   let total = 0;
   for (const b of params.bookings) {
     if (!isRevenue(b) || !dentroDoPeriodo(b.date, params.periodo)) continue;
+
+    const congelada = congeladaPorBooking.get(b.id);
+    if (congelada) {
+      total += congelada.commissionAmount;
+      continue;
+    }
+
     // `commissionPct` é gravado como `null` no cadastro inicial, não ausente.
     const pct = pctPorStaff.get(b.staffId) ?? params.padraoPct;
     total += (b.value * pct) / 100;
   }
   return Math.round(total);
+}
+
+/**
+ * Taxa de maquininha do período, somada dos pagamentos congelados.
+ *
+ * `gatewayFeesTotal` era um parâmetro que nenhum chamador preenchia, então o
+ * DRE debitava zero de taxa: numa barbearia que passa metade do faturamento no
+ * crédito, some cerca de 1,5% do faturamento total do resultado.
+ */
+export function taxasDePagamento(
+  payments: Doc<PaymentDoc>[],
+  periodo: Periodo
+) {
+  return Math.round(
+    payments
+      .filter((p) => dentroDoPeriodo(p.date, periodo))
+      .reduce((soma, p) => soma + (p.feeAmount ?? 0), 0)
+  );
 }
 
 export type ResultadoDoMes = ReturnType<typeof resultadoDoMes>;
@@ -246,6 +288,8 @@ export function resultadoDoMes(params: {
    */
   staff?: Doc<StaffDoc>[];
   bookings?: Doc<BookingDoc>[];
+  /** Congeladas na conclusão — vencem sobre a derivação quando existem. */
+  commissions?: Doc<CommissionDoc>[];
 }) {
   const { receita, expenses, movements, periodo, policies } = params;
 
@@ -290,6 +334,7 @@ export function resultadoDoMes(params: {
         staff: params.staff,
         periodo,
         padraoPct,
+        commissions: params.commissions,
       })
     : Math.round((receitaDeServico * padraoPct) / 100);
 

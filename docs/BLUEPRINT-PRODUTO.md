@@ -143,7 +143,21 @@ type Indicador<T> = {
 produto. Enquanto essas origens não existirem, a margem é 🟡 **estimada**, não
 🟢 real — e a tela diz o porquê.
 
-### 2.4 Uma ação, muitos dados
+### 2.4 Um marco financeiro só
+
+**Decidido em 11/08.** O reconhecimento acontece no `completed`. Numa barbearia
+o intervalo entre atender e receber é de minutos, e um marco único evita dois
+números com o mesmo nome divergindo entre telas.
+
+`isReceived` contava Pix e cartão ao CONFIRMAR e dinheiro só ao concluir — dois
+regimes dentro do mesmo número. Foi alinhado: "Recebido" agora é caixa
+realizado, e o que era previsão vive no card "Previsão do dia", que já existia
+separado.
+
+**Caso não coberto:** cliente que paga adiantado e não comparece. O dinheiro
+entrou e não há `payment`. Entra junto com o evento `cliente.nao_compareceu`.
+
+### 2.5 Uma ação, muitos dados
 
 ```
 Dono clica "Concluir"
@@ -157,7 +171,7 @@ Dono clica "Concluir"
                           histórico, frequência e risco do cliente
 ```
 
-### 2.5 Invariantes globais
+### 2.6 Invariantes globais
 
 1. Toda escrita é escopada por `barbershopId`.
 2. Autoridade vem do custom claim, nunca de documento que o usuário escreve.
@@ -390,9 +404,9 @@ Fundação. Nenhum bloco acima confia em número que este não garanta.
 
 | Item | Estado |
 |---|---|
-| `commissions` materializada com percentual congelado | ❌ |
-| `payments` materializada com taxa congelada | ❌ |
-| Taxas por método no tenant + tela de configurações | ❌ |
+| `commissions` materializada com percentual congelado | ✅ |
+| `payments` materializada com taxa congelada | ✅ |
+| Taxas por método no tenant + tela de configurações | ✅ |
 | Estorno executado (`refunds`) | ⚠️ |
 | Registro de no-show (`client_occurrences`) | ⚠️ |
 | `rescheduleCount` persistido | ⚠️ |

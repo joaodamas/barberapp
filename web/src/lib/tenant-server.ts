@@ -3,6 +3,7 @@ import { cache } from "react";
 import { headers } from "next/headers";
 import {
   DEFAULT_LOCALE,
+  DEFAULT_PAYMENT_FEES,
   DEFAULT_SCHEDULE,
   DEFAULT_TENANT,
   featuresForPlan,
@@ -194,9 +195,17 @@ function toTenant(id: string, data: Record<string, unknown>): Tenant {
      * `undefined`: `Intl` com fuso indefinido cai no fuso do SERVIDOR, que é
      * UTC — e aí a data da confirmação escorrega um dia sem erro nenhum. */
     locale: { ...DEFAULT_LOCALE, ...locale },
-    // Política ausente cai no padrão da plataforma — nunca em undefined, que
-    // viraria NaN em cálculo de reembolso.
-    policies: { ...PLATFORM_DEFAULT_POLICIES, ...policies },
+    /* Política ausente cai no padrão da plataforma — nunca em undefined, que
+     * viraria NaN em cálculo de reembolso.
+     *
+     * `paymentFees` precisa de merge próprio: o spread é raso, e uma barbearia
+     * que gravou só a taxa do crédito perderia as outras três para `undefined`
+     * — que vira NaN no cálculo do líquido. */
+    policies: {
+      ...PLATFORM_DEFAULT_POLICIES,
+      ...policies,
+      paymentFees: { ...DEFAULT_PAYMENT_FEES, ...(policies.paymentFees ?? {}) },
+    },
     /* Derivar do plano, não do catálogo completo.
      *
      * Era `{ ...ALL_FEATURES, ...features }`: documento sem o campo `features`
