@@ -412,9 +412,66 @@ Fundação. Nenhum bloco acima confia em número que este não garanta.
 | `rescheduleCount` persistido | ⚠️ |
 | Despesa recorrente materializada | ⚠️ |
 | Tipo `Indicador<T>` com confiança do dado | ❌ |
+| **Forma de pagamento no fechamento** | ❌ |
+| **Separar `paymentOrigin` de `paymentMethod`** | ❌ |
 
 **Métrica:** % dos eventos financeiros corretamente materializados. Meta: 100% —
 não há valor parcial aceitável aqui.
+
+#### Validação em produção — 11/08/2026
+
+Checkpoint executado contra `axon-barber`, banco zerado.
+
+| Critério | Resultado |
+|---|---|
+| Taxa por tenant gravada e lida | ✅ |
+| `completed` dispara o trigger | ✅ |
+| `commissions` e `payments` materializados | ✅ |
+| Comissão congela o percentual | ✅ 40% preservado após mudar para 50% |
+| Taxa congela o percentual | ✅ 3,49% → R$ 1,75 → líquido R$ 48,25 |
+| Novo atendimento usa a configuração atual | ✅ 50% → R$ 25 |
+| Rollback remove os dois documentos | ✅ atendimento seguinte intacto |
+
+```
+Atendimento 1 (concluído a 40%)  →  40% × 50 = R$ 20
+Rômulo alterado para 50%
+Atendimento 1 reconferido        →  40% × 50 = R$ 20   ← não mudou
+Atendimento 2 (concluído a 50%)  →  50% × 50 = R$ 25
+```
+
+> **Ressalva metodológica.** O trigger, a materialização, o congelamento e o
+> rollback foram validados em produção. O `createBooking` NÃO foi validado ponta
+> a ponta: assinar token de cliente exige service account, e as credenciais
+> locais são de usuário. Os registros de teste foram criados via Admin SDK
+> replicando o contrato do `createBooking`. A cobertura declarada é essa.
+
+#### A lacuna que o checkpoint revelou
+
+`createBooking` recusa qualquer pagamento que não seja `local` (`booking.ts:164`),
+porque não existe gateway. Consequência: **toda reserva do fluxo real nasce como
+"pagar no salão", e a taxa aplicada é sempre 0%.** A infraestrutura de taxa está
+correta e provada — e não tem como ser exercitada pelo produto.
+
+Falta o dono informar **como o cliente pagou**, no fechamento: quem sabe é quem
+está no balcão, não o cliente no agendamento. Sem isso `payments.feePct` é zero
+para sempre e o lucro segue superestimado.
+
+A distinção que o modelo passa a exigir: *"pagar no salão"* é **onde** o
+pagamento acontece; *Pix, débito, crédito, dinheiro* é **o instrumento**. Hoje os
+dois moram no mesmo campo, e é por isso que `cartao` não separa débito de
+crédito — o que forçou o trigger a aplicar a taxa de crédito por precaução.
+
+```
+hoje:   in_person → dono registra → pix/débito/crédito/dinheiro → payments
+futuro: online    → gateway       → pix/cartão                  → payments
+```
+
+Os dois caminhos terminam na mesma entidade, o que mantém o gateway como
+acréscimo e não como reescrita.
+
+**Restrição de produto:** o fechamento precisa ser rápido — uma pergunta, quatro
+opções, confirmar. Se fechar um corte de R$ 50 exigir oito campos, a operação
+morre e o dono volta para o caderno.
 
 ### 🟠 Bloco 2 — OPERAR
 
