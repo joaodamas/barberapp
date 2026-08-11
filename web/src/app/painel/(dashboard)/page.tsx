@@ -18,6 +18,8 @@ import { Pill } from "@/components/ui/pill";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { bookingStatusMeta } from "@/lib/booking-status";
+import { avaliarOperacao, repartirParaExibicao, type ActionItem } from "@/lib/action-center";
+import { usePayments } from "@/lib/db/use-shop-data";
 import type { PaymentMethod } from "@/lib/types";
 import { labelDoPagamento, PAYMENT_METHODS, paymentMethodLabel } from "@/lib/payment-method";
 import { formatBRL, formatPhonePtBR, safePct } from "@/lib/format";
@@ -25,8 +27,8 @@ import { bookingPolicy } from "@/lib/business-rules";
 import { useTenant } from "@/lib/tenant-context";
 import { useBookings, useServices, useStaff } from "@/lib/db/use-shop-data";
 import { patchDoc } from "@/lib/db/repository";
-import { capacidadeDiaria, caixaDoDia } from "@/lib/analytics";
-import { OCCUPIES_SLOT } from "@/lib/domain";
+import { capacidadeDiaria, caixaDoDia, mesPeriodo } from "@/lib/analytics";
+import { monthOf, OCCUPIES_SLOT } from "@/lib/domain";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { toISODate } from "@/lib/format";
 import type { BookingDoc } from "@/lib/domain";
@@ -37,6 +39,7 @@ export default function PainelHojePage() {
   const { brand } = tenant;
   const { items: todas, status } = useBookings();
   const { items: services, status: statusServicos } = useServices();
+  const payments = usePayments();
   const { items: equipe } = useStaff();
 
   const hoje = toISODate(new Date());
@@ -68,25 +71,22 @@ export default function PainelHojePage() {
   const previsaoHoje = agendados.reduce((s, b) => s + b.value, 0);
 
   /* "Precisa de você" derivado do estado real, não de uma lista fixa. */
-  const precisaDeVoce = [
-    fitInRequests.length > 0 && {
-      id: "fit-in",
-      label: `${fitInRequests.length} encaixe(s) aguardando sua resposta`,
-      href: "/painel",
-      tone: "gold" as const,
-    },
-    /* Só acusa falta de serviço depois que a consulta responde — antes disso
-     * a lista está vazia porque ainda não chegou, não porque não existe. */
-    statusServicos === "pronto" && services.length === 0 && {
-      id: "servicos",
-      label: "Nenhum serviço cadastrado — o cliente não tem o que agendar",
-      href: "/painel/servicos",
-      tone: "danger" as const,
-    },
-  ].filter(Boolean) as Array<{ id: string; label: string; href: string; tone: "gold" | "danger" }>;
+  /* A decisão de o que exige atenção mora no motor (`lib/action-center.ts`),
+   * não aqui. Antes era um array montado na tela com duas condicionais: cada
+   * regra nova cresceria em JSX, e a operação passaria a ser interpretada de
+   * um jeito em cada tela. */
+  const itensDeAcao = avaliarOperacao({
+    bookings,
+    services,
+    statusServicos,
+    payments: payments.items,
+    fees: tenant.policies.paymentFees,
+    periodo: mesPeriodo(monthOf(hoje)),
+  });
+  const { visiveis: acoesVisiveis, ocultos: acoesOcultas } =
+    repartirParaExibicao(itensDeAcao);
 
-
-  const semColunaLateral = precisaDeVoce.length === 0 && fitInRequests.length === 0;
+  const semColunaLateral = itensDeAcao.length === 0 && fitInRequests.length === 0;
   const [aFechar, setAFechar] = useState<Doc<BookingDoc> | null>(null);
 
   const caixaHoje = caixaDoDia(agendados);
@@ -250,26 +250,28 @@ export default function PainelHojePage() {
         </Card>
       </section>
 
-      {precisaDeVoce.length > 0 && (
+      {acoesVisiveis.length > 0 && (
         <section className="md:col-start-2 md:row-start-4">
           <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm">
             Precisa de você
           </h2>
           <div className="flex flex-col gap-2 md:gap-3">
-            {precisaDeVoce.map((item) => (
-              <Link key={item.id} href={item.href}>
-                <Card interactive className="flex flex-row items-center gap-3 py-3">
-                  <AlertCircle
-                    size={18}
-                    className={
-                      item.tone === "danger" ? "text-danger" : "text-gold-light"
-                    }
-                  />
-                  <p className="flex-1 text-sm text-ivory">{item.label}</p>
-                  <ChevronRight size={16} className="text-ivory-muted" />
-                </Card>
-              </Link>
+            {acoesVisiveis.map((item) => (
+              <ItemDeAcao
+                key={item.id}
+                item={item}
+                onFechar={(id) => {
+                  const alvo = bookings.find((b) => b.id === id);
+                  if (alvo) setAFechar(alvo);
+                }}
+              />
             ))}
+            {acoesOcultas.length > 0 && (
+              <p className="px-1 text-xs text-ivory-muted">
+                E mais {acoesOcultas.length} pendência(s) — resolva as de cima
+                para ver as próximas.
+              </p>
+            )}
           </div>
         </section>
       )}
@@ -468,3 +470,50 @@ export default function PainelHojePage() {
   );
 }
 
+/**
+ * Um item do Action Center.
+ *
+ * A tela NÃO decide se algo é alerta, nem qual a gravidade — só sabe desenhar o
+ * que o motor entregou e executar a intenção declarada. `navegar` vira link;
+ * `fecharAtendimento` abre o modal aqui mesmo, porque a ação acontece nesta
+ * tela e o motor não pode conhecer React.
+ */
+function ItemDeAcao({
+  item,
+  onFechar,
+}: {
+  item: ActionItem;
+  onFechar: (bookingId: string) => void;
+}) {
+  const tom =
+    item.severity === "critical"
+      ? "text-danger"
+      : item.severity === "warning"
+        ? "text-gold-light"
+        : "text-ivory-muted";
+
+  const conteudo = (
+    <Card interactive className="flex flex-row items-start gap-3 py-3">
+      <AlertCircle size={18} className={`mt-0.5 shrink-0 ${tom}`} />
+      <div className="min-w-0 flex-1">
+        <p className="text-sm text-ivory">{item.title}</p>
+        <p className="mt-0.5 text-xs text-ivory-muted">{item.reason}</p>
+        <p className="mt-1.5 text-xs font-medium text-gold-light">
+          {item.actionLabel}
+        </p>
+      </div>
+      <ChevronRight size={16} className="mt-0.5 shrink-0 text-ivory-muted" />
+    </Card>
+  );
+
+  if (item.intent.kind === "navegar") {
+    return <Link href={item.intent.href}>{conteudo}</Link>;
+  }
+
+  const bookingId = item.intent.bookingId;
+  return (
+    <button type="button" onClick={() => onFechar(bookingId)} className="text-left">
+      {conteudo}
+    </button>
+  );
+}

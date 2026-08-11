@@ -33,6 +33,42 @@ Faltando qualquer uma, é indicador.
 
 ---
 
+## 1.1 Invariantes do Action Center
+
+Aprovados em 11/08. Valem para toda regra, presente e futura.
+
+1. **Só situação acionável.** Se a única resposta possível for "entendi", é
+   indicador.
+2. **Ação não executável pelo sistema nunca é crítica.** Alerta que não leva a
+   lugar nenhum vira, no máximo, atenção.
+3. **`insufficient` nunca gera ação.** Indicador ruim é ignorado; alerta falso
+   destrói a confiança no produto.
+
+   ```
+   real         → pode gerar ação
+   estimated    → pode aparecer; nunca como crítico
+   insufficient → não entra no Action Center
+   ```
+
+4. **Não criar estado persistente para o que se determina com segurança do
+   estado existente.** Evita inflação do domínio. Revisar só se a inferência
+   produzir falso positivo.
+5. **Política mora no tenant, não no código.** O motor conhece
+   `policies.booking.lateToleranceMinutes`, nunca o número 15.
+6. **A decisão pertence ao motor, não à interface.** A UI apresenta o que o
+   motor decidiu; não existe regra de negócio em JSX.
+
+   ```
+   ActionCenterEngine → avaliadores → ActionItem[] → UI
+   ```
+
+7. **Item morre por mudança de estado, nunca por descarte.** O Action Center
+   é retrato da operação agora, não caixa de notificações. Não existe
+   "dispensar".
+8. **Uma representação canônica por problema.** O mesmo atendimento sem
+   pagamento não pode gerar três itens com nomes diferentes. O `id` do item é
+   derivado de tipo + alvo, e isso é o que garante a unicidade.
+
 ## 2. Vocabulário de prioridade
 
 | Nível | Significado | Custo de ignorar |
@@ -43,9 +79,20 @@ Faltando qualquer uma, é indicador.
 
 Não existe nível "informação" — isso é indicador, não ação.
 
-**Teto de itens:** no máximo 3 críticos visíveis por vez. Acima disso, agrupar
-("3 fechamentos pendentes"). Uma lista de dez itens críticos não é urgência, é
-ruído — e o dono aprende a ignorar a seção inteira.
+**Teto de itens:** no máximo 3 críticos visíveis por vez. Uma lista de dez itens
+críticos não é urgência, é ruído — e o dono aprende a ignorar a seção inteira.
+
+**O teto exige ordem, senão vira ocultação.** Dentro da mesma severidade, a
+posição é decidida por urgência operacional:
+
+| Urgência | Significado | Exemplos |
+|---|---|---|
+| `P1` | impede operar ou corrompe o financeiro | sem serviço cadastrado · fechamento pendente |
+| `P2` | atendimento acontecendo agora | atraso · encaixe aguardando |
+| `P3` | risco operacional sem prazo imediato | taxas não configuradas |
+
+O que passa do teto **não some**: fica atrás de um "ver mais N". Esconder
+problema é pior que listar demais.
 
 ---
 
@@ -183,12 +230,26 @@ Passou do horário e a reserva continua em aberto.
 | **Ação** | *Reagendar* · *Registrar ocorrência* |
 | **Some quando** | reagendado, ou a ocorrência é registrada |
 | **Confiança** | 🟢 real, uma vez que o estado seja alcançável |
-| **Eventos** | **`cliente.nao_compareceu`** → grava `client_occurrences` |
+| **Eventos** | `reserva.nao_compareceu` — grava `status = no_show` na reserva |
 | **Suporte hoje** | ❌ **estado órfão — nada grava `no_show`** |
 
-> Pré-requisito do bloco: dar um caminho ao `no_show`. Sem ele não há como medir
-> falta, entender perda de receita, nem alimentar a régua de pagamento
-> antecipado — cujo template de WhatsApp já existe.
+> **Pré-requisito do bloco: dar um caminho ao `no_show`.** Sem ele não há como
+> medir falta, entender perda de receita nem alimentar a régua de pagamento
+> antecipado, cujo template de WhatsApp já existe.
+>
+> **`client_occurrences` NÃO entra junto.** São camadas diferentes: `no_show` é
+> evento operacional da reserva; `client_occurrences` é estrutura relacional do
+> cliente. Acoplar as duas criaria uma pseudo-entidade de cliente antes de
+> Cliente existir de fato — e o Bloco 3 herdaria um modelo torto.
+>
+> ```
+> Bloco 2:  Booking → no_show                    (operacional)
+> Bloco 3:  Booking + Client → client_occurrences (relacional)
+> ```
+>
+> Quem dispara o `no_show` é decisão de produto ainda em aberto: dono marca à
+> mão, o sistema sugere após a tolerância, ou fecha automaticamente no fim do
+> expediente. **Definir antes de implementar.**
 
 ### 4.6 🟡 Profissional ocioso
 
