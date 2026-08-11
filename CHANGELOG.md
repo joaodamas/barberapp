@@ -5,6 +5,74 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
 ## [Não publicado]
 
+### Verdade financeira — o dinheiro para de mudar depois do fato
+
+O DRE recalculava tudo a cada abertura da tela. Mudar a comissão de um barbeiro
+hoje reescrevia o que ele ganhou em março, e o acerto do mês passado deixava de
+bater com o que o sistema mostrava. O princípio adotado: **derive o que descreve
+o presente, materialize o que vira histórico.**
+
+- Ao concluir um atendimento, a Cloud Function `materializeFinancialsOnCompletion`
+  grava dois documentos com os valores **congelados**: `commissions/{bookingId}`
+  com o percentual vigente naquele instante, e `payments/{bookingId}` com a taxa
+  da maquininha do método usado.
+- **Idempotência por construção**, não por trava: o id do documento é derivado do
+  `bookingId`. Reprocessar o mesmo evento reescreve o mesmo documento em vez de
+  criar um segundo — e o Eventarc entrega mais de uma vez por design.
+- O fechamento passou a perguntar **como o cliente pagou**. Sem isso, o pagamento
+  era materializado com taxa zero e o lucro do mês aparecia maior do que é.
+- `paymentOrigin` separa **onde** o pagamento aconteceu (presencial ou online) de
+  **como** o dinheiro entrou (`paymentMethod`). São perguntas diferentes e
+  estavam colapsadas numa só.
+- Tela de **Configurações** com as quatro taxas por método. Todas nascem em 0 —
+  taxa inventada é pior que taxa ausente, porque parece verdade.
+
+**Validado em produção, não só em teste:** com o atendimento já concluído, mudar
+a comissão de 40% para 50% não alterou os R$ 20 registrados; mudar as taxas de
+1,99/3,49 para 2,99/4,99 não alterou os pagamentos anteriores. O histórico
+parou de se reescrever sozinho.
+
+### Action Center — o painel passa a dizer o que fazer
+
+- Motor de decisão em `lib/action-center.ts`, **separado da interface**. A tela
+  apresenta o que o motor decidiu; não existe regra de negócio em JSX.
+- Regra de admissão: um item só existe se responder *o que aconteceu*, *por que
+  importa agora* e *o que eu faço*. Faltando qualquer uma, é indicador — e
+  indicador vive no topo da tela, não aqui.
+- **Item morre por mudança de estado, nunca por descarte.** Não existe
+  "dispensar": é retrato da operação agora, não caixa de notificações.
+- Contrato completo em `docs/ACTION-CENTER-CONTRATO.md`, com as 10 situações
+  catalogadas e os 8 invariantes.
+
+### Esteira e deploy
+
+- **Os 66 testes de isolamento entre barbearias não rodavam em lugar nenhum** —
+  nem local (sem emulador), nem no CI (o job estava vermelho desde sempre, e o
+  `emulators:exec` abortava antes de subir). Agora rodam a cada push. A prova de
+  que a barbearia A não alcança o dado da B deixou de ser teórica.
+- O job `web` morria no lint e **nunca chegava a rodar teste nem build**: o build
+  de produção passou meses sem ser verificado por ninguém.
+- A verificação virou workflow reutilizável. Push e deploy chamam o mesmo
+  arquivo — publicar exige a esteira inteira verde, por construção.
+- **Deploy saiu da máquina local e foi para o GitHub Actions**, manual
+  (`workflow_dispatch`), com aprovação e restrito à `main`. No Windows o deploy
+  de Hosting quebra com `EPERM: symlink`, e a alternativa seria baixar a guarda
+  do sistema operacional.
+- `main` protegida: PR obrigatório, três checks verdes, **sem bypass para
+  administrador**.
+- Runbook, inventário de permissões e auditoria de segurança em `docs/DEPLOY.md`.
+
+### Corrigido — incidente com as regras de produção
+
+- Um `firebase deploy --only firestore:rules` publicou as regras do repositório
+  por cima das de produção, que estavam mais novas, e **removeu as regras de 6
+  coleções** por 28 minutos — incluindo `staff`, lida pelo `createBooking`. O
+  repositório estava 30 commits atrás da produção sem ninguém saber.
+- Corrigido baixando o ruleset anterior pela API e reaplicando só as correções
+  pretendidas. A divergência repositório↔produção foi reconciliada, e hoje
+  regras, storage e índices estão em paridade conferida.
+- É a razão de o deploy ter deixado de sair de máquina local.
+
 ### Plataforma multi-barbearia
 
 O produto nasceu para uma barbearia e passou a ser preparado para muitas. A
@@ -240,6 +308,16 @@ barbearia original vira o tenant piloto, não o único cliente.
 - Envio de WhatsApp, gateway de pagamento, estorno via API e cobrança do próprio
   SaaS. Sem eles o produto não é vendável.
 - Verificação comercial na Meta — sem ela, 250 destinatários únicos por 24h.
+- **SEC-001 (alta):** a conta de runtime de todas as Cloud Functions tem
+  `roles/editor` no projeto. É o padrão do Firebase, e significa que uma falha
+  de execução em qualquer função alcança o projeto inteiro. Também é o teto de
+  privilégio da esteira de deploy, que precisa agir como ela. Corrigir exige
+  conta de runtime dedicada e redeploy das 19 functions.
+- **SEC-002 (média):** há um único `owner` no projeto Google Cloud, sem conta de
+  emergência. Perder essa conta é perder o projeto.
+- **DX (baixa):** `npm run test:rules` não roda no Windows — o Git Bash não
+  preserva as aspas simples do script. Roda no CI. O dev no Windows depende de
+  adaptar a citação à mão.
 
 ---
 
