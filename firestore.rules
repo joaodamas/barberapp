@@ -62,7 +62,19 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if isSelf(userId) || isPlatformAdmin();
-      allow create: if isSelf(userId);
+
+      /* `create` precisa da mesma guarda do `update`.
+       *
+       * Só o `update` filtrava os campos de autoridade, e `delete` é permitido:
+       * dava para apagar o próprio documento e recriá-lo já com
+       * `platformAdmin: true`. Nenhuma regra e nenhuma função leem esses campos
+       * do documento hoje — a autoridade vem do custom claim, e é por isso que
+       * não era explorável. Mas o `update` blindado passa a impressão de que o
+       * campo é confiável, e no dia em que alguém escrever um painel de suporte
+       * que leia `/users/{uid}.platformAdmin` a escalada fica pronta. */
+      allow create: if isSelf(userId)
+                    && !request.resource.data.keys()
+                         .hasAny(['barbershops', 'platformAdmin']);
       // Ninguém edita o próprio vínculo nem o próprio papel por aqui.
       allow update: if isSelf(userId)
                     && !request.resource.data.diff(resource.data)
@@ -77,21 +89,73 @@ service cloud.firestore {
     }
 
     /* ------------------------------------------------------------------ */
+    /* Conta de operação da plataforma — só o servidor                     */
+    /* ------------------------------------------------------------------ */
+
+    /* Índices do WhatsApp para o número ÚNICO da plataforma: id da mensagem →
+     * barbearia, e telefone do cliente → última barbearia. São o mapa de volta
+     * que o webhook usa quando o `phone_number_id` não identifica mais a dona.
+     * Só o servidor escreve e lê — exposto, o segundo é uma lista de quem é
+     * cliente de qual barbearia. */
+    match /whatsapp_sent/{messageId} {
+      allow read, write: if false;
+    }
+    match /whatsapp_conversations/{telefone} {
+      allow read, write: if false;
+    }
+
+    match /whatsapp_numbers/{phoneNumberId} {
+      /* Número da Cloud API → barbearia. O webhook é público e precisa desta
+       * tradução para saber de quem é a mensagem que chegou; só o servidor
+       * lê e escreve. Exposto, revelaria o mapa de quais barbearias usam a
+       * plataforma e qual número é de quem. */
+      allow read, write: if false;
+    }
+
+    match /platform_users/{userId} {
+      /* Guarda o hash da senha provisória enquanto ela existe. Negado para
+       * TODO MUNDO, inclusive o próprio dono e o suporte: só o Admin SDK
+       * escreve e lê aqui, e ele não passa por regra. Declarado explicitamente
+       * em vez de depender do fallback do fim do arquivo, porque um dia alguém
+       * vai abrir uma coleção acima e este documento não pode vir junto. */
+      allow read, write: if false;
+    }
+
+    /* ------------------------------------------------------------------ */
     /* A barbearia                                                         */
     /* ------------------------------------------------------------------ */
 
     match /barbershops/{barbershopId} {
 
-      // Ficha pública: nome, endereço, horário — o app do cliente precisa
-      // renderizar isso antes de qualquer vínculo existir.
-      allow read: if isSignedIn();
+      /* Ficha PÚBLICA. Nome, endereço, horário e marca precisam ser legíveis
+       * sem login: é o que o servidor lê para pintar a página antes de saber
+       * quem está acessando, e é informação de vitrine — a mesma que está na
+       * fachada. Contrato e cobrança ficam na subcoleção `private`. */
+      allow read: if true;
       // Criar e excluir barbearia é ato da plataforma, não do lojista.
       allow create, delete: if isPlatformAdmin();
-      // O dono edita a própria barbearia, menos o que define o contrato.
+
+      /* O dono edita a própria barbearia, menos o que define o contrato.
+       *
+       * `features` e `trial` entraram nesta lista porque são o contrato tanto
+       * quanto `plan`: `features` é lido como gate de recurso e `trial` decide
+       * quando o acesso vence. Sem eles aqui, o dono liberava o plano de cima e
+       * empurrava o fim do teste para 2099 com uma escrita direta do navegador,
+       * sem passar por função nenhuma. `createdBy` entrou junto, por sustentar
+       * o limite de uma conta por barbearia. */
       allow update: if isPlatformAdmin()
                     || (isOwnerOf(barbershopId)
                         && !request.resource.data.diff(resource.data)
-                             .affectedKeys().hasAny(['slug', 'plan', 'status', 'createdAt']));
+                             .affectedKeys().hasAny(['slug', 'plan', 'status',
+                                                     'createdAt', 'createdBy',
+                                                     'features', 'trial']));
+
+      /* -------- contrato com a plataforma: nunca público -------- */
+
+      match /private/{docId} {
+        allow read: if isOwnerOf(barbershopId) || isPlatformAdmin();
+        allow write: if isPlatformAdmin();
+      }
 
       /* -------- quem trabalha aqui -------- */
 
@@ -105,6 +169,17 @@ service cloud.firestore {
       /* -------- catálogo: cliente lê, dono escreve -------- */
 
       match /services/{serviceId} {
+        allow read: if isSignedIn();
+        allow write: if isOwnerOf(barbershopId);
+      }
+
+      /* -------- a equipe -------- */
+
+      match /staff/{staffId} {
+        /* Legível por quem está logado, como o catálogo: o CLIENTE precisa
+         * ver os barbeiros para escolher com quem vai cortar. É vitrine —
+         * nome e serviços que a pessoa atende, nada mais. Comissão fica em
+         * `commissions`, que o cliente não alcança. */
         allow read: if isSignedIn();
         allow write: if isOwnerOf(barbershopId);
       }
@@ -125,12 +200,19 @@ service cloud.firestore {
         allow read: if isStaffOf(barbershopId)
                     || (isSignedIn() && resource.data.clientId == request.auth.uid);
 
-        // O cliente cria a própria reserva, mas status e valor são decididos no
-        // servidor — senão dá para marcar "confirmado" sem pagar.
-        allow create: if isSignedIn()
-                      && request.resource.data.clientId == request.auth.uid
-                      && !request.resource.data.keys().hasAny(
-                           ['status', 'value', 'paidAt', 'refundedAmount']);
+        /* Criar reserva é SÓ pela Cloud Function `createBooking`.
+         *
+         * Esta regra permitia o cliente gravar direto, desde que não mexesse em
+         * status e valor. Era o que existia antes de o servidor criar reservas —
+         * e ficou aberta depois. Duas coisas passavam por ela:
+         *
+         * 1. Reserva sem `status`, que não bloqueia horário na checagem de
+         *    conflito e mesmo assim aparece na agenda do dono.
+         * 2. Criação em massa, sem passar pelo limite por cliente nem pela
+         *    validação de dia, horário e antecedência.
+         *
+         * Nenhuma tela grava reserva direto: o app inteiro chama a função. */
+        allow create: if false;
 
         // Cancelar e reagendar passam por Cloud Function: aplicam a política,
         // calculam o reembolso e registram a ocorrência.
@@ -146,8 +228,20 @@ service cloud.firestore {
 
       match /expenses/{expenseId}         { allow read, write: if isOwnerOf(barbershopId); }
       match /cash_entries/{entryId}       { allow read, write: if isOwnerOf(barbershopId); }
-      match /commissions/{commissionId}   { allow read: if isStaffOf(barbershopId);
-                                            allow write: if isOwnerOf(barbershopId); }
+      /* Comissão é da PESSOA, não da equipe.
+       *
+       * A regra anterior era `isStaffOf`, ou seja: qualquer barbeiro lia a
+       * comissão de todos os colegas. Com uma cadeira só isso nunca apareceu —
+       * o único `staff` era o dono. Com equipe, é vazamento de salário entre
+       * colegas, que é o tipo de coisa que destrói uma barbearia por dentro.
+       *
+       * O dono lê tudo, porque é ele quem paga. Cada barbeiro lê o que é dele.
+       * O vínculo é por `uid` gravado no documento pelo servidor. */
+      match /commissions/{commissionId} {
+        allow read: if isOwnerOf(barbershopId)
+                    || (isStaffOf(barbershopId) && resource.data.uid == request.auth.uid);
+        allow write: if false;
+      }
       match /inventory_movements/{moveId} { allow read, write: if isStaffOf(barbershopId); }
 
       /* -------- escrita exclusiva do servidor -------- */

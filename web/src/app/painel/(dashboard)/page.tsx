@@ -17,10 +17,10 @@ import { Pill } from "@/components/ui/pill";
 import { Button } from "@/components/ui/button";
 import { bookingStatusMeta } from "@/lib/booking-status";
 import { paymentMethodLabel } from "@/lib/payment-method";
-import { formatBRL, safePct } from "@/lib/format";
+import { formatBRL, formatPhonePtBR, safePct } from "@/lib/format";
 import { bookingPolicy } from "@/lib/business-rules";
 import { useTenant } from "@/lib/tenant-context";
-import { useBookings, useServices } from "@/lib/db/use-shop-data";
+import { useBookings, useServices, useStaff } from "@/lib/db/use-shop-data";
 import { patchDoc } from "@/lib/db/repository";
 import { capacidadeDiaria, caixaDoDia } from "@/lib/analytics";
 import { OCCUPIES_SLOT } from "@/lib/domain";
@@ -33,7 +33,8 @@ export default function PainelHojePage() {
   const tenant = useTenant();
   const { brand } = tenant;
   const { items: todas, status } = useBookings();
-  const { items: services } = useServices();
+  const { items: services, status: statusServicos } = useServices();
+  const { items: equipe } = useStaff();
 
   const hoje = toISODate(new Date());
   const bookings = todas.filter((b) => b.date === hoje);
@@ -41,9 +42,20 @@ export default function PainelHojePage() {
   const getServicesByIds = (ids: string[]) =>
     ids.map((id) => services.find((s) => s.id === id)).filter(Boolean) as Array<{ name: string }>;
 
-  const totalSlots = capacidadeDiaria(tenant.schedule);
+  /* Capacidade é POR CADEIRA. Com três barbeiros são três agendas paralelas —
+   * calcular como se fosse uma faz a tela mostrar "lotado" com duas cadeiras
+   * vazias, e a taxa de ocupação sair três vezes maior que a real. */
+  const barbeirosAtivos = Math.max(equipe.filter((b) => b.active !== false).length, 1);
+  const totalSlots = capacidadeDiaria(tenant.schedule) * barbeirosAtivos;
 
   const fitInRequests = bookings.filter((b) => b.status === "fit_in_requested");
+
+  /* `localeCompare` em "HH:mm" ordena certo porque o formato é de largura fixa
+   * e zero-padded — "09:00" < "10:00" < "12:00" como texto. */
+  const bookingsDoDia = bookings
+    .filter((b) => b.status !== "fit_in_requested")
+    .slice()
+    .sort((a, b) => a.time.localeCompare(b.time));
   const agendados = bookings.filter((b) => OCCUPIES_SLOT.includes(b.status));
 
   const confirmedCount = agendados.length;
@@ -60,14 +72,18 @@ export default function PainelHojePage() {
       href: "/painel",
       tone: "gold" as const,
     },
-    services.length === 0 && {
+    /* Só acusa falta de serviço depois que a consulta responde — antes disso
+     * a lista está vazia porque ainda não chegou, não porque não existe. */
+    statusServicos === "pronto" && services.length === 0 && {
       id: "servicos",
       label: "Nenhum serviço cadastrado — o cliente não tem o que agendar",
-      href: "/comecar",
+      href: "/painel/servicos",
       tone: "danger" as const,
     },
   ].filter(Boolean) as Array<{ id: string; label: string; href: string; tone: "gold" | "danger" }>;
 
+
+  const semColunaLateral = precisaDeVoce.length === 0 && fitInRequests.length === 0;
   const caixaHoje = caixaDoDia(agendados);
   const recebidoReal = caixaHoje.total;
 
@@ -285,7 +301,18 @@ export default function PainelHojePage() {
         </section>
       )}
 
-      <section className="md:col-start-1 md:row-start-4 md:row-span-2">
+      {/* A coluna lateral de 360px só existe quando há algo nela — "precisa de
+          você" ou encaixe pendente. Vazia, ela deixava a agenda parando no meio
+          da tela com um vão à direita, enquanto os blocos de cima iam até a
+          borda. Sem nada ao lado, a agenda ocupa a largura inteira: é a tabela
+          com mais colunas do painel, e é onde a largura faz diferença. */}
+      <section
+        className={
+          semColunaLateral
+            ? "md:col-span-2"
+            : "md:col-start-1 md:row-start-4 md:row-span-2"
+        }
+      >
         <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm">
           Agenda do dia
         </h2>
@@ -299,47 +326,93 @@ export default function PainelHojePage() {
             actionHref="/comecar"
           />
         )}
-        <div className="flex flex-col gap-2 md:gap-3">
-          {bookings
-            .filter((b) => b.status !== "fit_in_requested")
-            .map((booking) => {
-              const statusMeta = bookingStatusMeta[booking.status];
-              const bookingServices = getServicesByIds(booking.serviceIds);
-              const canComplete =
-                booking.status === "confirmed" ||
-                booking.status === "confirmed_by_client";
-              return (
-                <Card
-                  key={booking.id}
-                  className="flex flex-row items-center gap-3 md:p-5"
-                >
-                  <div className="w-12 shrink-0 text-sm font-semibold text-gold-light md:w-16 md:font-display md:text-base">
-                    {booking.time}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm text-ivory md:text-base">
-                      {booking.clientName}
-                    </p>
-                    <p className="truncate text-xs text-ivory-muted">
-                      {bookingServices.map((s) => s.name).join(" + ")} ·{" "}
-                      {paymentMethodLabel[booking.paymentMethod]}
-                    </p>
-                  </div>
-                  {canComplete ? (
-                    <button
-                      onClick={() => complete(booking.id)}
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-ivory-muted transition-colors hover:border-success hover:text-success md:h-10 md:w-10"
-                      aria-label="Marcar como concluído"
+        {/* Ordenado por HORA.
+         *
+         * A lista vinha na ordem da coleção — que é por data decrescente, e
+         * dentro do mesmo dia, arbitrária. Na tela isso aparecia como
+         * "09:00, 10:00, 12:00, 11:00": a agenda do dia fora de ordem, que é
+         * justamente a informação que o dono lê primeiro de manhã. */}
+        {bookingsDoDia.length > 0 && (
+          <Card className="table-scroll overflow-x-auto p-0">
+            <table className="w-full min-w-[720px] text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ivory-muted">
+                  <th className="px-4 py-3 font-medium md:px-6">Hora</th>
+                  <th className="px-4 py-3 font-medium">Cliente</th>
+                  <th className="px-4 py-3 font-medium">Telefone</th>
+                  <th className="px-4 py-3 font-medium">Serviço</th>
+                  <th className="px-4 py-3 font-medium">Pagamento</th>
+                  <th className="px-4 py-3 text-right font-medium">Valor</th>
+                  <th className="px-4 py-3 font-medium md:px-6">Situação</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bookingsDoDia.map((booking) => {
+                  const statusMeta = bookingStatusMeta[booking.status];
+                  const bookingServices = getServicesByIds(booking.serviceIds);
+                  const canComplete =
+                    booking.status === "confirmed" ||
+                    booking.status === "confirmed_by_client";
+                  const digitos = String(booking.clientWhatsapp ?? "").replace(/\D/g, "");
+
+                  return (
+                    <tr
+                      key={booking.id}
+                      className="border-b border-border/60 transition-colors last:border-0 hover:bg-surface-raised/60"
                     >
-                      <Check size={16} />
-                    </button>
-                  ) : (
-                    <Pill tone={statusMeta.tone}>{statusMeta.label}</Pill>
-                  )}
-                </Card>
-              );
-            })}
-        </div>
+                      <td className="whitespace-nowrap px-4 py-3 font-display text-gold-light md:px-6">
+                        {booking.time}
+                      </td>
+                      <td className="px-4 py-3 text-ivory">
+                        {booking.clientName}
+                        {booking.isFitIn && (
+                          <span className="ml-2 text-xs text-ivory-muted">encaixe</span>
+                        )}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3">
+                        {digitos ? (
+                          /* Toque no telefone abre a conversa. É o que o dono faz
+                           * hoje quando o cliente atrasa — e fazia saindo do app. */
+                          <a
+                            href={`https://wa.me/${digitos}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-ivory-muted underline-offset-2 transition-colors hover:text-gold-light hover:underline"
+                          >
+                            {formatPhonePtBR(digitos)}
+                          </a>
+                        ) : (
+                          <span className="text-ivory-muted">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-ivory-muted">
+                        {bookingServices.map((s) => s.name).join(" + ")}
+                      </td>
+                      <td className="px-4 py-3 text-ivory-muted">
+                        {paymentMethodLabel[booking.paymentMethod]}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-right text-ivory">
+                        {formatBRL(booking.value)}
+                      </td>
+                      <td className="px-4 py-3 md:px-6">
+                        {canComplete ? (
+                          <button
+                            onClick={() => complete(booking.id)}
+                            className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ivory-muted transition-colors hover:border-success hover:text-success"
+                          >
+                            <Check size={14} /> Concluir
+                          </button>
+                        ) : (
+                          <Pill tone={statusMeta.tone}>{statusMeta.label}</Pill>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </Card>
+        )}
       </section>
     </div>
   );

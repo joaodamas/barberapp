@@ -71,4 +71,27 @@ describe("catálogo de templates da Meta", () => {
     expect(rules).toContain("corpo_sem_texto");
     expect(rules).toContain("placeholder_no_inicio");
   });
+
+  it("recusa emoji em botão — a Meta aceita no corpo, mas não no botão", () => {
+    // Regra descoberta numa submissão rejeitada: "Confirmo ✅" derrubou o
+    // lembrete_confirmacao, que é o template mais importante do catálogo.
+    const ruim = {
+      ...TEMPLATES.lembrete_confirmacao,
+      buttons: [{ label: "Confirmo ✅", action: "CONFIRM_BOOKING" }],
+    } as TemplateDef;
+    expect(validateTemplate(ruim).map((i) => i.rule)).toContain("botao_com_emoji");
+  });
+
+  it("recusa variável e quebra de linha em botão", () => {
+    const ruim = {
+      ...TEMPLATES.lembrete_confirmacao,
+      buttons: [
+        { label: "Oi {{1}}", action: "CONFIRM_BOOKING" },
+        { label: "Sim\nvou", action: "CANCEL_BOOKING" },
+      ],
+    } as TemplateDef;
+    const rules = validateTemplate(ruim).map((i) => i.rule);
+    expect(rules).toContain("botao_com_variavel");
+    expect(rules).toContain("botao_com_quebra");
+  });
 });

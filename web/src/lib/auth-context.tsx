@@ -9,6 +9,8 @@ type Claims = {
   barbershops?: Record<string, string>;
   /** Operador da plataforma (suporte). */
   platformAdmin?: boolean;
+  /** Conta criada por nós com senha provisória: prende na tela de troca. */
+  mustChangePassword?: boolean;
   /** @deprecated modelo single-tenant; sai quando os tokens renovarem. */
   role?: string;
 };
@@ -42,6 +44,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         claims: {
           barbershops: token.claims.barbershops as Record<string, string> | undefined,
           platformAdmin: token.claims.platformAdmin === true,
+          mustChangePassword: token.claims.mustChangePassword === true,
           role: token.claims.role as string | undefined,
         },
         loading: false,

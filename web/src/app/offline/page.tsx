@@ -2,7 +2,7 @@ import Image from "next/image";
 
 export default function OfflinePage() {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-4 px-8 text-center">
+    <div className="flex flex-1 flex-col items-center justify-center gap-4 overflow-y-auto px-8 text-center md:h-full">
       <Image src="/logo.svg" alt="" width={72} height={72} />
       <h1 className="text-xl text-ivory">Sem conexão</h1>
       <p className="max-w-xs text-sm text-ivory-muted">

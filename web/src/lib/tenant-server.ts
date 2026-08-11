@@ -1,12 +1,11 @@
 import "server-only";
 import { cache } from "react";
 import { headers } from "next/headers";
-import { cert, getApp, getApps, initializeApp, applicationDefault } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
 import {
-  ALL_FEATURES,
+  DEFAULT_LOCALE,
   DEFAULT_SCHEDULE,
   DEFAULT_TENANT,
+  featuresForPlan,
   PLATFORM_DEFAULT_POLICIES,
   slugFromHost,
   type Tenant,
@@ -16,10 +15,27 @@ import {
 /**
  * Resolve a barbearia do subdomínio, no servidor.
  *
- * CONSEQUÊNCIA ARQUITETURAL: ler o `host` torna a rota dinâmica. O app era
- * 100% estático; com subdomínio por barbearia ele deixa de ser — não dá para
- * prerender uma marca que só se conhece na requisição. A mitigação é o cache de
- * borda por host em `next.config.ts`.
+ * Lê pela API REST do Firestore, com `fetch`, sem SDK nenhum. São dois
+ * documentos públicos — a ficha da barbearia é vitrine, a mesma informação que
+ * está na fachada; contrato e cobrança vivem em `/barbershops/{id}/private`,
+ * que ninguém de fora alcança.
+ *
+ * Por que nem Admin SDK nem SDK cliente:
+ *
+ * 1. `firebase-admin` é externalizado pelo Turbopack com um nome hasheado que
+ *    não resolve em execução — o servidor sobe e devolve 500 em TODA rota.
+ * 2. O SDK cliente é feito para navegador. Em Node ele falha em silêncio aqui:
+ *    a resolução caía no tenant padrão, o app passava a consultar uma barbearia
+ *    inexistente e o dono era expulso do próprio painel, porque o claim dele
+ *    não batia com o id errado. Sem erro no log — o pior tipo de falha.
+ *
+ * `fetch` não tem bundler no caminho, não tem dependência, e o Next ainda
+ * cacheia a resposta por conta própria.
+ *
+ * CONSEQUÊNCIA ARQUITETURAL: ler o `host` torna a rota dinâmica. O app era 100%
+ * estático; com subdomínio por barbearia ele deixa de ser — não se prerenderiza
+ * marca que só se conhece na requisição. A mitigação é o cache de borda por
+ * host em `next.config.ts`.
  *
  * `cache()` do React deduplica a leitura DENTRO de uma mesma requisição: o
  * layout raiz, o `generateMetadata` e o manifest chamam `getTenant()` cada um
@@ -27,7 +43,22 @@ import {
  */
 export const getTenant = cache(async function getTenant(): Promise<Tenant> {
   const headerList = await headers();
-  const slug = slugFromHost(headerList.get("host"));
+
+  /* `x-forwarded-host` ANTES de `host`.
+   *
+   * O Firebase Hosting encaminha para o Cloud Run reescrevendo o `Host` para o
+   * domínio interno `*.run.app`. Lendo só `host`, o subdomínio da barbearia
+   * some no caminho: `slugFromHost` devolve nulo, o app cai no tenant padrão e
+   * o dono é expulso do próprio painel — tudo isso SEM erro em log nenhum,
+   * porque nada falhou, só chegou informação errada.
+   *
+   * Em desenvolvimento não existe proxy, então o sintoma não aparece: só surge
+   * no primeiro acesso real em produção. */
+  const host =
+    headerList.get("x-forwarded-host") ??
+    headerList.get("host");
+
+  const slug = slugFromHost(host);
 
   if (!slug) return DEFAULT_TENANT;
 
@@ -40,31 +71,64 @@ export const getTenant = cache(async function getTenant(): Promise<Tenant> {
 });
 
 /**
- * Carrega a barbearia pelo slug: `/slugs/{slug}` → `/barbershops/{id}`.
+ * O host é o domínio da PLATAFORMA, sem barbearia?
  *
- * Duas leituras por requisição não cacheada. O documento quase nunca muda, e o
+ * Serve para o domínio raiz mostrar a landing em vez do app do cliente. Sem
+ * isso a página da plataforma existe em `/landing` e ninguém chega nela: quem
+ * digita o domínio cai numa tela de login de uma barbearia que não existe.
+ */
+export const isPlatformRoot = cache(async function isPlatformRoot(): Promise<boolean> {
+  const headerList = await headers();
+  const host = headerList.get("x-forwarded-host") ?? headerList.get("host");
+  return slugFromHost(host) === null;
+});
+
+/**
+ * `/slugs/{slug}` → `/barbershops/{id}`.
+ *
+ * Duas leituras por render não cacheado. O documento quase nunca muda, e o
  * cache de borda faz o render acontecer uma vez por barbearia — na prática são
  * duas leituras por barbearia a cada `s-maxage`, não por visita.
  */
 async function loadTenantBySlug(slug: string): Promise<Tenant | null> {
-  const db = adminDb();
-  if (!db) {
-    // Sem credenciais (desenvolvimento local sem emulador), o tenant de
-    // referência mantém o app funcionando em vez de derrubar toda rota.
-    return slug === DEFAULT_TENANT.slug ? DEFAULT_TENANT : null;
-  }
+  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+  if (!projectId) return null;
+
+  /* Com o emulador ligado, ler daqui a PRODUÇÃO é pior que não ler nada.
+   *
+   * O SDK cliente respeita `connectFirestoreEmulator`, mas esta resolução usa
+   * `fetch` direto na REST — e ficava apontada para o Firestore de verdade. O
+   * sintoma não parece de tenant: o slug local não existe lá, cai no tenant
+   * padrão, e o dono de uma barbearia local é tratado como CLIENTE, porque o
+   * claim dele não bate com o id do tenant errado. Some o painel, sem erro.
+   *
+   * O emulador serve a mesma REST na porta 8080. */
+  /* Cache de uma hora sobre o emulador esconde o que você acabou de semear. */
+  const emEmulador = process.env.NEXT_PUBLIC_USE_EMULATOR === "true";
+  const base = emEmulador
+    ? `http://127.0.0.1:8080/v1/projects/${projectId}/databases/(default)/documents`
+    : `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
 
   try {
-    const slugDoc = await db.doc(`slugs/${slug}`).get();
-    if (!slugDoc.exists) return null;
+    // O documento de slug quase nunca muda: uma hora de cache é conservador.
+    const slugRes = await fetch(`${base}/slugs/${encodeURIComponent(slug)}`, {
+      next: { revalidate: emEmulador ? 0 : 3600 },
+    });
+    if (!slugRes.ok) return null;
 
-    const barbershopId = slugDoc.data()?.barbershopId as string | undefined;
+    const barbershopId = readString((await slugRes.json())?.fields?.barbershopId);
     if (!barbershopId) return null;
 
-    const shopDoc = await db.doc(`barbershops/${barbershopId}`).get();
-    if (!shopDoc.exists) return null;
+    // A ficha muda quando o dono edita a marca: cinco minutos.
+    const shopRes = await fetch(`${base}/barbershops/${barbershopId}`, {
+      next: { revalidate: emEmulador ? 0 : 300 },
+    });
+    if (!shopRes.ok) return null;
 
-    return toTenant(barbershopId, shopDoc.data() ?? {});
+    const fields = (await shopRes.json())?.fields;
+    if (!fields) return null;
+
+    return toTenant(barbershopId, decode(fields) as Record<string, unknown>);
   } catch (error) {
     // Barbearia fora do ar é pior que barbearia com a marca da plataforma:
     // degrada em vez de derrubar, e o erro fica no log.
@@ -73,49 +137,78 @@ async function loadTenantBySlug(slug: string): Promise<Tenant | null> {
   }
 }
 
+/**
+ * A REST do Firestore devolve valores tipados (`{ stringValue }`,
+ * `{ mapValue: { fields } }`). Converte para objeto comum.
+ */
+function decode(value: unknown): unknown {
+  if (value === null || typeof value !== "object") return value;
+  const v = value as Record<string, unknown>;
+
+  if ("stringValue" in v) return v.stringValue;
+  if ("booleanValue" in v) return v.booleanValue;
+  if ("integerValue" in v) return Number(v.integerValue);
+  if ("doubleValue" in v) return Number(v.doubleValue);
+  if ("timestampValue" in v) return v.timestampValue;
+  if ("nullValue" in v) return null;
+  if ("arrayValue" in v) {
+    const values = (v.arrayValue as { values?: unknown[] })?.values ?? [];
+    return values.map(decode);
+  }
+  if ("mapValue" in v) {
+    const fields = (v.mapValue as { fields?: Record<string, unknown> })?.fields ?? {};
+    return decode(fields);
+  }
+
+  // Já é um mapa de campos.
+  return Object.fromEntries(Object.entries(v).map(([k, item]) => [k, decode(item)]));
+}
+
+function readString(field: unknown): string | undefined {
+  const value = decode(field);
+  return typeof value === "string" ? value : undefined;
+}
+
 /** Documento do Firestore → `Tenant`, com o padrão da plataforma no que faltar. */
 function toTenant(id: string, data: Record<string, unknown>): Tenant {
   const brand = (data.brand ?? {}) as Partial<Tenant["brand"]>;
   const contact = (data.contact ?? {}) as Partial<Tenant["contact"]>;
   const policies = (data.policies ?? {}) as Partial<Tenant["policies"]>;
   const features = (data.features ?? {}) as Partial<Tenant["features"]>;
+  const locale = (data.locale ?? {}) as Partial<Tenant["locale"]>;
+
+  /* O plano é a base do que está liberado, e é campo imutável pela regra — ao
+   * contrário de `features`, que o dono conseguia escrever direto. `plan`
+   * ausente cai no plano de entrada: barbearia sem contrato conhecido recebe o
+   * mínimo, não o máximo. */
+  const plan: Tenant["plan"] = data.plan === "completo" ? "completo" : "entrada";
 
   return {
     id,
     slug: String(data.slug ?? id),
     status: (data.status as Tenant["status"]) ?? "ativo",
+    plan,
     brand: { ...DEFAULT_TENANT.brand, ...brand },
     contact: { ...DEFAULT_TENANT.contact, ...contact },
+    /* Barbearia sem `locale` gravado herda o padrão da plataforma. Nunca
+     * `undefined`: `Intl` com fuso indefinido cai no fuso do SERVIDOR, que é
+     * UTC — e aí a data da confirmação escorrega um dia sem erro nenhum. */
+    locale: { ...DEFAULT_LOCALE, ...locale },
     // Política ausente cai no padrão da plataforma — nunca em undefined, que
     // viraria NaN em cálculo de reembolso.
     policies: { ...PLATFORM_DEFAULT_POLICIES, ...policies },
-    features: { ...ALL_FEATURES, ...features },
+    /* Derivar do plano, não do catálogo completo.
+     *
+     * Era `{ ...ALL_FEATURES, ...features }`: documento sem o campo `features`
+     * — que é exatamente o que `signUpBarbershop` criava — virava todo recurso
+     * liberado. Todo cliente self-service ganhava o plano de cima de graça, sem
+     * precisar de ataque nenhum. Agora a ausência resolve pelo plano contratado
+     * e só o campo explícito sobrepõe. */
+    features: { ...featuresForPlan(plan), ...features },
     schedule: { ...DEFAULT_SCHEDULE, ...((data.schedule ?? {}) as object) },
     trial: toTrial(data.trial),
     onboarding: toOnboarding(data.onboarding),
   };
-}
-
-/**
- * Admin SDK para leitura no servidor.
- *
- * Em Cloud Run / Cloud Functions as credenciais vêm do ambiente. Localmente,
- * `FIREBASE_SERVICE_ACCOUNT` (JSON) ou o emulador via `FIRESTORE_EMULATOR_HOST`.
- */
-function adminDb() {
-  try {
-    if (getApps().length === 0) {
-      const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
-      initializeApp(
-        serviceAccount
-          ? { credential: cert(JSON.parse(serviceAccount)) }
-          : { credential: applicationDefault() }
-      );
-    }
-    return getFirestore(getApp());
-  } catch {
-    return null;
-  }
 }
 
 /**

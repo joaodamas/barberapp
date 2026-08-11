@@ -46,6 +46,38 @@ export type TenantContact = {
   since?: number;
 };
 
+/**
+ * Onde a barbearia fica, para efeito de dinheiro, data e hora.
+ *
+ * Isto NÃO é enfeite de internacionalização — é correção.
+ *
+ * O produto inteiro assumia São Paulo e real, em 21 arquivos. Numa barbearia em
+ * Dublin, "amanhã às 15:00" vira o dia errado na confirmação e a antecedência
+ * mínima calcula com três horas de diferença: o cliente reserva um horário que
+ * o sistema acha que já passou, ou aparece um dia depois. O erro não aparece em
+ * log nenhum — aparece na cadeira vazia.
+ *
+ * E fica mais caro a cada reserva gravada, porque data e hora já persistidas
+ * passam a significar coisas diferentes conforme o fuso de quem as leu.
+ *
+ * `locale` é só apresentação (como o número é escrito). `currency` é o dinheiro
+ * de verdade. `timeZone` é o que decide QUE DIA é hoje.
+ */
+export type TenantLocale = {
+  /** IANA, ex.: "America/Sao_Paulo", "Europe/Dublin". */
+  timeZone: string;
+  /** ISO 4217, ex.: "BRL", "EUR", "GBP". */
+  currency: string;
+  /** BCP 47, ex.: "pt-BR", "en-IE". */
+  locale: string;
+};
+
+export const DEFAULT_LOCALE: TenantLocale = {
+  timeZone: "America/Sao_Paulo",
+  currency: "BRL",
+  locale: "pt-BR",
+};
+
 export type TenantPolicies = {
   cancellation: typeof defaultCancellationPolicy;
   reschedule: typeof defaultReschedulePolicy;
@@ -66,6 +98,25 @@ export type TenantFeatures = {
   /** DRE, projeção e fechamento — o diferencial do plano superior. */
   advancedFinance: boolean;
 };
+
+/** Plano contratado na plataforma. */
+export type PlanId = "entrada" | "completo";
+
+/**
+ * Recursos que o plano libera. Espelha `functions/src/plans.ts` — os dois
+ * caminhos de criação gravam `features`, e esta função decide o que fazer com
+ * a barbearia cujo documento foi criado antes disso e não tem o campo.
+ */
+export function featuresForPlan(plan: PlanId): TenantFeatures {
+  const completo = plan === "completo";
+  return {
+    whatsapp: true,
+    loyalty: true,
+    subscriptions: completo,
+    store: completo,
+    advancedFinance: completo,
+  };
+}
 
 /** Jornada da barbearia — sai de `lib/slots.ts` e vira configuração. */
 export type TenantSchedule = {
@@ -96,8 +147,11 @@ export type Tenant = {
   /** Subdomínio: `osiqueira` em `osiqueira.dominio.com.br`. */
   slug: string;
   status: "ativo" | "suspenso" | "trial";
+  plan: PlanId;
   brand: TenantBrand;
   contact: TenantContact;
+  /** Fuso, moeda e formato. Decide QUE DIA é hoje e em que moeda o valor é. */
+  locale: TenantLocale;
   policies: TenantPolicies;
   features: TenantFeatures;
   schedule: TenantSchedule;
@@ -142,6 +196,32 @@ export function isOnboardingComplete(onboarding: TenantOnboarding) {
   return nextOnboardingStep(onboarding) === null;
 }
 
+/**
+ * Nome curto — o que aparece sob o ícone na tela inicial do celular.
+ *
+ * Cortar por caractere parte a palavra no meio: "O Siqueira Barbearia" virava
+ * "O Siqueira Bar". A função já existia corrigida no cadastro self-service
+ * (`functions/src/signup.ts`), mas o onboarding guiado gravava com `slice(14)`
+ * e reintroduziu o defeito — foi assim que a barbearia piloto ficou com
+ * "O Siqueira Bar" no ícone, no cabeçalho e no título da aba.
+ *
+ * A cópia entre `web` e `functions` é intencional: são pacotes que não
+ * compartilham código. Mudar uma exige mudar a outra — os testes dos dois lados
+ * cobrem o mesmo caso justamente para essa divergência aparecer.
+ */
+export function shortNameFrom(name: string, max = 14): string {
+  const limpo = name.trim().replace(/\s+/g, " ");
+  if (limpo.length <= max) return limpo;
+
+  let curto = "";
+  for (const palavra of limpo.split(" ")) {
+    const proximo = curto ? `${curto} ${palavra}` : palavra;
+    if (proximo.length > max) break;
+    curto = proximo;
+  }
+  return curto || limpo.slice(0, max).trim();
+}
+
 /** Políticas padrão da plataforma — o ponto de partida de toda barbearia nova. */
 export const PLATFORM_DEFAULT_POLICIES: TenantPolicies = {
   cancellation: defaultCancellationPolicy,
@@ -162,29 +242,38 @@ export const ALL_FEATURES: TenantFeatures = {
 };
 
 /**
- * O tenant de referência — a barbearia que originou o produto.
- * Serve de fallback enquanto o Firestore não entra e de exemplo do formato.
+ * O tenant da PLATAFORMA — o que vale quando o host não tem subdomínio de
+ * barbearia, e o que preenche campo faltante de qualquer barbearia.
+ *
+ * Era a ficha da barbearia piloto, com endereço e WhatsApp inventados. Isso
+ * tinha duas consequências ruins: quem abrisse o domínio raiz via a marca de um
+ * cliente, e qualquer barbearia com um campo de contato vazio herdava "Rua das
+ * Tesouras, 120" em silêncio — endereço falso na tela do cliente dela, sem erro
+ * em lugar nenhum.
+ *
+ * Agora é a JPBarber, e os contatos nascem VAZIOS: campo em branco é honesto,
+ * campo com dado de outro é mentira.
  */
 export const DEFAULT_TENANT: Tenant = {
-  id: "osiqueira",
-  slug: "osiqueira",
+  id: "jpbarber",
+  slug: "jpbarber",
   status: "ativo",
+  plan: "completo",
   brand: {
-    name: "O Siqueira Barbearia",
-    shortName: "O Siqueira",
-    logo: "/logo.svg",
-    logoHorizontal: "/logo-horizontal.svg",
+    name: "JPBarber",
+    shortName: "JPBarber",
+    logo: "/jpbarber-marca.svg",
+    logoHorizontal: "/jpbarber-horizontal.svg",
     accentColor: "#b8863a",
     themeColor: "#ffffff",
     panelLabel: "Painel do dono",
     clientTagline: "Sua barbearia",
   },
   contact: {
-    address: "Rua das Tesouras, 120 — Centro",
-    whatsapp: "5511999999999",
-    instagram: "@osiqueirabarbearia",
-    since: 2012,
+    address: "",
+    whatsapp: "",
   },
+  locale: DEFAULT_LOCALE,
   policies: PLATFORM_DEFAULT_POLICIES,
   features: ALL_FEATURES,
   schedule: {

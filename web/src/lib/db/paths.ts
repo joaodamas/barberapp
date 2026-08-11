@@ -19,6 +19,7 @@ export const COLLECTIONS = {
 /** Subcoleções de uma barbearia. */
 export const SHOP_COLLECTIONS = {
   members: "members",
+  staff: "staff",
   services: "services",
   plans: "plans",
   products: "products",

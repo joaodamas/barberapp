@@ -2,7 +2,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { AuthGuard } from "@/components/auth-guard";
 import { DemoBanner } from "@/components/demo-banner";
-import { getTenant } from "@/lib/tenant-server";
+import { redirect } from "next/navigation";
+import { getTenant, isPlatformRoot } from "@/lib/tenant-server";
 import { SubscriptionProvider } from "@/lib/subscription-context";
 import { ClienteBottomNav } from "@/components/cliente-bottom-nav";
 import { ClienteSidebarNav } from "@/components/cliente-sidebar-nav";
@@ -12,6 +13,11 @@ export default async function ClienteLayout({
 }: {
   children: React.ReactNode;
 }) {
+  /* Domínio raiz não tem barbearia: quem chega ali quer conhecer o produto,
+   * não entrar na conta de um salão. Sem este desvio a landing existe e
+   * ninguém acha — e o visitante cai numa tela de login sem contexto. */
+  if (await isPlatformRoot()) redirect("/landing");
+
   const { brand } = await getTenant();
 
   return (

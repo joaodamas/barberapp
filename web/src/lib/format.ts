@@ -42,6 +42,32 @@ export function parseISODate(iso: string) {
   return new Date(`${iso}T00:00:00`);
 }
 
+/**
+ * Mês em `YYYY-MM`, `offset` meses antes de `hoje`.
+ *
+ * O dia 1 é fixado ANTES de mover o mês porque `setMonth` preserva o dia do
+ * mês: em 31/03, voltar um mês pede "31 de fevereiro" e transborda de volta
+ * para março. O dono clicava "mês anterior" no dia do fechamento e a tela não
+ * saía do lugar, com fevereiro inalcançável — e na tela de Números os dois
+ * meses comparados viravam o mesmo, exibindo variação zero contra si próprio.
+ */
+export function mesAtual(offset = 0, hoje = new Date()) {
+  const d = new Date(hoje);
+  d.setDate(1);
+  d.setMonth(d.getMonth() - offset);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+/** "Julho de 2026" a partir de `YYYY-MM`. */
+export function rotuloDoMes(mes: string) {
+  const [ano, m] = mes.split("-").map(Number);
+  const label = new Date(ano, m - 1, 1).toLocaleDateString("pt-BR", {
+    month: "long",
+    year: "numeric",
+  });
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
 /** `Date` → `YYYY-MM-DD` no fuso local (o inverso de `parseISODate`). */
 export function toISODate(date: Date) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -67,4 +93,24 @@ export function safePct(part: number, total: number, max = 100) {
 
 function safeNumber(value: number) {
   return Number.isFinite(value) ? value : 0;
+}
+
+/**
+ * "5511961733047" → "(11) 96173-3047"
+ *
+ * O número é gravado só com dígitos e DDI (é o formato que a Cloud API do
+ * WhatsApp exige). Mostrar assim ao dono é ilegível — ele reconhece o cliente
+ * pelo DDD e pelos quatro últimos dígitos, não por uma sequência de treze.
+ */
+export function formatPhonePtBR(bruto: string): string {
+  const d = String(bruto ?? "").replace(/\D/g, "");
+  const nacional = d.startsWith("55") && d.length > 11 ? d.slice(2) : d;
+  if (nacional.length === 11) {
+    return `(${nacional.slice(0, 2)}) ${nacional.slice(2, 7)}-${nacional.slice(7)}`;
+  }
+  if (nacional.length === 10) {
+    return `(${nacional.slice(0, 2)}) ${nacional.slice(2, 6)}-${nacional.slice(6)}`;
+  }
+  // Formato desconhecido: devolver como veio é melhor que recortar errado.
+  return bruto;
 }

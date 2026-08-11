@@ -17,7 +17,14 @@
 export type TemplateCategory = "UTILITY" | "MARKETING";
 
 export type QuickReply = {
-  /** Texto do botão exibido no WhatsApp (máx. 25 caracteres). */
+  /**
+   * Texto do botão exibido no WhatsApp.
+   *
+   * Máx. 25 caracteres e **sem emoji, quebra de linha, variável ou
+   * formatação** — a Meta recusa na submissão. Descoberto na prática: o
+   * `lembrete_confirmacao` foi rejeitado por causa de um ✅ no botão, enquanto
+   * o mesmo emoji no corpo passa sem problema. A regra vale só para botão.
+   */
   label: string;
   /** Prefixo do payload devolvido no webhook quando o botão é tocado. */
   action: ButtonAction;
@@ -111,8 +118,8 @@ export const TEMPLATES = {
     params: ["primeiroNome", "nomeBarbearia", "hora", "servicos"],
     example: ["João", "O Siqueira Barbearia", "16:30", "Corte + barba"],
     buttons: [
-      { label: "Confirmo ✅", action: "CONFIRM_BOOKING" },
-      { label: "Preciso cancelar ❌", action: "CANCEL_BOOKING" },
+      { label: "Confirmo que vou", action: "CONFIRM_BOOKING" },
+      { label: "Preciso cancelar", action: "CANCEL_BOOKING" },
     ],
   },
 
@@ -220,8 +227,8 @@ export const TEMPLATES = {
       "pagar no salão",
     ],
     buttons: [
-      { label: "Aprovar ✅", action: "APPROVE_FITIN" },
-      { label: "Recusar ❌", action: "DECLINE_FITIN" },
+      { label: "Aprovar encaixe", action: "APPROVE_FITIN" },
+      { label: "Recusar", action: "DECLINE_FITIN" },
     ],
   },
 
@@ -348,7 +355,7 @@ export const TEMPLATES = {
       "Oi {{1}}, este é o último aviso sobre a mensalidade do plano {{2}} " +
       "({{3}}), vencida em {{4}}.\n\n" +
       "Se não for regularizada, seu plano será suspenso e os benefícios ficam " +
-      "pausados até o pagamento. Você resolve agora pelo link {{5}}.",
+      "pausados até o pagamento. Você resolve agora pelo link {{5}} e mantém tudo ativo.",
     params: ["primeiroNome", "nomePlano", "valor", "vencimento", "linkPagamento"],
     example: [
       "João",
@@ -374,7 +381,7 @@ export const TEMPLATES = {
     body:
       "Oi {{1}}, precisamos avisar sobre o seu horário de {{2}} às {{3}}.\n\n" +
       "Motivo: {{4}}\n\n" +
-      "Escolha um novo horário em um toque pelo link {{5}}.",
+      "Escolha um novo horário em um toque pelo link {{5}} — leva menos de um minuto.",
     params: ["primeiroNome", "data", "hora", "motivo", "linkReagendamento"],
     example: [
       "João",
@@ -846,16 +853,35 @@ export const TEMPLATES = {
 
 export type TemplateName = keyof typeof TEMPLATES;
 
-/** Monta o payload de um botão: `ACTION:refId` — lido de volta no webhook. */
-export function buttonPayload(action: ButtonAction, refId: string) {
-  return `${action}:${refId}`;
+/**
+ * Payload de botão: `ACTION:barbershopId:bookingId`.
+ *
+ * A BARBEARIA vai junto, e não é redundância.
+ *
+ * Com um número por barbearia, o webhook descobria a dona da mensagem pelo
+ * `phone_number_id`. Num número ÚNICO para toda a plataforma esse caminho
+ * aponta sempre para a mesma barbearia — e o toque de "Confirmo que vou" de um
+ * cliente cairia na agenda de outro salão.
+ *
+ * O payload volta pela Meta dentro de uma requisição assinada, então ele é tão
+ * confiável quanto o resto do corpo: é a fonte mais segura para saber de quem é
+ * o botão, e a única que não depende do número que enviou.
+ *
+ * Limite da Meta: 128 caracteres. Ação + dois ids do Firestore dão ~62.
+ */
+export function buttonPayload(
+  action: ButtonAction,
+  barbershopId: string,
+  bookingId: string
+) {
+  return `${action}:${barbershopId}:${bookingId}`;
 }
 
 /** Lê um payload de botão devolvido pelo webhook. */
 export function parseButtonPayload(
   payload: string
-): { action: ButtonAction; refId: string } | null {
-  const [action, refId] = payload.split(":");
-  if (!action || !refId) return null;
-  return { action: action as ButtonAction, refId };
+): { action: ButtonAction; barbershopId: string; bookingId: string } | null {
+  const [action, barbershopId, bookingId] = String(payload ?? "").split(":");
+  if (!action || !barbershopId || !bookingId) return null;
+  return { action: action as ButtonAction, barbershopId, bookingId };
 }

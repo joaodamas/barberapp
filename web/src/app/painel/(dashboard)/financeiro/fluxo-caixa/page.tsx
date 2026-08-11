@@ -6,6 +6,8 @@ import { KpiTile } from "@/components/ui/kpi-tile";
 import { formatBRL, formatWeekdayAndDay, safeDiv, safePct } from "@/lib/format";
 import { useFinanceiro, mesAtual, rotuloDoMes } from "@/lib/db/use-financeiro";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
+import { BarChart } from "@/components/ui/chart";
+import { Voltar } from "@/components/ui/voltar";
 
 export default function FluxoCaixaPage() {
   const mes = mesAtual();
@@ -29,6 +31,8 @@ export default function FluxoCaixaPage() {
 
   return (
     <div className="flex flex-col gap-6 pt-1 md:gap-8 md:pt-2">
+      <Voltar />
+
       <div>
         {/* A tela não dizia de que mês eram os números. */}
         <p className="text-sm text-ivory-muted md:text-base">
@@ -68,6 +72,24 @@ export default function FluxoCaixaPage() {
           actionHref="/painel"
         />
       )}
+      {dailyCashHistory.length > 0 && (
+        <Card className="flex flex-col gap-3">
+          <div className="flex items-baseline justify-between">
+            <p className="text-sm font-medium text-ivory">Entrada por dia</p>
+            <p className="font-display text-lg text-ivory">{formatBRL(total)}</p>
+          </div>
+          {/* Trinta linhas de tabela não mostram o formato do mês: onde estão os
+              picos, quais dias morreram. Uma barra por dia mostra. */}
+          <BarChart
+            label={`Entrada de caixa por dia em ${rotuloDoMes(mes)}.`}
+            data={dailyCashHistory.map((d) => ({
+              label: formatWeekdayAndDay(d.date),
+              value: d.total,
+            }))}
+          />
+        </Card>
+      )}
+
       {dailyCashHistory.length > 0 && (
       <Card className="table-scroll overflow-x-auto p-0">
         <table className="w-full min-w-[640px] text-sm">

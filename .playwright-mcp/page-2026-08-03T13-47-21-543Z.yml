@@ -1,0 +1,72 @@
+- generic [active] [ref=f24e1]:
+  - alert [ref=f24e2]
+  - link "Pular para o conteúdo" [ref=f24e3] [cursor=pointer]:
+    - /url: "#conteudo"
+  - generic [ref=f24e4]:
+    - complementary [ref=f24e5]:
+      - link [ref=f24e6] [cursor=pointer]:
+        - /url: /painel
+        - generic [ref=f24e7]:
+          - paragraph [ref=f24e8]: O Siqueira
+          - paragraph [ref=f24e9]: Painel do dono
+      - navigation [ref=f24e11]:
+        - link [ref=f24e13] [cursor=pointer]:
+          - /url: /painel
+        - link [ref=f24e23] [cursor=pointer]:
+          - /url: /painel/financeiro
+        - link [ref=f24e30] [cursor=pointer]:
+          - /url: /painel/numeros
+        - link [ref=f24e36] [cursor=pointer]:
+          - /url: /painel/mensal
+        - link [ref=f24e44] [cursor=pointer]:
+          - /url: /painel/loja
+      - generic [ref=f24e51]:
+        - generic [ref=f24e52]:
+          - generic [ref=f24e53]: D
+          - generic [ref=f24e54]:
+            - paragraph [ref=f24e55]: diagnostico-temporario
+            - paragraph [ref=f24e56]: Painel do dono
+        - button "Sair" [ref=f24e57]
+    - main [ref=f24e62]:
+      - generic [ref=f24e64]:
+        - generic [ref=f24e65]:
+          - paragraph [ref=f24e66]: Hoje
+          - heading "segunda-feira, 03 de agosto" [level=1] [ref=f24e67]
+        - generic [ref=f24e68]:
+          - generic [ref=f24e73]:
+            - paragraph [ref=f24e74]: R$ 0,00
+            - paragraph [ref=f24e75]: previsto hoje
+          - generic [ref=f24e83]:
+            - paragraph [ref=f24e84]: "0"
+            - paragraph [ref=f24e85]: atendimentos
+          - generic [ref=f24e91]:
+            - paragraph [ref=f24e92]: 0%
+            - paragraph [ref=f24e93]: ocupação
+          - generic [ref=f24e98]:
+            - paragraph [ref=f24e99]: "16"
+            - paragraph [ref=f24e100]: horários livres
+        - generic [ref=f24e101]:
+          - heading "Previsão × recebido" [level=2] [ref=f24e102]
+          - generic [ref=f24e103]:
+            - generic [ref=f24e104]:
+              - generic [ref=f24e105]: Previsão do dia (agenda confirmada)
+              - generic [ref=f24e106]: R$ 0,00
+            - generic [ref=f24e108]:
+              - generic [ref=f24e109]: Recebido até agora
+              - generic [ref=f24e110]: R$ 0,00
+            - paragraph [ref=f24e111]: Pix e cartão contam assim que confirmados; dinheiro só entra quando o cliente é atendido e marcado como concluído.
+        - generic [ref=f24e112]:
+          - heading "Caixa de hoje" [level=2] [ref=f24e113]
+          - generic [ref=f24e114]:
+            - generic [ref=f24e115]:
+              - generic [ref=f24e118]: Pix
+              - generic [ref=f24e119]: R$ 0,00
+            - generic [ref=f24e120]:
+              - generic [ref=f24e123]: Cartão
+              - generic [ref=f24e124]: R$ 0,00
+            - generic [ref=f24e125]:
+              - generic [ref=f24e129]: Dinheiro
+              - generic [ref=f24e130]: R$ 0,00
+        - generic [ref=f24e131]:
+          - heading "Agenda do dia" [level=2] [ref=f24e132]
+          - generic "Carregando" [ref=f24e133]

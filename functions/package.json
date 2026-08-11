@@ -10,9 +10,9 @@
     "serve": "npm run build && firebase emulators:start --only functions",
     "deploy": "firebase deploy --only functions",
     "logs": "firebase functions:log",
-    "test": "vitest run --exclude 'src/__tests__/firestore-rules.test.ts'",
+    "test": "vitest run --exclude 'src/__tests__/firestore-rules.test.ts' --exclude 'src/__tests__/storage-rules.test.ts'",
     "typecheck": "tsc --noEmit",
-    "test:rules": "firebase emulators:exec --only firestore --project regras-multi-tenant 'vitest run src/__tests__/firestore-rules.test.ts'"
+    "test:rules": "firebase emulators:exec --only firestore,storage --project regras-multi-tenant 'vitest run src/__tests__/firestore-rules.test.ts src/__tests__/storage-rules.test.ts'"
   },
   "dependencies": {
     "firebase-admin": "^13.6.0",

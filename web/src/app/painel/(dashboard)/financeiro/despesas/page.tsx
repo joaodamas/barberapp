@@ -19,6 +19,7 @@ type Expense = Doc<ExpenseDoc>;
 import { useTenant } from "@/lib/tenant-context";
 import { useShopCollection } from "@/lib/db/use-collection";
 import { createDoc, patchDoc, removeDoc } from "@/lib/db/repository";
+import { Voltar } from "@/components/ui/voltar";
 
 const PAYMENT_METHODS = expensePaymentMethods;
 
@@ -151,6 +152,8 @@ export default function DespesasPage() {
 
   return (
     <div className="flex flex-col gap-6 pt-1 md:gap-8 md:pt-2">
+      <Voltar />
+
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm text-ivory-muted md:text-base">

@@ -160,7 +160,14 @@ export default function LojaPage() {
               Preço de venda
               <input
                 type="number"
-                value={simPrice}
+                min={0}
+                step="0.01"
+                /* `value={0}` renderiza o texto "0" no campo, e digitar depois
+                 * dele produz "059,90" — o zero não sai porque ele não é
+                 * placeholder, é conteúdo. Zero vira string vazia; o
+                 * placeholder faz o papel visual que o zero fazia mal. */
+                value={simPrice || ""}
+                placeholder="0,00"
                 onChange={(e) => setSimPrice(Number(e.target.value) || 0)}
                 className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory md:py-2.5 md:text-base"
               />
@@ -169,7 +176,10 @@ export default function LojaPage() {
               Custo do produto
               <input
                 type="number"
-                value={simCost}
+                min={0}
+                step="0.01"
+                value={simCost || ""}
+                placeholder="0,00"
                 onChange={(e) => setSimCost(Number(e.target.value) || 0)}
                 className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory md:py-2.5 md:text-base"
               />

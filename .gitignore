@@ -36,3 +36,7 @@ functions/lib/
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Token de acesso da Meta — nunca versionado
+functions/.meta-token
+functions/.app-secret

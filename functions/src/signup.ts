@@ -1,6 +1,7 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { getAuth } from "firebase-admin/auth";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
+import { featuresFor, type PlanId } from "./plans";
 
 /**
  * Cadastro self-service de uma barbearia.
@@ -18,6 +19,9 @@ const RESERVED_SLUGS = new Set([
 ]);
 
 export const TRIAL_DAYS = 7;
+
+/** O teste roda no plano de cima: o dono só escolhe o plano ao fim dele. */
+export const TRIAL_PLAN: PlanId = "completo";
 
 /** Catálogo inicial — o dono ajusta preço e apaga o que não faz. */
 const SEED_SERVICES = [
@@ -71,6 +75,8 @@ export const checkSlugAvailability = onCall<{ slug: string }>(async (request) =>
 type SignUpInput = {
   slug: string;
   name: string;
+  /** Nome do DONO — vira o primeiro barbeiro e o tratamento nas mensagens. */
+  ownerName?: string;
   address?: string;
   whatsapp?: string;
   accentColor?: string;
@@ -94,6 +100,9 @@ export const signUpBarbershop = onCall<SignUpInput>(async (request) => {
 
   const slug = String(request.data?.slug ?? "").trim().toLowerCase();
   const name = String(request.data?.name ?? "").trim();
+  const ownerName =
+    String(request.data?.ownerName ?? "").trim() ||
+    String(request.auth?.token.name ?? "").trim();
 
   const format = validateSlug(slug);
   if (!format.available) {
@@ -138,8 +147,12 @@ export const signUpBarbershop = onCall<SignUpInput>(async (request) => {
     tx.set(shopRef, {
       slug,
       status: "trial",
-      plan: "completo", // trial libera tudo; o plano é escolhido no fim
+      plan: TRIAL_PLAN, // trial libera tudo; o plano é escolhido no fim
       trial,
+      /* Gravado explicitamente: quando o campo falta, o leitor do servidor
+       * precisa adivinhar — e adivinhava liberando tudo, de graça e para
+       * sempre, em toda barbearia criada por aqui. */
+      features: featuresFor(TRIAL_PLAN),
       brand: {
         name,
         shortName: shortNameFrom(name),
@@ -166,6 +179,25 @@ export const signUpBarbershop = onCall<SignUpInput>(async (request) => {
       role: "owner",
       email: request.auth?.token.email ?? null,
       addedAt: FieldValue.serverTimestamp(),
+    });
+
+    /* A barbearia NUNCA nasce sem barbeiro.
+     *
+     * Não é conveniência: com pelo menos um garantido, nenhum caminho do
+     * código precisa tratar "e se não houver barbeiro?" — o estado não existe.
+     * E o dono de uma barbearia solo nunca vê a palavra "barbeiro" na tela,
+     * porque a escolha só aparece a partir do segundo. */
+    tx.set(shopRef.collection("staff").doc(), {
+      name: ownerName || "Eu",
+      active: true,
+      uid,
+      // Vazio significa TODOS os serviços — barbeiro sem serviço marcado não
+      // atenderia ninguém, e o dono acharia que o sistema quebrou.
+      serviceIds: [],
+      commissionPct: null,
+      schedule: null,
+      order: 1,
+      createdAt: FieldValue.serverTimestamp(),
     });
 
     for (const service of SEED_SERVICES) {
@@ -198,6 +230,34 @@ export const signUpBarbershop = onCall<SignUpInput>(async (request) => {
   };
 });
 
+/**
+ * Campos que o onboarding pode gravar no documento da barbearia.
+ *
+ * A função escreve com o Admin SDK, que IGNORA `firestore.rules`. Sem esta
+ * lista, `Object.assign(update, data)` repassava qualquer chave enviada pelo
+ * cliente: o dono chamava com `{ plan: "completo", status: "ativo",
+ * trial: null }` e reescrevia exatamente os campos que a regra protege —
+ * saindo do teste para ativo permanente, virando plano de cima de graça e
+ * desfazendo a própria suspensão por inadimplência. Nenhum teste de regra
+ * pegaria isso, porque este caminho contorna as regras.
+ *
+ * A allowlist é nominal, não por prefixo: `brand.` liberado em bloco deixaria
+ * passar chave nova que a tela ainda não manda.
+ */
+export const ONBOARDING_WRITABLE_FIELDS = new Set([
+  "brand.name",
+  "brand.shortName",
+  "brand.accentColor",
+  "contact.address",
+  "contact.whatsapp",
+  "contact.instagram",
+  "schedule.weekdays",
+  "schedule.opensAt",
+  "schedule.closesAt",
+  "schedule.slotMinutes",
+  "schedule.breaks",
+]);
+
 /** Marca um passo do onboarding como concluído. */
 export const completeOnboardingStep = onCall<{
   barbershopId: string;
@@ -218,7 +278,17 @@ export const completeOnboardingStep = onCall<{
   const update: Record<string, unknown> = {
     "onboarding.completedSteps": FieldValue.arrayUnion(step),
   };
-  if (data) Object.assign(update, data);
+
+  /* Recusa em vez de ignorar em silêncio: campo fora da lista é tela nova
+   * mandando o que ainda não foi liberado, ou tentativa de escalada. Ignorar
+   * faria o dono ver "salvo" com o dado no chão. */
+  for (const [campo, valor] of Object.entries(data ?? {})) {
+    if (!ONBOARDING_WRITABLE_FIELDS.has(campo)) {
+      throw new HttpsError("invalid-argument", `O onboarding não grava "${campo}".`);
+    }
+    update[campo] = valor;
+  }
+
   if (step === "compartilhar") {
     update["onboarding.completedAt"] = FieldValue.serverTimestamp();
     update["onboarding.sharedLink"] = true;

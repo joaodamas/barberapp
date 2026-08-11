@@ -1,6 +1,7 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { getAuth } from "firebase-admin/auth";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
+import { featuresFor } from "./plans";
 
 /**
  * Provisionamento de uma nova barbearia.
@@ -124,6 +125,17 @@ export const provisionBarbershop = onCall<ProvisionInput>(async (request) => {
 
     tx.set(slugRef, { barbershopId: shopRef.id });
 
+    tx.set(shopRef.collection("staff").doc(), {
+      name: owner.displayName || "Eu",
+      active: true,
+      uid: owner.uid,
+      serviceIds: [],
+      commissionPct: null,
+      schedule: null,
+      order: 1,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+
     tx.set(shopRef.collection("members").doc(owner.uid), {
       role: "owner",
       email: ownerEmail,
@@ -233,18 +245,6 @@ async function grantRole(uid: string, barbershopId: string, role: "owner" | "sta
   await auth.revokeRefreshTokens(uid);
 }
 
-function featuresFor(plan: "entrada" | "completo") {
-  const completo = plan === "completo";
-  return {
-    // WhatsApp entra no plano de entrada de propósito: é o que o Trinks cobra
-    // como add-on e o argumento de venda mais direto contra ele.
-    whatsapp: true,
-    loyalty: true,
-    subscriptions: completo,
-    store: completo,
-    advancedFinance: completo,
-  };
-}
 
 function onlyDigits(value: string) {
   return value.replace(/\D/g, "");

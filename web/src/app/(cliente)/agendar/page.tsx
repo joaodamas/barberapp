@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Check,
@@ -13,13 +13,14 @@ import {
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
-import { useServices } from "@/lib/db/use-shop-data";
+import { useServices, useStaff } from "@/lib/db/use-shop-data";
 import { useTenant } from "@/lib/tenant-context";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { CalendarX2 } from "lucide-react";
 import { formatBRL } from "@/lib/format";
-import { bookableDays, firstBookableIndex, slotsForDate } from "@/lib/slots";
+import { bookableDays, firstBookableIndex } from "@/lib/slots";
 import { bookingPolicy } from "@/lib/business-rules";
+import { useAuth } from "@/lib/auth-context";
 import type { PaymentMethod, TimeSlot } from "@/lib/types";
 
 type Step = 1 | 2 | 3 | 4;
@@ -34,6 +35,8 @@ const STEP_LABELS: Record<Step, string> = {
 export default function AgendarPage() {
   const tenant = useTenant();
   const { items: servicosDoc, status: statusServicos } = useServices();
+  const { items: equipe } = useStaff();
+  const barbeirosAtivos = equipe.filter((b) => b.active !== false);
 
   const services = servicosDoc
     .filter((s) => s.active !== false)
@@ -46,12 +49,52 @@ export default function AgendarPage() {
     }));
 
   const [step, setStep] = useState<Step>(1);
+  const [staffId, setStaffId] = useState<string | null>(null);
+  const [horariosLivres, setHorariosLivres] = useState<string[] | null>(null);
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
   const [selectedDayIndex, setSelectedDayIndex] = useState(() =>
     firstBookableIndex(bookableDays())
   );
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("pix");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("local");
+  const { user } = useAuth();
+  const [confirmando, setConfirmando] = useState(false);
+  const [erroReserva, setErroReserva] = useState<string | null>(null);
+
+  /**
+   * A reserva é criada no SERVIDOR.
+   *
+   * Antes, o passo 4 dizia "Reserva confirmada!" e não gravava nada — o
+   * cliente saía acreditando ter horário marcado. Agora a Cloud Function soma
+   * o preço a partir do catálogo (o cliente não manda valor), checa conflito de
+   * horário numa transação (dois toques simultâneos, um só ganha o slot) e
+   * define o status, que as regras proíbem o cliente de escrever.
+   */
+  async function confirmarReserva() {
+    if (!selectedDay || !selectedSlot) return;
+    setConfirmando(true);
+    setErroReserva(null);
+    try {
+      const { callFunction } = await import("@/lib/firebase");
+      await callFunction("createBooking", {
+        barbershopId: tenant.id,
+        serviceIds: selectedServiceIds,
+        staffId: barbeiroEscolhido?.id,
+        date: selectedDay.iso,
+        time: selectedSlot.time,
+        paymentMethod,
+        isFitIn,
+        clientName: user?.displayName ?? undefined,
+        clientWhatsapp: user?.phoneNumber ?? undefined,
+      });
+      setStep(4);
+    } catch (err) {
+      const msg = (err as { message?: string })?.message;
+      setErroReserva(msg ?? "Não foi possível concluir. Tente de novo.");
+    } finally {
+      setConfirmando(false);
+    }
+  }
 
   const days = useMemo(() => bookableDays(new Date(), tenant.schedule), [tenant.schedule]);
 
@@ -70,12 +113,54 @@ export default function AgendarPage() {
    * pode ocupar o último slot de 30 min da jornada. */
   // Sem useMemo: o React Compiler memoiza sozinho e o memo manual o faz
   // desistir de otimizar o componente inteiro.
-  const slots = selectedDay
-    ? slotsForDate(selectedDay.iso, {
-        durationMin: totalDuration,
-        schedule: tenant.schedule,
-      })
-    : [];
+  /* Quem escolhe o barbeiro quando há um só é o SISTEMA. Obrigar o cliente de
+   * uma barbearia solo a escolher a única opção é atrito puro. */
+  const barbeiroEscolhido =
+    barbeirosAtivos.find((b) => b.id === staffId) ??
+    (barbeirosAtivos.length === 1 ? barbeirosAtivos[0] : null);
+
+  /* Os horários vêm do SERVIDOR.
+   *
+   * A tela calculava os slots sozinha a partir da jornada — e não tinha como
+   * saber o que estava ocupado, porque as regras proíbem o cliente de ler
+   * reserva alheia (e devem proibir). Resultado: oferecia TODO horário como
+   * livre, o cliente escolhia, e só no "confirmar" o servidor respondia que
+   * aquele horário já era de outra pessoa.
+   *
+   * `availableSlots` faz a conta no servidor e devolve só as horas livres —
+   * disponibilidade sem entregar a agenda. */
+  useEffect(() => {
+    if (step !== 2 || !selectedDay || !barbeiroEscolhido) return;
+    let cancelado = false;
+    setHorariosLivres(null);
+    (async () => {
+      try {
+        const { callFunction } = await import("@/lib/firebase");
+        const r = await callFunction<
+          { barbershopId: string; date: string; staffId: string; durationMin: number },
+          { slots: string[] }
+        >("availableSlots", {
+          barbershopId: tenant.id,
+          date: selectedDay.iso,
+          staffId: barbeiroEscolhido.id,
+          durationMin: totalDuration,
+        });
+        if (!cancelado) setHorariosLivres(r.slots ?? []);
+      } catch (err) {
+        console.error("[agendar] falha ao buscar horários", err);
+        if (!cancelado) setHorariosLivres([]);
+      }
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, [step, selectedDay?.iso, barbeiroEscolhido?.id, totalDuration, tenant.id]);
+
+  const slots = (horariosLivres ?? []).map((time) => ({
+    time,
+    available: true,
+    isFitIn: false,
+  }));
 
   const isFitIn = Boolean(selectedSlot?.isFitIn);
   const hasFreeSlot = slots.some((s) => s.available);
@@ -189,6 +274,46 @@ export default function AgendarPage() {
 
       {step === 2 && (
         <div className="flex flex-col gap-4 pb-24">
+          {/* Só aparece a partir do SEGUNDO barbeiro. Com um só, escolher a
+              única opção é atrito — o servidor preenche sozinho. */}
+          {barbeirosAtivos.length > 1 && (
+            <div className="flex flex-col gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wider text-ivory-muted">
+                Com quem você quer cortar
+              </p>
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {barbeirosAtivos
+                  .filter((b) => {
+                    // Lista vazia significa TODOS os serviços, não nenhum.
+                    const faz: string[] = b.serviceIds ?? [];
+                    return faz.length === 0 || selectedServiceIds.every((id) => faz.includes(id));
+                  })
+                  .map((b) => {
+                    const ativo = barbeiroEscolhido?.id === b.id;
+                    return (
+                      <button
+                        key={b.id}
+                        type="button"
+                        aria-pressed={ativo}
+                        onClick={() => {
+                          setStaffId(b.id);
+                          setSelectedSlot(null);
+                        }}
+                        className={
+                          "min-h-11 shrink-0 cursor-pointer rounded-xl border px-4 text-sm transition-colors " +
+                          (ativo
+                            ? "border-gold bg-gold text-ivory"
+                            : "border-border text-ivory-muted hover:border-gold/50 hover:text-ivory")
+                        }
+                      >
+                        {b.name}
+                      </button>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
+
           <div className="flex gap-2 overflow-x-auto pb-1">
             {days.map((d, i) => {
               const active = i === selectedDayIndex;
@@ -319,6 +444,8 @@ export default function AgendarPage() {
               </p>
               <div className="grid grid-cols-3 gap-2">
                 <button
+                  disabled
+                  title="Pagamento antecipado entra quando o gateway for integrado"
                   onClick={() => setPaymentMethod("pix")}
                   className={
                     "flex flex-col items-center justify-center gap-1.5 rounded-xl border py-3 text-sm " +
@@ -330,6 +457,8 @@ export default function AgendarPage() {
                   <QrCode size={16} /> Pix
                 </button>
                 <button
+                  disabled
+                  title="Pagamento antecipado entra quando o gateway for integrado"
                   onClick={() => setPaymentMethod("cartao")}
                   className={
                     "flex flex-col items-center justify-center gap-1.5 rounded-xl border py-3 text-sm " +
@@ -360,11 +489,17 @@ export default function AgendarPage() {
                 </p>
               ) : (
                 <p className="text-xs text-ivory-muted">
-                  Pagamento simulado nesta fase — a integração real com o
-                  gateway entra no próximo épico.
+                  Pix e cartão entram quando a integração com o gateway ficar
+                  pronta. Por enquanto, o pagamento é no salão.
                 </p>
               )}
             </>
+          )}
+
+          {erroReserva && (
+            <p role="alert" className="text-sm text-danger">
+              {erroReserva}
+            </p>
           )}
 
           <Card className="flex gap-2 bg-surface-raised text-xs text-ivory-muted">
@@ -415,10 +550,10 @@ export default function AgendarPage() {
           </div>
           <Button
             className="w-full"
-            disabled={ctaDisabled}
-            onClick={() => setStep((s) => (s + 1) as Step)}
+            disabled={ctaDisabled || confirmando}
+            onClick={() => (step === 3 ? confirmarReserva() : setStep((s) => (s + 1) as Step))}
           >
-            {ctaLabel}
+            {confirmando ? "Confirmando…" : ctaLabel}
           </Button>
         </div>
       )}
@@ -479,10 +614,10 @@ export default function AgendarPage() {
 
           <Button
             className="w-full"
-            disabled={ctaDisabled}
-            onClick={() => setStep((s) => (s + 1) as Step)}
+            disabled={ctaDisabled || confirmando}
+            onClick={() => (step === 3 ? confirmarReserva() : setStep((s) => (s + 1) as Step))}
           >
-            {ctaLabel}
+            {confirmando ? "Confirmando…" : ctaLabel}
           </Button>
         </Card>
       )}

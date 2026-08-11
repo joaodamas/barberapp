@@ -4,6 +4,7 @@ import {
   mesPeriodo, projecaoDeCaixa, receitaDoMes, recorrenciaDeClientes,
   resultadoDoMes, topServicos,
 } from "@/lib/analytics";
+import { mesAtual } from "@/lib/format";
 import { PLATFORM_DEFAULT_POLICIES } from "@/lib/tenant";
 import type { Doc } from "@/lib/db/repository";
 import type { BookingDoc, ExpenseDoc, InventoryMovementDoc, SubscriberDoc } from "@/lib/domain";
@@ -11,7 +12,7 @@ import type { BookingDoc, ExpenseDoc, InventoryMovementDoc, SubscriberDoc } from
 const P = mesPeriodo("2026-07");
 
 const bk = (o: Partial<BookingDoc> & { id: string }): Doc<BookingDoc> => ({
-  clientId: "c1", clientName: "João", clientWhatsapp: "5511", serviceIds: ["corte"],
+  clientId: "c1", staffId: "s1", clientName: "João", clientWhatsapp: "5511", serviceIds: ["corte"],
   date: "2026-07-10", time: "10:00", status: "completed", value: 90,
   paymentMethod: "pix", ...o,
 });
@@ -65,10 +66,29 @@ describe("receita", () => {
       movements: [mv({ id: "m1", value: 45 })],
       subscribers: [sub({ id: "s1", price: 149 })],
       periodo: P,
+      hoje: new Date("2026-07-15T12:00:00"),
     });
     expect(r.caixa).toBe(135);
     expect(r.bruta).toBe(284);
     expect(r.caixa + r.mensalistas).toBe(r.bruta);
+  });
+
+  it("o retrato de mensalistas não contamina mês passado", () => {
+    // `SubscriberDoc` só sabe o estado de hoje. Somar os 149 de agora no DRE
+    // de julho inventaria receita num mês que pode ter tido zero assinante.
+    const assinantes = [sub({ id: "s1", price: 149 })];
+    const hoje = new Date("2026-08-11T12:00:00");
+
+    const julho = receitaDoMes({
+      bookings: [], movements: [], subscribers: assinantes, periodo: P, hoje,
+    });
+    expect(julho.mensalistas).toBe(0);
+
+    const agosto = receitaDoMes({
+      bookings: [], movements: [], subscribers: assinantes,
+      periodo: mesPeriodo("2026-08"), hoje,
+    });
+    expect(agosto.mensalistas).toBe(149);
   });
 
   it("ignora o que está fora do período", () => {
@@ -136,21 +156,68 @@ describe("resultado do mês", () => {
     expect(r.variableOperatingExpenses).toBe(200);
   });
 
-  it("não cobra imposto sobre prejuízo", () => {
+  it("imposto incide sobre faturamento, e é devido mesmo no prejuízo", () => {
+    // Simples Nacional (Anexo III) é sobre receita bruta. Calcular sobre o
+    // resultado subestimava em ~3× e sumia inteiro no mês negativo — o dono
+    // planejava com dinheiro que é do governo.
     const { receita, movements } = base();
     const r = resultadoDoMes({
       receita, movements, periodo: P, policies: PLATFORM_DEFAULT_POLICIES,
       expenses: [ex({ id: "1", value: 99999 })],
     });
     expect(r.resultBeforeTax).toBeLessThan(0);
-    expect(r.tax).toBe(0);
+    expect(r.tax).toBe(
+      Math.round((receita.bruta * PLATFORM_DEFAULT_POLICIES.taxRatePct) / 100)
+    );
+    expect(r.tax).toBeGreaterThan(0);
   });
 
-  it("comissão sai do lucro da loja, no rateio do tenant", () => {
+  it("a identidade do DRE fecha", () => {
+    const { receita, movements } = base();
+    const r = resultadoDoMes({
+      receita, movements, periodo: P, policies: PLATFORM_DEFAULT_POLICIES,
+      expenses: [ex({ id: "1", value: 300 }), ex({ id: "2", value: 120, recurring: false })],
+    });
+    expect(r.grossRevenue - r.totalCost).toBe(r.result);
+  });
+
+  it("comissão tem como base o serviço, não só o lucro de produto", () => {
+    // O serviço é o negócio da barbearia. Comissionar só a revenda deixava o
+    // maior custo variável da operação em R$ 0,00 no DRE.
     const { receita, movements } = base();
     const r = resultadoDoMes({ receita, expenses: [], movements, periodo: P, policies: PLATFORM_DEFAULT_POLICIES });
-    const lucroLoja = 500 - 200;
-    expect(r.commissions).toBe(Math.round((lucroLoja * PLATFORM_DEFAULT_POLICIES.commissionSplit.barberPct) / 100));
+    const baseDaComissao = 1000 + (500 - 200); // serviço cheio + lucro da revenda
+    expect(r.commissions).toBe(
+      Math.round((baseDaComissao * PLATFORM_DEFAULT_POLICIES.commissionSplit.barberPct) / 100)
+    );
+  });
+
+  it("despesa recorrente segue valendo no mês seguinte ao lançamento", () => {
+    // Lançada em julho, marcada como recorrente: o DRE de agosto mostrava
+    // custo fixo R$ 0,00 e lucro inflado no valor da conta.
+    const agosto = mesPeriodo("2026-08");
+    const receita = receitaDoMes({
+      bookings: [], movements: [], subscribers: [], periodo: agosto,
+    });
+    const r = resultadoDoMes({
+      receita, movements: [], periodo: agosto, policies: PLATFORM_DEFAULT_POLICIES,
+      expenses: [ex({ id: "1", date: "2026-07-05", value: 1800, recurring: true })],
+    });
+    expect(r.fixedExpenses).toBe(1800);
+  });
+
+  it("relançar a mesma despesa recorrente não multiplica o custo fixo", () => {
+    // Seis meses de uso = seis documentos "Aluguel". Vale o mais recente.
+    const receita = receitaDoMes({ bookings: [], movements: [], subscribers: [], periodo: P });
+    const r = resultadoDoMes({
+      receita, movements: [], periodo: P, policies: PLATFORM_DEFAULT_POLICIES,
+      expenses: [
+        ex({ id: "1", date: "2026-03-05", value: 1800 }),
+        ex({ id: "2", date: "2026-04-05", value: 1800 }),
+        ex({ id: "3", date: "2026-05-05", value: 2000 }), // reajuste
+      ],
+    });
+    expect(r.fixedExpenses).toBe(2000);
   });
 
   it("receita zero não gera NaN", () => {
@@ -245,6 +312,52 @@ describe("projeção", () => {
       openWeekdays: [1, 2, 3, 4, 5, 6], inicio: new Date("2026-08-03T00:00:00"), dias: 3,
     });
     expect(p[2].cumulative).toBe(p[0].net + p[1].net + p[2].net);
+  });
+
+  it("o mesmo aluguel relançado todo mês é cobrado uma vez só", () => {
+    // Seis meses de uso somavam seis aluguéis no mesmo dia 05 — e o erro
+    // crescia a cada mês em que o produto era usado.
+    const p = projecaoDeCaixa({
+      bookings: [], subscribers: [], historico: [],
+      expenses: [
+        ex({ id: "1", date: "2026-03-05", value: 2000 }),
+        ex({ id: "2", date: "2026-04-05", value: 2000 }),
+        ex({ id: "3", date: "2026-05-05", value: 2000 }),
+      ],
+      openWeekdays: [0, 1, 2, 3, 4, 5, 6],
+      inicio: new Date("2026-08-01T00:00:00"), dias: 10,
+    });
+    expect(p.find((d) => d.date === "2026-08-05")?.fixedExpense).toBe(2000);
+  });
+
+  it("conta do dia 31 vence no último dia de um mês de 30", () => {
+    const p = projecaoDeCaixa({
+      bookings: [], subscribers: [], historico: [],
+      expenses: [ex({ id: "1", date: "2026-07-31", value: 500, description: "Software" })],
+      openWeekdays: [0, 1, 2, 3, 4, 5, 6],
+      inicio: new Date("2026-09-25T00:00:00"), dias: 8, // setembro tem 30
+    });
+    expect(p.find((d) => d.date === "2026-09-30")?.fixedExpense).toBe(500);
+    expect(p.reduce((s, d) => s + d.fixedExpense, 0)).toBe(500);
+  });
+});
+
+describe("mês de referência", () => {
+  it("não pula meses quando hoje é dia 31", () => {
+    // `setMonth` preserva o dia: 31/03 menos um mês pedia "31 de fevereiro" e
+    // transbordava de volta para março, deixando fevereiro inalcançável — no
+    // dia do fechamento, justamente.
+    const trintaEUm = new Date("2026-03-31T12:00:00");
+    expect(mesAtual(0, trintaEUm)).toBe("2026-03");
+    expect(mesAtual(1, trintaEUm)).toBe("2026-02");
+    expect(mesAtual(2, trintaEUm)).toBe("2026-01");
+  });
+
+  it("meses consecutivos nunca se repetem", () => {
+    const fimDeAgosto = new Date("2026-08-31T12:00:00");
+    const meses = [0, 1, 2, 3, 4].map((o) => mesAtual(o, fimDeAgosto));
+    expect(meses).toEqual(["2026-08", "2026-07", "2026-06", "2026-05", "2026-04"]);
+    expect(new Set(meses).size).toBe(meses.length);
   });
 });
 

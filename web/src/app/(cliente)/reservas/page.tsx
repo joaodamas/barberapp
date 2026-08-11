@@ -13,7 +13,6 @@ import { formatBRL, formatDatePtBR } from "@/lib/format";
 import { useTenant } from "@/lib/tenant-context";
 import { useAuth } from "@/lib/auth-context";
 import { useLoyalty, useMyBookings, useServices } from "@/lib/db/use-shop-data";
-import { patchDoc } from "@/lib/db/repository";
 import { OCCUPIES_SLOT } from "@/lib/domain";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { bookableDays, firstBookableIndex, slotsForDate } from "@/lib/slots";
@@ -85,6 +84,8 @@ export default function ReservasPage() {
   const [rescheduleCount, setRescheduleCount] = useState(0);
   const [resgatando, setResgatando] = useState(false);
   const [erroResgate, setErroResgate] = useState<string | null>(null);
+  const [salvando, setSalvando] = useState(false);
+  const [erroReserva, setErroReserva] = useState<string | null>(null);
 
   /* O resgate acontece no servidor: a transação lê o saldo e grava o resgate
    * junto, senão dois toques no botão resgatam duas vezes com um saldo só. */
@@ -140,23 +141,58 @@ export default function ReservasPage() {
     setRescheduleOpen(true);
   }
 
-  function confirmReschedule() {
+  /* Remarcar e cancelar passam pelo SERVIDOR.
+   *
+   * Antes as duas escreviam direto no Firestore — e as regras negam, porque o
+   * cliente não pode gravar `status`. O `catch` só fazia `console.error`: o
+   * modal fechava, a tela dava a impressão de que deu certo, e a agenda do
+   * barbeiro continuava com o horário lá. O cliente achava que tinha avisado.
+   *
+   * Agora o erro aparece na tela, e o modal só fecha quando o servidor confirma.
+   */
+  async function confirmReschedule() {
     if (!time || !selectedDay || !podeReagendar || !booking) return;
-    void patchDoc(tenant.id, "bookings", booking.id, {
-      date: selectedDay.iso,
-      time,
-      status: "confirmed",
-    }).catch((e) => console.error("[reservas] falha ao reagendar", e));
-    setRescheduleCount((n) => n + 1);
-    setRescheduleOpen(false);
+    setSalvando(true);
+    setErroReserva(null);
+    try {
+      const { callFunction } = await import("@/lib/firebase");
+      await callFunction("rescheduleBooking", {
+        barbershopId: tenant.id,
+        bookingId: booking.id,
+        date: selectedDay.iso,
+        time,
+      });
+      setRescheduleCount((n) => n + 1);
+      setRescheduleOpen(false);
+    } catch (err) {
+      console.error("[reservas] falha ao reagendar", err);
+      setErroReserva(
+        (err as { message?: string })?.message ?? "Não foi possível remarcar agora."
+      );
+    } finally {
+      setSalvando(false);
+    }
   }
 
-  function confirmCancel() {
+  async function confirmCancel() {
     if (!booking) return;
-    void patchDoc(tenant.id, "bookings", booking.id, {
-      status: "cancelled_by_client",
-    }).catch((e) => console.error("[reservas] falha ao cancelar", e));
-    setCancelOpen(false);
+    setSalvando(true);
+    setErroReserva(null);
+    try {
+      const { callFunction } = await import("@/lib/firebase");
+      await callFunction("cancelBooking", {
+        barbershopId: tenant.id,
+        bookingId: booking.id,
+      });
+      setCancelOpen(false);
+    } catch (err) {
+      console.error("[reservas] falha ao cancelar", err);
+      setErroReserva(
+        (err as { message?: string })?.message ?? "Não foi possível cancelar agora."
+      );
+    } finally {
+      setSalvando(false);
+    }
   }
 
   return (
@@ -372,13 +408,18 @@ export default function ReservasPage() {
             <Button variant="ghost" onClick={() => setRescheduleOpen(false)}>
               Voltar
             </Button>
-            <Button onClick={confirmReschedule} disabled={!time}>
-              Confirmar novo horário
+            <Button onClick={confirmReschedule} disabled={!time || salvando}>
+              {salvando ? "Remarcando…" : "Confirmar novo horário"}
             </Button>
           </>
         }
       >
         <div className="flex flex-col gap-4">
+          {erroReserva && (
+            <p role="alert" className="text-sm text-danger">
+              {erroReserva}
+            </p>
+          )}
           <div>
             <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-ivory-muted">
               Escolha o dia
@@ -446,8 +487,12 @@ export default function ReservasPage() {
             <Button variant="ghost" onClick={() => setCancelOpen(false)}>
               Manter reserva
             </Button>
-            <Button className="bg-danger text-white hover:bg-danger/90" onClick={confirmCancel}>
-              Confirmar cancelamento
+            <Button
+              className="bg-danger text-white hover:bg-danger/90"
+              onClick={confirmCancel}
+              disabled={salvando}
+            >
+              {salvando ? "Cancelando…" : "Confirmar cancelamento"}
             </Button>
           </>
         }
@@ -463,6 +508,11 @@ export default function ReservasPage() {
           <p className="text-xs text-ivory-muted">
             Esta ação libera o horário na agenda e não pode ser desfeita.
           </p>
+          {erroReserva && (
+            <p role="alert" className="text-sm text-danger">
+              {erroReserva}
+            </p>
+          )}
         </div>
       </Modal>
     </div>

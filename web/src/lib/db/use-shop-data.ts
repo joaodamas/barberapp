@@ -5,7 +5,7 @@ import { saldoDeFidelidade } from "@/lib/domain";
 import { useTenant } from "@/lib/tenant-context";
 import type {
   BookingDoc, ExpenseDoc, InventoryMovementDoc, LoyaltyTransactionDoc,
-  PlanDoc, ProductDoc, ServiceDoc, SubscriberDoc,
+  PlanDoc, ProductDoc, ServiceDoc, StaffDoc, SubscriberDoc,
 } from "@/lib/domain";
 
 /**
@@ -16,6 +16,9 @@ import type {
  */
 export const useServices = () =>
   useShopCollection<ServiceDoc>("services", { orderByField: "price" });
+
+/** A equipe. `order` primeiro para o dono controlar a sequência na tela. */
+export const useStaff = () => useShopCollection<StaffDoc>("staff", { orderByField: "order" });
 
 export const usePlans = () => useShopCollection<PlanDoc>("plans", { orderByField: "price" });
 

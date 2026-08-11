@@ -45,6 +45,13 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  /* Sem isto o bundle enviado ao servidor leva `node_modules` inteiro — 606 MB,
+   * dos quais 128 MB são binários do compilador que só existem em tempo de
+   * build. `standalone` faz o Next rastrear apenas os arquivos realmente
+   * alcançados em execução. */
+  output: "standalone",
+
+
   /* O multi-tenant só é testável localmente com subdomínio de verdade
    * (osiqueira.lvh.me → 127.0.0.1). Sem liberar a origem, o servidor de
    * desenvolvimento recusa servir os assets para um host que não seja

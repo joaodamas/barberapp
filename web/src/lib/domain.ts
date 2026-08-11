@@ -48,6 +48,15 @@ export type InventoryMovementDoc = {
 
 export type BookingDoc = {
   clientId: string;
+  /**
+   * Qual barbeiro atende. Obrigatório desde a introdução do multi-barbeiro.
+   *
+   * Reserva sem dono não é ambígua só na agenda — ela some do cálculo de
+   * comissão e não bate com capacidade nenhuma. Barbearia sempre tem ao menos
+   * um barbeiro (criado no cadastro), então nunca existe motivo legítimo para
+   * este campo faltar.
+   */
+  staffId: string;
   clientName: string;
   clientWhatsapp: string;
   serviceIds: string[];
@@ -85,6 +94,45 @@ export type ExpenseDoc = {
   recurring: boolean;
   observations?: string;
 };
+
+/**
+ * Um barbeiro.
+ *
+ * RECURSO, não usuário. `members` é quem tem login; existe barbeiro que não
+ * quer aplicativo, não tem e-mail, e mesmo assim ocupa uma cadeira e precisa
+ * aparecer na agenda. Se o barbeiro só existisse com conta, o dono não
+ * conseguiria cadastrar metade da equipe.
+ */
+export type StaffDoc = {
+  name: string;
+  active: boolean;
+  /** Vínculo com uma conta, quando existe. */
+  uid?: string | null;
+  /** O que ele faz. Vazio = todos os serviços da barbearia. */
+  serviceIds?: string[];
+  /** Percentual dele na comissão. Ausente cai no padrão da plataforma. */
+  commissionPct?: number;
+  /** Jornada própria. Ausente = herda a da barbearia. */
+  schedule?: TenantScheduleLike | null;
+  /** Para distinguir na agenda em colunas. */
+  color?: string;
+  order?: number;
+};
+
+/** A parte da jornada que o barbeiro pode sobrescrever. */
+export type TenantScheduleLike = {
+  weekdays: number[];
+  opensAt: string;
+  closesAt: string;
+  breaks: Array<{ from: string; to: string }>;
+  slotMinutes: number;
+};
+
+/** Serviços que este barbeiro atende — vazio significa TODOS, não nenhum. */
+export function staffFazServico(staff: Pick<StaffDoc, "serviceIds">, serviceId: string) {
+  const lista = staff.serviceIds ?? [];
+  return lista.length === 0 || lista.includes(serviceId);
+}
 
 /**
  * Uma movimentação de fidelidade. O saldo é a SOMA das transações do cliente —
