@@ -61,7 +61,7 @@ Cria um ruleset novo e move dois releases: `cloud.firestore` e
 
 | Etapa | O que a API exige | Papel |
 |---|---|---|
-| Resolver o projeto | `firebase.projects.get` | `roles/firebase.viewer` |
+| Resolver o projeto | `firebase.projects.get`, `resourcemanager.projects.get` | **papel customizado `deployCiProjeto`** |
 | Atribuição de quota | `serviceusage.services.use` | `roles/serviceusage.serviceUsageConsumer` |
 | Regras (Firestore + Storage) | `firebaserules.*` | `roles/firebaserules.admin` |
 | Índices | `datastore.indexes.*` | `roles/datastore.indexAdmin` |
@@ -79,14 +79,21 @@ Cria um ruleset novo e move dois releases: `cloud.firestore` e
 
 ## 3. Onde o menor privilégio muda de verdade
 
-Cinco decisões que separam "funciona" de "funciona sem abrir a porta".
+Seis decisões que separam "funciona" de "funciona sem abrir a porta".
+
+**0. Papel customizado no lugar de `roles/firebase.viewer`.**
+O nome engana. O papel existe para *ver o console do Firebase*, e a definição
+real inclui `datastore.entities.get`/`list` (todo o Firestore, de todas as
+barbearias), `storage.objects.get`/`list` (todos os arquivos dos clientes),
+`firebaseauth.users.get` e `apikeys.keys.get`. O CLI usa **duas** permissões
+desse papel. Custom role com essas duas, e nada mais.
 
 **1. `actAs` no recurso, não no projeto.**
 `roles/iam.serviceAccountUser` no projeto deixa a esteira agir como *qualquer*
 conta de serviço — inclusive `firebase-adminsdk-fbsvc@`, que tem
 `iam.serviceAccountTokenCreator`. Quem tem isso emite custom token para
 qualquer uid, e entra como dono de qualquer barbearia. Amarrado só a
-`523105044821-compute@`, a esteira publica e não impersona ninguém.
+`523105044821-compute@`, a esteira não alcança essa conta.
 
 **2. Escrita só nos buckets de código.**
 `roles/storage.objectAdmin` no projeto inclui
@@ -109,16 +116,36 @@ precisa ligar uma API, e portanto não recebe permissão para ligar.
 
 E o óbvio: nada de `roles/editor` nem `roles/owner`.
 
-### Duas coisas que encontrei e não vou mexer
+### O teto real desta conta
 
-Não são do escopo do deploy, mas ficam registradas porque são reais.
+A trava do `actAs` é necessária e não é suficiente. A cadeia completa:
 
-- **`523105044821-compute@` tem `roles/editor` no projeto**, e é a conta de
-  runtime das 19 functions. Uma falha de execução em qualquer função é Editor
-  no projeto inteiro. É o padrão do Firebase, e corrigir exige conta de runtime
-  dedicada e redeploy geral — mudança de infraestrutura, não de esteira.
-- **`joaodamasit@gmail.com` é o único `owner`.** Não há segunda conta de
-  emergência. Perder essa conta é perder o projeto.
+```
+deploy-ci  --run.admin-->  publica um contêiner qualquer
+           --actAs----->   rodando como 523105044821-compute@
+                             que tem roles/editor no projeto
+                               → Firestore, Storage e Auth inteiros
+```
+
+`run.admin` é indispensável para functions gen2, e `actAs` na conta de runtime
+também. Portanto **o teto efetivo da conta de deploy é Editor no projeto**
+enquanto o SEC-001 existir. Não é pior que o estado anterior — o deploy saía de
+uma conta humana `owner`, estritamente mais poderosa — mas não é a fronteira
+dura que o desenho sugere à primeira leitura.
+
+Não escrever aqui que "a esteira não lê dado de cliente". Ela não lê
+diretamente; a cadeia chega lá.
+
+### Dívidas de segurança registradas
+
+| | | |
+|---|---|---|
+| **SEC-001** | `523105044821-compute@` tem `roles/editor` e é a conta de runtime das 19 functions. Uma falha de execução em qualquer função é Editor no projeto, e é o que define o teto da esteira. | **Alta** |
+| **SEC-002** | `joaodamasit@gmail.com` é o único `owner`. Não há conta de emergência: perder essa conta é perder o projeto. | Média |
+
+O SEC-001 deixou de ser higiene no dia em que a esteira ganhou `actAs` sobre
+essa conta. Corrigir exige conta de runtime dedicada e redeploy das 19
+functions — projeto próprio, depois do primeiro deploy.
 
 ### O passo de endurecimento seguinte
 
@@ -157,9 +184,16 @@ gcloud iam service-accounts create deploy-ci \
   --display-name="Deploy pela esteira do GitHub" \
   --project=$PROJETO
 
+# O CLI precisa resolver o projeto, e só. `roles/firebase.viewer` faria isso
+# entregando junto a leitura do Firestore e do Storage de todos os clientes.
+gcloud iam roles create deployCiProjeto --project=$PROJETO \
+  --title="Deploy CI — leitura do projeto" \
+  --description="Somente o necessário para o firebase-tools resolver o projeto" \
+  --permissions=firebase.projects.get,resourcemanager.projects.get
+
 # Papéis no projeto
 for PAPEL in \
-  roles/firebase.viewer \
+  projects/$PROJETO/roles/deployCiProjeto \
   roles/serviceusage.serviceUsageConsumer \
   roles/firebaserules.admin \
   roles/datastore.indexAdmin \
@@ -203,20 +237,69 @@ entra no repositório, não fica no Downloads, não vai para o Drive.
 
 ---
 
-## 6. Configurar o GitHub
+## 6. O lado do GitHub
 
-**Settings → Environments → New environment → `producao`**
+Configurado em 11/08/2026, **antes** de existir qualquer credencial. A ordem
+importa: um ambiente referenciado por um workflow é criado sozinho pelo GitHub,
+sem regra nenhuma, se ainda não existir.
+
+### Proteção do `main`
 
 | | |
 |---|---|
-| Required reviewers | sua conta — é o "manual approval" |
+| Push direto | bloqueado — toda mudança entra por PR |
+| Checks obrigatórios | os três jobs de `qualidade`, com a branch atualizada |
+| Administradores | **incluídos** — não há bypass |
+| Force push e deleção | bloqueados |
+
+**Aprovação de PR fica em zero, e é deliberado.** O GitHub não deixa o autor
+aprovar o próprio PR. Com um único colaborador, exigir uma aprovação tornaria
+todo merge impossível e a saída seria desligar a proteção a cada mudança —
+estritamente pior. O que resta obrigatório é o que dá para obrigar: PR e
+esteira verde.
+
+### Ambiente `producao`
+
+| | |
+|---|---|
 | Deployment branches | `main` apenas |
+| Required reviewer | sua conta |
+
+**Isso não é segregação de função.** Você é o único colaborador, e aprova o
+próprio deploy. É uma pausa deliberada antes de produção, não uma segunda
+pessoa revisando. Chamar de revisão criaria uma sensação de segurança que não
+existe.
+
+A restrição de branch, essa sim, é estrutural: `workflow_dispatch` dispara de
+qualquer branch por padrão, e a branch traria o próprio `deploy.yml` alterado
+junto. É ela que impede alguém de publicar com um workflow que não passou pela
+`main`.
 
 ### Segredo (1)
 
 | Nome | Valor |
 |---|---|
 | `FIREBASE_SERVICE_ACCOUNT` | conteúdo **inteiro** de `chave-deploy.json` |
+
+No ambiente `producao`, não no repositório: segredo de repositório é legível
+por qualquer workflow que alguém venha a criar.
+
+#### Como a chave vive dentro do runner
+
+O `firebase-tools` só aceita credencial de conta de serviço por **caminho de
+arquivo** (`GOOGLE_APPLICATION_CREDENTIALS`). A outra variável que ele
+reconhece, `FIREBASE_TOKEN`, é um refresh token de usuário — mais poderoso e
+mais duradouro, portanto pior. O arquivo é inevitável; a vida dele é o que dá
+para encurtar:
+
+- escrito **depois** de todo `npm ci`, para que nenhum `postinstall` de pacote
+  transitivo encontre a chave em disco;
+- em `$RUNNER_TEMP`, fora do workspace — nada que empacote o diretório do
+  projeto a leva junto;
+- `umask 077` na criação e `chmod 600` depois;
+- apagado num passo `if: always()`, mesmo se o deploy falhar no meio;
+- nunca impresso: a leitura do `project_id` para a trava de alvo é feita com
+  `try/catch` para que um JSON malformado não vaze fragmento no log.
 
 ### Variáveis (7)
 
