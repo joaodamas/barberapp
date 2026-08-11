@@ -1,13 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
-  caixaDiario, caixaDoDia, capacidadeDiaria, horariosDaJornada, indicadores,
+  caixaDiario, caixaDoDia, capacidadeDiaria, comissaoDeServicos, folhaMensal,
+  horariosDaJornada, indicadores,
   mesPeriodo, projecaoDeCaixa, receitaDoMes, recorrenciaDeClientes,
   resultadoDoMes, topServicos,
 } from "@/lib/analytics";
 import { mesAtual } from "@/lib/format";
 import { PLATFORM_DEFAULT_POLICIES } from "@/lib/tenant";
 import type { Doc } from "@/lib/db/repository";
-import type { BookingDoc, ExpenseDoc, InventoryMovementDoc, SubscriberDoc } from "@/lib/domain";
+import type {
+  BookingDoc, ExpenseDoc, InventoryMovementDoc, StaffDoc, SubscriberDoc,
+} from "@/lib/domain";
 
 const P = mesPeriodo("2026-07");
 
@@ -26,6 +29,9 @@ const mv = (o: Partial<InventoryMovementDoc> & { id: string }): Doc<InventoryMov
 const sub = (o: Partial<SubscriberDoc> & { id: string }): Doc<SubscriberDoc> => ({
   clientId: "c1", name: "João", planId: "p", planName: "Ilimitado", price: 149,
   status: "ativo", nextCharge: "2026-08-05", ...o,
+});
+const st = (o: Partial<StaffDoc> & { id: string }): Doc<StaffDoc> => ({
+  name: "Barbeiro", active: true, ...o,
 });
 
 describe("período", () => {
@@ -339,6 +345,91 @@ describe("projeção", () => {
     });
     expect(p.find((d) => d.date === "2026-09-30")?.fixedExpense).toBe(500);
     expect(p.reduce((s, d) => s + d.fixedExpense, 0)).toBe(500);
+  });
+});
+
+describe("mão de obra", () => {
+  const P8 = mesPeriodo("2026-07");
+
+  it("soma o salário de quem está no quadro", () => {
+    // A linha de folha do DRE era R$ 0,00 estrutural: `payroll` existia como
+    // parâmetro e nenhum chamador o preenchia.
+    expect(folhaMensal([st({ id: "1", salary: 2200 }), st({ id: "2", salary: 1800 })])).toBe(4000);
+  });
+
+  it("quem saiu do quadro não custa mais", () => {
+    expect(
+      folhaMensal([st({ id: "1", salary: 2200 }), st({ id: "2", salary: 1800, active: false })])
+    ).toBe(2200);
+  });
+
+  it("barbeiro só por comissão não vira NaN na folha", () => {
+    expect(folhaMensal([st({ id: "1" })])).toBe(0);
+    expect(folhaMensal([])).toBe(0);
+  });
+
+  it("cada barbeiro comissiona pelo percentual DELE", () => {
+    /* `commissionPct` existia desde o multi-barbeiro e nada o lia: quem foi
+     * contratado a 50% e quem entrou a 30% apareciam com o mesmo custo. */
+    const comissao = comissaoDeServicos({
+      bookings: [
+        bk({ id: "1", staffId: "a", value: 100 }),
+        bk({ id: "2", staffId: "b", value: 100 }),
+      ],
+      staff: [st({ id: "a", commissionPct: 50 }), st({ id: "b", commissionPct: 30 })],
+      periodo: P8,
+      padraoPct: 40,
+    });
+    expect(comissao).toBe(80); // 50 + 30, não 40 + 40
+  });
+
+  it("sem percentual próprio cai no padrão da barbearia", () => {
+    // O cadastro inicial grava `commissionPct: null`, não ausente.
+    const comissao = comissaoDeServicos({
+      bookings: [bk({ id: "1", staffId: "a", value: 100 })],
+      staff: [st({ id: "a", commissionPct: undefined })],
+      periodo: P8,
+      padraoPct: 40,
+    });
+    expect(comissao).toBe(40);
+  });
+
+  it("atendimento que não virou receita não gera comissão", () => {
+    const comissao = comissaoDeServicos({
+      bookings: [
+        bk({ id: "1", staffId: "a", value: 100, status: "no_show" }),
+        bk({ id: "2", staffId: "a", value: 100, status: "cancelled_by_client" }),
+        bk({ id: "3", staffId: "a", value: 100, date: "2026-06-10" }), // fora do período
+      ],
+      staff: [st({ id: "a", commissionPct: 50 })],
+      periodo: P8,
+      padraoPct: 40,
+    });
+    expect(comissao).toBe(0);
+  });
+
+  it("o DRE usa o percentual de cada um quando a equipe é informada", () => {
+    const bookings = [
+      bk({ id: "1", staffId: "a", value: 1000 }),
+      bk({ id: "2", staffId: "b", value: 1000 }),
+    ];
+    const receita = receitaDoMes({ bookings, movements: [], subscribers: [], periodo: P8 });
+    const staff = [st({ id: "a", commissionPct: 50 }), st({ id: "b", commissionPct: 30 })];
+
+    const comEquipe = resultadoDoMes({
+      receita, expenses: [], movements: [], periodo: P8,
+      policies: PLATFORM_DEFAULT_POLICIES, staff, bookings,
+    });
+    expect(comEquipe.commissions).toBe(800);
+
+    // Sem a equipe, cai no percentual único — que é o certo na operação solo.
+    const semEquipe = resultadoDoMes({
+      receita, expenses: [], movements: [], periodo: P8,
+      policies: PLATFORM_DEFAULT_POLICIES,
+    });
+    expect(semEquipe.commissions).toBe(
+      Math.round((2000 * PLATFORM_DEFAULT_POLICIES.commissionSplit.barberPct) / 100)
+    );
   });
 });
 

@@ -112,6 +112,14 @@ export type StaffDoc = {
   serviceIds?: string[];
   /** Percentual dele na comissão. Ausente cai no padrão da plataforma. */
   commissionPct?: number;
+  /**
+   * Salário mensal fixo, em reais.
+   *
+   * Alimenta a linha de folha do DRE, que era zero estrutural: `payroll`
+   * existia como parâmetro e nenhum chamador o preenchia, porque não havia
+   * onde cadastrar. Ausente = only comissão, que é o arranjo mais comum.
+   */
+  salary?: number;
   /** Jornada própria. Ausente = herda a da barbearia. */
   schedule?: TenantScheduleLike | null;
   /** Para distinguir na agenda em colunas. */

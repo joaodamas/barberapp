@@ -8,6 +8,7 @@ import {
   type ExpenseDoc,
   type InventoryMovementDoc,
   type ProductDoc,
+  type StaffDoc,
   type SubscriberDoc,
 } from "@/lib/domain";
 import type { Doc } from "@/lib/db/repository";
@@ -186,6 +187,48 @@ export function despesasRecorrentesVigentes(
   return [...porCompromisso.values()];
 }
 
+/**
+ * Folha mensal da equipe.
+ *
+ * Quem está fora do quadro não entra: o cadastro é preservado para o histórico
+ * e para um eventual retorno, mas o salário não é mais devido. Sem salário
+ * definido conta zero — o arranjo mais comum em barbearia é só comissão.
+ */
+export function folhaMensal(staff: Doc<StaffDoc>[]) {
+  return staff
+    .filter((s) => s.active !== false)
+    .reduce((soma, s) => soma + (s.salary ?? 0), 0);
+}
+
+/**
+ * Comissão de serviço, calculada POR RESERVA.
+ *
+ * O rateio era o percentual do tenant aplicado a um total, o que só funciona
+ * enquanto todo mundo ganha igual. `StaffDoc.commissionPct` existe desde o
+ * multi-barbeiro e nada o lia: o barbeiro contratado a 50% e o que entrou a
+ * 30% apareciam com o mesmo custo no DRE.
+ *
+ * Como cada reserva já carrega `staffId`, dá para atribuir a comissão a quem
+ * de fato atendeu. Quem não tem percentual próprio cai no padrão da barbearia.
+ */
+export function comissaoDeServicos(params: {
+  bookings: Doc<BookingDoc>[];
+  staff: Doc<StaffDoc>[];
+  periodo: Periodo;
+  padraoPct: number;
+}) {
+  const pctPorStaff = new Map(params.staff.map((s) => [s.id, s.commissionPct]));
+
+  let total = 0;
+  for (const b of params.bookings) {
+    if (!isRevenue(b) || !dentroDoPeriodo(b.date, params.periodo)) continue;
+    // `commissionPct` é gravado como `null` no cadastro inicial, não ausente.
+    const pct = pctPorStaff.get(b.staffId) ?? params.padraoPct;
+    total += (b.value * pct) / 100;
+  }
+  return Math.round(total);
+}
+
 export type ResultadoDoMes = ReturnType<typeof resultadoDoMes>;
 
 export function resultadoDoMes(params: {
@@ -196,6 +239,13 @@ export function resultadoDoMes(params: {
   policies: TenantPolicies;
   gatewayFeesTotal?: number;
   payroll?: number;
+  /**
+   * Equipe e reservas do período — juntas, permitem ratear a comissão por quem
+   * atendeu. Ausentes, a comissão cai no percentual único da barbearia, que é o
+   * comportamento correto para operação solo.
+   */
+  staff?: Doc<StaffDoc>[];
+  bookings?: Doc<BookingDoc>[];
 }) {
   const { receita, expenses, movements, periodo, policies } = params;
 
@@ -218,7 +268,7 @@ export function resultadoDoMes(params: {
 
   const gatewayFees = params.gatewayFeesTotal ?? 0;
 
-  /* Comissão do profissional, no rateio do tenant.
+  /* Comissão do profissional.
    *
    * A base era só o lucro de revenda de produto — o serviço, que é o negócio
    * inteiro de uma barbearia, ficava de fora. Numa loja de 400 cortes a R$ 50,
@@ -226,14 +276,24 @@ export function resultadoDoMes(params: {
    * custo variável da operação, invisível na tela que existe para decidir se
    * contrata ou demite barbeiro.
    *
-   * Serviço entra pelo valor cheio, que é como o contrato de barbeiro funciona
-   * no balcão. Produto continua sobre o lucro da revenda — é o que sobra para
-   * dividir depois de pagar a mercadoria. */
+   * Com a lista de profissionais, o serviço é rateado POR RESERVA, respeitando
+   * o percentual de cada um. Sem ela, cai no percentual da barbearia aplicado
+   * ao total — que é o certo enquanto todos ganham igual. Produto segue sobre o
+   * lucro da revenda: é o que sobra para dividir depois de pagar a mercadoria. */
   const receitaDeServico = receita.servicos + receita.encaixes;
   const lucroDeProduto = Math.max(receita.produtos - cmv, 0);
-  const commissions = Math.round(
-    ((receitaDeServico + lucroDeProduto) * policies.commissionSplit.barberPct) / 100
-  );
+  const padraoPct = policies.commissionSplit.barberPct;
+
+  const comissaoDeServico = params.staff
+    ? comissaoDeServicos({
+        bookings: params.bookings ?? [],
+        staff: params.staff,
+        periodo,
+        padraoPct,
+      })
+    : Math.round((receitaDeServico * padraoPct) / 100);
+
+  const commissions = comissaoDeServico + Math.round((lucroDeProduto * padraoPct) / 100);
 
   /* Simples Nacional (Anexo III) incide sobre RECEITA BRUTA, e é devido mesmo
    * no mês em que a barbearia dá prejuízo. Cobrar a alíquota sobre o resultado

@@ -6,7 +6,7 @@ import {
   useProducts, useServices, useStaff, useSubscribers, combineStatus,
 } from "@/lib/db/use-shop-data";
 import {
-  caixaDiario, capacidadeDiaria, horariosDaJornada, indicadores,
+  caixaDiario, capacidadeDiaria, folhaMensal, horariosDaJornada, indicadores,
   mapaDeCalor, mesPeriodo, projecaoDeCaixa, receitaDoMes,
   recorrenciaDeClientes, resultadoDoMes, topServicos,
 } from "@/lib/analytics";
@@ -49,7 +49,9 @@ export function useFinanceiro(mes: string, horizonte: Horizonte = "mensal") {
   const products = useProducts();
 
   const periodo = mesPeriodo(mes);
-  const status = combineStatus(bookings, expenses, movements, subscribers, services, products);
+  const status = combineStatus(
+    bookings, expenses, movements, subscribers, services, products, staff
+  );
 
   const receita = receitaDoMes({
     bookings: bookings.items,
@@ -65,6 +67,14 @@ export function useFinanceiro(mes: string, horizonte: Horizonte = "mensal") {
     movements: movements.items,
     periodo,
     policies: tenant.policies,
+    /* `payroll` era um parâmetro opcional que nenhum chamador preenchia, e a
+     * comissão usava o percentual único da barbearia mesmo com `commissionPct`
+     * gravado por profissional. Com a equipe e as reservas aqui, a linha de
+     * mão de obra do DRE deixa de ser R$ 0,00 estrutural e passa a respeitar o
+     * que cada barbeiro combinou. */
+    payroll: folhaMensal(staff.items),
+    staff: staff.items,
+    bookings: bookings.items,
   });
 
   const caixa = caixaDiario({
