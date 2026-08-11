@@ -96,10 +96,25 @@ export type TenantPaymentFees = {
   credito: number;
 };
 
+/**
+ * Configurável, portanto `number` — nunca o literal.
+ *
+ * `bookingPolicy` é `as const`, e herdar o tipo dele dava
+ * `lateToleranceMinutes: 15`: o tipo passava a afirmar que a tolerância É
+ * quinze, e a barbearia que salvasse 30 não compilava. Isso se sustenta
+ * enquanto o valor é constante de código; a tolerância deixou de ser.
+ *
+ * As demais políticas continuam com o tipo do literal só porque ninguém as
+ * edita ainda. Quando alguma virar campo de tela, ela passa por aqui.
+ */
+export type TenantBookingPolicy = {
+  [K in keyof typeof defaultBookingPolicy]: number;
+};
+
 export type TenantPolicies = {
   cancellation: typeof defaultCancellationPolicy;
   reschedule: typeof defaultReschedulePolicy;
-  booking: typeof defaultBookingPolicy;
+  booking: TenantBookingPolicy;
   loyalty: typeof defaultLoyaltyPolicy;
   commissionSplit: typeof defaultCommissionSplit;
   taxRatePct: number;

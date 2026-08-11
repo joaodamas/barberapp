@@ -80,6 +80,18 @@ export const bookingPolicy = {
   slotMinutes: 30,
   /** Prazo para o barbeiro responder a um pedido de encaixe (PRD §4, épico 6). */
   fitInExpirationMinutes: 45,
+  /**
+   * Quanto tempo depois do horário a reserva em aberto vira atraso.
+   *
+   * Barbearia trabalha com atraso normal — cliente que chega cinco minutos
+   * depois não é falta, é terça-feira. Com tolerância zero todo atendimento do
+   * dia viraria alerta e a seção "Precisa de você" perderia a credibilidade
+   * antes do almoço.
+   *
+   * É política, não constante: quem atende com hora marcada apertada quer 10;
+   * quem trabalha por ordem de chegada quer 40.
+   */
+  lateToleranceMinutes: 15,
 } as const;
 
 /** Dias da semana em que a barbearia abre (0 = domingo). Fechada aos domingos. */
