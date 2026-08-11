@@ -48,7 +48,12 @@ export default function AgendarPage() {
 
   const [step, setStep] = useState<Step>(1);
   const [staffId, setStaffId] = useState<string | null>(null);
-  const [horariosLivres, setHorariosLivres] = useState<string[] | null>(null);
+  /* A resposta carrega a CHAVE que a originou, e a lista exibida é derivada
+   * dela. Antes o efeito zerava o estado antes de cada busca — o que é setState
+   * dentro de efeito e provoca render em cascata. Derivar resolve os dois
+   * problemas de uma vez: não há limpeza a fazer, e a lista de um dia nunca
+   * aparece sob o outro enquanto a consulta nova viaja. */
+  const [resposta, setResposta] = useState<{ chave: string; slots: string[] } | null>(null);
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
   const [selectedDayIndex, setSelectedDayIndex] = useState(() =>
     firstBookableIndex(bookableDays())
@@ -126,10 +131,16 @@ export default function AgendarPage() {
    *
    * `availableSlots` faz a conta no servidor e devolve só as horas livres —
    * disponibilidade sem entregar a agenda. */
+  /* Primitivos, não os objetos: `selectedDay` e `barbeiroEscolhido` são
+   * recriados a cada render, e declará-los como dependência refaria a consulta
+   * sem parar. */
+  const diaIso = selectedDay?.iso;
+  const idDoBarbeiro = barbeiroEscolhido?.id;
+  const chaveDaConsulta = `${diaIso ?? ""}|${idDoBarbeiro ?? ""}|${totalDuration}`;
+
   useEffect(() => {
-    if (step !== 2 || !selectedDay || !barbeiroEscolhido) return;
+    if (step !== 2 || !diaIso || !idDoBarbeiro) return;
     let cancelado = false;
-    setHorariosLivres(null);
     (async () => {
       try {
         const { callFunction } = await import("@/lib/firebase");
@@ -138,20 +149,24 @@ export default function AgendarPage() {
           { slots: string[] }
         >("availableSlots", {
           barbershopId: tenant.id,
-          date: selectedDay.iso,
-          staffId: barbeiroEscolhido.id,
+          date: diaIso,
+          staffId: idDoBarbeiro,
           durationMin: totalDuration,
         });
-        if (!cancelado) setHorariosLivres(r.slots ?? []);
+        if (!cancelado) setResposta({ chave: chaveDaConsulta, slots: r.slots ?? [] });
       } catch (err) {
         console.error("[agendar] falha ao buscar horários", err);
-        if (!cancelado) setHorariosLivres([]);
+        if (!cancelado) setResposta({ chave: chaveDaConsulta, slots: [] });
       }
     })();
     return () => {
       cancelado = true;
     };
-  }, [step, selectedDay?.iso, barbeiroEscolhido?.id, totalDuration, tenant.id]);
+  }, [step, diaIso, idDoBarbeiro, totalDuration, tenant.id, chaveDaConsulta]);
+
+  /* Só vale a resposta desta combinação de dia, barbeiro e duração. Trocar
+   * qualquer uma volta a lista para "carregando" sem precisar limpá-la. */
+  const horariosLivres = resposta?.chave === chaveDaConsulta ? resposta.slots : null;
 
   const slots = (horariosLivres ?? []).map((time) => ({
     time,

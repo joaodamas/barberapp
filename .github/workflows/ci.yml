@@ -82,6 +82,13 @@ jobs:
       - run: npm ci
       - run: npm install -g firebase-tools
 
+      # `firebase.json` declara hosting com framework (`source: web`), e o
+      # `emulators:exec` carrega esse bloco mesmo com `--only firestore,storage`.
+      # Sem o experimento, ele aborta antes de subir o emulador — e a suíte de
+      # isolamento inteira ficava sem rodar, em silêncio, com o job vermelho.
+      - name: Habilitar webframeworks (exigido para carregar firebase.json)
+        run: firebase experiments:enable webframeworks
+
       # Prova que uma barbearia não alcança dado de outra. Um furo aqui vaza o
       # financeiro de um cliente pagante para outro — é o teste que não pode
       # faltar antes de qualquer deploy de regras.

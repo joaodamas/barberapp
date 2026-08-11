@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Plus, Trash2, UserPlus, Users } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { useServices, useStaff } from "@/lib/db/use-shop-data";
