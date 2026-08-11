@@ -1,0 +1,198 @@
+name: Deploy (produção)
+
+# Publicação manual, nunca automática.
+#
+# A regra que este arquivo existe para garantir: **o que vai para produção é
+# exatamente o commit que atravessou a esteira inteira**. O job `deploy` depende
+# de `qualidade`, que é a MESMA esteira do push — não uma cópia. Esteira
+# vermelha, nada publica.
+#
+# A segunda regra: **o alvo do deploy não depende de nada configurado na máquina
+# de ninguém.** Toda linha carrega `--project` explícito, e antes de publicar o
+# workflow confere que o `.firebaserc` e a própria credencial pertencem ao
+# projeto esperado. Credencial de outro projeto não erra o alvo: ela para.
+
+on:
+  workflow_dispatch:
+    inputs:
+      escopo:
+        description: O que publicar
+        type: choice
+        default: tudo
+        options:
+          - tudo
+          - somente hosting
+          - somente regras e índices
+          - somente functions
+
+# Dois deploys simultâneos disputariam o mesmo release do Hosting. O segundo
+# espera; nenhum é cancelado no meio.
+concurrency:
+  group: deploy-producao
+  cancel-in-progress: false
+
+jobs:
+  qualidade:
+    uses: ./.github/workflows/qualidade.yml
+
+  deploy:
+    name: publicar em axon-barber
+    needs: qualidade
+    runs-on: ubuntu-latest
+    # O ambiente é onde ficam a credencial e a configuração pública, e é onde se
+    # liga a aprovação obrigatória. Segredo de ambiente não é legível por
+    # qualquer workflow do repositório — segredo de repositório é.
+    environment: producao
+    permissions:
+      contents: read
+
+    env:
+      PROJETO: axon-barber
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Autenticar como a conta de serviço de deploy
+        env:
+          CREDENCIAL: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CREDENCIAL:-}" ]; then
+            echo "::error::secret FIREBASE_SERVICE_ACCOUNT ausente no ambiente 'producao'"
+            exit 1
+          fi
+          printf '%s' "$CREDENCIAL" > "$RUNNER_TEMP/conta-de-servico.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/conta-de-servico.json" >> "$GITHUB_ENV"
+
+      # A trava de alvo. Três origens independentes precisam concordar antes de
+      # qualquer escrita: o valor fixo aqui, o `.firebaserc` do commit e o
+      # projeto de quem assina a credencial. Uma alteração futura no workflow
+      # que aponte para outro lugar morre nesta etapa, não em produção.
+      - name: Conferir o alvo do deploy
+        env:
+          CREDENCIAL: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+          NO_REPO=$(node -p "require('./.firebaserc').projects.default")
+          # Lido com try/catch para que um JSON malformado não jogue pedaço de
+          # credencial no log.
+          DA_CREDENCIAL=$(node -e "try{process.stdout.write(String(JSON.parse(process.env.CREDENCIAL).project_id))}catch(e){process.stdout.write('ilegivel')}")
+
+          echo "alvo declarado no workflow : $PROJETO"
+          echo "alvo do .firebaserc        : $NO_REPO"
+          echo "projeto da credencial      : $DA_CREDENCIAL"
+
+          if [ "$NO_REPO" != "$PROJETO" ]; then
+            echo "::error::.firebaserc aponta para '$NO_REPO', e o deploy é de '$PROJETO'."
+            exit 1
+          fi
+          if [ "$DA_CREDENCIAL" != "$PROJETO" ]; then
+            echo "::error::a credencial pertence a '$DA_CREDENCIAL', e o deploy é de '$PROJETO'."
+            exit 1
+          fi
+
+      - run: npm ci
+        working-directory: functions
+      - run: npm ci
+        working-directory: web
+
+      - run: npm install -g firebase-tools@15.25.1
+      - name: Habilitar webframeworks (o Hosting deste projeto é framework-aware)
+        run: firebase experiments:enable webframeworks
+
+      # ── Índices e regras ────────────────────────────────────────────────
+      # Antes do código: índice novo leva minutos para ficar pronto e regra
+      # nova precisa existir antes da tela que depende dela.
+      - name: Índices do Firestore
+        if: inputs.escopo == 'tudo' || inputs.escopo == 'somente regras e índices'
+        run: firebase deploy --only firestore:indexes --project "$PROJETO" --non-interactive
+
+      - name: Regras do Firestore e do Storage
+        if: inputs.escopo == 'tudo' || inputs.escopo == 'somente regras e índices'
+        run: firebase deploy --only firestore:rules,storage --project "$PROJETO" --non-interactive
+
+      # ── Functions ───────────────────────────────────────────────────────
+      # Publicadas por NOME, uma a uma, e nunca com `--only functions` seco.
+      #
+      # Existe em produção uma função sem código no repositório
+      # (`revisarAssinaturas`). Um deploy por escopo aberto entende que ela foi
+      # apagada e tenta removê-la. A lista sai dos próprios exports compilados,
+      # então uma função nova entra sozinha e nada some por descuido.
+      - name: Descobrir as functions do repositório
+        if: inputs.escopo == 'tudo' || inputs.escopo == 'somente functions'
+        working-directory: functions
+        run: |
+          set -euo pipefail
+          npm run build
+          LISTA=$(node -e "
+            const m = require('./lib/index.js');
+            const nomes = Object.entries(m).filter(([, v]) => v && v.__endpoint).map(([k]) => k);
+            if (!nomes.length) { console.error('nenhuma function exportada em index.ts'); process.exit(1); }
+            process.stdout.write(nomes.map((n) => 'functions:' + n).join(','));
+          ")
+          echo "ALVOS_FUNCTIONS=$LISTA" >> "$GITHUB_ENV"
+          echo "$LISTA" | tr ',' '\n' | sed 's/^/  · /'
+
+      - name: Apontar functions em produção sem código no repositório
+        if: inputs.escopo == 'tudo' || inputs.escopo == 'somente functions'
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          firebase functions:list --project "$PROJETO" --json > /tmp/producao.json 2>/dev/null || exit 0
+          node -e "
+            const publicadas = JSON.parse(require('fs').readFileSync('/tmp/producao.json','utf8')).result || [];
+            const daqui = new Set(process.env.ALVOS_FUNCTIONS.split(',').map((a) => a.split(':')[1]));
+            // ssr* é criada pelo próprio Hosting framework-aware, não pelo repo.
+            const orfas = publicadas.map((f) => f.id).filter((id) => !daqui.has(id) && !id.startsWith('ssr'));
+            for (const o of orfas) console.log('::warning::function \'' + o + '\' roda em produção e não tem código no repositório — este deploy não a toca');
+          "
+
+      - name: Cloud Functions
+        if: inputs.escopo == 'tudo' || inputs.escopo == 'somente functions'
+        run: firebase deploy --only "$ALVOS_FUNCTIONS" --project "$PROJETO" --non-interactive
+
+      # ── Hosting ─────────────────────────────────────────────────────────
+      # Por último: é a chave que liga o que foi publicado para o cliente.
+      #
+      # Estas sete variáveis são configuração PÚBLICA — vão inteiras no bundle
+      # que qualquer visitante baixa. Ficam em `vars`, não em `secrets`, porque
+      # chamar de segredo o que é público ensina a equipe a tratar segredo de
+      # verdade com a mesma displicência.
+      - name: Hosting (site + renderização no servidor)
+        if: inputs.escopo == 'tudo' || inputs.escopo == 'somente hosting'
+        env:
+          NEXT_PUBLIC_FIREBASE_API_KEY: ${{ vars.NEXT_PUBLIC_FIREBASE_API_KEY }}
+          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ vars.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ vars.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+          NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ vars.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
+          NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
+          NEXT_PUBLIC_FIREBASE_APP_ID: ${{ vars.NEXT_PUBLIC_FIREBASE_APP_ID }}
+          NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID: ${{ vars.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "${NEXT_PUBLIC_FIREBASE_PROJECT_ID:-}" ]; then
+            echo "::error::variáveis NEXT_PUBLIC_FIREBASE_* ausentes no ambiente 'producao'"
+            exit 1
+          fi
+          if [ "$NEXT_PUBLIC_FIREBASE_PROJECT_ID" != "$PROJETO" ]; then
+            echo "::error::o app web aponta para '$NEXT_PUBLIC_FIREBASE_PROJECT_ID' e o deploy é de '$PROJETO'."
+            exit 1
+          fi
+          firebase deploy --only hosting --project "$PROJETO" --non-interactive
+
+      - name: Registrar o que foi publicado
+        if: always()
+        run: |
+          {
+            echo "### Deploy em \`$PROJETO\`"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| commit | \`${GITHUB_SHA:0:7}\` |"
+            echo "| escopo | ${{ inputs.escopo }} |"
+            echo "| publicado por | @${GITHUB_ACTOR} |"
+            echo "| site | https://axon-barber.web.app |"
+          } >> "$GITHUB_STEP_SUMMARY"

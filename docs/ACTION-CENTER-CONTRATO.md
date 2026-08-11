@@ -69,6 +69,23 @@ Aprovados em 11/08. Valem para toda regra, presente e futura.
    pagamento não pode gerar três itens com nomes diferentes. O `id` do item é
    derivado de tipo + alvo, e isso é o que garante a unicidade.
 
+### Dívida registrada no 2.1
+
+O `id` de hoje é `"fechamento-pendente:abc123"` — tipo e alvo existem, mas
+**colados numa string**. Quem quiser contar quantos fechamentos pendentes
+apareceram no mês, ou agrupar por tipo na tela, precisa quebrar texto.
+
+Falta separar em dois campos:
+
+```ts
+type: "fechamento-pendente"      // o QUE é
+reference: { kind: "booking", id: "abc123" }   // sobre QUEM é
+```
+
+Só vale implementar junto com a primeira necessidade real (métrica de
+recorrência ou agrupamento na UI) — antes disso é campo derivado sem
+consumidor. O `id` continua canônico e continua sendo a garantia de unicidade.
+
 ## 2. Vocabulário de prioridade
 
 | Nível | Significado | Custo de ignorar |

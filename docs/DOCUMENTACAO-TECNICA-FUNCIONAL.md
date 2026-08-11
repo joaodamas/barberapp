@@ -974,16 +974,19 @@ cd functions && npx tsc --noEmit && npm test
 # Regras (exige emulador)
 cd functions && npm run test:rules
 
-# Deploy
-npx firebase deploy --only firestore:rules,storage
-npx firebase deploy --only functions
-npx firebase deploy --only hosting
+# Deploy — pela esteira, não pela máquina local.
+# GitHub → Actions → "Deploy (produção)" → Run workflow
 ```
+
+O deploy manual pela máquina local continua funcionando, mas deixou de ser o
+caminho: ele publica o que está no disco de alguém, e não o commit que passou
+pela esteira. Ver `.github/workflows/deploy.yml`.
 
 ### Armadilhas conhecidas
 
 - **Deploy de Hosting no Windows** falha com `EPERM: symlink` sem o Modo de
-  Desenvolvedor ativado ou terminal como administrador.
+  Desenvolvedor ativado ou terminal como administrador. É o motivo de o deploy
+  ter migrado para o CI — o runner é Linux e o problema não existe lá.
 - **`npm install` em `functions/`** nesta máquina remove `@emnapi/core` e
   `@emnapi/runtime` do lockfile — dependências opcionais que o build remoto
   (Node 22/Linux) precisa. Conferir o lock antes de commitar.
@@ -991,4 +994,11 @@ npx firebase deploy --only hosting
   16.2.12.
 - **Deploy de functions com órfãs**: há uma função (`revisarAssinaturas`) em
   produção sem código-fonte no repositório. Um `deploy --only functions` tenta
-  removê-la e aborta; deployar por nome contorna.
+  removê-la e aborta; deployar por nome contorna. O workflow de deploy monta a
+  lista a partir dos exports compilados e avisa quando encontra uma órfã.
+
+### Dívidas de DX registradas
+
+| Item | Impacto | Prioridade |
+|---|---|---|
+| `npm run test:rules` não roda no Windows — o Git Bash não preserva as aspas simples do script e o `emulators:exec` recebe "Too many arguments". Roda no CI (bash de verdade) e roda localmente trocando por aspas duplas. | Dev no Windows não consegue rodar os 66 testes de isolamento pelo atalho. A rede de segurança existe no CI. | Baixa |
