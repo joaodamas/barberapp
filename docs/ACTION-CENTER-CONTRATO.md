@@ -195,18 +195,41 @@ Passou do horário e a reserva continua em aberto.
 
 | | |
 |---|---|
-| **Condição** | `status ∈ {confirmed, confirmed_by_client}` **e** `data+hora + tolerância < agora`, no fuso do tenant |
-| **Fonte** | `bookings` + `tenant.locale.timeZone` |
-| **Ação** | *Concluir* · *Marcar falta* |
+| **Condição** | `status ∈ {confirmed, confirmed_by_client}` **e** `data+hora + tolerância < agora` |
+| **Fonte** | `bookings` + `policies.booking.lateToleranceMinutes` |
+| **Ação** | *Concluir atendimento* · *Marcar falta* |
 | **Some quando** | vira `completed`, `no_show` ou cancelado |
-| **Confiança** | 🟡 estimado — o sistema infere do relógio, não observa a cadeira |
-| **Eventos** | `cliente.nao_compareceu` para a segunda ação |
-| **Suporte hoje** | ⚠️ detecção sim; a ação "marcar falta" não existe |
+| **Confiança** | 🟢 real — ver a correção abaixo |
+| **Eventos** | nenhum novo: a falta é uma transição de `status` |
+| **Suporte hoje** | ✅ **no ar desde 11/08**, com as duas ações |
 
-> **Tolerância precisa ser política, não constante.** Barbearia trabalha com
-> atraso normal. Sugiro `policies.booking.lateToleranceMinutes`, padrão 15 —
-> sem isso, todo atendimento vira alerta e a seção perde credibilidade antes do
-> almoço.
+> **Tolerância é política, não constante.** `policies.booking.lateToleranceMinutes`,
+> padrão 15, editável em Configurações. Barbearia trabalha com atraso normal;
+> com tolerância curta demais todo atendimento vira alerta e a seção perde
+> credibilidade antes do almoço.
+
+> **Correção ao catálogo: a confiança é real, não estimada.**
+>
+> Como estava escrito, este item contradizia o invariante 3 — 🟡 estimado e 🔴
+> crítico ao mesmo tempo, sendo que estimado nunca pode ser crítico. A
+> contradição não era do invariante: era de o item estar enunciado como a
+> conclusão errada.
+>
+> O que o motor afirma é verificável no dado: **esta reserva não teve desfecho e
+> o horário dela passou da tolerância.** Nada aí é inferido. O que seria
+> inferência — *"o cliente não veio"* — não é afirmado em lugar nenhum: é
+> exatamente a pergunta que o item devolve ao dono. Daí as duas ações.
+>
+> A regra que fica, e vale para as próximas: **quando um fato comporta duas
+> leituras opostas, o item enuncia o fato e oferece as duas saídas.** Enunciar
+> a leitura mais provável seria estimativa vestida de certeza, e cairia no
+> invariante 3.
+
+> **Duas ações são a exceção, não o padrão.** `ActionItem.secondary` só existe
+> porque uma opção só faria o dono marcar falta de quem ele acabou de atender.
+> Não é lugar de ação conveniente: entra quando o item seria enganoso com uma
+> opção só, e o card deixa de ser clicável por inteiro para que o toque errado
+> não seja o desenho.
 
 ### 4.3 🔴 Encaixe aguardando resposta
 
@@ -246,14 +269,10 @@ Passou do horário e a reserva continua em aberto.
 | **Fonte** | `bookings` |
 | **Ação** | *Reagendar* · *Registrar ocorrência* |
 | **Some quando** | reagendado, ou a ocorrência é registrada |
-| **Confiança** | 🟢 real, uma vez que o estado seja alcançável |
+| **Confiança** | 🟢 real |
 | **Eventos** | `reserva.nao_compareceu` — grava `status = no_show` na reserva |
-| **Suporte hoje** | ❌ **estado órfão — nada grava `no_show`** |
+| **Suporte hoje** | ⚠️ **o estado deixou de ser órfão**; o item de tratamento posterior ainda não existe |
 
-> **Pré-requisito do bloco: dar um caminho ao `no_show`.** Sem ele não há como
-> medir falta, entender perda de receita nem alimentar a régua de pagamento
-> antecipado, cujo template de WhatsApp já existe.
->
 > **`client_occurrences` NÃO entra junto.** São camadas diferentes: `no_show` é
 > evento operacional da reserva; `client_occurrences` é estrutura relacional do
 > cliente. Acoplar as duas criaria uma pseudo-entidade de cliente antes de
@@ -263,10 +282,29 @@ Passou do horário e a reserva continua em aberto.
 > Bloco 2:  Booking → no_show                    (operacional)
 > Bloco 3:  Booking + Client → client_occurrences (relacional)
 > ```
+
+> **Decidido em 11/08 — quem dispara o `no_show`: o dono, e só ele.**
 >
-> Quem dispara o `no_show` é decisão de produto ainda em aberto: dono marca à
-> mão, o sistema sugere após a tolerância, ou fecha automaticamente no fim do
-> expediente. **Definir antes de implementar.**
+> As três opções em aberto eram: dono marca à mão, o sistema sugere após a
+> tolerância, ou o fim do expediente converte automaticamente. **Adotadas as
+> duas primeiras juntas** — mesma escrita, dois pontos de entrada: o botão
+> *"Não veio"* na linha da agenda e o item 4.2 na coluna lateral. Nenhum dos
+> dois grava sem confirmação.
+>
+> **O fechamento automático foi recusado**, e não por conservadorismo: o dono
+> que atendeu, cobrou e esqueceu de fechar ganharia uma falta falsa no
+> histórico do cliente — que amanhã alimenta a régua de pagamento antecipado e
+> a taxa de no-show. Um erro assim não se vê: o número simplesmente fica errado
+> para sempre, e quem paga é o cliente que nunca faltou.
+>
+> **A falta não é beco sem saída.** Cliente que aparece 40 minutos depois volta
+> a ser atendimento pelo mesmo caminho — a linha da agenda oferece *"Veio
+> depois"*. Sem isso, um toque errado só teria correção no banco.
+>
+> **`no_show` continua ocupando o slot** (`OCCUPIES_SLOT`) e não é receita
+> (`isRevenue`). O horário foi reservado e ninguém mais pôde usá-lo: é
+> exatamente o custo que a falta representa, e apagá-lo da ocupação faria a
+> agenda mentir sobre a capacidade do dia.
 
 ### 4.6 🟡 Profissional ocioso
 
@@ -346,7 +384,7 @@ Passou do horário e a reserva continua em aberto.
 
 | Evento | Materializa | Destrava |
 |---|---|---|
-| `cliente.nao_compareceu` | `client_occurrences` | 4.5, régua de antecipado, no-show em indicadores |
+| ~~`cliente.nao_compareceu`~~ | ✅ `status = no_show` na reserva | 4.5, régua de antecipado, no-show em indicadores |
 | `reserva.remarcada` | `rescheduleCount` na reserva | política de 2 remarcações, hoje burlável com F5 |
 | `encaixe.expirado` | `status = expired` | 4.3 parar de acumular pendência eterna |
 | `atendimento.iniciado` *(a decidir)* | `status` novo | ocupação real em vez de inferida do relógio |
@@ -362,19 +400,28 @@ se o dono reclamar de alarme falso.
 
 | Situação | Estado | O que falta |
 |---|---|---|
-| 4.1 Fechamento pendente | ✅ pronta para implementar | nada |
-| 4.3 Encaixe aguardando | ✅ já no ar | expiração |
-| 4.4 Sem serviço | ✅ já no ar | nada |
-| 4.10 Taxas não configuradas | ✅ pronta para implementar | nada |
-| 4.2 Atendimento atrasado | ⚠️ detecção | tolerância em `policies`, ação "marcar falta" |
+| 4.1 Fechamento pendente | ✅ no ar | nada |
+| 4.2 Atendimento atrasado | ✅ no ar | nada |
+| 4.3 Encaixe aguardando | ✅ no ar | expiração |
+| 4.4 Sem serviço | ✅ no ar | nada |
+| 4.10 Taxas não configuradas | ✅ no ar | nada |
 | 4.6 Profissional ocioso | ⚠️ dados existem | regra de janela |
-| 4.5 Não compareceu | ❌ | caminho para `no_show` + `client_occurrences` |
+| 4.5 Não compareceu | ⚠️ estado alcançável | item de tratamento posterior + `client_occurrences` |
 | 4.7 Ritmo abaixo | ❌ | regra + trava de histórico mínimo |
 | 4.8 Horário em alta demanda | ❌ | definição de faixa |
 | 4.9 Cliente fora do intervalo | ❌ | entidade Cliente (Bloco 3) |
 
-**Quatro situações são implementáveis sem nenhuma entidade nova.** Duas delas já
-estão no ar. É por aí que o bloco começa.
+**Cinco situações no ar, nenhuma entidade nova criada.** O que sobrou depende de
+regra de janela, de histórico acumulado ou da entidade Cliente.
+
+### Dívida aberta pelo 4.2
+
+O motor só enxerga as reservas do dia — é o que a tela "Hoje" carrega. Uma
+reserva de ontem que ficou em aberto não aparece em lugar nenhum e apodrece:
+não é receita, não é falta, e some do dia seguinte. Enquanto o dono usa o painel
+todo dia isso não incomoda; depois de um fim de semana, incomoda. **Fecha junto
+com a expiração de encaixe** — são o mesmo problema, o de nada varrer o que
+ficou para trás.
 
 ---
 
@@ -411,13 +458,16 @@ autoridade no dia em que o dono descobre que um alerta era chute.
 
 ## 9. Ordem sugerida de implementação
 
-1. **4.1 fechamento pendente** — crítica, fonte pronta, fecha o ciclo do Bloco 1
-2. **4.10 taxas não configuradas** — barata, evita que o DRE minta em silêncio
-3. **`no_show` + `client_occurrences`** — destrava 4.5 e o resto do ciclo
-4. **4.2 atraso** com tolerância em `policies`
-5. **`rescheduleCount`** e **expiração de encaixe** — fecham os desvios do ciclo
+1. ~~**4.1 fechamento pendente**~~ — ✅ no ar
+2. ~~**4.10 taxas não configuradas**~~ — ✅ no ar
+3. ~~**`no_show` alcançável**~~ — ✅ no ar, marcado por quem estava no balcão
+4. ~~**4.2 atraso** com tolerância em `policies`~~ — ✅ no ar, entregue junto com o 3
+5. **`rescheduleCount`**, **expiração de encaixe** e a **varredura do que ficou
+   para trás** — fecham os desvios do ciclo, e são o mesmo problema
 6. **4.6 ocioso** — primeiro item que exige 2+ profissionais
 7. **4.7 e 4.8** — só depois de haver histórico que os sustente
+8. **`client_occurrences`** — Bloco 3, junto com a entidade Cliente
 
-As três primeiras não dependem de entidade nova nem de decisão de produto
-pendente.
+Os passos 3 e 4 saíram juntos porque são a mesma entrega: o caminho para o
+`no_show` só é útil se algo apontar quando usá-lo, e o alerta de atraso só é
+honesto se houver as duas saídas.

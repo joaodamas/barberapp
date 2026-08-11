@@ -200,10 +200,19 @@ function toTenant(id: string, data: Record<string, unknown>): Tenant {
      *
      * `paymentFees` precisa de merge próprio: o spread é raso, e uma barbearia
      * que gravou só a taxa do crédito perderia as outras três para `undefined`
-     * — que vira NaN no cálculo do líquido. */
+     * — que vira NaN no cálculo do líquido.
+     *
+     * `booking` tem o mesmo risco, e ele deixou de ser teórico quando a
+     * tolerância de atraso virou campo editável: salvar só
+     * `policies.booking.lateToleranceMinutes` faria a barbearia perder
+     * antecedência mínima, janela da agenda e prazo do encaixe — e uma agenda
+     * com `minAdvanceMinutes: undefined` aceita reserva para um horário que já
+     * passou. Toda política que for objeto e virar editável precisa entrar
+     * aqui; as demais só não estão porque ninguém grava parte delas ainda. */
     policies: {
       ...PLATFORM_DEFAULT_POLICIES,
       ...policies,
+      booking: { ...PLATFORM_DEFAULT_POLICIES.booking, ...(policies.booking ?? {}) },
       paymentFees: { ...DEFAULT_PAYMENT_FEES, ...(policies.paymentFees ?? {}) },
     },
     /* Derivar do plano, não do catálogo completo.

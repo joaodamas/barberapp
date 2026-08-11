@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import {
   AlertCircle,
@@ -11,6 +11,7 @@ import {
   Landmark,
   Percent,
   Scissors,
+  UserX,
   Wallet,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -18,7 +19,14 @@ import { Pill } from "@/components/ui/pill";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { bookingStatusMeta } from "@/lib/booking-status";
-import { avaliarOperacao, repartirParaExibicao, type ActionItem } from "@/lib/action-center";
+import {
+  avaliarOperacao,
+  estaAtrasado,
+  minutosDeAtraso,
+  repartirParaExibicao,
+  type ActionIntent,
+  type ActionItem,
+} from "@/lib/action-center";
 import { usePayments } from "@/lib/db/use-shop-data";
 import type { PaymentMethod } from "@/lib/types";
 import { labelDoPagamento, PAYMENT_METHODS, paymentMethodLabel } from "@/lib/payment-method";
@@ -44,6 +52,9 @@ export default function PainelHojePage() {
 
   const hoje = toISODate(new Date());
   const bookings = todas.filter((b) => b.date === hoje);
+
+  const agora = useRelogio();
+  const toleranciaAtrasoMin = tenant.policies.booking.lateToleranceMinutes;
 
   const getServicesByIds = (ids: string[]) =>
     ids.map((id) => services.find((s) => s.id === id)).filter(Boolean) as Array<{ name: string }>;
@@ -82,12 +93,15 @@ export default function PainelHojePage() {
     payments: payments.items,
     fees: tenant.policies.paymentFees,
     periodo: mesPeriodo(monthOf(hoje)),
+    agora,
+    toleranciaAtrasoMin,
   });
   const { visiveis: acoesVisiveis, ocultos: acoesOcultas } =
     repartirParaExibicao(itensDeAcao);
 
   const semColunaLateral = itensDeAcao.length === 0 && fitInRequests.length === 0;
   const [aFechar, setAFechar] = useState<Doc<BookingDoc> | null>(null);
+  const [faltaDe, setFaltaDe] = useState<Doc<BookingDoc> | null>(null);
 
   const caixaHoje = caixaDoDia(agendados);
   const recebidoReal = caixaHoje.total;
@@ -111,6 +125,39 @@ export default function PainelHojePage() {
       status: "completed",
       paymentMethod: metodo,
     }).catch((e) => console.error("[hoje] falha ao concluir", e));
+  }
+
+  /**
+   * A falta é marcada por quem estava no balcão — nunca pelo sistema.
+   *
+   * Fechar o expediente convertendo em falta tudo que ficou em aberto seria
+   * mais cômodo e estaria errado: o dono que atendeu, cobrou e esqueceu de
+   * fechar ganharia uma falta falsa no histórico do cliente — que amanhã
+   * alimenta régua de pagamento antecipado. O sistema aponta o que está em
+   * aberto; quem viu a cadeira decide o que aconteceu.
+   *
+   * Não materializa dinheiro: `payments` e `commissions` nascem da conclusão,
+   * e falta não é receita. O horário continua ocupado na agenda (`no_show`
+   * está em `OCCUPIES_SLOT`), porque ele foi reservado e ninguém mais pôde
+   * usá-lo — é exatamente o custo que a falta representa.
+   */
+  function marcarFalta() {
+    const booking = faltaDe;
+    if (!booking) return;
+    setFaltaDe(null);
+    void patchDoc(tenant.id, "bookings", booking.id, {
+      status: "no_show",
+    }).catch((e) => console.error("[hoje] falha ao marcar falta", e));
+  }
+
+  /* A tela não decide nada: recebe a intenção que o motor declarou e sabe onde
+   * ela acontece. `navegar` nem chega aqui — vira `Link` no próprio item. */
+  function executarIntencao(intent: ActionIntent) {
+    if (intent.kind === "navegar") return;
+    const alvo = bookings.find((b) => b.id === intent.bookingId);
+    if (!alvo) return;
+    if (intent.kind === "fecharAtendimento") setAFechar(alvo);
+    else setFaltaDe(alvo);
   }
 
   function resolveFitIn(booking: Doc<BookingDoc>, approve: boolean) {
@@ -257,14 +304,7 @@ export default function PainelHojePage() {
           </h2>
           <div className="flex flex-col gap-2 md:gap-3">
             {acoesVisiveis.map((item) => (
-              <ItemDeAcao
-                key={item.id}
-                item={item}
-                onFechar={(id) => {
-                  const alvo = bookings.find((b) => b.id === id);
-                  if (alvo) setAFechar(alvo);
-                }}
-              />
+              <ItemDeAcao key={item.id} item={item} onExecutar={executarIntencao} />
             ))}
             {acoesOcultas.length > 0 && (
               <p className="px-1 text-xs text-ivory-muted">
@@ -372,9 +412,24 @@ export default function PainelHojePage() {
                 {bookingsDoDia.map((booking) => {
                   const statusMeta = bookingStatusMeta[booking.status];
                   const bookingServices = getServicesByIds(booking.serviceIds);
-                  const canComplete =
+                  const emAberto =
                     booking.status === "confirmed" ||
                     booking.status === "confirmed_by_client";
+                  /* A falta não é beco sem saída: cliente que aparece 40 min
+                   * depois volta a ser atendimento pelo mesmo caminho. Sem
+                   * isso, um toque errado no "Não veio" viraria receita perdida
+                   * no relatório, e a única correção seria mexer no banco. */
+                  const podeConcluir = emAberto || booking.status === "no_show";
+                  /* Quem responde "isto está atrasado?" é o motor — a tela só
+                   * pergunta. Comparar minuto com tolerância aqui daria duas
+                   * verdades: a coluna lateral acusando o atraso e a linha ao
+                   * lado sem oferecer a ação. */
+                  const atrasado = estaAtrasado({
+                    booking,
+                    agora,
+                    toleranciaMin: toleranciaAtrasoMin,
+                  });
+                  const atrasoMin = agora ? minutosDeAtraso(booking, agora) : null;
                   const digitos = String(booking.clientWhatsapp ?? "").replace(/\D/g, "");
 
                   return (
@@ -384,6 +439,11 @@ export default function PainelHojePage() {
                     >
                       <td className="whitespace-nowrap px-4 py-3 font-display text-gold-light md:px-6">
                         {booking.time}
+                        {atrasado && (
+                          <span className="block font-sans text-[11px] text-danger">
+                            {atrasoMin} min atrasado
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-ivory">
                         {booking.clientName}
@@ -417,16 +477,31 @@ export default function PainelHojePage() {
                         {formatBRL(booking.value)}
                       </td>
                       <td className="px-4 py-3 md:px-6">
-                        {canComplete ? (
-                          <button
-                            onClick={() => setAFechar(booking)}
-                            className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ivory-muted transition-colors hover:border-success hover:text-success"
-                          >
-                            <Check size={14} /> Concluir
-                          </button>
-                        ) : (
-                          <Pill tone={statusMeta.tone}>{statusMeta.label}</Pill>
-                        )}
+                        <div className="flex flex-wrap items-center gap-2">
+                          {!emAberto && (
+                            <Pill tone={statusMeta.tone}>{statusMeta.label}</Pill>
+                          )}
+                          {podeConcluir && (
+                            <button
+                              onClick={() => setAFechar(booking)}
+                              className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ivory-muted transition-colors hover:border-success hover:text-success"
+                            >
+                              <Check size={14} />
+                              {booking.status === "no_show" ? "Veio depois" : "Concluir"}
+                            </button>
+                          )}
+                          {/* Só depois da tolerância. Oferecer "não veio" às
+                              13:59 para um horário das 14:00 é convidar o erro
+                              no gesto mais repetido do dia. */}
+                          {atrasado && (
+                            <button
+                              onClick={() => setFaltaDe(booking)}
+                              className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ivory-muted transition-colors hover:border-danger hover:text-danger"
+                            >
+                              <UserX size={14} /> Não veio
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -466,7 +541,93 @@ export default function PainelHojePage() {
           depois. Ajuste em Configurações.
         </p>
       </Modal>
+
+      {/* Falta pede confirmação; concluir não.
+          Não é simetria perdida — concluir é o desfecho esperado e acontece
+          dezenas de vezes por dia, enquanto a falta entra no histórico do
+          cliente e é a única das duas que alguém pode acionar sem querer, a
+          partir de um item da coluna lateral. */}
+      <Modal
+        open={!!faltaDe}
+        onClose={() => setFaltaDe(null)}
+        title="Marcar falta?"
+      >
+        <p className="mb-3 text-sm text-ivory">
+          {faltaDe?.clientName} · {faltaDe?.time} ·{" "}
+          {faltaDe ? formatBRL(faltaDe.value) : ""}
+        </p>
+        <p className="mb-5 text-sm text-ivory-muted">
+          O valor não entra como receita do dia, e o horário continua ocupado na
+          agenda — foi reservado e ninguém mais pôde usá-lo. Se ele aparecer
+          depois, é só concluir o atendimento normalmente.
+        </p>
+        <div className="flex gap-2">
+          <Button className="flex-1" onClick={marcarFalta}>
+            Confirmar falta
+          </Button>
+          <Button
+            variant="secondary"
+            className="flex-1"
+            onClick={() => setFaltaDe(null)}
+          >
+            Cancelar
+          </Button>
+        </div>
+      </Modal>
     </div>
+  );
+}
+
+/**
+ * O relógio como fonte externa — que é o que ele é: um sistema fora do React,
+ * que muda sozinho e que ninguém deriva de estado nenhum.
+ *
+ * Por que existe: `new Date()` lido no render congela no instante da montagem.
+ * O atendimento das 14:00 continuaria "no horário" às 15:30 até que outra coisa
+ * provocasse re-render — e a única coisa que provoca é chegar reserva nova, que
+ * é justamente o que não acontece num dia parado.
+ *
+ * Um intervalo só, compartilhado por quem estiver ouvindo, e desligado quando o
+ * último sai. `useSyncExternalStore` exige que a leitura devolva a MESMA
+ * referência enquanto o dado não muda — daí o cache; devolver `new Date()` a
+ * cada leitura faria o React re-renderizar para sempre.
+ */
+const INTERVALO_RELOGIO_MS = 60_000;
+
+let agoraCache: Date | null = null;
+let timerRelogio: ReturnType<typeof setInterval> | null = null;
+const ouvintesDoRelogio = new Set<() => void>();
+
+function assinarRelogio(notificar: () => void) {
+  ouvintesDoRelogio.add(notificar);
+
+  if (!timerRelogio) {
+    timerRelogio = setInterval(() => {
+      agoraCache = new Date();
+      for (const ouvinte of ouvintesDoRelogio) ouvinte();
+    }, INTERVALO_RELOGIO_MS);
+  }
+
+  /* A primeira hora chega aqui, na assinatura — e não no render. É o que tira
+   * o relógio do servidor: lá o valor é `null`, e um alerta que aparece no HTML
+   * e some na hidratação é pior que um que chega um instante depois. */
+  agoraCache = new Date();
+  notificar();
+
+  return () => {
+    ouvintesDoRelogio.delete(notificar);
+    if (ouvintesDoRelogio.size === 0 && timerRelogio) {
+      clearInterval(timerRelogio);
+      timerRelogio = null;
+    }
+  };
+}
+
+function useRelogio() {
+  return useSyncExternalStore(
+    assinarRelogio,
+    () => agoraCache,
+    () => null
   );
 }
 
@@ -474,16 +635,16 @@ export default function PainelHojePage() {
  * Um item do Action Center.
  *
  * A tela NÃO decide se algo é alerta, nem qual a gravidade — só sabe desenhar o
- * que o motor entregou e executar a intenção declarada. `navegar` vira link;
- * `fecharAtendimento` abre o modal aqui mesmo, porque a ação acontece nesta
+ * que o motor entregou e executar a intenção declarada. `navegar` vira link; o
+ * resto abre o modal correspondente aqui mesmo, porque a ação acontece nesta
  * tela e o motor não pode conhecer React.
  */
 function ItemDeAcao({
   item,
-  onFechar,
+  onExecutar,
 }: {
   item: ActionItem;
-  onFechar: (bookingId: string) => void;
+  onExecutar: (intent: ActionIntent) => void;
 }) {
   const tom =
     item.severity === "critical"
@@ -492,12 +653,45 @@ function ItemDeAcao({
         ? "text-gold-light"
         : "text-ivory-muted";
 
+  const cabecalho = (
+    <>
+      <p className="text-sm text-ivory">{item.title}</p>
+      <p className="mt-0.5 text-xs text-ivory-muted">{item.reason}</p>
+    </>
+  );
+
+  /* Duas saídas para o mesmo fato: o card deixa de ser um alvo de clique só.
+   * Card inteiro clicável com dois botões dentro é o desenho que produz o
+   * toque errado — e aqui o toque errado marca falta em quem foi atendido. */
+  if (item.secondary) {
+    const secundaria = item.secondary;
+    return (
+      <Card className="flex flex-col gap-3 py-3">
+        <div className="flex flex-row items-start gap-3">
+          <AlertCircle size={18} className={`mt-0.5 shrink-0 ${tom}`} />
+          <div className="min-w-0 flex-1">{cabecalho}</div>
+        </div>
+        <div className="flex gap-2">
+          <Button className="flex-1" onClick={() => onExecutar(item.intent)}>
+            {item.actionLabel}
+          </Button>
+          <Button
+            variant="secondary"
+            className="flex-1"
+            onClick={() => onExecutar(secundaria.intent)}
+          >
+            {secundaria.actionLabel}
+          </Button>
+        </div>
+      </Card>
+    );
+  }
+
   const conteudo = (
     <Card interactive className="flex flex-row items-start gap-3 py-3">
       <AlertCircle size={18} className={`mt-0.5 shrink-0 ${tom}`} />
       <div className="min-w-0 flex-1">
-        <p className="text-sm text-ivory">{item.title}</p>
-        <p className="mt-0.5 text-xs text-ivory-muted">{item.reason}</p>
+        {cabecalho}
         <p className="mt-1.5 text-xs font-medium text-gold-light">
           {item.actionLabel}
         </p>
@@ -510,9 +704,12 @@ function ItemDeAcao({
     return <Link href={item.intent.href}>{conteudo}</Link>;
   }
 
-  const bookingId = item.intent.bookingId;
   return (
-    <button type="button" onClick={() => onFechar(bookingId)} className="text-left">
+    <button
+      type="button"
+      onClick={() => onExecutar(item.intent)}
+      className="text-left"
+    >
       {conteudo}
     </button>
   );

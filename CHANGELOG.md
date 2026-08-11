@@ -44,6 +44,63 @@ parou de se reescrever sozinho.
 - Contrato completo em `docs/ACTION-CENTER-CONTRATO.md`, com as 10 situações
   catalogadas e os 8 invariantes.
 
+### A falta deixa de ser um estado que não existe
+
+`no_show` estava no tipo, no rótulo e nas regras de segurança — e **nada no
+sistema o gravava**. O cliente que não aparecia ficava para sempre como
+"confirmado": o horário constava como atendimento no dia, o valor não era
+receita nem perda, e a taxa de falta era um número que ninguém podia calcular.
+
+- **Quem marca a falta é quem estava no balcão.** Botão *"Não veio"* na linha da
+  agenda, mais o item de atraso na coluna lateral — mesma escrita, dois pontos
+  de entrada, nenhum dos dois grava sem confirmação.
+- **O fechamento automático no fim do expediente foi recusado.** Converter em
+  falta tudo que ficou em aberto seria mais cômodo: o dono que atendeu, cobrou e
+  esqueceu de fechar ganharia uma falta falsa no histórico do cliente — que
+  amanhã alimenta a régua de pagamento antecipado. É o tipo de erro que não
+  aparece em lugar nenhum; o número só fica errado, e quem paga é o cliente que
+  nunca faltou.
+- **A falta não é beco sem saída:** cliente que aparece 40 minutos depois volta a
+  ser atendimento pelo mesmo caminho, com *"Veio depois"*. Sem isso, um toque
+  errado só teria correção no banco.
+- Falta **não materializa dinheiro** — `payments` e `commissions` continuam
+  nascendo da conclusão. Mas **continua ocupando o horário** na agenda: ele foi
+  reservado e ninguém mais pôde usá-lo, que é exatamente o custo da falta.
+
+### Atendimento atrasado — a regra que contradizia o próprio contrato
+
+O painel passou a apontar a reserva que passou do horário e continua em aberto,
+com tolerância configurável (`policies.booking.lateToleranceMinutes`, padrão 15).
+Barbearia trabalha com atraso normal: com tolerância curta demais, todo
+atendimento vira alerta e a seção perde credibilidade antes do almoço.
+
+O catálogo descrevia esta situação como 🔴 crítica **e** 🟡 estimada ao mesmo
+tempo — e o invariante 3 diz que estimado nunca é crítico. A contradição não era
+do invariante: era de o item estar enunciado como a conclusão errada.
+
+> O motor não afirma que o cliente faltou. Afirma que **a reserva não teve
+> desfecho e o horário passou** — verificável no dado, sem inferência. Qual das
+> duas coisas aconteceu é justamente a pergunta que o item devolve ao dono.
+
+Daí as duas ações no mesmo item (*Concluir* · *Marcar falta*), e a regra que
+fica para as próximas: **fato que comporta duas leituras opostas é enunciado
+como fato, com as duas saídas** — enunciar a mais provável seria estimativa
+vestida de certeza.
+
+### Corrigido
+
+- **Salvar uma política parcial apagaria as outras.** `policies` era mesclado
+  raso: gravar só `policies.booking.lateToleranceMinutes` faria a barbearia
+  perder antecedência mínima, janela da agenda e prazo de encaixe — e uma agenda
+  com `minAdvanceMinutes` indefinido aceita reserva para horário que já passou.
+  O mesmo cuidado que `paymentFees` já tinha.
+- **O tipo do tenant afirmava que a tolerância *é* 15.** As políticas herdavam o
+  tipo do literal `as const`, então a barbearia que salvasse 30 não compilava.
+  Vale enquanto o valor é constante de código — e este deixou de ser.
+- O relógio do painel virou fonte externa (`useSyncExternalStore`). Lido no
+  render, ele congelava na montagem: o atendimento das 14:00 seguiria "no
+  horário" às 15:30, porque num dia parado nada provoca re-render.
+
 ### Esteira e deploy
 
 - **Os 66 testes de isolamento entre barbearias não rodavam em lugar nenhum** —

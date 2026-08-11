@@ -36,13 +36,15 @@ export type ActionUrgency = 1 | 2 | 3;
 /**
  * O que o item faz quando acionado.
  *
- * `navegar` cobre o que se resolve em outra tela. `fecharAtendimento` existe
- * porque a ação acontece na própria tela, num modal, e o motor não pode
- * conhecer React — ele declara a intenção e a tela sabe executá-la.
+ * `navegar` cobre o que se resolve em outra tela. `fecharAtendimento` e
+ * `marcarFalta` existem porque a ação acontece na própria tela, num modal, e o
+ * motor não pode conhecer React — ele declara a intenção e a tela sabe
+ * executá-la.
  */
 export type ActionIntent =
   | { kind: "navegar"; href: string }
-  | { kind: "fecharAtendimento"; bookingId: string };
+  | { kind: "fecharAtendimento"; bookingId: string }
+  | { kind: "marcarFalta"; bookingId: string };
 
 export type ActionItem = {
   /**
@@ -59,6 +61,19 @@ export type ActionItem = {
   reason: string;
   actionLabel: string;
   intent: ActionIntent;
+  /**
+   * Segunda saída para o MESMO fato, quando o dado não diz qual das duas
+   * aconteceu.
+   *
+   * Existe por causa do atraso: o sistema enxerga "reserva em aberto passado o
+   * horário" e isso comporta duas leituras opostas — o cliente está na cadeira
+   * e ninguém fechou, ou ele não veio. Oferecer só uma faria o dono marcar
+   * falta de quem ele acabou de atender.
+   *
+   * Não é lugar de ação conveniente: só entra quando o item seria enganoso com
+   * uma opção só.
+   */
+  secondary?: { actionLabel: string; intent: ActionIntent };
 };
 
 /** Quantos críticos aparecem antes do "ver mais". */
@@ -95,6 +110,100 @@ export function fechamentosPendentes(bookings: Doc<BookingDoc>[]): ActionItem[] 
         "Sem a forma de pagamento, a taxa da maquininha entra como zero e o lucro do mês fica maior do que é.",
       actionLabel: "Registrar pagamento",
       intent: { kind: "fecharAtendimento" as const, bookingId: b.id },
+    }));
+}
+
+/**
+ * Reserva que ainda não teve desfecho: ninguém concluiu nem marcou falta.
+ *
+ * `pending_payment` fica de fora de propósito — quem não pagou não tem horário
+ * garantido, e cobrar desfecho de uma reserva que talvez expire é alarme sobre
+ * um fato que não aconteceu.
+ */
+const EM_ABERTO: BookingDoc["status"][] = ["confirmed", "confirmed_by_client"];
+
+/**
+ * Minutos entre o horário marcado e agora. Negativo antes da hora.
+ *
+ * `new Date("2026-08-11T14:00:00")`, sem sufixo de fuso, é lido no fuso do
+ * dispositivo — que é o relógio do balcão, o mesmo que o painel já usa para
+ * decidir que dia é hoje. `tenant.locale.timeZone` só passaria a importar se o
+ * dono abrisse o painel de outro fuso, e aí o problema é do painel inteiro, não
+ * desta regra.
+ */
+export function minutosDeAtraso(
+  booking: Pick<BookingDoc, "date" | "time">,
+  agora: Date
+): number {
+  const inicio = new Date(`${booking.date}T${booking.time}:00`);
+  return Math.floor((agora.getTime() - inicio.getTime()) / 60_000);
+}
+
+/**
+ * A regra do atraso, em um lugar só.
+ *
+ * A tela também precisa da resposta — é ela quem decide se oferece o botão
+ * "Não veio" na linha da agenda. Deixar cada uma comparar minuto com tolerância
+ * do seu jeito é como o produto ganha duas verdades: a coluna lateral acusando
+ * atraso enquanto a linha logo ao lado não oferece a ação.
+ */
+export function estaAtrasado(params: {
+  booking: Pick<BookingDoc, "status" | "date" | "time">;
+  agora: Date | null;
+  toleranciaMin: number;
+}): boolean {
+  if (!params.agora) return false;
+  if (!EM_ABERTO.includes(params.booking.status)) return false;
+  return minutosDeAtraso(params.booking, params.agora) > params.toleranciaMin;
+}
+
+/**
+ * 4.2 — Passou do horário e a reserva continua em aberto.
+ *
+ * **Confiança real, e não estimada como o catálogo dizia.** O que o motor
+ * afirma é verificável no dado: esta reserva não teve desfecho e o horário dela
+ * passou da tolerância. O que seria inferência — "o cliente não veio" — não é
+ * afirmado em lugar nenhum: é justamente a pergunta que o item devolve ao dono,
+ * com as duas saídas. Sem isso o item seria estimado e, pelo invariante 3, não
+ * poderia ser crítico — mas o custo de ignorar é dinheiro hoje, que é a
+ * definição de crítico.
+ *
+ * Ordenado do mais atrasado para o menos: com o teto de três críticos, quem
+ * está esperando há mais tempo não pode ficar atrás de quem acabou de atrasar.
+ */
+export function atendimentosAtrasados(params: {
+  bookings: Doc<BookingDoc>[];
+  /**
+   * Nulo enquanto a tela não montou no cliente. O servidor renderiza sem
+   * relógio confiável, e um item que aparece no HTML e some na hidratação é
+   * pior que um item que chega um segundo depois.
+   */
+  agora: Date | null;
+  toleranciaMin: number;
+}): ActionItem[] {
+  const agora = params.agora;
+  if (!agora) return [];
+
+  return params.bookings
+    .filter((b) =>
+      estaAtrasado({ booking: b, agora, toleranciaMin: params.toleranciaMin })
+    )
+    .map((b) => ({ b, atraso: minutosDeAtraso(b, agora) }))
+    .sort((x, y) => y.atraso - x.atraso)
+    .map(({ b, atraso }) => ({
+      id: `atendimento-atrasado:${b.id}`,
+      severity: "critical" as const,
+      urgency: 2 as const,
+      confidence: "real" as const,
+      title: `${b.clientName}, das ${b.time}, segue em aberto há ${atraso} min`,
+      reason:
+        "Enquanto ninguém diz o que aconteceu, o horário conta como ocupado e o dinheiro dele não é receita nem perda.",
+      actionLabel: "Concluir atendimento",
+      intent: { kind: "fecharAtendimento" as const, bookingId: b.id },
+      secondary: {
+        actionLabel: "Marcar falta",
+        intent: { kind: "marcarFalta" as const, bookingId: b.id },
+      },
     }));
 }
 
@@ -201,6 +310,10 @@ export type EstadoOperacional = {
   payments: Doc<PaymentDoc>[];
   fees: TenantPaymentFees;
   periodo: Periodo;
+  /** Relógio da tela, que avança sozinho. `null` antes de montar no cliente. */
+  agora: Date | null;
+  /** `policies.booking.lateToleranceMinutes` — o motor nunca conhece o número. */
+  toleranciaAtrasoMin: number;
 };
 
 /**
@@ -218,6 +331,11 @@ export function avaliarOperacao(estado: EstadoOperacional): ActionItem[] {
     }),
     ...fechamentosPendentes(estado.bookings),
     ...encaixesAguardando(estado.bookings),
+    ...atendimentosAtrasados({
+      bookings: estado.bookings,
+      agora: estado.agora,
+      toleranciaMin: estado.toleranciaAtrasoMin,
+    }),
     ...taxasNaoConfiguradas({
       fees: estado.fees,
       payments: estado.payments,

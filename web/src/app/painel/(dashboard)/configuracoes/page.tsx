@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, Check, Loader2, Percent } from "lucide-react";
+import { AlertTriangle, Check, Clock, Loader2, Percent } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useTenant } from "@/lib/tenant-context";
@@ -34,16 +34,24 @@ const METODOS: Array<{
 /** Exemplo em cima de um valor redondo — porcentagem sozinha não dá noção. */
 const EXEMPLO = 100;
 
+/** Limites do campo de tolerância: acima de 2h não é atraso, é outro dia. */
+const TOLERANCIA_MIN = 0;
+const TOLERANCIA_MAX = 120;
+
 export default function ConfiguracoesPage() {
   const tenant = useTenant();
   const [taxas, setTaxas] = useState<TenantPaymentFees>(tenant.policies.paymentFees);
+  const [tolerancia, setTolerancia] = useState(
+    tenant.policies.booking.lateToleranceMinutes
+  );
   const [salvando, setSalvando] = useState(false);
   const [salvo, setSalvo] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
   const naoConfigurado = Object.values(taxas).every((v) => v === 0);
   const mudou =
-    JSON.stringify(taxas) !== JSON.stringify(tenant.policies.paymentFees);
+    JSON.stringify(taxas) !== JSON.stringify(tenant.policies.paymentFees) ||
+    tolerancia !== tenant.policies.booking.lateToleranceMinutes;
 
   function alterar(chave: keyof TenantPaymentFees, valor: string) {
     // Vírgula é como se digita percentual em português.
@@ -53,17 +61,31 @@ export default function ConfiguracoesPage() {
     setSalvo(false);
   }
 
+  function alterarTolerancia(valor: string) {
+    const n = Number(valor);
+    const limpo = Number.isFinite(n)
+      ? Math.min(Math.max(Math.round(n), TOLERANCIA_MIN), TOLERANCIA_MAX)
+      : tenant.policies.booking.lateToleranceMinutes;
+    setTolerancia(limpo);
+    setSalvo(false);
+  }
+
   async function salvar() {
     setSalvando(true);
     setErro(null);
     try {
-      /* Caminho pontilhado: grava só `policies.paymentFees` e preserva as
-       * demais políticas. Enviar `policies` inteiro sobrescreveria cancelamento,
-       * comissão e alíquota com o que esta tela conhece. */
-      await patchTenant(tenant.id, { "policies.paymentFees": taxas });
+      /* Caminho pontilhado: grava só o campo, e preserva o resto da política.
+       * Enviar `policies` inteiro sobrescreveria cancelamento, comissão e
+       * alíquota com o que esta tela conhece; enviar `policies.booking` inteiro
+       * apagaria antecedência mínima e prazo de encaixe, que esta tela nem
+       * exibe. */
+      await patchTenant(tenant.id, {
+        "policies.paymentFees": taxas,
+        "policies.booking.lateToleranceMinutes": tolerancia,
+      });
       setSalvo(true);
     } catch (e) {
-      console.error("[configuracoes] falha ao salvar taxas", e);
+      console.error("[configuracoes] falha ao salvar configurações", e);
       setErro("Não foi possível salvar. Verifique a conexão e tente de novo.");
     } finally {
       setSalvando(false);
@@ -139,23 +161,6 @@ export default function ConfiguracoesPage() {
             })}
           </div>
 
-          {erro && (
-            <p role="alert" className="text-xs text-danger">
-              {erro}
-            </p>
-          )}
-
-          <div className="flex items-center gap-3">
-            <Button onClick={salvar} disabled={salvando || !mudou}>
-              {salvando ? <Loader2 size={16} className="animate-spin" /> : null}
-              {salvando ? "Salvando…" : "Salvar taxas"}
-            </Button>
-            {salvo && !mudou && (
-              <span className="flex items-center gap-1 text-xs text-success">
-                <Check size={13} /> Salvo
-              </span>
-            )}
-          </div>
         </Card>
 
         <Card className="flex flex-col gap-2 text-xs text-ivory-muted md:p-6 md:text-sm">
@@ -174,7 +179,82 @@ export default function ConfiguracoesPage() {
             do atendimento é o que fica no histórico.
           </p>
         </Card>
+
+        <Card className="flex flex-col gap-5 md:p-6">
+          <div>
+            <h2 className="flex items-center gap-1.5 text-sm font-semibold text-ivory md:text-base">
+              <Clock size={14} className="text-gold-light" />
+              Quando um atraso vira atraso
+            </h2>
+            <p className="mt-1 text-xs text-ivory-muted md:text-sm">
+              Depois desse tempo, o painel avisa que o horário passou e a reserva
+              continua em aberto — e oferece concluir ou marcar falta.
+            </p>
+          </div>
+
+          <div className="grid gap-2 md:grid-cols-[1fr_120px_auto] md:items-center">
+            <div>
+              <label htmlFor="tolerancia" className="text-sm text-ivory">
+                Tolerância de atraso
+              </label>
+              <p className="text-xs text-ivory-muted">
+                Barbearia trabalha com atraso normal. Muito curto, tudo vira
+                alerta e você para de ler a seção.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                id="tolerancia"
+                type="number"
+                min={TOLERANCIA_MIN}
+                max={TOLERANCIA_MAX}
+                step={5}
+                value={tolerancia}
+                onChange={(e) => alterarTolerancia(e.target.value)}
+                className="min-h-11 w-full rounded-xl border border-border bg-surface-raised px-3 text-sm text-ivory"
+              />
+              <span className="text-sm text-ivory-muted">min</span>
+            </div>
+            <p className="text-xs text-ivory-muted md:text-right">
+              14:00 avisa às{" "}
+              <span className="text-ivory">
+                {horaMaisMinutos("14:00", tolerancia)}
+              </span>
+            </p>
+          </div>
+
+          <p className="text-xs text-ivory-muted">
+            Marcar falta é sempre uma decisão sua. O sistema aponta o que está em
+            aberto e nunca fecha o dia decidindo sozinho quem faltou.
+          </p>
+        </Card>
       </section>
+
+      <div className="flex items-center gap-3">
+        <Button onClick={salvar} disabled={salvando || !mudou}>
+          {salvando ? <Loader2 size={16} className="animate-spin" /> : null}
+          {salvando ? "Salvando…" : "Salvar configurações"}
+        </Button>
+        {salvo && !mudou && (
+          <span className="flex items-center gap-1 text-xs text-success">
+            <Check size={13} /> Salvo
+          </span>
+        )}
+        {erro && (
+          <p role="alert" className="text-xs text-danger">
+            {erro}
+          </p>
+        )}
+      </div>
     </div>
   );
+}
+
+/** "14:00" + 15 → "14:15". Percentual sozinho não dá noção; minuto solto também não. */
+function horaMaisMinutos(hora: string, minutos: number) {
+  const [h, m] = hora.split(":").map(Number);
+  const total = h * 60 + m + minutos;
+  const hh = String(Math.floor(total / 60) % 24).padStart(2, "0");
+  const mm = String(total % 60).padStart(2, "0");
+  return `${hh}:${mm}`;
 }
