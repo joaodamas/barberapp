@@ -7,7 +7,8 @@ import { KpiTile } from "@/components/ui/kpi-tile";
 import { formatBRL } from "@/lib/format";
 import { useFinanceiro, mesAtual, rotuloDoMes } from "@/lib/db/use-financeiro";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
-import { useTenant } from "@/lib/tenant-context";
+import { useFeature, useTenant } from "@/lib/tenant-context";
+import { RecursoBloqueado } from "@/components/recurso-bloqueado";
 import { Voltar } from "@/components/ui/voltar";
 
 type DreItem = {
@@ -22,7 +23,25 @@ function signTone(value: number): "success" | "danger" {
   return value >= 0 ? "success" : "danger";
 }
 
+/* O gate mora num componente à parte, e não num retorno antecipado dentro do
+ * conteúdo: os hooks do conteúdo passariam a ser chamados condicionalmente. */
 export default function DrePage() {
+  const liberado = useFeature("advancedFinance");
+
+  if (!liberado) {
+    return (
+      <RecursoBloqueado
+        titulo="DRE Gerencial"
+        oQueFaz="Monta o resultado do mês linha a linha: receita, comissão, custo de produto, despesa fixa, imposto e o que sobra."
+        porQueVale="É a diferença entre saber quanto entrou e saber quanto ficou. Sem ele, o mês fecha no positivo no extrato e no negativo na conta."
+      />
+    );
+  }
+
+  return <DreConteudo />;
+}
+
+function DreConteudo() {
   const [scenarioPct, setScenarioPct] = useState(0);
   const [monthOffset, setMonthOffset] = useState(0);
   const [open, setOpen] = useState<Set<string>>(new Set(["receita", "cmv"]));

@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { useFeature } from "@/lib/tenant-context";
+import { RecursoBloqueado } from "@/components/recurso-bloqueado";
 import { AlertTriangle, TrendingDown, TrendingUp, Wallet } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
@@ -18,7 +20,25 @@ import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { LineChart } from "@/components/ui/chart";
 import { Voltar } from "@/components/ui/voltar";
 
+/* O gate mora num componente à parte, e não num retorno antecipado dentro do
+ * conteúdo: os hooks do conteúdo passariam a ser chamados condicionalmente. */
 export default function ProjecaoPage() {
+  const liberado = useFeature("advancedFinance");
+
+  if (!liberado) {
+    return (
+      <RecursoBloqueado
+        titulo="Projeção de caixa"
+        oQueFaz="Estima o caixa dos próximos dias a partir das reservas já marcadas, da média por dia da semana e das contas que vencem."
+        porQueVale="Responde se dá para comprar o equipamento este mês ou se é melhor esperar o dia 10 — antes de o boleto vencer."
+      />
+    );
+  }
+
+  return <ProjecaoConteudo />;
+}
+
+function ProjecaoConteudo() {
   const [horizonte, setHorizonte] = useState<Horizonte>("mensal");
   const { projecao: cashProjection, status, raw } = useFinanceiro(mesAtual(), horizonte);
   const porMes = HORIZONTES[horizonte].porMes;

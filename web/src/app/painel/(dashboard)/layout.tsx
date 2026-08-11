@@ -2,7 +2,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { AuthGuard } from "@/components/auth-guard";
 import { DemoBanner } from "@/components/demo-banner";
+import { AcessoExpirado, AvisoDeTrial } from "@/components/acesso";
 import { getTenant } from "@/lib/tenant-server";
+import { isTrialExpired } from "@/lib/tenant";
 import { PainelBottomNav } from "@/components/painel-bottom-nav";
 import { PainelSidebarNav } from "@/components/painel-sidebar-nav";
 
@@ -11,7 +13,21 @@ export default async function PainelDashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { brand } = await getTenant();
+  const tenant = await getTenant();
+  const { brand } = tenant;
+
+  /* Decidido no servidor, antes de o painel existir: um bloqueio que monta a
+   * tela e depois a substitui deixa o conteúdo aparecer por um instante — e o
+   * dado sensível já foi para o HTML. */
+  const semAcesso = tenant.status === "suspenso" || isTrialExpired(tenant.trial);
+
+  if (semAcesso) {
+    return (
+      <AuthGuard requireOwner>
+        <AcessoExpirado tenant={tenant} />
+      </AuthGuard>
+    );
+  }
 
   return (
     <AuthGuard requireOwner>
@@ -22,6 +38,7 @@ export default async function PainelDashboardLayout({
         Pular para o conteúdo
       </a>
       <DemoBanner />
+      <AvisoDeTrial tenant={tenant} />
       <div className="mx-auto flex min-h-full w-full max-w-md flex-1 flex-col md:h-full md:max-w-none md:flex-row md:overflow-hidden">
         <PainelSidebarNav />
         <div className="flex min-h-full w-full flex-1 flex-col md:h-full md:overflow-hidden">

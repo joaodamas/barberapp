@@ -30,6 +30,14 @@ export type NavItem = {
    * em duas linhas, desalinhando a barra inteira.
    */
   shortLabel?: string;
+  /**
+   * Recurso de plano que a tela exige.
+   *
+   * O item continua no menu quando não está contratado, com cadeado: sumir não
+   * vende nada, e a tela bloqueada é onde o dono descobre que existe algo a
+   * mais. Sem esta marca, o item é sempre livre.
+   */
+  feature?: "subscriptions" | "store" | "loyalty" | "whatsapp" | "advancedFinance";
   icon: LucideIcon;
   children?: NavChild[];
 };
@@ -59,7 +67,7 @@ export const painelNavItems: NavItem[] = [
   },
   { href: "/painel/numeros", label: "Números", icon: BarChart3 },
   { href: "/painel/servicos", label: "Serviços", icon: Scissors },
-  { href: "/painel/mensal", label: "Mensal", icon: CalendarClock },
+  { href: "/painel/mensal", label: "Mensal", icon: CalendarClock, feature: "subscriptions" },
   { href: "/painel/equipe", label: "Equipe", icon: Users },
-  { href: "/painel/loja", label: "Loja", icon: Store },
+  { href: "/painel/loja", label: "Loja", icon: Store, feature: "store" },
 ];

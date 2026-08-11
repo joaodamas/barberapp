@@ -2,11 +2,15 @@ import { describe, expect, it } from "vitest";
 import {
   ALL_FEATURES,
   DEFAULT_TENANT,
+  featuresForPlan,
+  isTrialExpired,
   PLATFORM_DEFAULT_POLICIES,
   shortNameFrom,
+  shouldWarnAboutTrial,
   slugFromHost,
   tenantCssVars,
   tenantUrl,
+  trialDaysLeft,
 } from "@/lib/tenant";
 
 describe("resolução do subdomínio", () => {
@@ -99,5 +103,54 @@ describe("nome curto sob o ícone", () => {
 
   it("uma palavra sozinha maior que o limite ainda precisa caber", () => {
     expect(shortNameFrom("Barbeariadoseuze").length).toBeLessThanOrEqual(14);
+  });
+});
+
+describe("período de teste", () => {
+  /* Estas três funções existiam desde a fundação do multi-tenant sem um único
+   * chamador, e agora decidem se o painel abre. Sem teste, o trial de 7 dias
+   * era uma promessa de documento. */
+  const trial = { startedAt: "2026-08-01T00:00:00.000Z", endsAt: "2026-08-08T00:00:00.000Z" };
+
+  it("conta os dias que faltam, e fica negativo depois de vencer", () => {
+    expect(trialDaysLeft(trial, new Date("2026-08-05T00:00:00Z"))).toBe(3);
+    expect(trialDaysLeft(trial, new Date("2026-08-08T00:00:00Z"))).toBe(0);
+    expect(trialDaysLeft(trial, new Date("2026-08-10T00:00:00Z"))).toBe(-2);
+  });
+
+  it("barbearia sem trial nunca vence — é cliente pagante ou o tenant piloto", () => {
+    expect(trialDaysLeft(null)).toBeNull();
+    expect(isTrialExpired(null)).toBe(false);
+    expect(shouldWarnAboutTrial(null)).toBe(false);
+  });
+
+  it("o painel fecha no dia do vencimento, não no dia seguinte", () => {
+    expect(isTrialExpired(trial, new Date("2026-08-07T23:00:00Z"))).toBe(false);
+    expect(isTrialExpired(trial, new Date("2026-08-08T00:00:00Z"))).toBe(true);
+  });
+
+  it("o aviso aparece só na reta final, para não virar ruído", () => {
+    expect(shouldWarnAboutTrial(trial, new Date("2026-08-02T00:00:00Z"))).toBe(false);
+    expect(shouldWarnAboutTrial(trial, new Date("2026-08-04T00:00:00Z"))).toBe(true);
+    expect(shouldWarnAboutTrial(trial, new Date("2026-08-07T00:00:00Z"))).toBe(true);
+  });
+});
+
+describe("recursos por plano", () => {
+  it("o plano de entrada não entrega o que o de cima vende", () => {
+    const entrada = featuresForPlan("entrada");
+    expect(entrada.subscriptions).toBe(false);
+    expect(entrada.store).toBe(false);
+    expect(entrada.advancedFinance).toBe(false);
+  });
+
+  it("WhatsApp e fidelidade entram já no plano de entrada", () => {
+    const entrada = featuresForPlan("entrada");
+    expect(entrada.whatsapp).toBe(true);
+    expect(entrada.loyalty).toBe(true);
+  });
+
+  it("o plano completo libera tudo", () => {
+    expect(featuresForPlan("completo")).toEqual(ALL_FEATURES);
   });
 });

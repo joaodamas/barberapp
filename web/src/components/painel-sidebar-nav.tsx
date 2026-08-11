@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Lock } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { painelNavItems } from "@/lib/nav-items";
 import { SidebarUserFooter } from "@/components/sidebar-user-footer";
@@ -10,7 +11,7 @@ import { useTenant } from "@/lib/tenant-context";
 
 export function PainelSidebarNav() {
   const pathname = usePathname();
-  const { brand } = useTenant();
+  const { brand, features } = useTenant();
 
   return (
     <aside className="hidden shrink-0 bg-surface/60 md:flex md:h-full md:w-64 md:flex-col md:overflow-y-auto md:border-r md:border-border md:shadow-[8px_0_32px_-24px_rgba(0,0,0,0.8)]">
@@ -67,6 +68,13 @@ export function PainelSidebarNav() {
                   <Icon size={17} strokeWidth={active ? 2.4 : 1.8} />
                 </span>
                 {item.label}
+                {item.feature && !features[item.feature] && (
+                  <Lock
+                    size={13}
+                    className="ml-auto shrink-0 text-ivory-muted/70"
+                    aria-label="Não incluído no seu plano"
+                  />
+                )}
               </Link>
 
               {item.children && active && (
