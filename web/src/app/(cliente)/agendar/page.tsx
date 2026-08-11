@@ -5,8 +5,6 @@ import Link from "next/link";
 import {
   Check,
   Clock,
-  CreditCard,
-  QrCode,
   Store,
   ChevronLeft,
 } from "lucide-react";
@@ -21,7 +19,7 @@ import { formatBRL } from "@/lib/format";
 import { bookableDays, firstBookableIndex } from "@/lib/slots";
 import { bookingPolicy } from "@/lib/business-rules";
 import { useAuth } from "@/lib/auth-context";
-import type { PaymentMethod, TimeSlot } from "@/lib/types";
+import type { TimeSlot } from "@/lib/types";
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -56,7 +54,6 @@ export default function AgendarPage() {
     firstBookableIndex(bookableDays())
   );
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("local");
   const { user } = useAuth();
   const [confirmando, setConfirmando] = useState(false);
   const [erroReserva, setErroReserva] = useState<string | null>(null);
@@ -82,7 +79,7 @@ export default function AgendarPage() {
         staffId: barbeiroEscolhido?.id,
         date: selectedDay.iso,
         time: selectedSlot.time,
-        paymentMethod,
+        paymentOrigin: "in_person",
         isFitIn,
         clientName: user?.displayName ?? undefined,
         clientWhatsapp: user?.phoneNumber ?? undefined,
@@ -173,9 +170,7 @@ export default function AgendarPage() {
     step === 3
       ? isFitIn
         ? "Solicitar encaixe"
-        : paymentMethod === "local"
-          ? "Confirmar reserva"
-          : "Pagar e confirmar"
+        : "Confirmar reserva"
       : "Continuar";
 
   function toggleService(id: string) {
@@ -439,60 +434,26 @@ export default function AgendarPage() {
             </Card>
           ) : (
             <>
+              {/* Antes havia três botões e dois nasciam desabilitados: o
+                  servidor recusa qualquer pagamento antecipado enquanto não
+                  houver gateway. Oferecer uma escolha que não existe é pior que
+                  não oferecer escolha — agora a tela afirma o que de fato
+                  acontece, e quem informa COMO o cliente pagou é o balcão, no
+                  fechamento. */}
               <p className="text-xs uppercase tracking-wider text-ivory-muted">
-                Pagamento — opcional, você escolhe
+                Pagamento
               </p>
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  disabled
-                  title="Pagamento antecipado entra quando o gateway for integrado"
-                  onClick={() => setPaymentMethod("pix")}
-                  className={
-                    "flex flex-col items-center justify-center gap-1.5 rounded-xl border py-3 text-sm " +
-                    (paymentMethod === "pix"
-                      ? "border-gold bg-gold/10 text-gold-light"
-                      : "border-border text-ivory-muted")
-                  }
-                >
-                  <QrCode size={16} /> Pix
-                </button>
-                <button
-                  disabled
-                  title="Pagamento antecipado entra quando o gateway for integrado"
-                  onClick={() => setPaymentMethod("cartao")}
-                  className={
-                    "flex flex-col items-center justify-center gap-1.5 rounded-xl border py-3 text-sm " +
-                    (paymentMethod === "cartao"
-                      ? "border-gold bg-gold/10 text-gold-light"
-                      : "border-border text-ivory-muted")
-                  }
-                >
-                  <CreditCard size={16} /> Cartão
-                </button>
-                <button
-                  onClick={() => setPaymentMethod("local")}
-                  className={
-                    "flex flex-col items-center justify-center gap-1.5 rounded-xl border py-3 text-sm " +
-                    (paymentMethod === "local"
-                      ? "border-gold bg-gold/10 text-gold-light"
-                      : "border-border text-ivory-muted")
-                  }
-                >
-                  <Store size={16} /> No salão
-                </button>
-              </div>
-              {paymentMethod === "local" ? (
-                <p className="text-xs text-ivory-muted">
-                  Sua reserva é confirmada na hora, sem cobrança agora. Pague{" "}
-                  {formatBRL(totalPrice)} no salão (dinheiro ou maquininha) no
-                  dia do atendimento.
-                </p>
-              ) : (
-                <p className="text-xs text-ivory-muted">
-                  Pix e cartão entram quando a integração com o gateway ficar
-                  pronta. Por enquanto, o pagamento é no salão.
-                </p>
-              )}
+              <Card className="flex items-start gap-3 bg-surface-raised">
+                <Store size={16} className="mt-0.5 shrink-0 text-gold-light" />
+                <div>
+                  <p className="text-sm text-ivory">Você paga no salão</p>
+                  <p className="mt-0.5 text-xs text-ivory-muted">
+                    Sua reserva é confirmada agora, sem cobrança. No dia, pague{" "}
+                    {formatBRL(totalPrice)} como preferir — Pix, dinheiro ou
+                    maquininha.
+                  </p>
+                </div>
+              </Card>
             </>
           )}
 
@@ -524,9 +485,7 @@ export default function AgendarPage() {
           <p className="max-w-xs text-sm text-ivory-muted">
             {isFitIn
               ? "O barbeiro foi avisado no WhatsApp dele e vai aprovar ou recusar seu horário em breve. Você recebe a resposta por lá."
-              : paymentMethod === "local"
-                ? `Você recebe a confirmação também no WhatsApp. Não esqueça: ${formatBRL(totalPrice)} no salão no dia do atendimento.`
-                : "Você recebe a confirmação também no WhatsApp, com todos os detalhes da reserva."}
+              : `Você recebe a confirmação também no WhatsApp. Não esqueça: ${formatBRL(totalPrice)} no salão no dia do atendimento.`}
           </p>
           <Link href="/reservas" className="w-full">
             <Button className="w-full">Ver minhas reservas</Button>
@@ -597,9 +556,7 @@ export default function AgendarPage() {
           {step === 3 && !isFitIn && (
             <div className="flex items-center justify-between border-b border-border pb-4 text-sm">
               <span className="text-ivory-muted">Pagamento</span>
-              <span className="text-ivory">
-                {paymentMethod === "pix" ? "Pix" : paymentMethod === "cartao" ? "Cartão" : "No salão"}
-              </span>
+              <span className="text-ivory">No salão</span>
             </div>
           )}
 

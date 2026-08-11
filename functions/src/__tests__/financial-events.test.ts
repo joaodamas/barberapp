@@ -19,22 +19,23 @@ import {
 const TAXAS: PaymentFees = { dinheiro: 0, pix: 0, debito: 1.99, credito: 3.49 };
 
 describe("taxa por forma de pagamento", () => {
-  it("aplica a taxa cadastrada de cada método", () => {
+  it("cada instrumento usa a taxa que a maquininha cobra dele", () => {
     expect(taxaDoMetodo("pix", TAXAS)).toBe(0);
-    expect(taxaDoMetodo("local", TAXAS)).toBe(0);
-    expect(taxaDoMetodo("cartao", TAXAS)).toBe(3.49);
+    expect(taxaDoMetodo("cash", TAXAS)).toBe(0);
+    expect(taxaDoMetodo("debit", TAXAS)).toBe(1.99);
+    expect(taxaDoMetodo("credit", TAXAS)).toBe(3.49);
   });
 
-  it("cartão usa a taxa de crédito enquanto a tela não separa débito", () => {
-    /* Subestimar custo é pior que superestimar: o dono decide achando que
-     * sobra mais do que sobra. */
-    expect(taxaDoMetodo("cartao", TAXAS)).toBe(TAXAS.credito);
-    expect(taxaDoMetodo("cartao", TAXAS)).toBeGreaterThan(TAXAS.debito);
+  it("débito e crédito deixaram de ser o mesmo custo", () => {
+    /* Enquanto o vocabulário era `cartao`, a função supunha crédito por
+     * precaução e cobrava 3,49% de quem pagou 1,99% no débito. */
+    expect(taxaDoMetodo("debit", TAXAS)).not.toBe(taxaDoMetodo("credit", TAXAS));
   });
 
   it("barbearia que ainda não cadastrou taxa não recebe custo inventado", () => {
-    expect(taxaDoMetodo("cartao", SEM_TAXA)).toBe(0);
-    expect(taxaDoMetodo("pix", SEM_TAXA)).toBe(0);
+    for (const m of ["pix", "cash", "debit", "credit"] as const) {
+      expect(taxaDoMetodo(m, SEM_TAXA), m).toBe(0);
+    }
   });
 });
 
@@ -64,7 +65,7 @@ describe("cálculo do evento financeiro", () => {
   it("cartão desconta a taxa do líquido", () => {
     const r = calcularEventoFinanceiro({
       valor: 100,
-      metodo: "cartao",
+      metodo: "credit",
       commissionPctDoBarbeiro: 40,
       padraoPct: 40,
       fees: TAXAS,
@@ -75,7 +76,7 @@ describe("cálculo do evento financeiro", () => {
 
   it("líquido é sempre bruto menos taxa", () => {
     for (const valor of [37.9, 50, 89.99, 120, 233.33]) {
-      for (const metodo of ["pix", "cartao", "local"] as const) {
+      for (const metodo of ["pix", "credit", "cash"] as const) {
         const { payment } = calcularEventoFinanceiro({
           valor, metodo, commissionPctDoBarbeiro: 40, padraoPct: 40, fees: TAXAS,
         });
@@ -109,7 +110,7 @@ describe("cálculo do evento financeiro", () => {
 
   it("não produz fração de centavo no documento", () => {
     const r = calcularEventoFinanceiro({
-      valor: 33.33, metodo: "cartao", commissionPctDoBarbeiro: 33,
+      valor: 33.33, metodo: "credit", commissionPctDoBarbeiro: 33,
       padraoPct: 40, fees: TAXAS,
     });
     for (const v of [
@@ -118,6 +119,48 @@ describe("cálculo do evento financeiro", () => {
       expect(Number.isInteger(Math.round(v * 100))).toBe(true);
       expect(v).toBe(centavos(v));
     }
+  });
+});
+
+describe("os quatro instrumentos, ponta a ponta", () => {
+  const casos = [
+    { metodo: "pix" as const, taxa: 0, liquido: 50 },
+    { metodo: "cash" as const, taxa: 0, liquido: 50 },
+    { metodo: "debit" as const, taxa: 1, liquido: 49 },      // 1,99% de 50 = 0,995 -> 1,00
+    { metodo: "credit" as const, taxa: 1.75, liquido: 48.25 }, // 3,49% de 50 = 1,745 -> 1,75
+  ];
+
+  it.each(casos)("$metodo desconta $taxa e deixa $liquido", ({ metodo, taxa, liquido }) => {
+    const { payment } = calcularEventoFinanceiro({
+      valor: 50, metodo, commissionPctDoBarbeiro: 40, padraoPct: 40, fees: TAXAS,
+    });
+    expect(payment.feeAmount).toBe(taxa);
+    expect(payment.netAmount).toBe(liquido);
+    expect(payment.paymentMethod).toBe(metodo);
+  });
+
+  it("a comissão não muda com o instrumento — incide sobre o serviço", () => {
+    const valores = casos.map(({ metodo }) =>
+      calcularEventoFinanceiro({
+        valor: 50, metodo, commissionPctDoBarbeiro: 40, padraoPct: 40, fees: TAXAS,
+      }).commission.commissionAmount
+    );
+    expect(new Set(valores).size).toBe(1);
+    expect(valores[0]).toBe(20);
+  });
+});
+
+describe("atendimento concluído sem informar o método", () => {
+  it("materializa o bruto e marca o método como desconhecido", () => {
+    /* Caminho de exceção: a interface sempre pergunta. Gravar taxa 0 sem marca
+     * apagaria a diferença entre "não teve taxa" e "não sabemos a taxa". */
+    const { payment, commission } = calcularEventoFinanceiro({
+      valor: 50, metodo: null, commissionPctDoBarbeiro: 40, padraoPct: 40, fees: TAXAS,
+    });
+    expect(payment.paymentMethod).toBeNull();
+    expect(payment.grossAmount).toBe(50);
+    expect(payment.feeAmount).toBe(0);
+    expect(commission.commissionAmount).toBe(20); // a comissão é devida de todo jeito
   });
 });
 
@@ -167,7 +210,7 @@ describe("o histórico não muda quando o cadastro muda", () => {
      * dá para reconferir o valor sem consultar cadastro nenhum. Guardar só o
      * `commissionAmount` diria QUANTO foi pago, não COMO se chegou lá. */
     const { commission, payment } = calcularEventoFinanceiro({
-      valor: 80, metodo: "cartao", commissionPctDoBarbeiro: 45, padraoPct: 40, fees: TAXAS,
+      valor: 80, metodo: "credit", commissionPctDoBarbeiro: 45, padraoPct: 40, fees: TAXAS,
     });
 
     expect(centavos((commission.commissionBase * commission.commissionPct) / 100))
@@ -180,7 +223,7 @@ describe("o histórico não muda quando o cadastro muda", () => {
     // Sem leitura de cadastro e sem relógio: reprocessar o gatilho grava o
     // mesmo documento, que é o que torna o `set` idempotente seguro.
     const entrada = {
-      valor: 67.5, metodo: "cartao" as const, commissionPctDoBarbeiro: 40,
+      valor: 67.5, metodo: "credit" as const, commissionPctDoBarbeiro: 40,
       padraoPct: 40, fees: TAXAS,
     };
     expect(calcularEventoFinanceiro(entrada)).toEqual(calcularEventoFinanceiro(entrada));

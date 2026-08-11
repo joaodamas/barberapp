@@ -1,4 +1,4 @@
-import type { BookingStatus, PaymentMethod } from "@/lib/types";
+import type { BookingStatus, PaymentMethod, PaymentOrigin } from "@/lib/types";
 
 /**
  * Documentos do Firestore, como eles vivem sob `/barbershops/{id}/`.
@@ -100,7 +100,13 @@ export type BookingDoc = {
   time: string;
   status: BookingStatus;
   value: number;
-  paymentMethod: PaymentMethod;
+  /** Onde o pagamento acontece. Decidido no agendamento. */
+  paymentOrigin: PaymentOrigin;
+  /**
+   * Como o dinheiro entrou. NULO até a conclusão — quem sabe é quem está no
+   * balcão, não o cliente no momento de marcar.
+   */
+  paymentMethod: PaymentMethod | null;
   isFitIn?: boolean;
   /** Quando o encaixe foi pedido — base para o prazo de expiração. */
   requestedAt?: string;
@@ -243,7 +249,7 @@ export function isRevenue(booking: Pick<BookingDoc, "status">) {
  * O que era previsão de recebimento não se perde: o painel Hoje já mostra
  * "Previsão do dia" separado, que é o lugar certo dela.
  */
-export function isReceived(booking: Pick<BookingDoc, "status" | "paymentMethod">) {
+export function isReceived(booking: Pick<BookingDoc, "status">) {
   return booking.status === "completed";
 }
 

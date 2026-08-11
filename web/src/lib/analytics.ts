@@ -15,6 +15,7 @@ import {
 } from "@/lib/domain";
 import type { Doc } from "@/lib/db/repository";
 import type { TenantPolicies } from "@/lib/tenant";
+import type { PaymentMethod } from "@/lib/types";
 
 /**
  * Derivações financeiras a partir do dado bruto.
@@ -137,8 +138,12 @@ export function caixaDiario(params: {
   for (const b of params.bookings) {
     if (!isRevenue(b) || !dentroDoPeriodo(b.date, params.periodo)) continue;
     const d = dia(b.date);
+    /* Débito e crédito somam na coluna "cartão": o caixa diário responde por
+     * onde o dinheiro entrou no balcão, e as duas maquininhas são a mesma fila.
+     * A distinção existe onde importa — em `payments`, que congela a taxa de
+     * cada uma e alimenta o custo de adquirência no DRE. */
     if (b.paymentMethod === "pix") d.pix += b.value;
-    else if (b.paymentMethod === "cartao") d.cartao += b.value;
+    else if (b.paymentMethod === "debit" || b.paymentMethod === "credit") d.cartao += b.value;
     else d.dinheiro += b.value;
     d.total += b.value;
     d.appointments += 1;
@@ -691,12 +696,15 @@ export function estoqueBaixo(products: Doc<ProductDoc>[]) {
 /** Caixa do dia por meio de pagamento — a tela Hoje. */
 export function caixaDoDia(bookings: Doc<BookingDoc>[]) {
   const recebidas = bookings.filter(isReceived);
-  const por = (m: string) =>
-    recebidas.filter((b) => b.paymentMethod === m).reduce((s, b) => s + b.value, 0);
+  const soma = (metodos: PaymentMethod[]) =>
+    recebidas
+      .filter((b) => b.paymentMethod && metodos.includes(b.paymentMethod))
+      .reduce((s, b) => s + b.value, 0);
+
   return {
-    pix: por("pix"),
-    cartao: por("cartao"),
-    dinheiro: por("local"),
+    pix: soma(["pix"]),
+    cartao: soma(["debit", "credit"]),
+    dinheiro: soma(["cash"]),
     total: recebidas.reduce((s, b) => s + b.value, 0),
   };
 }

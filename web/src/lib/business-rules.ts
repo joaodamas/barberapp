@@ -9,6 +9,8 @@
  * Se um número de política aparece em JSX, ele veio daqui.
  */
 
+import type { PaymentMethod } from "@/lib/types";
+
 /* ------------------------------------------------------------------ */
 /* Cancelamento e reagendamento (PRD §4 e §6)                          */
 /* ------------------------------------------------------------------ */
@@ -36,12 +38,17 @@ export const reschedulePolicy = {
 /** Devolução de um cancelamento, segundo a política acima. */
 export function refundAmountFor(params: {
   value: number;
-  paymentMethod: "pix" | "cartao" | "local";
+  /**
+   * Nulo enquanto o atendimento não foi concluído — e sem pagamento não há o
+   * que devolver. Antes a checagem era `=== "local"`, que confundia lugar com
+   * instrumento: quem pagou Pix no balcão também aparecia como "não pagou".
+   */
+  paymentMethod: PaymentMethod | null;
   hoursUntilStart: number;
 }) {
   const { value, paymentMethod, hoursUntilStart } = params;
 
-  if (paymentMethod === "local") {
+  if (!paymentMethod) {
     return { amount: 0, retainedPct: 0, tier: "sem_pagamento" as const };
   }
   if (hoursUntilStart >= cancellationPolicy.fullRefundHours) {

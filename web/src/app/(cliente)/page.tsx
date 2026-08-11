@@ -97,9 +97,7 @@ export default function InicioPage() {
           <BarberPoleDivider />
           <div className="flex items-center justify-between text-sm md:text-base">
             <span className="text-ivory-muted">
-              {nextBooking.paymentMethod === "local"
-                ? "A pagar no salão"
-                : "Valor pago"}
+              {nextBooking.paymentMethod ? "Valor pago" : "A pagar no salão"}
             </span>
             <span className="font-display font-semibold text-ivory md:text-lg">
               {formatBRL(nextBooking.value)}

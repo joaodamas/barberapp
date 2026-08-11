@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import {
   AlertCircle,
@@ -15,8 +16,10 @@ import {
 import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
 import { Button } from "@/components/ui/button";
+import { Modal } from "@/components/ui/modal";
 import { bookingStatusMeta } from "@/lib/booking-status";
-import { paymentMethodLabel } from "@/lib/payment-method";
+import type { PaymentMethod } from "@/lib/types";
+import { labelDoPagamento, PAYMENT_METHODS, paymentMethodLabel } from "@/lib/payment-method";
 import { formatBRL, formatPhonePtBR, safePct } from "@/lib/format";
 import { bookingPolicy } from "@/lib/business-rules";
 import { useTenant } from "@/lib/tenant-context";
@@ -84,13 +87,30 @@ export default function PainelHojePage() {
 
 
   const semColunaLateral = precisaDeVoce.length === 0 && fitInRequests.length === 0;
+  const [aFechar, setAFechar] = useState<Doc<BookingDoc> | null>(null);
+
   const caixaHoje = caixaDoDia(agendados);
   const recebidoReal = caixaHoje.total;
 
-  function complete(id: string) {
-    void patchDoc(tenant.id, "bookings", id, { status: "completed" }).catch((e) =>
-      console.error("[hoje] falha ao concluir", e)
-    );
+  /**
+   * Concluir passa a perguntar COMO o cliente pagou.
+   *
+   * O cliente marca sem pagar — quem sabe se entrou Pix, dinheiro ou maquininha
+   * é quem está no balcão. Sem essa informação, `payments.feePct` seria zero
+   * para sempre e o lucro apareceria maior do que é.
+   *
+   * Método e status vão na MESMA escrita: o trigger financeiro lê o documento
+   * depois da atualização, e gravar em duas etapas materializaria o pagamento
+   * antes de o método existir.
+   */
+  function concluirCom(metodo: PaymentMethod) {
+    const booking = aFechar;
+    if (!booking) return;
+    setAFechar(null);
+    void patchDoc(tenant.id, "bookings", booking.id, {
+      status: "completed",
+      paymentMethod: metodo,
+    }).catch((e) => console.error("[hoje] falha ao concluir", e));
   }
 
   function resolveFitIn(booking: Doc<BookingDoc>, approve: boolean) {
@@ -389,7 +409,7 @@ export default function PainelHojePage() {
                         {bookingServices.map((s) => s.name).join(" + ")}
                       </td>
                       <td className="px-4 py-3 text-ivory-muted">
-                        {paymentMethodLabel[booking.paymentMethod]}
+                        {labelDoPagamento(booking.paymentOrigin, booking.paymentMethod)}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-right text-ivory">
                         {formatBRL(booking.value)}
@@ -397,7 +417,7 @@ export default function PainelHojePage() {
                       <td className="px-4 py-3 md:px-6">
                         {canComplete ? (
                           <button
-                            onClick={() => complete(booking.id)}
+                            onClick={() => setAFechar(booking)}
                             className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ivory-muted transition-colors hover:border-success hover:text-success"
                           >
                             <Check size={14} /> Concluir
@@ -414,6 +434,36 @@ export default function PainelHojePage() {
           </Card>
         )}
       </section>
+
+      {/* Uma pergunta, quatro opções, e cada opção JÁ conclui.
+          Um botão "Confirmar" separado somaria um segundo clique ao gesto mais
+          repetido do dia — o fechamento precisa custar um toque, senão o dono
+          volta para o caderno. */}
+      <Modal
+        open={!!aFechar}
+        onClose={() => setAFechar(null)}
+        title="Como o cliente pagou?"
+      >
+        <p className="mb-4 text-sm text-ivory-muted">
+          {aFechar?.clientName} · {aFechar ? formatBRL(aFechar.value) : ""}
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          {PAYMENT_METHODS.map((metodo) => (
+            <button
+              key={metodo}
+              type="button"
+              onClick={() => concluirCom(metodo)}
+              className="flex min-h-16 cursor-pointer items-center justify-center rounded-xl border border-border text-sm font-medium text-ivory transition-colors hover:border-gold hover:bg-gold/10 hover:text-gold-light"
+            >
+              {paymentMethodLabel[metodo]}
+            </button>
+          ))}
+        </div>
+        <p className="mt-4 text-xs text-ivory-muted">
+          A taxa da maquininha é registrada com o valor de hoje e não muda
+          depois. Ajuste em Configurações.
+        </p>
+      </Modal>
     </div>
   );
 }

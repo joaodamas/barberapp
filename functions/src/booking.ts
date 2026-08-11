@@ -23,7 +23,12 @@ type CriarReservaInput = {
   serviceIds: string[];
   date: string;
   time: string;
-  paymentMethod: "pix" | "cartao" | "local";
+  /**
+   * ONDE o pagamento acontece. O instrumento (Pix, dinheiro, débito, crédito)
+   * é informado no fechamento, por quem está no balcão — o cliente não sabe
+   * como vai pagar quando marca.
+   */
+  paymentOrigin?: "in_person";
   isFitIn?: boolean;
   clientName?: string;
   clientWhatsapp?: string;
@@ -48,7 +53,7 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Entre na sua conta para agendar.");
 
-  const { barbershopId, serviceIds, date, time, paymentMethod, isFitIn } = request.data ?? {};
+  const { barbershopId, serviceIds, date, time, paymentOrigin, isFitIn } = request.data ?? {};
 
   if (!barbershopId) throw new HttpsError("invalid-argument", "Barbearia não informada.");
   if (!Array.isArray(serviceIds) || serviceIds.length === 0) {
@@ -56,8 +61,14 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
   }
   if (!ISO_DATE.test(date ?? "")) throw new HttpsError("invalid-argument", "Data inválida.");
   if (!HORA.test(time ?? "")) throw new HttpsError("invalid-argument", "Horário inválido.");
-  if (!["pix", "cartao", "local"].includes(paymentMethod)) {
-    throw new HttpsError("invalid-argument", "Forma de pagamento inválida.");
+  /* Só existe um caminho hoje: o cliente acerta no salão. Quando o gateway
+   * entrar, `online` passa a ser aceito aqui e desemboca na mesma coleção
+   * `payments` — acréscimo, não reescrita. */
+  if (paymentOrigin && paymentOrigin !== "in_person") {
+    throw new HttpsError(
+      "invalid-argument",
+      "Pagamento antecipado ainda não está disponível."
+    );
   }
 
   const db = getFirestore();
@@ -161,14 +172,6 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
     nomes.push(String(s.name ?? ""));
   }
 
-  /* ---- Pagamento antecipado ainda não existe ---- */
-  if (paymentMethod !== "local") {
-    throw new HttpsError(
-      "failed-precondition",
-      "Pagamento antecipado ainda não está disponível. Escolha pagar no salão."
-    );
-  }
-
   const status = isFitIn ? "fit_in_requested" : "confirmed";
 
   /* ---- Grava checando conflito na mesma transação ---- */
@@ -240,7 +243,10 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
       time,
       durationMin,
       value,
-      paymentMethod,
+      paymentOrigin: "in_person",
+      /* Desconhecido até o fechamento. Nulo explícito, e não campo ausente:
+       * ausência é ambígua entre "não pagou" e "campo antigo". */
+      paymentMethod: null,
       status,
       isFitIn: !!isFitIn,
       requestedAt: FieldValue.serverTimestamp(),
@@ -400,7 +406,8 @@ export const cancelBooking = onCall<{ barbershopId: string; bookingId: string }>
       (instanteNoFuso(booking.date, booking.time, timeZone).getTime() - Date.now()) / 3_600_000;
 
     let refund = 0;
-    if (booking.paymentMethod !== "local") {
+    // Sem método gravado, o dinheiro nunca entrou — não há o que devolver.
+    if (booking.paymentMethod) {
       if (horas >= janelaIntegral) refund = booking.value;
       else if (horas >= janelaParcial) {
         refund = Math.round(booking.value * (1 - taxaPct / 100) * 100) / 100;

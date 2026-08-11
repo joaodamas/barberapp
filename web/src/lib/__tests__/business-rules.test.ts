@@ -33,7 +33,7 @@ describe("política de cancelamento", () => {
 
   it("não devolve nada quando o pagamento seria no salão", () => {
     expect(
-      refundAmountFor({ value: 100, paymentMethod: "local", hoursUntilStart: 48 })
+      refundAmountFor({ value: 100, paymentMethod: null, hoursUntilStart: 48 })
     ).toMatchObject({ amount: 0, tier: "sem_pagamento" });
   });
 

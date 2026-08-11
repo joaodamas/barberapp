@@ -19,7 +19,7 @@ const P = mesPeriodo("2026-07");
 const bk = (o: Partial<BookingDoc> & { id: string }): Doc<BookingDoc> => ({
   clientId: "c1", staffId: "s1", clientName: "João", clientWhatsapp: "5511", serviceIds: ["corte"],
   date: "2026-07-10", time: "10:00", status: "completed", value: 90,
-  paymentMethod: "pix", ...o,
+  paymentOrigin: "in_person", paymentMethod: "pix", ...o,
 });
 const ex = (o: Partial<ExpenseDoc> & { id: string }): Doc<ExpenseDoc> => ({
   category: "Aluguel", description: "Aluguel", supplier: "—", value: 1800,
@@ -113,14 +113,28 @@ describe("caixa diário", () => {
     const dias = caixaDiario({
       bookings: [
         bk({ id: "1", date: "2026-07-10", paymentMethod: "pix", value: 90 }),
-        bk({ id: "2", date: "2026-07-10", paymentMethod: "cartao", value: 60 }),
-        bk({ id: "3", date: "2026-07-11", paymentMethod: "local", value: 35 }),
+        bk({ id: "2", date: "2026-07-10", paymentMethod: "credit", value: 60 }),
+        bk({ id: "3", date: "2026-07-11", paymentMethod: "cash", value: 35 }),
       ],
       movements: [], periodo: P,
     });
     expect(dias).toHaveLength(2);
     expect(dias[0]).toMatchObject({ date: "2026-07-10", pix: 90, cartao: 60, total: 150, appointments: 2 });
     expect(dias[1]).toMatchObject({ date: "2026-07-11", dinheiro: 35 });
+  });
+
+  it("débito e crédito somam na mesma coluna do caixa diário", () => {
+    /* O caixa responde por onde o dinheiro entrou no balcão, e as duas
+     * maquininhas são a mesma fila. A distinção vive em `payments`, que congela
+     * a taxa de cada uma. */
+    const dias = caixaDiario({
+      bookings: [
+        bk({ id: "1", date: "2026-07-10", paymentMethod: "debit", value: 40 }),
+        bk({ id: "2", date: "2026-07-10", paymentMethod: "credit", value: 60 }),
+      ],
+      movements: [], periodo: P,
+    });
+    expect(dias[0].cartao).toBe(100);
   });
 
   it("a soma dos dias é a receita de balcão", () => {
@@ -488,7 +502,7 @@ describe("comissão congelada vence sobre a derivação", () => {
 describe("taxa de maquininha", () => {
   const P7 = mesPeriodo("2026-07");
   const pg = (o: Partial<PaymentDoc> & { id: string }): Doc<PaymentDoc> => ({
-    clientId: "c1", date: "2026-07-10", paymentMethod: "cartao",
+    clientId: "c1", date: "2026-07-10", paymentMethod: "credit",
     grossAmount: 100, feePct: 3.49, feeAmount: 3.49, netAmount: 96.51, ...o,
   });
 
@@ -553,8 +567,8 @@ describe("caixa do dia", () => {
      * do dia, que já existe separado. */
     const c = caixaDoDia([
       bk({ id: "1", status: "confirmed", paymentMethod: "pix", value: 90 }),
-      bk({ id: "2", status: "confirmed", paymentMethod: "local", value: 60 }),
-      bk({ id: "3", status: "completed", paymentMethod: "local", value: 35 }),
+      bk({ id: "2", status: "confirmed", paymentMethod: "cash", value: 60 }),
+      bk({ id: "3", status: "completed", paymentMethod: "cash", value: 35 }),
       bk({ id: "4", status: "completed", paymentMethod: "pix", value: 40 }),
     ]);
     expect(c.pix).toBe(40);

@@ -27,7 +27,7 @@ import { FieldValue, getFirestore } from "firebase-admin/firestore";
  * indecifrável.
  */
 
-export type PaymentMethod = "pix" | "cartao" | "local";
+export type PaymentMethod = "pix" | "cash" | "debit" | "credit";
 
 /** Taxa por método, como o dono cadastra em Configurações. */
 export type PaymentFees = {
@@ -40,14 +40,17 @@ export type PaymentFees = {
 export const SEM_TAXA: PaymentFees = { dinheiro: 0, pix: 0, debito: 0, credito: 0 };
 
 /**
- * `paymentMethod` na reserva não distingue débito de crédito — o cliente
- * escolhe "cartão". Até essa distinção existir na tela, cartão usa a taxa de
- * crédito, que é a maior: subestimar custo é pior que superestimar, porque o
- * dono decide achando que sobra mais do que sobra.
+ * Taxa exata do instrumento usado.
+ *
+ * Antes o vocabulário era `pix | cartao | local`, e `cartao` não distinguia
+ * débito de crédito: a função precisava supor crédito por precaução, cobrando
+ * 3,49% de quem pagou 1,99% no débito. Com o método informado no fechamento, a
+ * suposição sai e a taxa é a que a maquininha de fato cobrou.
  */
 export function taxaDoMetodo(metodo: PaymentMethod, fees: PaymentFees): number {
   if (metodo === "pix") return Number(fees.pix) || 0;
-  if (metodo === "cartao") return Number(fees.credito) || 0;
+  if (metodo === "debit") return Number(fees.debito) || 0;
+  if (metodo === "credit") return Number(fees.credito) || 0;
   return Number(fees.dinheiro) || 0;
 }
 
@@ -68,7 +71,12 @@ export function centavos(valor: number) {
  */
 export function calcularEventoFinanceiro(params: {
   valor: number;
-  metodo: PaymentMethod;
+  /**
+   * Nulo quando o atendimento foi concluído sem informar como o cliente pagou.
+   * A interface sempre pergunta, então é caminho de exceção — escrita direta no
+   * banco, importação, correção manual.
+   */
+  metodo: PaymentMethod | null;
   /** Percentual do barbeiro. `null`/`undefined` cai no padrão da casa. */
   commissionPctDoBarbeiro?: number | null;
   padraoPct: number;
@@ -76,7 +84,12 @@ export function calcularEventoFinanceiro(params: {
 }) {
   const valor = Number(params.valor) || 0;
   const commissionPct = Number(params.commissionPctDoBarbeiro ?? params.padraoPct) || 0;
-  const feePct = taxaDoMetodo(params.metodo, params.fees);
+
+  /* Sem método, a taxa é DESCONHECIDA, não zero. Materializamos assim mesmo,
+   * com `paymentMethod: null` explícito: o bruto aconteceu e precisa existir no
+   * histórico. O nulo é o que permite separar depois "não teve taxa" de "não
+   * sabemos a taxa" — gravar 0 sem marca apagaria essa diferença. */
+  const feePct = params.metodo ? taxaDoMetodo(params.metodo, params.fees) : 0;
   const feeAmount = centavos((valor * feePct) / 100);
 
   return {
@@ -133,7 +146,7 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
     if (!virouConcluido) return;
 
     const valor = Number(depois.value) || 0;
-    const metodo = (depois.paymentMethod ?? "local") as PaymentMethod;
+    const metodo = (depois.paymentMethod ?? null) as PaymentMethod | null;
     const staffId = String(depois.staffId ?? "");
     const date = String(depois.date ?? "");
 
