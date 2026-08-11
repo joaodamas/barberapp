@@ -412,8 +412,8 @@ Fundação. Nenhum bloco acima confia em número que este não garanta.
 | `rescheduleCount` persistido | ⚠️ |
 | Despesa recorrente materializada | ⚠️ |
 | Tipo `Indicador<T>` com confiança do dado | ❌ |
-| **Forma de pagamento no fechamento** | ❌ |
-| **Separar `paymentOrigin` de `paymentMethod`** | ❌ |
+| Forma de pagamento no fechamento | ✅ |
+| Separar `paymentOrigin` de `paymentMethod` | ✅ |
 
 **Métrica:** % dos eventos financeiros corretamente materializados. Meta: 100% —
 não há valor parcial aceitável aqui.
@@ -444,6 +444,42 @@ Atendimento 2 (concluído a 50%)  →  50% × 50 = R$ 25
 > a ponta: assinar token de cliente exige service account, e as credenciais
 > locais são de usuário. Os registros de teste foram criados via Admin SDK
 > replicando o contrato do `createBooking`. A cobertura declarada é essa.
+
+#### ✅ Bloco 1 fechado — 11/08/2026
+
+Checkpoint final executado em produção com os quatro instrumentos, valor de
+R$ 50 e barbeiro a 40%:
+
+| método | feePct | feeAmount | netAmount | comissão |
+|---|---|---|---|---|
+| Pix | 0% | 0,00 | 50,00 | 20,00 |
+| Dinheiro | 0% | 0,00 | 50,00 | 20,00 |
+| Débito | 1,99% | 1,00 | 49,00 | 20,00 |
+| Crédito | 3,49% | 1,75 | 48,25 | 20,00 |
+
+Depois de alterar as taxas para 2,99% e 4,99%, **os quatro pagamentos anteriores
+permaneceram idênticos**, e um novo atendimento em crédito nasceu com 4,99% →
+R$ 2,50 → líquido R$ 47,50. Conclusão sem método informado gravou
+`paymentMethod: null` com a comissão devida assim mesmo — o dado fica marcado
+como não informado, nunca como "taxa zero real".
+
+`payments` carrega `paymentOrigin` desde a materialização, confirmado em
+produção: o registro histórico responde sobre o evento sem depender de join com
+a reserva, que pode ser editada ou apagada.
+
+> **Ressalva de validação.** Aprovado para o núcleo
+> `Firestore → Cloud Functions → materialização financeira → DRE`. O fluxo
+> `UI → createBooking` NÃO foi validado ponta a ponta em produção, por causa do
+> bloqueio atual do Hosting (`EPERM: symlink`) e porque assinar token de cliente
+> exige service account. O contrato do `createBooking` e o patch de conclusão do
+> modal foram exercitados via Admin SDK, reproduzindo campos e operações do
+> fluxo real. É transparência de cobertura, não falha do bloco.
+
+**Marco:** tag `milestone/bloco-1-financeiro-confiavel`.
+
+O que este bloco entrega: o sistema registra e preserva a verdade financeira de
+um atendimento. Fim de escopo — conciliação, parcelamento, filtros de DRE e
+melhorias de fluxo de caixa NÃO pertencem a ele.
 
 #### A lacuna que o checkpoint revelou
 

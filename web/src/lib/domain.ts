@@ -61,7 +61,16 @@ export type PaymentDoc = {
   subscriptionId?: string;
   clientId: string | null;
   date: string;
-  paymentMethod: PaymentMethod;
+  /**
+   * Onde o pagamento aconteceu, copiado da reserva na materialização.
+   *
+   * Fica aqui, e não só na reserva, porque `payments` é o registro histórico:
+   * precisa responder sobre o evento sem depender de um join com um documento
+   * que pode ser editado ou apagado.
+   */
+  paymentOrigin: PaymentOrigin;
+  /** Nulo quando o atendimento foi concluído sem informar como o cliente pagou. */
+  paymentMethod: PaymentMethod | null;
   grossAmount: number;
   /** Congelada na conclusão: mudar a taxa não altera o passado. */
   feePct: number;

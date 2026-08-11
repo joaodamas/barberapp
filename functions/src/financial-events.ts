@@ -29,6 +29,19 @@ import { FieldValue, getFirestore } from "firebase-admin/firestore";
 
 export type PaymentMethod = "pix" | "cash" | "debit" | "credit";
 
+/**
+ * ONDE o pagamento aconteceu.
+ *
+ * Vai para o documento de pagamento junto com o método: `payments` é o registro
+ * histórico, e precisa responder sobre o evento sem depender de um join com a
+ * reserva — que pode ser editada, arquivada ou apagada.
+ *
+ * Hoje só existe um valor, e é justamente por isso que o campo entra agora: com
+ * `online` no futuro, um histórico sem origem não conseguiria separar o que
+ * entrou pela maquininha do que entrou pelo app.
+ */
+export type PaymentOrigin = "in_person" | "online";
+
 /** Taxa por método, como o dono cadastra em Configurações. */
 export type PaymentFees = {
   dinheiro: number;
@@ -77,6 +90,8 @@ export function calcularEventoFinanceiro(params: {
    * banco, importação, correção manual.
    */
   metodo: PaymentMethod | null;
+  /** Onde o pagamento aconteceu. Reserva antiga, sem o campo, é do balcão. */
+  origem?: PaymentOrigin | null;
   /** Percentual do barbeiro. `null`/`undefined` cai no padrão da casa. */
   commissionPctDoBarbeiro?: number | null;
   padraoPct: number;
@@ -99,6 +114,7 @@ export function calcularEventoFinanceiro(params: {
       commissionAmount: centavos((valor * commissionPct) / 100),
     },
     payment: {
+      paymentOrigin: params.origem ?? "in_person",
       paymentMethod: params.metodo,
       grossAmount: valor,
       feePct,
@@ -170,6 +186,7 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
     const { commission, payment } = calcularEventoFinanceiro({
       valor,
       metodo,
+      origem: (depois.paymentOrigin ?? null) as PaymentOrigin | null,
       // Gravado como `null` no cadastro inicial, não ausente.
       commissionPctDoBarbeiro: staffSnap?.get("commissionPct") ?? null,
       padraoPct,

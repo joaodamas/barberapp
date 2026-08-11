@@ -502,7 +502,7 @@ describe("comissão congelada vence sobre a derivação", () => {
 describe("taxa de maquininha", () => {
   const P7 = mesPeriodo("2026-07");
   const pg = (o: Partial<PaymentDoc> & { id: string }): Doc<PaymentDoc> => ({
-    clientId: "c1", date: "2026-07-10", paymentMethod: "credit",
+    clientId: "c1", date: "2026-07-10", paymentOrigin: "in_person", paymentMethod: "credit",
     grossAmount: 100, feePct: 3.49, feeAmount: 3.49, netAmount: 96.51, ...o,
   });
 

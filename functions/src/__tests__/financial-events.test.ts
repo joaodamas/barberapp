@@ -150,6 +150,47 @@ describe("os quatro instrumentos, ponta a ponta", () => {
   });
 });
 
+describe("origem do pagamento", () => {
+  /* `payments` é o registro histórico e precisa responder sobre o evento sem
+   * depender de join com a reserva — que pode ser editada ou apagada. O campo
+   * entra antes do gateway justamente para o histórico já nascer capaz de
+   * separar o que veio do balcão do que virá pelo app. */
+  it("carrega a origem junto com o método", () => {
+    const { payment } = calcularEventoFinanceiro({
+      valor: 50, metodo: "debit", origem: "in_person",
+      commissionPctDoBarbeiro: 40, padraoPct: 40, fees: TAXAS,
+    });
+    expect(payment.paymentOrigin).toBe("in_person");
+    expect(payment.paymentMethod).toBe("debit");
+  });
+
+  it("reserva antiga, sem o campo, é tratada como balcão", () => {
+    // Todo atendimento até aqui foi presencial: é a suposição correta, e a
+    // única que não inventa um pagamento online que nunca existiu.
+    for (const origem of [null, undefined]) {
+      const { payment } = calcularEventoFinanceiro({
+        valor: 50, metodo: "pix", origem,
+        commissionPctDoBarbeiro: 40, padraoPct: 40, fees: TAXAS,
+      });
+      expect(payment.paymentOrigin).toBe("in_person");
+    }
+  });
+
+  it("origem não interfere na taxa nem na comissão", () => {
+    const balcao = calcularEventoFinanceiro({
+      valor: 50, metodo: "credit", origem: "in_person",
+      commissionPctDoBarbeiro: 40, padraoPct: 40, fees: TAXAS,
+    });
+    const online = calcularEventoFinanceiro({
+      valor: 50, metodo: "credit", origem: "online",
+      commissionPctDoBarbeiro: 40, padraoPct: 40, fees: TAXAS,
+    });
+    expect(online.payment.feeAmount).toBe(balcao.payment.feeAmount);
+    expect(online.commission).toEqual(balcao.commission);
+    expect(online.payment.paymentOrigin).toBe("online");
+  });
+});
+
 describe("atendimento concluído sem informar o método", () => {
   it("materializa o bruto e marca o método como desconhecido", () => {
     /* Caminho de exceção: a interface sempre pergunta. Gravar taxa 0 sem marca
