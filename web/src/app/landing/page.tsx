@@ -73,7 +73,7 @@ export default function LandingPage() {
 
             <div className="mt-9 flex flex-wrap items-center gap-4">
               <Link
-                href="/comecar"
+                href="/criar-conta"
                 className="group inline-flex min-h-12 items-center gap-2 rounded-xl bg-gold px-6 font-semibold text-ivory transition-colors hover:bg-gold-hover"
               >
                 Testar 7 dias
@@ -268,7 +268,7 @@ export default function LandingPage() {
               primeira semana você já sabe quanto sobrou.
             </p>
             <Link
-              href="/comecar"
+              href="/criar-conta"
               className="group mt-9 inline-flex min-h-12 items-center gap-2 rounded-xl bg-gold px-7 font-semibold text-ivory transition-colors hover:bg-gold-hover"
             >
               Começar agora
