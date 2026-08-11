@@ -77,7 +77,7 @@ export default function PainelHojePage() {
     statusServicos === "pronto" && services.length === 0 && {
       id: "servicos",
       label: "Nenhum serviço cadastrado — o cliente não tem o que agendar",
-      href: "/comecar",
+      href: "/painel/servicos",
       tone: "danger" as const,
     },
   ].filter(Boolean) as Array<{ id: string; label: string; href: string; tone: "gold" | "danger" }>;

@@ -99,6 +99,25 @@ export type TenantFeatures = {
   advancedFinance: boolean;
 };
 
+/** Plano contratado na plataforma. */
+export type PlanId = "entrada" | "completo";
+
+/**
+ * Recursos que o plano libera. Espelha `functions/src/plans.ts` — os dois
+ * caminhos de criação gravam `features`, e esta função decide o que fazer com
+ * a barbearia cujo documento foi criado antes disso e não tem o campo.
+ */
+export function featuresForPlan(plan: PlanId): TenantFeatures {
+  const completo = plan === "completo";
+  return {
+    whatsapp: true,
+    loyalty: true,
+    subscriptions: completo,
+    store: completo,
+    advancedFinance: completo,
+  };
+}
+
 /** Jornada da barbearia — sai de `lib/slots.ts` e vira configuração. */
 export type TenantSchedule = {
   /** 0 = domingo. */
@@ -128,6 +147,7 @@ export type Tenant = {
   /** Subdomínio: `osiqueira` em `osiqueira.dominio.com.br`. */
   slug: string;
   status: "ativo" | "suspenso" | "trial";
+  plan: PlanId;
   brand: TenantBrand;
   contact: TenantContact;
   /** Fuso, moeda e formato. Decide QUE DIA é hoje e em que moeda o valor é. */
@@ -238,6 +258,7 @@ export const DEFAULT_TENANT: Tenant = {
   id: "jpbarber",
   slug: "jpbarber",
   status: "ativo",
+  plan: "completo",
   brand: {
     name: "JPBarber",
     shortName: "JPBarber",

@@ -56,6 +56,7 @@ export function useFinanceiro(mes: string, horizonte: Horizonte = "mensal") {
     movements: movements.items,
     subscribers: subscribers.items,
     periodo,
+    hoje: new Date(),
   });
 
   const dre = resultadoDoMes({
@@ -127,19 +128,6 @@ export function useFinanceiro(mes: string, horizonte: Horizonte = "mensal") {
   };
 }
 
-/** Mês corrente em `YYYY-MM`. */
-export function mesAtual(offset = 0) {
-  const d = new Date();
-  d.setMonth(d.getMonth() - offset);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
-
-/** "Julho de 2026" a partir de `YYYY-MM`. */
-export function rotuloDoMes(mes: string) {
-  const [ano, m] = mes.split("-").map(Number);
-  const label = new Date(ano, m - 1, 1).toLocaleDateString("pt-BR", {
-    month: "long",
-    year: "numeric",
-  });
-  return label.charAt(0).toUpperCase() + label.slice(1);
-}
+/* Vivem em `format.ts` — módulo puro, testável sem montar hook. Reexportadas
+ * aqui porque as telas do financeiro já as importam deste caminho. */
+export { mesAtual, rotuloDoMes } from "@/lib/format";

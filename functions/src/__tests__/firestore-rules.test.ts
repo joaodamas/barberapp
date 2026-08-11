@@ -238,6 +238,53 @@ describe("contrato com a plataforma", () => {
     await assertFails(updateDoc(doc(as(DONO_ALFA), "barbershops", ALFA), { slug: "outro" }));
   });
 
+  it("🔒 o dono NÃO libera recurso pago escrevendo `features`", async () => {
+    /* `features` ficou de fora da lista de imutáveis por descuido, e é
+     * justamente o campo que o gate de plano lê. Um `updateDoc` direto do
+     * navegador destravava o plano de cima sem passar por função nenhuma. */
+    await assertFails(
+      updateDoc(doc(as(DONO_ALFA), "barbershops", ALFA), {
+        features: { subscriptions: true, store: true, advancedFinance: true },
+      })
+    );
+  });
+
+  it("🔒 o dono NÃO estende o próprio período de teste", async () => {
+    await assertFails(
+      updateDoc(doc(as(DONO_ALFA), "barbershops", ALFA), {
+        trial: { startedAt: new Date(), endsAt: new Date("2099-01-01") },
+      })
+    );
+    // Zerar o trial vale tanto quanto esticá-lo: sem data de fim não vence.
+    await assertFails(updateDoc(doc(as(DONO_ALFA), "barbershops", ALFA), { trial: null }));
+  });
+
+  it("🔒 o dono NÃO reescreve quem criou a barbearia", async () => {
+    // `createdBy` sustenta o limite de uma conta, uma barbearia.
+    await assertFails(
+      updateDoc(doc(as(DONO_ALFA), "barbershops", ALFA), { createdBy: "outro-uid" })
+    );
+  });
+
+  it("🔒 não dá para plantar `platformAdmin` recriando o próprio documento", async () => {
+    /* O `update` filtrava os campos de autoridade e o `create` não, e `delete`
+     * é permitido: apagar e recriar deixava o campo gravado. Não era explorável
+     * hoje, porque nada lê autoridade do documento — mas o `update` blindado
+     * passa a impressão de que o campo é confiável. */
+    await assertFails(
+      setDoc(doc(as(OUTRO_CLIENTE), "users", OUTRO_CLIENTE.sub), { platformAdmin: true })
+    );
+    await assertFails(
+      setDoc(doc(as(OUTRO_CLIENTE), "users", OUTRO_CLIENTE.sub), {
+        barbershops: { [ALFA]: "owner" },
+      })
+    );
+    // O documento comum continua criável.
+    await assertSucceeds(
+      setDoc(doc(as(OUTRO_CLIENTE), "users", OUTRO_CLIENTE.sub), { name: "Cliente Dois" })
+    );
+  });
+
   it("🔒 o dono não escapa escondendo a mudança de plano junto de outra", async () => {
     await assertFails(
       updateDoc(doc(as(DONO_ALFA), "barbershops", ALFA), {

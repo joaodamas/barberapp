@@ -1,4 +1,4 @@
-import { safeDiv } from "@/lib/format";
+import { safeDiv, toISODate } from "@/lib/format";
 import {
   isReceived,
   isRevenue,
@@ -58,6 +58,8 @@ export function receitaDoMes(params: {
   movements: Doc<InventoryMovementDoc>[];
   subscribers: Doc<SubscriberDoc>[];
   periodo: Periodo;
+  /** Data de referência — decide se o retrato de mensalistas vale no período. */
+  hoje?: Date;
 }): ReceitaDoMes {
   const { bookings, movements, subscribers, periodo } = params;
 
@@ -72,10 +74,20 @@ export function receitaDoMes(params: {
     .filter((m) => m.kind === "venda" && dentroDoPeriodo(m.date, periodo))
     .reduce((s, m) => s + m.value, 0);
 
-  // Mensalidade é cobrada por assinatura e não passa pelo balcão.
-  const mensalistas = subscribers
-    .filter((s) => s.status === "ativo")
-    .reduce((s, sub) => s + sub.price, 0);
+  /* Mensalidade é cobrada por assinatura e não passa pelo balcão.
+   *
+   * `SubscriberDoc` guarda o estado de HOJE — tem `status`, não tem `createdAt`
+   * nem `canceledAt`. Somar isso em qualquer período fazia o MRR atual aparecer
+   * em todo mês do histórico: 40 assinantes de hoje viravam receita de um
+   * janeiro que teve 5, e o comparativo de crescimento achatava porque os dois
+   * meses carregavam a mesma constante.
+   *
+   * Enquanto `subscription_invoices` não for escrita, o retrato só vale no
+   * período que contém a data de referência — o único em que ele é verdade. */
+  const referencia = toISODate(params.hoje ?? new Date());
+  const mensalistas = dentroDoPeriodo(referencia, periodo)
+    ? subscribers.filter((s) => s.status === "ativo").reduce((s, sub) => s + sub.price, 0)
+    : 0;
 
   const caixa = servicos + encaixes + produtos;
 
@@ -144,6 +156,36 @@ export function caixaDiario(params: {
 /* DRE                                                                 */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Despesas recorrentes que já valem numa data — uma por compromisso.
+ *
+ * `recurring` é um booleano num documento de data única: nada gera a ocorrência
+ * do mês seguinte. As duas telas que leem esse campo discordavam sobre ele — o
+ * DRE filtrava por período e perdia a despesa no mês seguinte ao lançamento,
+ * enquanto a Projeção pegava todos os lançamentos de todos os meses e cobrava
+ * seis aluguéis no mesmo dia depois de seis meses de uso.
+ *
+ * Aqui o compromisso vale a partir do lançamento e segue valendo. Quando o dono
+ * relançou a mesma despesa na mão, a chave `categoria|descrição` reconhece que
+ * é o mesmo compromisso e vale a versão mais recente — o reajuste do aluguel
+ * substitui o valor velho em vez de somar com ele.
+ */
+export function despesasRecorrentesVigentes(
+  expenses: Doc<ExpenseDoc>[],
+  ateData: string
+): Doc<ExpenseDoc>[] {
+  const porCompromisso = new Map<string, Doc<ExpenseDoc>>();
+
+  for (const e of expenses) {
+    if (!e.recurring || e.date > ateData) continue;
+    const chave = `${e.category}|${e.description}`.trim().toLowerCase();
+    const atual = porCompromisso.get(chave);
+    if (!atual || e.date > atual.date) porCompromisso.set(chave, e);
+  }
+
+  return [...porCompromisso.values()];
+}
+
 export type ResultadoDoMes = ReturnType<typeof resultadoDoMes>;
 
 export function resultadoDoMes(params: {
@@ -157,10 +199,16 @@ export function resultadoDoMes(params: {
 }) {
   const { receita, expenses, movements, periodo, policies } = params;
 
-  const doPeriodo = expenses.filter((e) => dentroDoPeriodo(e.date, periodo));
-  const fixedExpenses = doPeriodo.filter((e) => e.recurring).reduce((s, e) => s + e.value, 0);
-  const variableOperatingExpenses = doPeriodo
-    .filter((e) => !e.recurring)
+  /* Custo fixo é o que está VIGENTE no período, não o que foi lançado nele.
+   * O filtro por período fazia o aluguel marcado como recorrente em agosto
+   * sumir do DRE de setembro: o mês seguinte nascia com custo fixo R$ 0,00 e
+   * lucro inflado no valor da conta, até o dono relançar tudo na mão. */
+  const fixedExpenses = despesasRecorrentesVigentes(expenses, periodo.fim).reduce(
+    (s, e) => s + e.value,
+    0
+  );
+  const variableOperatingExpenses = expenses
+    .filter((e) => !e.recurring && dentroDoPeriodo(e.date, periodo))
     .reduce((s, e) => s + e.value, 0);
 
   // CMV = custo de compra do que foi vendido no período.
@@ -170,9 +218,31 @@ export function resultadoDoMes(params: {
 
   const gatewayFees = params.gatewayFeesTotal ?? 0;
 
-  // Comissão sobre o lucro bruto da loja, no rateio do tenant.
-  const lucroLoja = Math.max(receita.produtos - cmv, 0);
-  const commissions = Math.round((lucroLoja * policies.commissionSplit.barberPct) / 100);
+  /* Comissão do profissional, no rateio do tenant.
+   *
+   * A base era só o lucro de revenda de produto — o serviço, que é o negócio
+   * inteiro de uma barbearia, ficava de fora. Numa loja de 400 cortes a R$ 50,
+   * a comissão real de 40% é R$ 8.000 no mês e o DRE mostrava R$ 0,00: o maior
+   * custo variável da operação, invisível na tela que existe para decidir se
+   * contrata ou demite barbeiro.
+   *
+   * Serviço entra pelo valor cheio, que é como o contrato de barbeiro funciona
+   * no balcão. Produto continua sobre o lucro da revenda — é o que sobra para
+   * dividir depois de pagar a mercadoria. */
+  const receitaDeServico = receita.servicos + receita.encaixes;
+  const lucroDeProduto = Math.max(receita.produtos - cmv, 0);
+  const commissions = Math.round(
+    ((receitaDeServico + lucroDeProduto) * policies.commissionSplit.barberPct) / 100
+  );
+
+  /* Simples Nacional (Anexo III) incide sobre RECEITA BRUTA, e é devido mesmo
+   * no mês em que a barbearia dá prejuízo. Cobrar a alíquota sobre o resultado
+   * subestimava o imposto em cerca de 3× — R$ 360 em vez de R$ 1.200 num mês
+   * de R$ 20.000 faturados — e o dono planejava com dinheiro que é do governo.
+   *
+   * Fica fora de `variableCost` para a escada do DRE continuar legível, e a
+   * identidade `grossRevenue − totalCost === result` segue valendo. */
+  const tax = Math.round((receita.bruta * policies.taxRatePct) / 100);
 
   const variableCost = cmv + gatewayFees + commissions;
   const contributionMargin = receita.bruta - variableCost;
@@ -182,7 +252,6 @@ export function resultadoDoMes(params: {
   const fixedCost = fixedExpenses + variableOperatingExpenses + payroll;
 
   const resultBeforeTax = contributionMargin - fixedCost;
-  const tax = resultBeforeTax > 0 ? Math.round((resultBeforeTax * policies.taxRatePct) / 100) : 0;
   const result = resultBeforeTax - tax;
 
   const totalCost = variableCost + fixedCost + tax;
@@ -428,7 +497,16 @@ export function projecaoDeCaixa(params: {
   const media = (dow: number) => (soma[dow] ? Math.round(soma[dow].total / soma[dow].n) : 0);
 
   const ativos = params.subscribers.filter((s) => s.status === "ativo");
-  const recorrentes = params.expenses.filter((e) => e.recurring);
+  /* Um compromisso recorrente por conta, não um por lançamento.
+   *
+   * Era `expenses.filter(e => e.recurring)` sobre o histórico inteiro: depois
+   * de seis meses de uso havia seis documentos "Aluguel", e a projeção cobrava
+   * os seis no mesmo dia — R$ 12.000 num dia 5 que devia ser R$ 2.000. O erro
+   * crescia a cada mês em que o produto era usado. */
+  const recorrentes = despesasRecorrentesVigentes(
+    params.expenses,
+    toISODate(params.inicio)
+  );
 
   const resultado: DiaProjetado[] = [];
   let cumulative = 0;
@@ -472,8 +550,11 @@ export function projecaoDeCaixa(params: {
       })
       .reduce((s, sub) => s + sub.price, 0);
 
+    /* Mesma regra de dia da cobrança do mensalista, agora para a conta a pagar:
+     * o dia do lançamento é o do vencimento, e o que cai no 31 vence no último
+     * dia de um mês de 30 — antes nunca era cobrado nesses meses. */
     const fixedExpense = recorrentes
-      .filter((e) => Number(e.date.slice(-2)) === d.getDate())
+      .filter((e) => Math.min(Number(e.date.slice(-2)), ultimoDiaDoMes) === d.getDate())
       .reduce((s, e) => s + e.value, 0);
 
     const net = bookingRevenue + subscriptionCharge - fixedExpense;

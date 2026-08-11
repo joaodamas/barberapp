@@ -305,7 +305,8 @@ export default function DrePage() {
         </div>
         <div className="flex items-center justify-between py-1.5 pl-5">
           <span className="text-ivory-muted">
-            (−) Impostos <span className="text-xs">(Simples, {dreTaxRatePct}% sobre o resultado)</span>
+            (−) Impostos{" "}
+            <span className="text-xs">(Simples, {dreTaxRatePct}% sobre o faturamento)</span>
           </span>
           <span className="font-medium text-danger">{formatBRL(r.tax)}</span>
         </div>

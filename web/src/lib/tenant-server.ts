@@ -2,10 +2,10 @@ import "server-only";
 import { cache } from "react";
 import { headers } from "next/headers";
 import {
-  ALL_FEATURES,
   DEFAULT_LOCALE,
   DEFAULT_SCHEDULE,
   DEFAULT_TENANT,
+  featuresForPlan,
   PLATFORM_DEFAULT_POLICIES,
   slugFromHost,
   type Tenant,
@@ -177,10 +177,17 @@ function toTenant(id: string, data: Record<string, unknown>): Tenant {
   const features = (data.features ?? {}) as Partial<Tenant["features"]>;
   const locale = (data.locale ?? {}) as Partial<Tenant["locale"]>;
 
+  /* O plano é a base do que está liberado, e é campo imutável pela regra — ao
+   * contrário de `features`, que o dono conseguia escrever direto. `plan`
+   * ausente cai no plano de entrada: barbearia sem contrato conhecido recebe o
+   * mínimo, não o máximo. */
+  const plan: Tenant["plan"] = data.plan === "completo" ? "completo" : "entrada";
+
   return {
     id,
     slug: String(data.slug ?? id),
     status: (data.status as Tenant["status"]) ?? "ativo",
+    plan,
     brand: { ...DEFAULT_TENANT.brand, ...brand },
     contact: { ...DEFAULT_TENANT.contact, ...contact },
     /* Barbearia sem `locale` gravado herda o padrão da plataforma. Nunca
@@ -190,7 +197,14 @@ function toTenant(id: string, data: Record<string, unknown>): Tenant {
     // Política ausente cai no padrão da plataforma — nunca em undefined, que
     // viraria NaN em cálculo de reembolso.
     policies: { ...PLATFORM_DEFAULT_POLICIES, ...policies },
-    features: { ...ALL_FEATURES, ...features },
+    /* Derivar do plano, não do catálogo completo.
+     *
+     * Era `{ ...ALL_FEATURES, ...features }`: documento sem o campo `features`
+     * — que é exatamente o que `signUpBarbershop` criava — virava todo recurso
+     * liberado. Todo cliente self-service ganhava o plano de cima de graça, sem
+     * precisar de ataque nenhum. Agora a ausência resolve pelo plano contratado
+     * e só o campo explícito sobrepõe. */
+    features: { ...featuresForPlan(plan), ...features },
     schedule: { ...DEFAULT_SCHEDULE, ...((data.schedule ?? {}) as object) },
     trial: toTrial(data.trial),
     onboarding: toOnboarding(data.onboarding),
