@@ -358,6 +358,34 @@ publicado — o mesmo que hoje só funciona em `localhost`:
 7. `payments` materializado com a taxa congelada
 8. Action Center some com o fechamento pendente
 
+### Requisito de atualização do PWA
+
+> **Depois de uma publicação, quem já tem o app instalado recebe a versão nova
+> sem limpar service worker nem cache na mão.**
+
+Não é conforto: enquanto isso não vale, todo checkpoint de produção corre o
+risco de testar o build anterior e aprovar o que não foi publicado. Foi o que
+aconteceu em 11/08 — a tela seguia mostrando o valor antigo com o deploy já no
+ar, e só cedeu depois de apagar o `CacheStorage` e desregistrar o worker.
+
+A causa era estrutural: `sw.js` é estático e byte-idêntico entre builds, e o
+navegador só procura worker novo quando esse byte muda. Nenhum deploy jamais
+disparou `updatefound`; o aviso "Nova versão disponível" existia no código
+desde sempre e nunca teve como aparecer.
+
+**Como provar** — exige duas publicações, porque o que se testa é a transição:
+
+1. Com o app já aberto e o worker da versão anterior ativo, publicar
+2. Abrir o app **sem** limpar nada
+3. A versão nova assume sozinha — antes do primeiro toque, a troca é calada;
+   depois dele, aparece "Nova versão disponível"
+4. `caches.keys()` mostra **um** cache, com o build atual no nome; o da versão
+   anterior sumiu no `activate`
+5. Nenhum `ChunkLoadError` no console
+
+O passo 4 é o que separa a correção de um remendo: se o cache antigo sobrevive,
+a próxima publicação volta a servir RSC e chunks de um build que não existe mais.
+
 ### O caminho da falta
 
 Entrou em 11/08 e é o que a suíte verde não prova. Precisa de uma reserva com
