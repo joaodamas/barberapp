@@ -380,6 +380,35 @@ Passou do horário e a reserva continua em aberto.
 
 ---
 
+### 4.11 🔴 Desfecho esquecido
+
+Uma reserva de um dia anterior continua em aberto: ninguém concluiu nem marcou
+falta.
+
+| | |
+|---|---|
+| **Condição** | `date < hoje` **e** `status ∈ {confirmed, confirmed_by_client}` |
+| **Fonte** | `bookings` — exige TODAS as reservas, não só as do dia |
+| **Ação** | *Foi atendido* → modal de fechamento · *Não veio* → modal de falta |
+| **Some quando** | a reserva ganha qualquer desfecho |
+| **Confiança** | 🟢 real |
+| **Urgência** | sobe a partir de 7 dias |
+| **Suporte hoje** | ✅ implementada em 12/08 |
+
+> Custo de ignorar: **receita sumindo em silêncio.** O painel Hoje mostra
+> `date === hoje` e o DRE só conta `completed` — então o corte que aconteceu
+> ontem e ninguém fechou **desaparece à meia-noite**, sem erro em lugar nenhum e
+> sem tela onde ser reencontrado. O dono só percebe quando o mês fecha menor do
+> que ele lembra, e aí já não sabe qual atendimento faltou.
+
+> Duas saídas, e nenhuma automática: concluir sozinho inventaria receita, marcar
+> falta sozinho mancharia o histórico de um cliente que compareceu. Vale aqui a
+> mesma regra do 4.5 — o sistema aponta, quem viu a cadeira decide.
+
+> A urgência cresce com a idade porque o dado que resolve isto é a **lembrança**
+> do que aconteceu, e é ela que se perde primeiro. Uma reserva de ontem ainda se
+> reconstrói; a de duas semanas atrás, não.
+
 ## 5. Eventos de domínio que o bloco exige
 
 | Evento | Materializa | Destrava |

@@ -123,6 +123,65 @@ export function fechamentosPendentes(bookings: Doc<BookingDoc>[]): ActionItem[] 
 const EM_ABERTO: BookingDoc["status"][] = ["confirmed", "confirmed_by_client"];
 
 /**
+ * 4.11 — O atendimento de um dia anterior que ninguém fechou.
+ *
+ * O painel Hoje mostra `date === hoje`, e o DRE só conta `completed`. Uma
+ * reserva de ontem que ficou em aberto **desaparece à meia-noite**: o corte
+ * aconteceu, o dinheiro entrou na gaveta, e o sistema não tem tela onde aquilo
+ * possa ser encontrado de novo. Não é erro técnico — é receita sumindo em
+ * silêncio, e o dono só percebe quando o mês fecha menor do que ele lembra.
+ *
+ * Fica CRÍTICO e sobe conforme envelhece: uma reserva de ontem ainda se
+ * reconstrói de memória; a de duas semanas atrás, não.
+ *
+ * O sistema não decide o desfecho, e isso é deliberado — fechar sozinho o que
+ * ficou em aberto daria falta falsa a quem foi atendido, e receita falsa a quem
+ * não apareceu. Ele aponta; quem viu a cadeira decide.
+ */
+export function desfechosEsquecidos(params: {
+  /** TODAS as reservas conhecidas — o motor decide o que é passado. */
+  todas: Doc<BookingDoc>[];
+  /** Data de hoje em ISO (`YYYY-MM-DD`), no fuso da barbearia. */
+  hoje: string;
+}): ActionItem[] {
+  return params.todas
+    .filter((b) => b.date < params.hoje && EM_ABERTO.includes(b.status))
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map((b) => {
+      const dias = diasEntre(b.date, params.hoje);
+      return {
+        id: `desfecho-esquecido:${b.id}`,
+        severity: "critical" as const,
+        /* Mais velho, mais urgente: a lembrança do que aconteteu é o único
+         * dado que resolve isto, e ela é o que se perde primeiro. */
+        urgency: (dias >= 7 ? 1 : 2) as 1 | 2,
+        confidence: "real" as const,
+        title:
+          dias === 1
+            ? `${b.clientName}, de ontem, ficou sem desfecho`
+            : `${b.clientName}, de ${dias} dias atrás, ficou sem desfecho`,
+        reason:
+          "O horário passou e ninguém concluiu nem marcou falta. Enquanto ficar assim, o valor não entra no faturamento do mês.",
+        actionLabel: "Foi atendido",
+        intent: { kind: "fecharAtendimento" as const, bookingId: b.id },
+        /* O dado não diz qual dos dois aconteceu, e adivinhar aqui seria pior
+         * que perguntar: concluir sozinho inventa receita, marcar falta sozinho
+         * mancha o histórico de um cliente que compareceu. */
+        secondary: {
+          actionLabel: "Não veio",
+          intent: { kind: "marcarFalta" as const, bookingId: b.id },
+        },
+      };
+    });
+}
+
+/** Dias inteiros entre duas datas ISO. Ambas no mesmo fuso, por construção. */
+function diasEntre(de: string, ate: string): number {
+  const ms = Date.parse(`${ate}T00:00:00`) - Date.parse(`${de}T00:00:00`);
+  return Math.max(Math.round(ms / 86_400_000), 1);
+}
+
+/**
  * Minutos entre o horário marcado e agora. Negativo antes da hora.
  *
  * `new Date("2026-08-11T14:00:00")`, sem sufixo de fuso, é lido no fuso do
@@ -305,6 +364,16 @@ export function encaixesAguardando(bookings: Doc<BookingDoc>[]): ActionItem[] {
 export type EstadoOperacional = {
   /** Reservas do dia. */
   bookings: Doc<BookingDoc>[];
+  /**
+   * TODAS as reservas conhecidas, para o motor achar o que ficou para trás.
+   *
+   * A tela não filtra por data antes de entregar: decidir o que é "passado" é
+   * decisão de operação, e ela mora aqui. Ausente, o avaliador simplesmente não
+   * roda — nenhuma tela quebra por não ter migrado ainda.
+   */
+  todasAsReservas?: Doc<BookingDoc>[];
+  /** Hoje em ISO, no fuso da barbearia. */
+  hoje?: string;
   services: Doc<ServiceDoc>[];
   statusServicos: "carregando" | "pronto" | "erro";
   payments: Doc<PaymentDoc>[];
@@ -330,6 +399,9 @@ export function avaliarOperacao(estado: EstadoOperacional): ActionItem[] {
       statusConsulta: estado.statusServicos,
     }),
     ...fechamentosPendentes(estado.bookings),
+    ...(estado.todasAsReservas && estado.hoje
+      ? desfechosEsquecidos({ todas: estado.todasAsReservas, hoje: estado.hoje })
+      : []),
     ...encaixesAguardando(estado.bookings),
     ...atendimentosAtrasados({
       bookings: estado.bookings,

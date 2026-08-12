@@ -91,6 +91,10 @@ export default function PainelHojePage() {
    * um jeito em cada tela. */
   const itensDeAcao = avaliarOperacao({
     bookings,
+    /* Sem filtrar por data: o que conta como "ficou para trás" é decisão de
+     * operação, e ela mora no motor. A tela entrega tudo que conhece. */
+    todasAsReservas: todas,
+    hoje,
     services,
     statusServicos,
     payments: payments.items,
@@ -235,7 +239,10 @@ export default function PainelHojePage() {
    * ela acontece. `navegar` nem chega aqui — vira `Link` no próprio item. */
   function executarIntencao(intent: ActionIntent) {
     if (intent.kind === "navegar") return;
-    const alvo = bookings.find((b) => b.id === intent.bookingId);
+    /* Procura em TODAS, não só nas de hoje: o item de desfecho esquecido
+     * aponta para uma reserva de outro dia, e buscá-la na lista do dia faria o
+     * clique não fazer nada — silenciosamente. */
+    const alvo = todas.find((b) => b.id === intent.bookingId);
     if (!alvo) return;
     if (intent.kind === "fecharAtendimento") setAFechar(alvo);
     else setFaltaDe(alvo);
