@@ -3,6 +3,80 @@
 Histórico de mudanças do JPBarber — plataforma de gestão para barbearias.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [2026-08-12] — a esteira publica pela primeira vez
+
+Tudo abaixo deixou de ser "não publicado": foi ao ar em 12/08 pelo GitHub
+Actions, no commit `5a3bef6`. Publicar não foi um passo administrativo — foi o
+que revelou três defeitos que nenhuma suíte pegaria, porque os três só existem
+depois que alguém publica.
+
+### O deploy existia e nunca tinha rodado
+
+Faltava a credencial: o ambiente `producao` estava sem secret e sem variável.
+Criada a conta de serviço com papéis mínimos (`actAs` só na conta de runtime,
+escrita só nos buckets de código, papel personalizado no lugar de
+`roles/firebase.viewer`, que entregaria a leitura do Firestore de todos os
+clientes junto).
+
+Na primeira execução real, a **trava de alvo derrubou o deploy antes de
+conferir alvo nenhum**: `require('./.firebaserc')` — sem extensão, o Node
+carrega o arquivo com o loader de JavaScript, e `{"projects": {` vira
+`SyntaxError`. Nunca tinha aparecido porque o job jamais havia passado da
+checagem de credencial.
+
+E o `next/font/google` derrubou outra tentativa: o build baixa Oswald e Manrope
+em tempo de build, e a Google devolveu **404**. Toda publicação depende de um
+serviço de terceiro estar de pé — registrado como bloqueador.
+
+### A interface parava de mentir sobre o que foi salvo
+
+O dono salvava a tolerância, o Firestore gravava certo, ele recarregava e a
+tela mostrava o valor antigo. A ficha da barbearia era cacheada por 300s, com o
+comentário "a ficha muda quando o dono edita a marca" — premissa que caiu no dia
+em que Configurações virou tela de escrita nesse mesmo documento. **Já valia
+para as taxas**, antes desta entrega.
+
+Gravação certa com interface mentindo é pior que falhar: o dono salva de novo e
+para de confiar na tela. Agora o painel lê a ficha em tempo real; a vitrine
+pública mantém o cache, que é onde ele se paga.
+
+Na revisão do PR apareceu o buraco da própria correção: o formulário semeava o
+estado com `useState(tenant…)`, que lê o valor **uma vez**. O snapshot chegava
+com o valor novo, o campo continuava com o velho, e salvar gravaria o velho por
+cima — a tela desfazendo a mudança do dono.
+
+### O aviso de versão nova existia e nunca teve como aparecer
+
+Com o deploy publicado, o painel continuava mostrando a versão anterior. Só
+cedeu depois de apagar o `CacheStorage` e desregistrar o worker à mão.
+
+O navegador só procura service worker novo quando o **byte** do script muda, e
+`sw.js` é estático: nenhum deploy jamais disparou `updatefound`. O aviso "Nova
+versão disponível" estava no código desde a fundação, bem feito, com tratamento
+até para múltiplos deploys com a aba aberta — e nunca teve como ser acionado.
+O cache atravessava publicação após publicação servindo RSC e chunks antigos.
+
+Não era o cache mal desenhado. Era o cache **nunca girando**. O worker agora é
+registrado como `/sw.js?v=<build>`, e o `activate` — que já apagava todo cache
+de nome diferente — passou a ter o que apagar.
+
+> **Código correto que nunca executa é indistinguível de código ausente**, e
+> nenhum teste unitário pega isso.
+
+### Prontidão para o piloto virou documento
+
+`docs/GO-LIVE-READINESS.md` — lista única do que falta para entregar a uma
+barbearia real, em quatro estados, com um padrão de evidência: teste verde não
+promove para "validado", e toda linha validada nomeia a evidência.
+
+Sete bloqueadores. Dois apareceram só por montar a lista: **o dono não consegue
+cancelar um atendimento pelo painel** (`cancelBooking` é chamado só pelo app do
+cliente) e o SEC-001 confirmado ao vivo na política de IAM.
+
+E quatro correções ao que se acreditava — inclusive duas deste changelog:
+comissão por barbeiro **já estava feita**, e o trial **já bloqueia** o acesso ao
+vencer.
+
 ## [Não publicado]
 
 ### Verdade financeira — o dinheiro para de mudar depois do fato
