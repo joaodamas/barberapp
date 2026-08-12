@@ -69,12 +69,45 @@ mais caro com barbearia em operação.
 *consumo*: qualquer pessoa chama as Cloud Functions de fora do app. Sem isso, a
 conta do Firebase é do tamanho da paciência de quem quiser abusar dela.
 
-### 2.4 SEC-002 — um único owner, sem conta de emergência
+### 2.4 SEC-002 — tudo pendurado numa conta pessoal
 
-`joaodamasit@gmail.com` é o único `owner` do projeto Google Cloud. Perder essa
-conta é perder o projeto — com a barbearia dentro.
+Levantado na política de IAM em 12/08:
 
-É o bloqueador mais barato da lista: minutos de trabalho.
+| | |
+|---|---|
+| Owner do projeto | `joaodamasit@gmail.com` — **sozinho** |
+| Organização | **nenhuma** — `parent` vazio, projeto avulso |
+| Conta de faturamento | `01C2A9-A133E8-156B61` |
+| Admin do faturamento | `joaodamasit@gmail.com` — **sozinho** |
+
+Projeto e faturamento são pregos separados, e estão ambos na mesma conta
+pessoal. Perder aquele Gmail derruba os dois de uma vez.
+
+**A ausência de organização é o que torna isso irrecuperável.** Num projeto
+avulso não existe admin acima dele: não há a quem recorrer, nem processo de
+recuperação institucional. É o único item desta lista sem caminho de volta — e
+por isso vai à frente do SEC-002 ser mais barato que o SEC-001 ser mais grave.
+
+**Decidido em 12/08:** resolver agora pelo nível 1, e registrar o nível 2.
+
+1. **Segunda conta owner** — conta Google separada, com 2FA e recuperação
+   própria que não dependa da principal (duas chaves na mesma gaveta não são
+   duas chaves). Recebe `roles/owner` no projeto **e** `roles/billing.admin` na
+   conta de faturamento. Minutos de trabalho.
+2. **Cloud Identity em `jpproject.com.br` e projeto sob organização** — o que
+   de fato cria caminho de recuperação e destrava políticas de organização.
+   Mexe em DNS e no vínculo do projeto; não se faz no meio da preparação do
+   piloto. Fica como dívida estrutural, abaixo.
+
+> ⏳ **Aguardando:** o e-mail da segunda conta. Criar conta e mexer em senha é
+> do dono, não da ferramenta. Com o endereço em mãos são dois comandos, e a
+> confirmação é reler a política.
+
+### 2.4.1 Sem organização — dívida estrutural (🟡, não bloqueador do piloto)
+
+Reduzir o risco com uma segunda conta **não** cria recuperação institucional.
+Continua valendo que o projeto de um produto vendido a terceiros vive fora de
+qualquer organização. Não bloqueia o primeiro piloto; bloqueia crescer.
 
 ### 2.5 O dono não consegue cancelar um atendimento
 
