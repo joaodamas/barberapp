@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Fraunces, Manrope } from "next/font/google";
+import localFont from "next/font/local";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
 import { AuthProvider } from "@/lib/auth-context";
 import { TenantProvider } from "@/lib/tenant-context";
@@ -7,27 +7,50 @@ import { getTenant } from "@/lib/tenant-server";
 import { tenantCssVars } from "@/lib/tenant";
 import "./globals.css";
 
+/* Fontes AUTO-HOSPEDADAS, e não `next/font/google`.
+ *
+ * O `next/font/google` baixa o arquivo EM TEMPO DE BUILD. Em 11/08 o
+ * `fonts.gstatic.com` devolveu 404 e derrubou uma publicação real: com uma
+ * barbearia em operação, a correção urgente de um bug ficaria refém de um
+ * serviço de terceiro estar de pé. Servidas por nós, publicar depende só de nós.
+ *
+ * De quebra, o IP de cada visitante deixa de ir para a Google a cada visita —
+ * o que conversa direto com a política de privacidade.
+ *
+ * Os dois arquivos são as MESMAS fontes variáveis que a Google servia, no
+ * subconjunto latino: 118 KB de Fraunces e 24 KB de Manrope. Auto-hospedar não
+ * engorda nada; tira uma resolução de DNS e um handshake de outro domínio do
+ * caminho crítico.
+ */
+
 /* Fraunces é a voz da MARCA — landing, assinatura, títulos de campanha.
  * Nenhum concorrente usa serifada, então ela separa antes de o texto ser lido,
  * e conversa com a paleta creme/dourado, que já é editorial.
  *
- * `opsz` é o eixo óptico: em corpo grande a fonte afina os contrastes sozinha,
- * que é o que faz serifada de display não parecer serifada de texto ampliada. */
-const fraunces = Fraunces({
+ * `preload: false` de propósito: a Fraunces só aparece na landing e na
+ * assinatura da marca. Pré-carregá-la no layout raiz custaria 118 KB no
+ * celular de quem só quer marcar um corte, para uma fonte que não pinta um
+ * caractere naquela tela.
+ *
+ * O eixo óptico continua valendo: o arquivo é a variável inteira, e
+ * `font-optical-sizing: auto` — padrão do navegador — ajusta o contraste pelo
+ * corpo sozinho. É o que faz serifada de display não parecer serifada de texto
+ * ampliada. */
+const fraunces = localFont({
+  src: "../assets/fontes/fraunces-latin-var.woff2",
   variable: "--font-fraunces",
-  subsets: ["latin"],
-  /* Sem `weight`: com `axes` declarado, o Next exige a fonte variável inteira —
-   * pedir pesos fixos junto quebra o build. Variável também é melhor aqui: o
-   * peso vem do CSS, e o eixo óptico ajusta o contraste sozinho conforme o
-   * corpo, que é o que faz serifada de display não parecer serifada de texto
-   * ampliada. */
-  axes: ["SOFT", "WONK", "opsz"],
+  weight: "100 900",
+  display: "swap",
+  preload: false,
 });
 
-const manrope = Manrope({
+/* Manrope é a voz do PRODUTO: painel, app do cliente, tudo. Esta carrega em
+ * toda rota, e por isso é a que vale pré-carregar. */
+const manrope = localFont({
+  src: "../assets/fontes/manrope-latin-var.woff2",
   variable: "--font-manrope",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: "400 700",
+  display: "swap",
 });
 
 /* Título, descrição e nome do app instalado saem da barbearia do subdomínio. */
