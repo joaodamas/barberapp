@@ -40,13 +40,29 @@ const TOLERANCIA_MAX = 120;
 
 export default function ConfiguracoesPage() {
   const tenant = useTenant();
-  const [taxas, setTaxas] = useState<TenantPaymentFees>(tenant.policies.paymentFees);
-  const [tolerancia, setTolerancia] = useState(
-    tenant.policies.booking.lateToleranceMinutes
-  );
+
+  /**
+   * O formulário NÃO semeia do tenant — ele exibe o tenant até alguém digitar.
+   *
+   * `useState(tenant.policies…)` lê o valor uma vez, no primeiro render — e o
+   * primeiro render acontece com a ficha que veio do servidor, cacheada por até
+   * 300s. Quando o snapshot ao vivo chegasse com o valor real, o campo
+   * continuaria mostrando o antigo, `mudou` viraria verdadeiro sozinho, e
+   * salvar gravaria o valor velho POR CIMA do novo: a tela desfazendo a
+   * própria mudança do dono, em silêncio.
+   *
+   * Com rascunho nulo, o campo segue a fonte viva. Assim que o dono digita, o
+   * rascunho vence — e a chegada de um snapshot não puxa o texto debaixo do
+   * dedo dele. Salvar limpa o rascunho e devolve o campo à fonte.
+   */
+  const [rascunhoTaxas, setRascunhoTaxas] = useState<TenantPaymentFees | null>(null);
+  const [rascunhoTolerancia, setRascunhoTolerancia] = useState<number | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [salvo, setSalvo] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+
+  const taxas = rascunhoTaxas ?? tenant.policies.paymentFees;
+  const tolerancia = rascunhoTolerancia ?? tenant.policies.booking.lateToleranceMinutes;
 
   const naoConfigurado = Object.values(taxas).every((v) => v === 0);
   const mudou =
@@ -57,7 +73,7 @@ export default function ConfiguracoesPage() {
     // Vírgula é como se digita percentual em português.
     const n = Number(valor.replace(",", "."));
     const limpo = Number.isFinite(n) ? Math.min(Math.max(n, 0), 100) : 0;
-    setTaxas((t) => ({ ...t, [chave]: limpo }));
+    setRascunhoTaxas({ ...taxas, [chave]: limpo });
     setSalvo(false);
   }
 
@@ -66,7 +82,7 @@ export default function ConfiguracoesPage() {
     const limpo = Number.isFinite(n)
       ? Math.min(Math.max(Math.round(n), TOLERANCIA_MIN), TOLERANCIA_MAX)
       : tenant.policies.booking.lateToleranceMinutes;
-    setTolerancia(limpo);
+    setRascunhoTolerancia(limpo);
     setSalvo(false);
   }
 
@@ -83,6 +99,13 @@ export default function ConfiguracoesPage() {
         "policies.paymentFees": taxas,
         "policies.booking.lateToleranceMinutes": tolerancia,
       });
+      /* Rascunho descartado: o campo volta a seguir a fonte viva, que em
+       * seguida chega pelo snapshot com exatamente o que acabou de ser gravado.
+       * É o que faz o selo "Salvo" aparecer — antes, `mudou` continuava
+       * verdadeiro porque a comparação era contra uma ficha que não atualizava,
+       * e o dono nunca via confirmação nenhuma. */
+      setRascunhoTaxas(null);
+      setRascunhoTolerancia(null);
       setSalvo(true);
     } catch (e) {
       console.error("[configuracoes] falha ao salvar configurações", e);
