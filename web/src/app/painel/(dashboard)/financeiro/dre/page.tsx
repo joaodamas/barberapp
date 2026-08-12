@@ -259,7 +259,13 @@ function DreConteudo() {
       {(grossRevenue > 0 || monthExpenses.length > 0) && (
       <>
       <div className="grid grid-cols-2 gap-2 md:grid-cols-5 md:gap-4">
-        <KpiTile tone="neutral" icon={Wallet} label="Receita" value={formatBRL(grossRevenue)} />
+        <KpiTile
+          tone="neutral"
+          icon={Wallet}
+          label="Receita realizada"
+          value={formatBRL(grossRevenue)}
+          caption="o que teve desfecho registrado"
+        />
         <KpiTile
           tone="danger"
           icon={TrendingDown}
@@ -289,9 +295,31 @@ function DreConteudo() {
         />
       </div>
 
+      {/* A mensalidade fica FORA do DRE e ganha um cartão próprio.
+          Enquanto não houver cobrança, o único lastro de um mensalista "ativo"
+          é uma caixinha marcada — somar isso à receita seria o sistema
+          afirmando um recebimento que ninguém confirmou. E como o Simples
+          incide sobre a receita, o dono separava imposto por esse dinheiro. */}
+      {receita.mensalistas > 0 && (
+        <Card className="flex flex-col gap-1 text-sm md:p-6">
+          <div className="flex items-baseline justify-between">
+            <span className="text-ivory">Receita contratada</span>
+            <span className="font-display text-lg text-ivory-muted">
+              {formatBRL(receita.mensalistas)}
+            </span>
+          </div>
+          <p className="text-xs leading-relaxed text-ivory-muted">
+            Mensalidades de planos ativos. <strong className="text-ivory">Não entra</strong>{" "}
+            no resultado nem no imposto acima: o sistema ainda não cobra
+            mensalidade, então não tem como saber se ela foi paga. Quando a
+            cobrança existir, o valor recebido passa a compor a receita.
+          </p>
+        </Card>
+      )}
+
       <Card className="flex flex-col gap-0.5 text-sm md:p-6 md:text-base">
         <ExpandableGroup
-          label="Receita Bruta"
+          label="Receita realizada"
           value={grossRevenue}
           items={receitaTree}
           open={open}
