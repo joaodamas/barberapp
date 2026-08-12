@@ -445,9 +445,17 @@ export default function LandingPage() {
       </section>
 
       <footer className="border-t border-border">
-        <div className="mx-auto flex w-full max-w-6xl flex-col gap-2 px-5 py-8 text-xs text-ivory-muted md:flex-row md:items-center md:justify-between md:px-8">
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-3 px-5 py-8 text-xs text-ivory-muted md:flex-row md:items-center md:justify-between md:px-8">
           <AssinaturaCorteHub className="text-ivory" />
           <span>Feito para quem corta cabelo e precisa saber de dinheiro.</span>
+          <span className="flex gap-4">
+            <Link href="/privacidade" className="underline-offset-2 hover:text-ivory hover:underline">
+              Privacidade
+            </Link>
+            <Link href="/termos" className="underline-offset-2 hover:text-ivory hover:underline">
+              Termos
+            </Link>
+          </span>
         </div>
       </footer>
     </div>

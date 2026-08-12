@@ -38,14 +38,41 @@ que mente é defeito.
 
 Ordenados por quanto machucam se descobertos depois que houver cliente real.
 
-### 2.1 LGPD, política de privacidade e termos
+### 2.1 LGPD — escrito, ainda não publicável
 
-**Não existe nenhuma rota, e nenhuma menção no código.** É a única pendência
-com exposição legal: a plataforma guarda nome, telefone e histórico de
-atendimento de **clientes de terceiros** — pessoas que nunca contrataram nada e
-não têm a quem reclamar.
+Era a única pendência com exposição legal: a plataforma guarda nome, telefone e
+histórico de atendimento de **clientes de terceiros** — pessoas que nunca
+contrataram nada e não têm a quem reclamar. Também trava a publicação do app na
+Meta, que exige a política.
 
-Também trava a publicação do app na Meta, que exige a política.
+**Feito em 12/08:** `/privacidade` e `/termos` existem, com links no rodapé da
+landing, no cadastro do dono e — o que mais importa — **no passo de confirmação
+da reserva**, imediatamente antes do ato que grava o dado do cliente final.
+
+Postura adotada: **a barbearia é a controladora** dos dados dos clientes dela e
+o **CorteHub é o operador**. A cláusula que sustenta isso está na seção 7 dos
+Termos; sem ela, a postura seria afirmação unilateral nossa e a
+responsabilidade voltaria para a plataforma. A política é ciente do tenant: num
+subdomínio de barbearia, ela nomeia a barbearia como controladora, para o
+cliente não ter de descobrir sozinho a quem reclamar.
+
+**Achado ao escrever:** parte do processamento acontece **fora do Brasil**. As
+functions de negócio rodam em `southamerica-east1`, mas o SSR (`ssraxonbarber`)
+roda em `us-central1` — e é ele que monta a tela, processando nome e telefone em
+trânsito. É transferência internacional pelo art. 33 e está declarada. Mover o
+SSR para São Paulo eliminaria a declaração; decisão adiada de propósito.
+
+**Continua bloqueador, por três motivos concretos:**
+
+1. 🔵 **Campos de identidade em branco.** Nome completo, CPF, e-mail de contato
+   e comarca aparecem marcados em amarelo na tela — de propósito, para o
+   documento não conseguir ir ao ar mentindo. Dependem de você.
+2. 🔴 **A política promete exclusão em 30 dias após o encerramento, e não
+   existe rotina que exclua nada.** Documento que promete o que o código não
+   faz é o defeito que este inventário existe para impedir — só que agora com
+   efeito legal. Ver §3.
+3. ⚖️ **Falta revisão jurídica.** O texto descreve o tratamento com precisão
+   técnica; isso não é o mesmo que atestar conformidade.
 
 ### 2.2 SEC-001 — a conta de runtime é Editor do projeto
 
@@ -190,6 +217,7 @@ Código existe, testes passam, produção não viu.
 | Botão "Atualizar" do PWA | **observado sem funcionar** em 11/08: nem o clique nem um `SKIP_WAITING` direto trocaram o worker. O caminho "fechar e reabrir" funciona |
 | `ChunkLoadError` | apareceu 4× e some quando forçado; sem causa raiz. Reavaliar junto com a rotação do cache |
 | Encaixe expira | `fitInExpirationMinutes` (45) existe e **nada expira nada** — pendência acumula para sempre. Defeito conhecido, não bloqueador |
+| Exclusão de dados ao encerrar a conta | **não existe rotina nenhuma** — e a política de privacidade publicada promete 30 dias. Obrigação criada em 12/08 pelo próprio documento |
 
 ---
 
