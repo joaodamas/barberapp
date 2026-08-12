@@ -67,10 +67,11 @@ SSR para São Paulo eliminaria a declaração; decisão adiada de propósito.
 1. 🔵 **Campos de identidade em branco.** Nome completo, CPF, e-mail de contato
    e comarca aparecem marcados em amarelo na tela — de propósito, para o
    documento não conseguir ir ao ar mentindo. Dependem de você.
-2. 🔴 **A política promete exclusão em 30 dias após o encerramento, e não
-   existe rotina que exclua nada.** Documento que promete o que o código não
-   faz é o defeito que este inventário existe para impedir — só que agora com
-   efeito legal. Ver §3.
+2. 🟡 **A rotina de exclusão existe desde 12/08 e roda em `DRY_RUN`.**
+   `encerrarConta` marca a data, `expurgarContasEncerradas` roda 04:00 e por
+   enquanto só registra o que apagaria. Desligar o `DRY_RUN` exige ler o log ao
+   menos uma vez com conta encerrada de verdade — rotina que apaga dado de
+   cliente é irreversível por definição. Ver §3.
 3. ⚖️ **Falta revisão jurídica.** O texto descreve o tratamento com precisão
    técnica; isso não é o mesmo que atestar conformidade.
 
@@ -217,7 +218,7 @@ Código existe, testes passam, produção não viu.
 | Botão "Atualizar" do PWA | **observado sem funcionar** em 11/08: nem o clique nem um `SKIP_WAITING` direto trocaram o worker. O caminho "fechar e reabrir" funciona |
 | `ChunkLoadError` | apareceu 4× e some quando forçado; sem causa raiz. Reavaliar junto com a rotação do cache |
 | Encaixe expira | `fitInExpirationMinutes` (45) existe e **nada expira nada** — pendência acumula para sempre. Defeito conhecido, não bloqueador |
-| Exclusão de dados ao encerrar a conta | **não existe rotina nenhuma** — e a política de privacidade publicada promete 30 dias. Obrigação criada em 12/08 pelo próprio documento |
+| Exclusão de dados ao encerrar a conta | rotina escrita em 12/08, em **`DRY_RUN`**: registra o que apagaria e não apaga. Ninguém encerrou conta nenhuma, nem leu o log |
 
 ---
 

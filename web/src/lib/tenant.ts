@@ -196,7 +196,11 @@ export type Tenant = {
   id: string;
   /** Subdomínio: `osiqueira` em `osiqueira.dominio.com.br`. */
   slug: string;
-  status: "ativo" | "suspenso" | "trial";
+  /**
+   * `encerrada` é terminal: o dono pediu para sair e a janela de exportação
+   * está correndo. Ver `functions/src/data-deletion.ts`.
+   */
+  status: "ativo" | "suspenso" | "trial" | "encerrada";
   /**
    * Plano contratado. Decide o que `acessoDaBarbearia` libera.
    *
@@ -361,6 +365,13 @@ const NADA: TenantFeatures = {
 export function acessoDaBarbearia(tenant: Tenant, agora = new Date()): Acesso {
   const trialAcabou = isTrialExpired(tenant.trial, agora);
 
+  /* Conta encerrada entra ANTES de tudo, e em leitura como as demais: durante
+   * os 30 dias de janela o dono precisa exatamente disto — enxergar para
+   * exportar. Sem este ramo, `encerrada` escorregaria para o caso "ativa" lá
+   * embaixo e devolveria o plano contratado inteiro a quem já pediu para sair. */
+  if (tenant.status === "encerrada") {
+    return { podeEditar: false, features: NADA, motivo: "cancelada" };
+  }
   if (tenant.status === "suspenso") {
     return { podeEditar: false, features: NADA, motivo: "suspensa" };
   }

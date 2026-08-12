@@ -155,6 +155,21 @@ describe("o que a barbearia pode fazer", () => {
     expect(a.motivo).toBe("suspensa");
   });
 
+  it("conta encerrada não devolve o plano contratado a quem pediu para sair", () => {
+    /* `encerrada` entrou depois dos outros estados. Sem um ramo próprio ela
+     * escorregaria para o caso "ativa" e devolveria o catálogo do plano — a
+     * barbearia que pediu para sair seguiria com tudo liberado durante os 30
+     * dias de janela. Leitura, como os demais: quem encerrou precisa enxergar
+     * para exportar. */
+    const a = acessoDaBarbearia(
+      base({ status: "encerrada", plan: "gestao", features: {} as never }),
+      hoje
+    );
+    expect(a.podeEditar).toBe(false);
+    expect(a.features.advancedFinance).toBe(false);
+    expect(a.motivo).toBe("cancelada");
+  });
+
   it("liberação pontual no documento vence o plano — é como o suporte destrava", () => {
     const a = acessoDaBarbearia(
       base({ status: "ativo", plan: "agenda", features: { advancedFinance: true } as never }),

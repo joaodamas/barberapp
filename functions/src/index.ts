@@ -32,6 +32,11 @@ export { whatsappWebhook } from "./whatsapp/webhook";
 export { createBooking, cancelBooking, rescheduleBooking } from "./booking";
 export { availableSlots } from "./availability";
 export { revisarAssinaturas } from "./billing";
+export {
+  encerrarConta,
+  reabrirConta,
+  expurgarContasEncerradas,
+} from "./data-deletion";
 export { TEMPLATES } from "./whatsapp/templates";
 export type {
   TemplateDef,
