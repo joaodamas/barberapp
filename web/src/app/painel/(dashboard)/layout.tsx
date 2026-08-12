@@ -4,6 +4,7 @@ import { AuthGuard } from "@/components/auth-guard";
 import { DemoBanner } from "@/components/demo-banner";
 import { AcessoExpirado, AvisoDeTrial } from "@/components/acesso";
 import { getTenant } from "@/lib/tenant-server";
+import { TenantLive } from "@/lib/tenant-live";
 import { isTrialExpired } from "@/lib/tenant";
 import { PainelBottomNav } from "@/components/painel-bottom-nav";
 import { PainelSidebarNav } from "@/components/painel-sidebar-nav";
@@ -29,7 +30,12 @@ export default async function PainelDashboardLayout({
     );
   }
 
+  /* Daqui para dentro, a ficha da barbearia vem do Firestore em tempo real, e
+   * não do cache de 300s do servidor: este é o único lugar do produto onde
+   * alguém EDITA a ficha, e ver o valor antigo depois de salvar é a interface
+   * mentindo sobre o que foi gravado. A vitrine pública segue cacheada. */
   return (
+    <TenantLive inicial={tenant}>
     <AuthGuard requireOwner>
       <a
         href="#conteudo"
@@ -60,5 +66,6 @@ export default async function PainelDashboardLayout({
         </div>
       </div>
     </AuthGuard>
+    </TenantLive>
   );
 }
