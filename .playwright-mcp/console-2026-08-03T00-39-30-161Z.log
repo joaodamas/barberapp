@@ -1,5 +1,0 @@
-[     286ms] [ERROR] The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTTPS protocol. You can also use the 'localhost' origin instead. See https://www.w3.org/TR/powerful-features/#potentially-trustworthy-origin and https://html.spec.whatwg.org/#the-cross-origin-opener-policy-header. @ http://osiqueira.lvh.me:3000/login:0
-[     353ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://osiqueira.lvh.me:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2489
-[     396ms] [LOG] [HMR] connected @ http://osiqueira.lvh.me:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2489
-[   11959ms] [LOG] [Fast Refresh] rebuilding @ http://osiqueira.lvh.me:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2489
-[   11998ms] [LOG] [Fast Refresh] done in 162ms @ http://osiqueira.lvh.me:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2489

@@ -5,6 +5,7 @@ import {
   featuresForPlan,
   isTrialExpired,
   PLATFORM_DEFAULT_POLICIES,
+  acessoDaBarbearia,
   shortNameFrom,
   shouldWarnAboutTrial,
   slugFromHost,
@@ -106,10 +107,82 @@ describe("nome curto sob o ícone", () => {
   });
 });
 
+describe("o que a barbearia pode fazer", () => {
+  const base = (over: Partial<typeof DEFAULT_TENANT>) =>
+    ({ ...DEFAULT_TENANT, ...over }) as typeof DEFAULT_TENANT;
+  const hoje = new Date("2026-08-04T12:00:00Z");
+  const trialAberto = { startedAt: "2026-08-01T00:00:00Z", endsAt: "2026-08-08T00:00:00Z" };
+  const trialVencido = { startedAt: "2026-07-01T00:00:00Z", endsAt: "2026-07-08T00:00:00Z" };
+
+  it("no trial, tudo liberado", () => {
+    const a = acessoDaBarbearia(base({ status: "trial", trial: trialAberto }), hoje);
+    expect(a.podeEditar).toBe(true);
+    expect(a.features.advancedFinance).toBe(true);
+    expect(a.motivo).toBeNull();
+  });
+
+  it("trial vencido cai em LEITURA, não em bloqueio", () => {
+    /* O cliente final continua agendando pelo link — o que trava é editar.
+     * Barbearia que perde a agenda no sábado não volta para negociar. */
+    const a = acessoDaBarbearia(base({ status: "trial", trial: trialVencido }), hoje);
+    expect(a.podeEditar).toBe(false);
+    expect(a.motivo).toBe("trial_vencido");
+  });
+
+  it("plano Agenda NÃO abre DRE — que é o que o plano de cima vende", () => {
+    const a = acessoDaBarbearia(base({ status: "ativo", plan: "agenda", features: {} as never }), hoje);
+    expect(a.podeEditar).toBe(true);
+    expect(a.features.advancedFinance).toBe(false);
+    expect(a.features.store).toBe(false);
+  });
+
+  it("plano Crescimento abre loja e fidelidade, não o financeiro avançado", () => {
+    const a = acessoDaBarbearia(base({ status: "ativo", plan: "crescimento", features: {} as never }), hoje);
+    expect(a.features.store).toBe(true);
+    expect(a.features.loyalty).toBe(true);
+    expect(a.features.advancedFinance).toBe(false);
+  });
+
+  it("plano Gestão abre tudo", () => {
+    const a = acessoDaBarbearia(base({ status: "ativo", plan: "gestao", features: {} as never }), hoje);
+    expect(a.features.advancedFinance).toBe(true);
+  });
+
+  it("suspensa não edita nada, em qualquer plano", () => {
+    const a = acessoDaBarbearia(base({ status: "suspenso", plan: "gestao" }), hoje);
+    expect(a.podeEditar).toBe(false);
+    expect(a.features.advancedFinance).toBe(false);
+    expect(a.motivo).toBe("suspensa");
+  });
+
+  it("conta encerrada não devolve o plano contratado a quem pediu para sair", () => {
+    /* `encerrada` entrou depois dos outros estados. Sem um ramo próprio ela
+     * escorregaria para o caso "ativa" e devolveria o catálogo do plano — a
+     * barbearia que pediu para sair seguiria com tudo liberado durante os 30
+     * dias de janela. Leitura, como os demais: quem encerrou precisa enxergar
+     * para exportar. */
+    const a = acessoDaBarbearia(
+      base({ status: "encerrada", plan: "gestao", features: {} as never }),
+      hoje
+    );
+    expect(a.podeEditar).toBe(false);
+    expect(a.features.advancedFinance).toBe(false);
+    expect(a.motivo).toBe("cancelada");
+  });
+
+  it("liberação pontual no documento vence o plano — é como o suporte destrava", () => {
+    const a = acessoDaBarbearia(
+      base({ status: "ativo", plan: "agenda", features: { advancedFinance: true } as never }),
+      hoje
+    );
+    expect(a.features.advancedFinance).toBe(true);
+  });
+});
+
 describe("período de teste", () => {
   /* Estas três funções existiam desde a fundação do multi-tenant sem um único
-   * chamador, e agora decidem se o painel abre. Sem teste, o trial de 7 dias
-   * era uma promessa de documento. */
+   * chamador, e agora decidem o aviso e o modo leitura. Sem teste, o trial de
+   * 7 dias era uma promessa de documento. */
   const trial = { startedAt: "2026-08-01T00:00:00.000Z", endsAt: "2026-08-08T00:00:00.000Z" };
 
   it("conta os dias que faltam, e fica negativo depois de vencer", () => {
@@ -124,7 +197,7 @@ describe("período de teste", () => {
     expect(shouldWarnAboutTrial(null)).toBe(false);
   });
 
-  it("o painel fecha no dia do vencimento, não no dia seguinte", () => {
+  it("o painel entra em leitura no dia do vencimento, não no dia seguinte", () => {
     expect(isTrialExpired(trial, new Date("2026-08-07T23:00:00Z"))).toBe(false);
     expect(isTrialExpired(trial, new Date("2026-08-08T00:00:00Z"))).toBe(true);
   });
@@ -138,19 +211,22 @@ describe("período de teste", () => {
 
 describe("recursos por plano", () => {
   it("o plano de entrada não entrega o que o de cima vende", () => {
-    const entrada = featuresForPlan("entrada");
-    expect(entrada.subscriptions).toBe(false);
-    expect(entrada.store).toBe(false);
-    expect(entrada.advancedFinance).toBe(false);
+    const agenda = featuresForPlan("agenda");
+    expect(agenda.subscriptions).toBe(false);
+    expect(agenda.store).toBe(false);
+    expect(agenda.advancedFinance).toBe(false);
   });
 
-  it("WhatsApp e fidelidade entram já no plano de entrada", () => {
-    const entrada = featuresForPlan("entrada");
-    expect(entrada.whatsapp).toBe(true);
-    expect(entrada.loyalty).toBe(true);
+  it("WhatsApp entra já no plano de entrada — é o add-on que o concorrente cobra", () => {
+    expect(featuresForPlan("agenda").whatsapp).toBe(true);
   });
 
-  it("o plano completo libera tudo", () => {
-    expect(featuresForPlan("completo")).toEqual(ALL_FEATURES);
+  it("fidelidade é do Crescimento para cima, e não do Agenda", () => {
+    expect(featuresForPlan("agenda").loyalty).toBe(false);
+    expect(featuresForPlan("crescimento").loyalty).toBe(true);
+  });
+
+  it("o plano de cima libera tudo", () => {
+    expect(featuresForPlan("gestao")).toEqual(ALL_FEATURES);
   });
 });

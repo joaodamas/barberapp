@@ -19,6 +19,8 @@ import { Segmented } from "@/components/ui/segmented";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { LineChart } from "@/components/ui/chart";
 import { Voltar } from "@/components/ui/voltar";
+import { BloqueioPlano } from "@/components/ui/bloqueio-plano";
+import { useAcesso } from "@/lib/tenant-context";
 
 /* O gate mora num componente à parte, e não num retorno antecipado dentro do
  * conteúdo: os hooks do conteúdo passariam a ser chamados condicionalmente. */
@@ -66,6 +68,14 @@ function ProjecaoConteudo() {
     (min, d) => (d.cumulative < min.cumulative ? d : min),
     cashProjection[0]
   );
+
+  /* O financeiro avançado é o que separa o plano Gestão dos outros.
+   * A saída fica DEPOIS dos hooks: React não aceita hook condicional, e
+   * a tela precisa dos mesmos dados para o caso liberado. */
+  const acesso = useAcesso();
+  if (!acesso.features.advancedFinance) {
+    return <BloqueioPlano titulo="Projeção de caixa" descricao="Saiba com semanas de antecedência em que dia o caixa vira negativo, cruzando horários marcados, mensalistas e contas fixas." />;
+  }
 
   return (
     <div className="flex flex-col gap-6 pt-1 md:gap-8 md:pt-2">

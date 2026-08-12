@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="CorteHub">
+  <!--
+    CorteHub — símbolo. LIGADURA CH: um traço contínuo que entra como C e sai
+    como H. Não são duas letras lado a lado num quadrado — é uma forma só, e é
+    isso que a separa do ícone genérico de SaaS.
+
+    Sem caixa, de propósito. O container arredondado é o que fazia as versões
+    anteriores parecerem template; a forma sozinha aguenta.
+
+    O ponto dourado marca a junção — onde o C vira H, que é a ideia do nome:
+    o corte e o centro que liga tudo.
+
+    Descartados olhando, não por gosto: um C com dentes de pente recortados
+    (ficou serrilhado, parece defeito) e uma contraforma de lâmina (lê como
+    caneta, não como corte).
+
+    `currentColor` no traço: a mesma arte serve sobre claro e escuro sem gerar
+    um segundo arquivo que alguém esquece de atualizar.
+  -->
+  <g fill="none" stroke="currentColor" stroke-width="58" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 300,150 A 106,106 0 1 0 300,362"/>
+    <path d="M 300,150 L 300,362"/>
+    <path d="M 300,256 L 412,256"/>
+    <path d="M 412,150 L 412,362"/>
+  </g>
+  <circle cx="300" cy="256" r="26" fill="#d9a44f"/>
+</svg>

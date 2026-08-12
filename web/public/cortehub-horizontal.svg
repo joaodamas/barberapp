@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 180" width="720" height="180" role="img" aria-label="CorteHub">
+  <!--
+    Assinatura horizontal: a ligadura à esquerda, sem caixa, e o nome à direita.
+    Sem fio separador — a ligadura já é uma forma fechada e o fio a empurrava
+    para dentro de uma moldura que ela não tem.
+
+    ⚠️ O nome é TEXTO em Fraunces. No app funciona; solto, cai em Georgia — o
+    desenho muda. Fora do app, precisa virar curvas.
+  -->
+  <g fill="none" stroke="#17140f" stroke-width="21" stroke-linecap="round" stroke-linejoin="round"
+     transform="translate(14,26) scale(0.345)">
+    <path d="M 300,150 A 106,106 0 1 0 300,362"/>
+    <path d="M 300,150 L 300,362"/>
+    <path d="M 300,256 L 412,256"/>
+    <path d="M 412,150 L 412,362"/>
+  </g>
+  <circle cx="117.5" cy="114.3" r="9" fill="#d9a44f"/>
+
+  <text x="188" y="118"
+        font-family="Fraunces, Georgia, 'Times New Roman', serif"
+        font-size="74" letter-spacing="-0.5" fill="#17140f">
+    <tspan font-weight="600">Corte</tspan><tspan font-weight="400">Hub</tspan>
+  </text>
+</svg>

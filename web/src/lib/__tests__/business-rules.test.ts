@@ -41,6 +41,33 @@ describe("política de cancelamento", () => {
     expect(refundAmountFor({ ...base, hoursUntilStart: -3 }).amount).toBe(0);
   });
 
+  /* A tela do painel mostra a devolução ANTES de gravar, e quem grava é o
+   * `cancelBooking` com `shop.policies.cancellation`. Enquanto esta função só
+   * sabia da constante do módulo, a barbearia com política própria via na tela
+   * um número e o cliente recebia outro — sem erro em log nenhum. */
+  it("respeita a política da barbearia, não a da plataforma", () => {
+    const daBarbearia = {
+      fullRefundHours: 48,
+      partialRefundHours: 12,
+      cancellationFeePct: 50,
+    };
+
+    /* 25h: integral pela política da plataforma (24h), parcial pela desta
+     * barbearia (48h). É exatamente a faixa em que as duas contas divergiam. */
+    expect(refundAmountFor({ ...base, hoursUntilStart: 25 }).tier).toBe("integral");
+    const r = refundAmountFor({ ...base, hoursUntilStart: 25, policy: daBarbearia });
+    expect(r.tier).toBe("parcial");
+    expect(r.retainedPct).toBe(50);
+    expect(r.amount).toBe(50);
+  });
+
+  it("sem política própria, continua valendo a da plataforma", () => {
+    expect(refundAmountFor({ ...base, hoursUntilStart: 25, policy: undefined })).toMatchObject({
+      amount: 100,
+      tier: "integral",
+    });
+  });
+
   it("mantém a taxa dentro da faixa do PRD (20–30%)", () => {
     expect(cancellationPolicy.cancellationFeePct).toBeGreaterThanOrEqual(20);
     expect(cancellationPolicy.cancellationFeePct).toBeLessThanOrEqual(30);

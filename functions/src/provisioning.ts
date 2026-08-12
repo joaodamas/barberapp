@@ -1,7 +1,7 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { getAuth } from "firebase-admin/auth";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
-import { featuresFor } from "./plans";
+import { featuresFor, toPlanId } from "./plans";
 
 /**
  * Provisionamento de uma nova barbearia.
@@ -91,7 +91,10 @@ export const provisionBarbershop = onCall<ProvisionInput>(async (request) => {
 
   const shopRef = db.collection("barbershops").doc();
   const slugRef = db.collection("slugs").doc(slug);
-  const plan = input.plan ?? "completo";
+  /* Provisionamento é manual e feito pela plataforma, mas o plano ainda passa
+   * pelo normalizador: digitar "gestão" com acento gravaria um plano que não
+   * existe, e a barbearia abriria capada sem erro em lugar nenhum. */
+  const plan = toPlanId(input.plan ?? "gestao");
 
   await db.runTransaction(async (tx) => {
     // Leitura dentro da transação: garante que ninguém tomou o slug no meio.

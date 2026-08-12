@@ -38,14 +38,42 @@ que mente é defeito.
 
 Ordenados por quanto machucam se descobertos depois que houver cliente real.
 
-### 2.1 LGPD, política de privacidade e termos
+### 2.1 LGPD — escrito, ainda não publicável
 
-**Não existe nenhuma rota, e nenhuma menção no código.** É a única pendência
-com exposição legal: a plataforma guarda nome, telefone e histórico de
-atendimento de **clientes de terceiros** — pessoas que nunca contrataram nada e
-não têm a quem reclamar.
+Era a única pendência com exposição legal: a plataforma guarda nome, telefone e
+histórico de atendimento de **clientes de terceiros** — pessoas que nunca
+contrataram nada e não têm a quem reclamar. Também trava a publicação do app na
+Meta, que exige a política.
 
-Também trava a publicação do app na Meta, que exige a política.
+**Feito em 12/08:** `/privacidade` e `/termos` existem, com links no rodapé da
+landing, no cadastro do dono e — o que mais importa — **no passo de confirmação
+da reserva**, imediatamente antes do ato que grava o dado do cliente final.
+
+Postura adotada: **a barbearia é a controladora** dos dados dos clientes dela e
+o **CorteHub é o operador**. A cláusula que sustenta isso está na seção 7 dos
+Termos; sem ela, a postura seria afirmação unilateral nossa e a
+responsabilidade voltaria para a plataforma. A política é ciente do tenant: num
+subdomínio de barbearia, ela nomeia a barbearia como controladora, para o
+cliente não ter de descobrir sozinho a quem reclamar.
+
+**Achado ao escrever:** parte do processamento acontece **fora do Brasil**. As
+functions de negócio rodam em `southamerica-east1`, mas o SSR (`ssraxonbarber`)
+roda em `us-central1` — e é ele que monta a tela, processando nome e telefone em
+trânsito. É transferência internacional pelo art. 33 e está declarada. Mover o
+SSR para São Paulo eliminaria a declaração; decisão adiada de propósito.
+
+**Continua bloqueador, por três motivos concretos:**
+
+1. 🔵 **Campos de identidade em branco.** Nome completo, CPF, e-mail de contato
+   e comarca aparecem marcados em amarelo na tela — de propósito, para o
+   documento não conseguir ir ao ar mentindo. Dependem de você.
+2. 🟡 **A rotina de exclusão existe desde 12/08 e roda em `DRY_RUN`.**
+   `encerrarConta` marca a data, `expurgarContasEncerradas` roda 04:00 e por
+   enquanto só registra o que apagaria. Desligar o `DRY_RUN` exige ler o log ao
+   menos uma vez com conta encerrada de verdade — rotina que apaga dado de
+   cliente é irreversível por definição. Ver §3.
+3. ⚖️ **Falta revisão jurídica.** O texto descreve o tratamento com precisão
+   técnica; isso não é o mesmo que atestar conformidade.
 
 ### 2.2 SEC-001 — a conta de runtime é Editor do projeto
 
@@ -109,21 +137,47 @@ Reduzir o risco com uma segunda conta **não** cria recuperação institucional.
 Continua valendo que o projeto de um produto vendido a terceiros vive fora de
 qualquer organização. Não bloqueia o primeiro piloto; bloqueia crescer.
 
-### 2.5 O dono não consegue cancelar um atendimento
+### 2.5 ~~O dono não consegue cancelar um atendimento~~ — resolvido, não provado
 
 **Descoberto ao montar este inventário.** `cancelBooking` e `rescheduleBooking`
-existem e funcionam, mas são chamados **só pelo app do cliente**
-(`/reservas`). No painel, a única escrita de cancelamento é a recusa de encaixe.
+existem e funcionam, mas eram chamados **só pelo app do cliente** (`/reservas`).
+No painel, a única escrita de cancelamento era a recusa de encaixe.
 
 Na operação real o cliente liga, manda mensagem ou simplesmente avisa no balcão
-— e o dono não tem caminho. O horário fica preso como confirmado, entra na
-previsão do dia e vira alerta de atraso.
+— e o dono não tinha caminho. O horário ficava preso como confirmado, entrava na
+previsão do dia e virava alerta de atraso de quem já havia desmarcado.
+
+**Feito em 12/08:** a agenda do painel ganhou "Cancelar" nas reservas em aberto.
+Vai pela Cloud Function, e não por `patchDoc` como as outras ações da tela,
+porque aqui há dinheiro: quem calcula a devolução é o servidor, com a política
+da barbearia. O diálogo mostra a conta antes de gravar, o horário volta a ficar
+livre e o cliente é avisado por WhatsApp depois de a escrita dar certo.
+
+Dois defeitos fechados junto:
+
+- `refundAmountFor` lia a constante da plataforma e ignorava
+  `tenant.policies.cancellation`. Numa barbearia com política própria, a tela
+  prometia uma devolução e o servidor gravava outra — sem erro em log nenhum, e
+  a diferença indo para o bolso do cliente.
+- A conta do cancelamento morava dentro do `onCall` e por isso **não tinha
+  teste nenhum**: exercer exigia emulador, autenticação e reserva semeada.
+  Extraída para `desfechoDoCancelamento`, agora com 9 testes.
+
+> 🟡 **Ninguém clicou neste botão ainda.** Typecheck, lint, 162 testes no web e
+> 130 nas functions, e o build passa — o que, pela regra 1 deste documento, não
+> promove nada. Sobe para ✅ quando um cancelamento real acontecer no domínio
+> publicado. Deixa de ser bloqueador porque o caminho existe; entra na fila do
+> item 3.
 
 ### 2.6 O build depende da Google estar de pé
 
-`layout.tsx` importa Oswald e Manrope de `next/font/google`, e isso **baixa as
-fontes em tempo de build**. Em 11/08 o `fonts.gstatic.com` devolveu 404 e
-derrubou um deploy real; a reexecução passou.
+`layout.tsx` importa **Fraunces e Manrope** de `next/font/google`, e isso
+**baixa as fontes em tempo de build**. Em 11/08 o `fonts.gstatic.com` devolveu
+404 e derrubou um deploy real; a reexecução passou.
+
+> Eram Oswald e Manrope quando este item foi escrito. A troca por Fraunces veio
+> no merge de 12/08 e não muda nada aqui: a dependência é do `next/font/google`,
+> não de qual fonte.
 
 Não bloqueia a operação — bloqueia **publicar**. Com barbearia em uso, a
 correção urgente de um bug fica refém de um serviço de terceiro. Auto-hospedar
@@ -153,14 +207,18 @@ Código existe, testes passam, produção não viu.
 |---|---|
 | Action Center — as 5 regras no ar | só o estado **vazio** foi observado em produção; nenhuma regra foi vista disparando |
 | Cancelamento pelo cliente | `/reservas` chama a função; ninguém cancelou de verdade |
+| Cancelamento pelo dono | botão novo na agenda do painel (12/08); nenhum clique real, nem em emulador |
 | Remarcação | idem, mais a política de 2 remarcações |
 | Encaixe aprovado/recusado | a tela existe desde antes; nunca verificada no domínio |
-| Trial bloqueia o acesso ao vencer | o corte existe no layout do painel; nunca houve tenant vencido |
+| Trial vencido cai em **modo leitura** | o corte seco saiu em 12/08: o dono passa a ver tudo sem editar, e o cliente segue agendando. Nunca houve tenant vencido para exercer |
+| Planos bloqueiam de verdade | três níveis com matriz em `COBRANCA-E-ENTRADA.md`; em produção só existe barbearia em trial, que libera tudo |
+| `revisarAssinaturas` move trial vencido para suspenso | roda 06:00, e está em **`DRY_RUN = true`**: hoje só registra o que faria. Ninguém leu o log dela ainda |
 | Isolamento entre barbearias | 66 testes verdes no CI; em produção só existe **uma** barbearia |
 | Rotação do cache do PWA | a primeira publicação criou `barbearia-<sha>`; provar exige a **próxima** — não vale deploy artificial |
 | Botão "Atualizar" do PWA | **observado sem funcionar** em 11/08: nem o clique nem um `SKIP_WAITING` direto trocaram o worker. O caminho "fechar e reabrir" funciona |
 | `ChunkLoadError` | apareceu 4× e some quando forçado; sem causa raiz. Reavaliar junto com a rotação do cache |
 | Encaixe expira | `fitInExpirationMinutes` (45) existe e **nada expira nada** — pendência acumula para sempre. Defeito conhecido, não bloqueador |
+| Exclusão de dados ao encerrar a conta | rotina escrita em 12/08, em **`DRY_RUN`**: registra o que apagaria e não apaga. Ninguém encerrou conta nenhuma, nem leu o log |
 
 ---
 
@@ -181,6 +239,14 @@ Cada linha com a evidência que a sustenta.
 | Configurações grava e reflete na hora | tolerância 5 → 10 → 5, com selo "Salvo" e sem recarregar |
 | Merge de política parcial | o documento real em produção tem `policies.booking` com **um** campo; sem o merge, a agenda aceitaria horário já passado |
 | PWA troca de versão ao fechar e reabrir | `barbearia-v4` e `barbearia-dev` purgados; sobrou `barbearia-5a3bef6cc3d5` |
+
+> ⚠️ **As três primeiras linhas foram provadas contra o código de 11/08, e o
+> merge de 12/08 reescreveu o cálculo da comissão** — juntou a versão da `main`
+> com o detalhe por barbeiro da branch e passou a recalcular o percentual
+> exibido a partir do que foi somado. A regra provada continua valendo por
+> desenho e por teste, mas a evidência nomeada aqui é anterior ao código atual.
+> Pela regra 1 deste documento, teste verde não promove: **re-exercer os três
+> após a próxima publicação.**
 
 ---
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext } from "react";
-import { DEFAULT_TENANT, type Tenant } from "@/lib/tenant";
+import { acessoDaBarbearia, DEFAULT_TENANT, type Tenant } from "@/lib/tenant";
 
 /**
  * A barbearia do subdomínio atual, resolvida no servidor e injetada aqui.
@@ -36,4 +36,16 @@ export function usePolicies() {
 /** Recurso liberado pelo plano contratado. */
 export function useFeature(feature: keyof Tenant["features"]) {
   return useContext(TenantContext).features[feature];
+}
+
+/**
+ * O que esta barbearia pode fazer agora.
+ *
+ * Deriva de status, trial e plano — ver `acessoDaBarbearia`. Existe como hook
+ * próprio para nenhuma tela precisar repetir a regra: quem pergunta "posso
+ * mostrar o DRE?" pergunta aqui, e a resposta muda num lugar só quando o
+ * pacote de planos mudar.
+ */
+export function useAcesso() {
+  return acessoDaBarbearia(useContext(TenantContext));
 }

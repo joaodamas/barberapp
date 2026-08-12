@@ -117,9 +117,11 @@ export type TenantPolicies = {
   booking: TenantBookingPolicy;
   loyalty: typeof defaultLoyaltyPolicy;
   commissionSplit: typeof defaultCommissionSplit;
+  /** Alíquota do Simples Nacional sobre a receita bruta, em %. */
   taxRatePct: number;
   /** Dias em que abre (0 = domingo). */
   openWeekdays: number[];
+  /** Taxa da maquininha por meio de recebimento, em %. */
   paymentFees: TenantPaymentFees;
 };
 
@@ -148,8 +150,14 @@ export type TenantFeatures = {
   advancedFinance: boolean;
 };
 
-/** Plano contratado na plataforma. */
-export type PlanId = "entrada" | "completo";
+/**
+ * Plano contratado na plataforma. Ver `docs/COBRANCA-E-ENTRADA.md` para a
+ * matriz e o preço de cada um.
+ */
+export type PlanId = "agenda" | "crescimento" | "gestao";
+
+/** O que uma barbearia sem plano conhecido recebe: o mínimo, nunca o máximo. */
+export const PLANO_DE_ENTRADA: PlanId = "agenda";
 
 /**
  * Recursos que o plano libera. Espelha `functions/src/plans.ts` — os dois
@@ -157,14 +165,7 @@ export type PlanId = "entrada" | "completo";
  * a barbearia cujo documento foi criado antes disso e não tem o campo.
  */
 export function featuresForPlan(plan: PlanId): TenantFeatures {
-  const completo = plan === "completo";
-  return {
-    whatsapp: true,
-    loyalty: true,
-    subscriptions: completo,
-    store: completo,
-    advancedFinance: completo,
-  };
+  return FEATURES_POR_PLANO[plan];
 }
 
 /** Jornada da barbearia — sai de `lib/slots.ts` e vira configuração. */
@@ -195,7 +196,18 @@ export type Tenant = {
   id: string;
   /** Subdomínio: `osiqueira` em `osiqueira.dominio.com.br`. */
   slug: string;
-  status: "ativo" | "suspenso" | "trial";
+  /**
+   * `encerrada` é terminal: o dono pediu para sair e a janela de exportação
+   * está correndo. Ver `functions/src/data-deletion.ts`.
+   */
+  status: "ativo" | "suspenso" | "trial" | "encerrada";
+  /**
+   * Plano contratado. Decide o que `acessoDaBarbearia` libera.
+   *
+   * Obrigatório e já normalizado: `tenant-shape` resolve ausência e valor
+   * desconhecido para `PLANO_DE_ENTRADA`, para que ninguém aqui precise de um
+   * fallback — e fallback de plano, quando existe, tende a ser generoso.
+   */
   plan: PlanId;
   brand: TenantBrand;
   contact: TenantContact;
@@ -292,6 +304,98 @@ export const ALL_FEATURES: TenantFeatures = {
 };
 
 /**
+ * O que cada plano entrega. O trial libera tudo.
+ *
+ * `Record<PlanId, …>` e não `Record<string, …>` de propósito: com a chave
+ * aberta, plano desconhecido devolvia `undefined` e o chamador caía num
+ * `?? ALL_FEATURES` — barbearia com plano escrito errado ganhava o catálogo
+ * inteiro. Agora o valor é normalizado na entrada (`tenant-shape`) e aqui o
+ * acesso é total.
+ *
+ * WhatsApp entra já no Agenda de propósito: é o que o Trinks cobra como
+ * add-on, e o argumento de venda mais direto contra ele.
+ */
+export const FEATURES_POR_PLANO: Record<PlanId, TenantFeatures> = {
+  agenda: {
+    subscriptions: false,
+    store: false,
+    loyalty: false,
+    whatsapp: true,
+    advancedFinance: false,
+  },
+  crescimento: {
+    subscriptions: true,
+    store: true,
+    loyalty: true,
+    whatsapp: true,
+    advancedFinance: false,
+  },
+  gestao: ALL_FEATURES,
+};
+
+/**
+ * O que a barbearia pode FAZER agora.
+ *
+ * `features` e `trial` existiam no modelo e não eram consultados por tela
+ * nenhuma — plano de R$ 97 enxergava DRE, e teste vencido funcionava para
+ * sempre. Cobrança sem isto é cobrança voluntária.
+ *
+ * Modo LEITURA em vez de bloqueio: barbearia que perde a agenda no meio de um
+ * sábado não volta para negociar, cria caso. O cliente final continua
+ * agendando, o dono continua vendo o que existe — o que trava é editar e o que
+ * é do plano de cima.
+ */
+export type Acesso = {
+  /** Pode alterar dados: catálogo, despesas, equipe, horários. */
+  podeEditar: boolean;
+  /** O que o plano libera, já considerando trial e suspensão. */
+  features: TenantFeatures;
+  /** Por que está em leitura, quando está. */
+  motivo: "trial_vencido" | "suspensa" | "cancelada" | null;
+};
+
+const NADA: TenantFeatures = {
+  subscriptions: false,
+  store: false,
+  loyalty: false,
+  whatsapp: false,
+  advancedFinance: false,
+};
+
+export function acessoDaBarbearia(tenant: Tenant, agora = new Date()): Acesso {
+  const trialAcabou = isTrialExpired(tenant.trial, agora);
+
+  /* Conta encerrada entra ANTES de tudo, e em leitura como as demais: durante
+   * os 30 dias de janela o dono precisa exatamente disto — enxergar para
+   * exportar. Sem este ramo, `encerrada` escorregaria para o caso "ativa" lá
+   * embaixo e devolveria o plano contratado inteiro a quem já pediu para sair. */
+  if (tenant.status === "encerrada") {
+    return { podeEditar: false, features: NADA, motivo: "cancelada" };
+  }
+  if (tenant.status === "suspenso") {
+    return { podeEditar: false, features: NADA, motivo: "suspensa" };
+  }
+  if (tenant.status === "trial") {
+    return trialAcabou
+      ? { podeEditar: false, features: NADA, motivo: "trial_vencido" }
+      : { podeEditar: true, features: ALL_FEATURES, motivo: null };
+  }
+
+  /* Barbearia ativa: vale o plano contratado. `features` gravado no documento
+   * ainda tem a palavra final — é como o suporte libera algo pontualmente sem
+   * mexer no plano.
+   *
+   * Sem `?? ALL_FEATURES`: o fallback generoso era o furo. Plano ausente ou
+   * escrito errado já virou `PLANO_DE_ENTRADA` na normalização. */
+  const doPlano = FEATURES_POR_PLANO[tenant.plan];
+  return {
+    podeEditar: true,
+    features: { ...doPlano, ...tenant.features },
+    motivo: null,
+  };
+}
+
+/**
  * O tenant da PLATAFORMA — o que vale quando o host não tem subdomínio de
  * barbearia, e o que preenche campo faltante de qualquer barbearia.
  *
@@ -301,19 +405,21 @@ export const ALL_FEATURES: TenantFeatures = {
  * Tesouras, 120" em silêncio — endereço falso na tela do cliente dela, sem erro
  * em lugar nenhum.
  *
- * Agora é a JPBarber, e os contatos nascem VAZIOS: campo em branco é honesto,
+ * Agora é a CorteHub, e os contatos nascem VAZIOS: campo em branco é honesto,
  * campo com dado de outro é mentira.
  */
 export const DEFAULT_TENANT: Tenant = {
-  id: "jpbarber",
-  slug: "jpbarber",
+  id: "cortehub",
+  slug: "cortehub",
   status: "ativo",
-  plan: "completo",
+  /* A própria plataforma não é cliente de si mesma; `gestao` aqui só evita que
+   * a vitrine do domínio raiz apareça capada. */
+  plan: "gestao",
   brand: {
-    name: "JPBarber",
-    shortName: "JPBarber",
-    logo: "/jpbarber-marca.svg",
-    logoHorizontal: "/jpbarber-horizontal.svg",
+    name: "CorteHub",
+    shortName: "CorteHub",
+    logo: "/cortehub-marca.svg",
+    logoHorizontal: "/cortehub-horizontal.svg",
     accentColor: "#b8863a",
     themeColor: "#ffffff",
     panelLabel: "Painel do dono",
@@ -347,7 +453,7 @@ const RESERVED_SLUGS = new Set(["www", "app", "admin", "api", "status", "docs"])
 /**
  * Slug a partir do host.
  *
- * `osiqueira.jpbarber.com.br` → "osiqueira".
+ * `osiqueira.cortehub.com.br` → "osiqueira".
  *
  * A comparação é contra o domínio raiz configurado, não por contagem de
  * rótulos: `jpproject.com.br` tem três rótulos e é o apex, enquanto

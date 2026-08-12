@@ -41,5 +41,8 @@ next-env.d.ts
 functions/.meta-token
 functions/.app-secret
 
+# Capturas e logs do MCP do Playwright — artefato de sessão, não de projeto.
+.playwright-mcp/
+
 # Permissões locais do Claude Code — decisão de confiança pessoal, não do repo
 .claude/settings.local.json

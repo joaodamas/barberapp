@@ -21,7 +21,7 @@ const RESERVED_SLUGS = new Set([
 export const TRIAL_DAYS = 7;
 
 /** O teste roda no plano de cima: o dono só escolhe o plano ao fim dele. */
-export const TRIAL_PLAN: PlanId = "completo";
+export const TRIAL_PLAN: PlanId = "gestao";
 
 /** Catálogo inicial — o dono ajusta preço e apaga o que não faz. */
 const SEED_SERVICES = [

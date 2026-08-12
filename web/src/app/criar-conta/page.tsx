@@ -291,6 +291,24 @@ export default function CriarContaPage() {
               {criando ? "Criando sua barbearia…" : "Criar e começar o teste"}
             </Button>
 
+            {/* Aceite por ação, e não caixa marcada: a criação da conta É o
+                ato. Caixa pré-marcada não vale como manifestação, e caixa vazia
+                num fluxo de 4 campos vira atrito que ninguém lê mesmo. O que
+                importa é o link estar aqui, antes do clique, e não escondido no
+                rodapé de outra página. */}
+            <p className="text-center text-xs text-ivory-muted">
+              Ao criar a conta você concorda com os{" "}
+              <Link href="/termos" className="underline hover:text-ivory">
+                Termos de Uso
+              </Link>{" "}
+              e com a{" "}
+              <Link href="/privacidade" className="underline hover:text-ivory">
+                Política de Privacidade
+              </Link>
+              . Como os dados dos SEUS clientes são seus, os Termos explicam o
+              que isso exige de você.
+            </p>
+
             <p className="text-center text-xs text-ivory-muted">
               Sem cartão. Ao fim dos 7 dias você escolhe um plano — seus dados
               continuam aqui de qualquer forma.

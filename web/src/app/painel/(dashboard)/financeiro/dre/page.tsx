@@ -10,6 +10,8 @@ import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { useFeature, useTenant } from "@/lib/tenant-context";
 import { RecursoBloqueado } from "@/components/recurso-bloqueado";
 import { Voltar } from "@/components/ui/voltar";
+import { BloqueioPlano } from "@/components/ui/bloqueio-plano";
+import { useAcesso } from "@/lib/tenant-context";
 
 type DreItem = {
   key: string;
@@ -145,9 +147,37 @@ function DreConteudo() {
       caption: `${m.quantity} un. compradas`,
     }));
 
+  /* Comissão aberta POR PESSOA, e não numa linha só.
+   *
+   * É a maior despesa de uma barbearia com equipe, e o total agregado não
+   * responde a pergunta que o dono realmente faz — "quanto o Léo me custou, e
+   * quanto ele trouxe". Cada linha mostra a base e o percentual DELE, porque
+   * cada barbeiro pode ter o seu. */
   const variaveisTree: DreItem[] = [
     { key: "var.gateway", label: "Taxas de gateway", value: r.gatewayFees },
-    { key: "var.comissao", label: "Comissões de profissionais", value: r.commissions },
+    {
+      key: "var.comissao",
+      label: "Comissões de profissionais",
+      value: r.commissions,
+      children: [
+        ...r.comissaoPorBarbeiro.map((b) => ({
+          key: `var.comissao.${b.staffId}`,
+          label: b.nome,
+          value: b.valor,
+          caption: `${b.pct}% sobre ${formatBRL(b.base)} · ${b.atendimentos} atendimentos`,
+        })),
+        ...(r.commissionsLoja > 0
+          ? [
+              {
+                key: "var.comissao.loja",
+                label: "Loja",
+                value: r.commissionsLoja,
+                caption: "sobre o lucro do produto, não sobre a venda",
+              },
+            ]
+          : []),
+      ],
+    },
   ];
 
   /* Despesa fixa = recorrente. Antes TODA despesa entrava como fixa, inclusive
@@ -170,6 +200,14 @@ function DreConteudo() {
       value: e.value,
       caption: e.category,
     }));
+
+  /* O financeiro avançado é o que separa o plano Gestão dos outros.
+   * A saída fica DEPOIS dos hooks: React não aceita hook condicional, e
+   * a tela precisa dos mesmos dados para o caso liberado. */
+  const acesso = useAcesso();
+  if (!acesso.features.advancedFinance) {
+    return <BloqueioPlano titulo="DRE Gerencial" descricao="Veja quanto sobra depois de comissão, custo fixo e imposto — com margem de contribuição e ponto de equilíbrio calculados do seu custo real." />;
+  }
 
   return (
     <div className="flex flex-col gap-6 pt-1 md:gap-8 md:pt-2">
@@ -241,7 +279,7 @@ function DreConteudo() {
           icon={TrendingDown}
           label="Custo fixo total"
           value={formatBRL(custoFixoTotal)}
-          caption="despesas fixas + folha"
+          caption="aluguel, contas e o que não varia com o movimento"
         />
         <KpiTile
           tone={signTone(resultadoDoMes)}
@@ -308,12 +346,18 @@ function DreConteudo() {
           groupKey="eventuais"
           tone="danger"
         />
-        <div className="flex items-center justify-between py-1.5 pl-5">
-          <span className="text-ivory-muted">
-            (−) Custo de Folha (Mão de Obra) <span className="text-xs">(operação solo)</span>
-          </span>
-          <span className="font-medium text-danger">{formatBRL(payroll)}</span>
-        </div>
+        {/* A folha só aparece quando existe. A linha era renderizada sempre,
+            eternamente em R$ 0,00, dizendo "(operação solo)" — o que fazia
+            parecer que mão de obra estava contabilizada e custava nada. Hoje o
+            pagamento de barbeiro é comissão, e vive no custo variável. */}
+        {payroll > 0 && (
+          <div className="flex items-center justify-between py-1.5 pl-5">
+            <span className="text-ivory-muted">
+              (−) Salário fixo <span className="text-xs">(quem não recebe por comissão)</span>
+            </span>
+            <span className="font-medium text-danger">{formatBRL(payroll)}</span>
+          </div>
+        )}
         <div className="mt-1 flex items-center justify-between border-t border-border pt-2">
           <span className="text-ivory">(=) Custo Fixo Total</span>
           <span className="text-ivory">{formatBRL(custoFixoTotal)}</span>

@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   AlertCircle,
   CalendarCheck,
+  CalendarX,
   Check,
   ChevronRight,
   CreditCard,
@@ -31,8 +32,9 @@ import { usePayments } from "@/lib/db/use-shop-data";
 import type { PaymentMethod } from "@/lib/types";
 import { labelDoPagamento, PAYMENT_METHODS, paymentMethodLabel } from "@/lib/payment-method";
 import { formatBRL, formatPhonePtBR, safePct } from "@/lib/format";
-import { bookingPolicy } from "@/lib/business-rules";
+import { bookingPolicy, refundAmountFor } from "@/lib/business-rules";
 import { useTenant } from "@/lib/tenant-context";
+import type { TenantPolicies } from "@/lib/tenant";
 import { useBookings, useServices, useStaff } from "@/lib/db/use-shop-data";
 import { patchDoc } from "@/lib/db/repository";
 import { capacidadeDiaria, caixaDoDia, mesPeriodo } from "@/lib/analytics";
@@ -102,6 +104,17 @@ export default function PainelHojePage() {
   const semColunaLateral = itensDeAcao.length === 0 && fitInRequests.length === 0;
   const [aFechar, setAFechar] = useState<Doc<BookingDoc> | null>(null);
   const [faltaDe, setFaltaDe] = useState<Doc<BookingDoc> | null>(null);
+  const [aCancelar, setACancelar] = useState<Doc<BookingDoc> | null>(null);
+  const [cancelando, setCancelando] = useState(false);
+  const [erroCancelar, setErroCancelar] = useState<string | null>(null);
+
+  /* A conta que o dono vê antes de confirmar, com a política DESTA barbearia —
+   * a mesma que `cancelBooking` vai aplicar do lado do servidor. Enquanto isto
+   * lia a constante do módulo, a barbearia com política própria via na tela uma
+   * devolução diferente da que era gravada. */
+  const devolucao = aCancelar
+    ? devolucaoDoCancelamento(aCancelar, tenant.policies.cancellation)
+    : null;
 
   const caixaHoje = caixaDoDia(agendados);
   const recebidoReal = caixaHoje.total;
@@ -148,6 +161,54 @@ export default function PainelHojePage() {
     void patchDoc(tenant.id, "bookings", booking.id, {
       status: "no_show",
     }).catch((e) => console.error("[hoje] falha ao marcar falta", e));
+  }
+
+  /**
+   * Cancelamento pelo DONO — o caminho que faltava.
+   *
+   * `cancelBooking` existia desde sempre e só o app do cliente chamava. Na
+   * operação real o cliente liga, manda mensagem ou avisa no balcão, e o dono
+   * não tinha o que fazer: o horário ficava preso como confirmado, entrava na
+   * previsão do dia e virava alerta de atraso de um cliente que já tinha
+   * desmarcado.
+   *
+   * Vai pela Cloud Function, e não por `patchDoc` como as outras ações desta
+   * tela, porque aqui há DINHEIRO. Quem calcula a devolução é o servidor, com a
+   * política da barbearia; deixar a tela gravar `refundedAmount` poria a conta
+   * do cliente na mão de quem tem o botão. A função já distingue os dois casos
+   * e grava `cancelled_by_shop` quando quem cancela é o dono.
+   */
+  async function confirmarCancelamento() {
+    const booking = aCancelar;
+    if (!booking) return;
+    setCancelando(true);
+    setErroCancelar(null);
+    try {
+      const { callFunction } = await import("@/lib/firebase");
+      await callFunction("cancelBooking", {
+        barbershopId: tenant.id,
+        bookingId: booking.id,
+      });
+      setACancelar(null);
+      avisarCancelamento(booking);
+    } catch (err) {
+      console.error("[hoje] falha ao cancelar", err);
+      setErroCancelar(
+        (err as { message?: string })?.message ?? "Não foi possível cancelar agora."
+      );
+    } finally {
+      setCancelando(false);
+    }
+  }
+
+  /* Só depois de o cancelamento ter dado certo. Abrir a conversa antes faria o
+   * dono avisar o cliente de algo que pode ter falhado na escrita. */
+  function avisarCancelamento(booking: Doc<BookingDoc>) {
+    const firstName = booking.clientName.split(" ")[0];
+    const digitos = String(booking.clientWhatsapp ?? "").replace(/\D/g, "");
+    if (!digitos) return;
+    const message = `Olá ${firstName}, seu horário das ${booking.time} de hoje foi cancelado. Qualquer coisa, é só chamar para remarcar. — ${brand.name}`;
+    window.open(`https://wa.me/${digitos}?text=${encodeURIComponent(message)}`, "_blank");
   }
 
   /* A tela não decide nada: recebe a intenção que o motor declarou e sabe onde
@@ -501,6 +562,20 @@ export default function PainelHojePage() {
                               <UserX size={14} /> Não veio
                             </button>
                           )}
+                          {/* Só enquanto está em aberto. Cancelar depois de
+                              concluído mexeria em dinheiro já materializado, e
+                              desfazer a conclusão é outro caminho. */}
+                          {emAberto && (
+                            <button
+                              onClick={() => {
+                                setErroCancelar(null);
+                                setACancelar(booking);
+                              }}
+                              className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ivory-muted transition-colors hover:border-danger hover:text-danger"
+                            >
+                              <CalendarX size={14} /> Cancelar
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -574,8 +649,86 @@ export default function PainelHojePage() {
           </Button>
         </div>
       </Modal>
+
+      {/* O único diálogo desta tela que mexe em dinheiro do cliente, e por isso
+          o único que mostra a conta ANTES de gravar. O valor exibido sai da
+          política DESTA barbearia — a mesma que o servidor vai aplicar. */}
+      <Modal
+        open={!!aCancelar}
+        onClose={() => !cancelando && setACancelar(null)}
+        title="Cancelar este horário?"
+      >
+        <p className="mb-3 text-sm text-ivory">
+          {aCancelar?.clientName} · {aCancelar?.time} ·{" "}
+          {aCancelar ? formatBRL(aCancelar.value) : ""}
+        </p>
+        <p className="mb-2 text-sm text-ivory-muted">{devolucao?.label}</p>
+        <p className="mb-5 text-sm text-ivory-muted">
+          O horário volta a ficar livre na agenda e sai da previsão do dia. O
+          cliente é avisado pelo WhatsApp em seguida.
+        </p>
+        {erroCancelar && (
+          <p className="mb-4 text-sm text-danger" role="alert">
+            {erroCancelar}
+          </p>
+        )}
+        <div className="flex gap-2">
+          <Button
+            className="flex-1"
+            disabled={cancelando}
+            onClick={() => void confirmarCancelamento()}
+          >
+            {cancelando ? "Cancelando…" : "Confirmar cancelamento"}
+          </Button>
+          <Button
+            variant="secondary"
+            className="flex-1"
+            disabled={cancelando}
+            onClick={() => setACancelar(null)}
+          >
+            Voltar
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
+}
+
+/**
+ * Quanto volta para o cliente se o dono cancelar agora, e a frase que explica.
+ *
+ * A política é passada de fora, e não lida da constante do módulo, porque quem
+ * decide é `shop.policies.cancellation` no servidor. As duas contas precisam
+ * dar o mesmo número: prometer na tela uma devolução que o servidor não grava
+ * é um erro que aparece no bolso do cliente, e em log nenhum.
+ *
+ * A hora é a do navegador. O dono está no balcão da barbearia, no fuso dela —
+ * e a decisão de qual fuso vale já é do servidor, que recalcula tudo com
+ * `tenant.locale.timeZone` antes de gravar. Aqui é previsão, não escrita.
+ */
+function devolucaoDoCancelamento(
+  booking: Doc<BookingDoc>,
+  policy: TenantPolicies["cancellation"]
+) {
+  const inicio = new Date(`${booking.date}T${booking.time}:00`);
+  const horas = (inicio.getTime() - Date.now()) / 3_600_000;
+  const refund = refundAmountFor({
+    value: booking.value,
+    paymentMethod: booking.paymentMethod,
+    hoursUntilStart: horas,
+    policy,
+  });
+
+  const label =
+    refund.tier === "sem_pagamento"
+      ? "O cliente ainda não pagou — não há valor a devolver."
+      : refund.tier === "integral"
+        ? `Faltam mais de ${policy.fullRefundHours}h: devolução integral de ${formatBRL(refund.amount)}.`
+        : refund.tier === "parcial"
+          ? `Faltam menos de ${policy.fullRefundHours}h: retém ${refund.retainedPct}% de taxa e devolve ${formatBRL(refund.amount)}.`
+          : `Faltam menos de ${policy.partialRefundHours}h: a política não prevê devolução.`;
+
+  return { ...refund, label };
 }
 
 /**

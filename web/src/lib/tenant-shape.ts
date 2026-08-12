@@ -4,7 +4,10 @@ import {
   DEFAULT_SCHEDULE,
   DEFAULT_TENANT,
   featuresForPlan,
+  FEATURES_POR_PLANO,
+  PLANO_DE_ENTRADA,
   PLATFORM_DEFAULT_POLICIES,
+  type PlanId,
   type Tenant,
   type TenantTrial,
 } from "@/lib/tenant";
@@ -28,11 +31,7 @@ export function toTenant(id: string, data: Record<string, unknown>): Tenant {
   const features = (data.features ?? {}) as Partial<Tenant["features"]>;
   const locale = (data.locale ?? {}) as Partial<Tenant["locale"]>;
 
-  /* O plano é a base do que está liberado, e é campo imutável pela regra — ao
-   * contrário de `features`, que o dono conseguia escrever direto. `plan`
-   * ausente cai no plano de entrada: barbearia sem contrato conhecido recebe o
-   * mínimo, não o máximo. */
-  const plan: Tenant["plan"] = data.plan === "completo" ? "completo" : "entrada";
+  const plan = toPlan(data.plan);
 
   return {
     id,
@@ -76,6 +75,33 @@ export function toTenant(id: string, data: Record<string, unknown>): Tenant {
     trial: toTrial(data.trial),
     onboarding: toOnboarding(data.onboarding),
   };
+}
+
+/**
+ * Valor gravado em `plan` → `PlanId`.
+ *
+ * O plano é a base do que está liberado, e é campo imutável pela regra — ao
+ * contrário de `features`, que o dono conseguia escrever direto.
+ *
+ * Ausente, escrito errado ou de uma linha de planos antiga cai em
+ * `PLANO_DE_ENTRADA`: barbearia sem contrato conhecido recebe o mínimo, nunca
+ * o máximo. É o mesmo furo que fazia todo tenant self-service nascer com o
+ * plano de cima, agora fechado do lado de fora — depois daqui, nenhum leitor
+ * precisa de fallback.
+ *
+ * `entrada` e `completo` são a linha de dois níveis que existiu entre 11/08 e
+ * a volta para três; documento gravado nesse intervalo é traduzido em vez de
+ * rebaixado, porque rebaixar tiraria da barbearia algo que ela contratou.
+ */
+const PLANOS_ANTIGOS: Record<string, PlanId> = {
+  entrada: "agenda",
+  completo: "gestao",
+};
+
+function toPlan(raw: unknown): PlanId {
+  if (typeof raw !== "string") return PLANO_DE_ENTRADA;
+  if (raw in FEATURES_POR_PLANO) return raw as PlanId;
+  return PLANOS_ANTIGOS[raw] ?? PLANO_DE_ENTRADA;
 }
 
 /**

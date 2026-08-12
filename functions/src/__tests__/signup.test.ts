@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { validateSlug, ONBOARDING_WRITABLE_FIELDS, TRIAL_DAYS, TRIAL_PLAN } from "../signup";
-import { featuresFor } from "../plans";
+import { featuresFor, toPlanId } from "../plans";
 
 describe("endereço da barbearia", () => {
   it("aceita nomes reais", () => {
@@ -80,17 +80,38 @@ describe("campos graváveis pelo onboarding", () => {
 
 describe("recursos por plano", () => {
   it("o plano de entrada não libera o que o de cima vende", () => {
-    const entrada = featuresFor("entrada");
-    expect(entrada.subscriptions).toBe(false);
-    expect(entrada.store).toBe(false);
-    expect(entrada.advancedFinance).toBe(false);
+    const agenda = featuresFor("agenda");
+    expect(agenda.subscriptions).toBe(false);
+    expect(agenda.store).toBe(false);
+    expect(agenda.advancedFinance).toBe(false);
   });
 
-  it("WhatsApp e fidelidade entram já no plano de entrada", () => {
+  it("WhatsApp entra já no plano de entrada", () => {
     // Decisão comercial: é o add-on que o concorrente cobra à parte.
-    const entrada = featuresFor("entrada");
-    expect(entrada.whatsapp).toBe(true);
-    expect(entrada.loyalty).toBe(true);
+    expect(featuresFor("agenda").whatsapp).toBe(true);
+  });
+
+  it("fidelidade é do Crescimento para cima", () => {
+    expect(featuresFor("agenda").loyalty).toBe(false);
+    expect(featuresFor("crescimento").loyalty).toBe(true);
+  });
+
+  it("o backend concorda com o frontend sobre o que cada plano entrega", () => {
+    /* Duas fontes espelhadas: `functions/src/plans.ts` grava na criação e
+     * `web/src/lib/tenant.ts` resolve na leitura. Divergir aqui vira barbearia
+     * pagando por um recurso que a tela não mostra. */
+    expect(featuresFor("crescimento")).toEqual({
+      whatsapp: true, loyalty: true, subscriptions: true, store: true,
+      advancedFinance: false,
+    });
+  });
+
+  it("plano escrito errado cai no de entrada, e não no de cima", () => {
+    expect(toPlanId("gestão")).toBe("agenda");
+    expect(toPlanId(undefined)).toBe("agenda");
+    // A linha de dois planos é traduzida, não rebaixada.
+    expect(toPlanId("completo")).toBe("gestao");
+    expect(toPlanId("entrada")).toBe("agenda");
   });
 
   it("o cadastro grava features — nunca deixa o campo ausente", () => {

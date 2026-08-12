@@ -45,17 +45,31 @@ export function refundAmountFor(params: {
    */
   paymentMethod: PaymentMethod | null;
   hoursUntilStart: number;
+  /**
+   * A política DA BARBEARIA. Omitida, vale a da plataforma.
+   *
+   * Existe porque esta função só sabia da constante do módulo enquanto o
+   * `cancelBooking` decide com `shop.policies.cancellation`: numa barbearia com
+   * política própria, a tela prometia uma devolução e o servidor gravava outra
+   * — sem erro em lugar nenhum, e a conta errada indo para o cliente.
+   */
+  policy?: {
+    fullRefundHours: number;
+    partialRefundHours: number;
+    cancellationFeePct: number;
+  };
 }) {
   const { value, paymentMethod, hoursUntilStart } = params;
+  const policy = params.policy ?? cancellationPolicy;
 
   if (!paymentMethod) {
     return { amount: 0, retainedPct: 0, tier: "sem_pagamento" as const };
   }
-  if (hoursUntilStart >= cancellationPolicy.fullRefundHours) {
+  if (hoursUntilStart >= policy.fullRefundHours) {
     return { amount: value, retainedPct: 0, tier: "integral" as const };
   }
-  if (hoursUntilStart >= cancellationPolicy.partialRefundHours) {
-    const retainedPct = cancellationPolicy.cancellationFeePct;
+  if (hoursUntilStart >= policy.partialRefundHours) {
+    const retainedPct = policy.cancellationFeePct;
     return {
       amount: Math.round(value * (1 - retainedPct / 100) * 100) / 100,
       retainedPct,
@@ -106,10 +120,19 @@ export function isOpenOn(date: Date) {
 /* ------------------------------------------------------------------ */
 
 /**
- * Rateio do LUCRO BRUTO da venda entre profissional e barbearia.
- * O PRD exige `barberPct + shopPct === 100`, validado pelo sistema — mesmo na
- * operação solo, para separar o "salário do dono como barbeiro" do resultado
- * da empresa.
+ * Rateio entre profissional e barbearia.
+ *
+ * ⚠️ A BASE MUDA CONFORME O QUE FOI VENDIDO, e confundir as duas foi o erro
+ * que fez o DRE informar 60% de margem:
+ *
+ * - **Serviço** (corte, barba): incide sobre o VALOR DO ATENDIMENTO. É assim
+ *   que o mercado brasileiro paga barbeiro — 35% a 60% do faturamento — e é a
+ *   maior linha de custo de uma barbearia com equipe.
+ * - **Produto** (loja): incide sobre o LUCRO BRUTO da venda, porque o custo de
+ *   compra não é receita de ninguém.
+ *
+ * Cada barbeiro pode ter percentual próprio (`StaffDoc.commissionPct`); este é
+ * o padrão de quem não tem.
  */
 export const commissionSplit = {
   barberPct: 40,

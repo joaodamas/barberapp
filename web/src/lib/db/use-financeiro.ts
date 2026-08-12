@@ -76,7 +76,7 @@ export function useFinanceiro(mes: string, horizonte: Horizonte = "mensal") {
      * comissão usava o percentual único da barbearia mesmo com `commissionPct`
      * gravado por profissional. Com a equipe e as reservas aqui, a linha de
      * mão de obra do DRE deixa de ser R$ 0,00 estrutural e passa a respeitar o
-     * que cada barbeiro combinou. */
+     * que cada barbeiro combinou — defeito corrigido em 05/08/2026. */
     payroll: folhaMensal(staff.items),
     staff: staff.items,
     bookings: bookings.items,

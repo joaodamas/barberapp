@@ -74,6 +74,25 @@ describe("documento da barbearia → Tenant", () => {
     expect(tenant.policies).toEqual(PLATFORM_DEFAULT_POLICIES);
     expect(tenant.trial).toBeNull();
     // Plano ausente recebe o MÍNIMO, não o máximo.
-    expect(tenant.plan).toBe("entrada");
+    expect(tenant.plan).toBe("agenda");
+  });
+
+  it("plano desconhecido não libera nada — o fallback generoso era o furo", () => {
+    /* Enquanto o mapa aceitava chave aberta, plano escrito errado devolvia
+     * `undefined` e o chamador caía num `?? ALL_FEATURES`: um typo no console
+     * dava o catálogo inteiro de graça, sem erro em lugar nenhum. */
+    const tenant = toTenant("shop1", { plan: "gestão" }); // com acento, e portanto inexistente
+
+    expect(tenant.plan).toBe("agenda");
+    expect(tenant.features.advancedFinance).toBe(false);
+  });
+
+  it("barbearia gravada na linha de dois planos é traduzida, não rebaixada", () => {
+    /* `entrada` e `completo` valeram entre 11/08 e a volta para três níveis, e
+     * há documento real em produção com esses valores. Rebaixar para o plano de
+     * entrada tiraria da barbearia o que ela contratou. */
+    expect(toTenant("shop1", { plan: "completo" }).plan).toBe("gestao");
+    expect(toTenant("shop1", { plan: "entrada" }).plan).toBe("agenda");
+    expect(toTenant("shop1", { plan: "completo" }).features.advancedFinance).toBe(true);
   });
 });

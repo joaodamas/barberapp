@@ -529,6 +529,20 @@ export default function AgendarPage() {
           >
             {confirmando ? "Confirmando…" : ctaLabel}
           </Button>
+          {/* O cliente final é o único aqui que não contratou nada: ele quer
+              cortar o cabelo e sai deixando nome, telefone e histórico. O aviso
+              fica no passo da CONFIRMAÇÃO, imediatamente antes do ato que grava
+              o dado — no rodapé de outra tela, ninguém leria. */}
+          {step === 3 && (
+            <p className="text-center text-[11px] leading-relaxed text-ivory-muted">
+              Ao confirmar, seu nome e WhatsApp ficam com {tenant.brand.name} para
+              gerenciar este atendimento.{" "}
+              <Link href="/privacidade" className="underline hover:text-ivory">
+                Como seus dados são tratados
+              </Link>
+              .
+            </p>
+          )}
         </div>
       )}
       </div>
@@ -591,6 +605,17 @@ export default function AgendarPage() {
           >
             {confirmando ? "Confirmando…" : ctaLabel}
           </Button>
+
+          {step === 3 && (
+            <p className="text-center text-[11px] leading-relaxed text-ivory-muted">
+              Ao confirmar, seu nome e WhatsApp ficam com {tenant.brand.name}{" "}
+              para gerenciar este atendimento.{" "}
+              <Link href="/privacidade" className="underline hover:text-ivory">
+                Como seus dados são tratados
+              </Link>
+              .
+            </p>
+          )}
         </Card>
       )}
     </div>

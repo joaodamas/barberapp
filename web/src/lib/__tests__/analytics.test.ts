@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  caixaDiario, caixaDoDia, capacidadeDiaria, comissaoDeServicos, folhaMensal,
+  caixaDiario, caixaDoDia, capacidadeDiaria, comissoesDeServico, folhaMensal,
   taxasDePagamento,
   horariosDaJornada, indicadores,
   mesPeriodo, projecaoDeCaixa, receitaDoMes, recorrenciaDeClientes,
@@ -156,22 +156,22 @@ describe("caixa diário", () => {
 
 describe("resultado do mês", () => {
   const base = () => {
-    const bookings = [bk({ id: "1", value: 1000 })];
+    const bookings = [bk({ id: "1", value: 1000, paymentMethod: "cash" })];
     const movements = [mv({ id: "v", kind: "venda", value: 500 }), mv({ id: "c", kind: "compra", value: 200 })];
     const receita = receitaDoMes({ bookings, movements, subscribers: [], periodo: P });
-    return { receita, movements };
+    return { receita, movements, bookings, staff: [st({ id: "s1" })] };
   };
 
   it("margem = receita − custo variável", () => {
-    const { receita, movements } = base();
-    const r = resultadoDoMes({ receita, expenses: [], movements, periodo: P, policies: PLATFORM_DEFAULT_POLICIES });
+    const b = base();
+    const r = resultadoDoMes({ ...b, expenses: [], periodo: P, policies: PLATFORM_DEFAULT_POLICIES });
     expect(r.contributionMargin).toBe(r.grossRevenue - r.variableCost);
   });
 
   it("só despesa recorrente é custo fixo", () => {
-    const { receita, movements } = base();
+    const b = base();
     const r = resultadoDoMes({
-      receita, movements, periodo: P, policies: PLATFORM_DEFAULT_POLICIES,
+      ...b, periodo: P, policies: PLATFORM_DEFAULT_POLICIES,
       expenses: [ex({ id: "1", value: 1800, recurring: true }), ex({ id: "2", value: 200, recurring: false })],
     });
     expect(r.fixedExpenses).toBe(1800);
@@ -182,16 +182,112 @@ describe("resultado do mês", () => {
     // Simples Nacional (Anexo III) é sobre receita bruta. Calcular sobre o
     // resultado subestimava em ~3× e sumia inteiro no mês negativo — o dono
     // planejava com dinheiro que é do governo.
-    const { receita, movements } = base();
+    const b = base();
     const r = resultadoDoMes({
-      receita, movements, periodo: P, policies: PLATFORM_DEFAULT_POLICIES,
+      ...b, periodo: P, policies: PLATFORM_DEFAULT_POLICIES,
       expenses: [ex({ id: "1", value: 99999 })],
     });
     expect(r.resultBeforeTax).toBeLessThan(0);
     expect(r.tax).toBe(
-      Math.round((receita.bruta * PLATFORM_DEFAULT_POLICIES.taxRatePct) / 100)
+      Math.round((b.receita.bruta * PLATFORM_DEFAULT_POLICIES.taxRatePct) / 100)
     );
     expect(r.tax).toBeGreaterThan(0);
+  });
+
+  /* O teste que existia aqui afirmava que a comissão saía APENAS do lucro da
+   * loja — ou seja, ele passava porque codificava o defeito. Com R$ 1.000 de
+   * serviço, o custo de mão de obra lançado era R$ 120 (40% sobre R$ 300 de
+   * lucro de produto) em vez de R$ 520. */
+  it("serviço paga comissão sobre o FATURAMENTO, produto sobre o lucro", () => {
+    const b = base();
+    const r = resultadoDoMes({ ...b, expenses: [], periodo: P, policies: PLATFORM_DEFAULT_POLICIES });
+    const pct = PLATFORM_DEFAULT_POLICIES.commissionSplit.barberPct;
+
+    expect(r.commissionsServico).toBe((1000 * pct) / 100);
+    expect(r.commissionsLoja).toBe(((500 - 200) * pct) / 100);
+    expect(r.commissions).toBe(r.commissionsServico + r.commissionsLoja);
+  });
+
+  it("cada barbeiro paga o percentual DELE, não a média", () => {
+    const bookings = [
+      bk({ id: "1", staffId: "romulo", value: 1000 }),
+      bk({ id: "2", staffId: "leo", value: 500 }),
+      bk({ id: "3", staffId: "leo", value: 500 }),
+    ];
+    const receita = receitaDoMes({ bookings, movements: [], subscribers: [], periodo: P });
+    const r = resultadoDoMes({
+      receita, bookings, expenses: [], movements: [], periodo: P,
+      policies: PLATFORM_DEFAULT_POLICIES,
+      staff: [st({ id: "romulo", name: "Rômulo", commissionPct: 50 }), st({ id: "leo", name: "Léo", commissionPct: 30 })],
+    });
+
+    expect(r.commissionsServico).toBe(500 + 300);
+    const leo = r.comissaoPorBarbeiro.find((b) => b.staffId === "leo");
+    expect(leo).toMatchObject({ nome: "Léo", base: 1000, pct: 30, valor: 300, atendimentos: 2 });
+  });
+
+  it("barbeiro sem percentual próprio cai no padrão da barbearia", () => {
+    const bookings = [bk({ id: "1", staffId: "s1", value: 1000 })];
+    const receita = receitaDoMes({ bookings, movements: [], subscribers: [], periodo: P });
+    const r = resultadoDoMes({
+      receita, bookings, expenses: [], movements: [], periodo: P,
+      policies: PLATFORM_DEFAULT_POLICIES, staff: [st({ id: "s1" })],
+    });
+    expect(r.comissaoPorBarbeiro[0].pct).toBe(PLATFORM_DEFAULT_POLICIES.commissionSplit.barberPct);
+  });
+
+  /* Reserva cujo `staffId` não corresponde a barbeiro nenhum: o corte
+   * aconteceu e alguém recebeu. Somar zero esconderia custo real. */
+  it("reserva órfã ainda gera custo, e diz que é órfã", () => {
+    const bookings = [bk({ id: "1", staffId: "fantasma", value: 1000 })];
+    const receita = receitaDoMes({ bookings, movements: [], subscribers: [], periodo: P });
+    const r = resultadoDoMes({
+      receita, bookings, expenses: [], movements: [], periodo: P,
+      policies: PLATFORM_DEFAULT_POLICIES, staff: [],
+    });
+    expect(r.commissionsServico).toBe(400);
+    expect(r.comissaoPorBarbeiro[0].nome).toMatch(/não identificado/i);
+  });
+
+  it("a taxa da maquininha entra no custo variável, e não fica em zero", () => {
+    /* A taxa vem SOMADA dos pagamentos congelados, via `gatewayFeesTotal`, e
+     * não derivada da reserva com a taxa vigente hoje — senão mudar a taxa da
+     * maquininha reescreveria meses já fechados. Aqui se prova só a ligação:
+     * o que `taxasDePagamento` soma chega ao resultado. */
+    const b = base();
+    const semTaxa = resultadoDoMes({
+      ...b, expenses: [], periodo: P, policies: PLATFORM_DEFAULT_POLICIES,
+    });
+    const comTaxa = resultadoDoMes({
+      ...b, expenses: [], periodo: P, policies: PLATFORM_DEFAULT_POLICIES,
+      gatewayFeesTotal: 35,
+    });
+    expect(semTaxa.gatewayFees).toBe(0);
+    expect(comTaxa.gatewayFees).toBe(35);
+    expect(comTaxa.variableCost - semTaxa.variableCost).toBe(35);
+    expect(comTaxa.result).toBe(semTaxa.result - 35);
+  });
+
+  /* A trava contra a regressão que originou tudo isto. O setor opera com 15% a
+   * 30% de margem (Sebrae) e 45% a 65% de margem de contribuição. O motor
+   * chegou a informar 94,6% e 59,8% — 2 a 4 vezes a realidade — porque os 91%
+   * da receita que vêm de serviço não geravam custo de mão de obra nenhum. */
+  it("uma barbearia realista não fecha com margem de software", () => {
+    const bookings = Array.from({ length: 168 }, (_, i) =>
+      bk({ id: `b${i}`, value: 74, paymentMethod: i % 2 ? "pix" : "credit" })
+    );
+    const movements = [mv({ id: "v", kind: "venda", value: 950 }), mv({ id: "c", kind: "compra", value: 600 })];
+    const receita = receitaDoMes({ bookings, movements, subscribers: [], periodo: P });
+    const r = resultadoDoMes({
+      receita, bookings, movements, periodo: P, policies: PLATFORM_DEFAULT_POLICIES,
+      expenses: [ex({ id: "1", value: 4230, recurring: true })],
+      staff: [st({ id: "s1" })],
+    });
+
+    expect(r.contributionMarginPct).toBeGreaterThan(45);
+    expect(r.contributionMarginPct).toBeLessThan(65);
+    expect(r.marginPct).toBeGreaterThan(10);
+    expect(r.marginPct).toBeLessThan(35);
   });
 
   it("a identidade do DRE fecha", () => {
@@ -244,7 +340,10 @@ describe("resultado do mês", () => {
 
   it("receita zero não gera NaN", () => {
     const receita = receitaDoMes({ bookings: [], movements: [], subscribers: [], periodo: P });
-    const r = resultadoDoMes({ receita, expenses: [], movements: [], periodo: P, policies: PLATFORM_DEFAULT_POLICIES });
+    const r = resultadoDoMes({
+      receita, expenses: [], movements: [], bookings: [], staff: [],
+      periodo: P, policies: PLATFORM_DEFAULT_POLICIES,
+    });
     expect(Number.isFinite(r.marginPct)).toBe(true);
     expect(r.breakEvenDay).toBeNull();
   });
@@ -387,31 +486,31 @@ describe("mão de obra", () => {
   it("cada barbeiro comissiona pelo percentual DELE", () => {
     /* `commissionPct` existia desde o multi-barbeiro e nada o lia: quem foi
      * contratado a 50% e quem entrou a 30% apareciam com o mesmo custo. */
-    const comissao = comissaoDeServicos({
+    const comissao = comissoesDeServico({
       bookings: [
         bk({ id: "1", staffId: "a", value: 100 }),
         bk({ id: "2", staffId: "b", value: 100 }),
       ],
       staff: [st({ id: "a", commissionPct: 50 }), st({ id: "b", commissionPct: 30 })],
       periodo: P8,
-      padraoPct: 40,
+      policies: PLATFORM_DEFAULT_POLICIES,
     });
-    expect(comissao).toBe(80); // 50 + 30, não 40 + 40
+    expect(comissao.total).toBe(80); // 50 + 30, não 40 + 40
   });
 
   it("sem percentual próprio cai no padrão da barbearia", () => {
     // O cadastro inicial grava `commissionPct: null`, não ausente.
-    const comissao = comissaoDeServicos({
+    const comissao = comissoesDeServico({
       bookings: [bk({ id: "1", staffId: "a", value: 100 })],
       staff: [st({ id: "a", commissionPct: undefined })],
       periodo: P8,
-      padraoPct: 40,
+      policies: PLATFORM_DEFAULT_POLICIES,
     });
-    expect(comissao).toBe(40);
+    expect(comissao.total).toBe(40);
   });
 
   it("atendimento que não virou receita não gera comissão", () => {
-    const comissao = comissaoDeServicos({
+    const comissao = comissoesDeServico({
       bookings: [
         bk({ id: "1", staffId: "a", value: 100, status: "no_show" }),
         bk({ id: "2", staffId: "a", value: 100, status: "cancelled_by_client" }),
@@ -419,9 +518,9 @@ describe("mão de obra", () => {
       ],
       staff: [st({ id: "a", commissionPct: 50 })],
       periodo: P8,
-      padraoPct: 40,
+      policies: PLATFORM_DEFAULT_POLICIES,
     });
-    expect(comissao).toBe(0);
+    expect(comissao.total).toBe(0);
   });
 
   it("o DRE usa o percentual de cada um quando a equipe é informada", () => {
@@ -461,41 +560,41 @@ describe("comissão congelada vence sobre a derivação", () => {
     /* O atendimento foi concluído quando o barbeiro estava a 40%. Ele passou
      * para 50% depois. O fechamento daquele mês não pode mudar. */
     const bookings = [bk({ id: "1", staffId: "a", value: 100 })];
-    const comissao = comissaoDeServicos({
+    const comissao = comissoesDeServico({
       bookings,
       staff: [st({ id: "a", commissionPct: 50 })], // percentual de HOJE
       periodo: P7,
-      padraoPct: 40,
+      policies: PLATFORM_DEFAULT_POLICIES,
       commissions: [cm({ id: "c1", bookingId: "1", commissionPct: 40, commissionAmount: 40 })],
     });
-    expect(comissao).toBe(40); // e não 50
+    expect(comissao.total).toBe(40); // e não 50
   });
 
   it("deriva o atendimento anterior ao trigger, sem zerar o histórico", () => {
     // Sem fallback, todo mês anterior à materialização apareceria com R$ 0,00.
-    const comissao = comissaoDeServicos({
+    const comissao = comissoesDeServico({
       bookings: [
         bk({ id: "1", staffId: "a", value: 100 }),  // tem comissão gravada
         bk({ id: "2", staffId: "a", value: 100 }),  // é anterior ao trigger
       ],
       staff: [st({ id: "a", commissionPct: 50 })],
       periodo: P7,
-      padraoPct: 40,
+      policies: PLATFORM_DEFAULT_POLICIES,
       commissions: [cm({ id: "c1", bookingId: "1", commissionAmount: 40 })],
     });
-    expect(comissao).toBe(90); // 40 congelado + 50 derivado
+    expect(comissao.total).toBe(90); // 40 congelado + 50 derivado
   });
 
   it("comissão de outro período não vaza para este", () => {
-    const comissao = comissaoDeServicos({
+    const comissao = comissoesDeServico({
       bookings: [bk({ id: "1", staffId: "a", value: 100 })],
       staff: [st({ id: "a", commissionPct: 50 })],
       periodo: P7,
-      padraoPct: 40,
+      policies: PLATFORM_DEFAULT_POLICIES,
       commissions: [cm({ id: "c1", bookingId: "1", date: "2026-06-10" })],
     });
     // A de junho é ignorada e a reserva de julho deriva pelos 50% atuais.
-    expect(comissao).toBe(50);
+    expect(comissao.total).toBe(50);
   });
 });
 

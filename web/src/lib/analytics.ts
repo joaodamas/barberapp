@@ -161,6 +161,116 @@ export function caixaDiario(params: {
 }
 
 /* ------------------------------------------------------------------ */
+/* Custo do trabalho                                                   */
+/* ------------------------------------------------------------------ */
+
+export type ComissaoDeBarbeiro = {
+  staffId: string;
+  nome: string;
+  /** Faturamento de serviço que passou pela cadeira dele no período. */
+  base: number;
+  pct: number;
+  valor: number;
+  atendimentos: number;
+};
+
+/**
+ * Quanto do faturamento de serviço vira pagamento de barbeiro.
+ *
+ * Esta é a MAIOR linha de custo de uma barbearia com equipe, e até 04/08/2026
+ * ela não existia no DRE: a comissão era calculada só sobre o lucro da loja de
+ * produtos. Com R$ 12.432 de serviço e 40% de rateio, o sistema lançava R$ 140
+ * de custo de mão de obra em vez de R$ 5.113 — e informava 60% de margem para
+ * um setor cuja margem real fica entre 15% e 30%.
+ *
+ * Cada reserva paga a taxa DO BARBEIRO que atendeu (`StaffDoc.commissionPct`),
+ * não uma média: contratar alguém com percentual diferente muda o custo de
+ * verdade, e um percentual único esconde exatamente a decisão que o dono
+ * precisa tomar.
+ *
+ * O pagamento do dono-barbeiro entra aqui também, como comissão e não como
+ * pró-labore no custo fixo. São duas escolhas contábeis defensáveis e o
+ * resultado final é idêntico; esta evita um degrau absurdo no dia da primeira
+ * contratação — a margem de contribuição cairia de 95% para 58% de um mês para
+ * o outro sem nada ter piorado — e mantém o ponto de equilíbrio na definição
+ * padrão (custo fixo ÷ margem de contribuição).
+ */
+export function comissoesDeServico(params: {
+  bookings: Doc<BookingDoc>[];
+  staff: Doc<StaffDoc>[];
+  periodo: Periodo;
+  policies: TenantPolicies;
+  /**
+   * Comissões congeladas na conclusão do atendimento. Quando existe uma para a
+   * reserva, ela VENCE — é o valor que de fato foi acertado com o barbeiro
+   * naquele dia, e reler o cadastro atual faria o mês fechado se reescrever
+   * sozinho toda vez que alguém mudasse um percentual.
+   *
+   * Atendimentos anteriores ao trigger de materialização não têm comissão
+   * gravada; sem a derivação como fallback, o histórico inteiro apareceria
+   * zerado no dia em que o trigger entrou.
+   */
+  commissions?: Doc<CommissionDoc>[];
+}): { total: number; porBarbeiro: ComissaoDeBarbeiro[] } {
+  const { bookings, staff, periodo, policies } = params;
+  const padrao = policies.commissionSplit.barberPct;
+  const porId = new Map(staff.map((s) => [s.id, s]));
+  const acc = new Map<string, ComissaoDeBarbeiro>();
+
+  /* Só as de serviço: a comissão de produto tem outra base — o lucro da venda,
+   * não o faturamento — e é somada separadamente. Sem este filtro, uma comissão
+   * de produto que compartilhasse `bookingId` entraria com a base errada. */
+  const congelada = new Map(
+    (params.commissions ?? [])
+      .filter((c) => c.origin === "servico" && dentroDoPeriodo(c.date, periodo))
+      .map((c) => [c.bookingId, c])
+  );
+
+  for (const b of bookings) {
+    if (!isRevenue(b) || !dentroDoPeriodo(b.date, periodo)) continue;
+
+    const pessoa = porId.get(b.staffId);
+    const doDia = congelada.get(b.id);
+
+    /* Reserva órfã ainda custa dinheiro: o corte aconteceu e alguém recebeu.
+     * Cair no percentual da barbearia é melhor que somar zero — mas o nome
+     * fica explícito para o dono ver que há dado a corrigir. */
+    const pct = doDia?.commissionPct ?? pessoa?.commissionPct ?? padrao;
+    const base = doDia?.commissionBase ?? b.value;
+    const valor = doDia?.commissionAmount ?? Math.round((base * pct) / 100);
+
+    let linha = acc.get(b.staffId);
+    if (!linha) {
+      linha = {
+        staffId: b.staffId,
+        nome: doDia?.staffName ?? pessoa?.name ?? "Barbeiro não identificado",
+        base: 0,
+        pct,
+        valor: 0,
+        atendimentos: 0,
+      };
+      acc.set(b.staffId, linha);
+    }
+    linha.base += base;
+    linha.valor += valor;
+    linha.atendimentos += 1;
+  }
+
+  /* O percentual exibido é recalculado do que foi somado, e não copiado do
+   * cadastro: num mês em que a taxa do barbeiro mudou, parte dos atendimentos
+   * está congelada na taxa antiga e parte na nova. Mostrar só uma delas seria
+   * uma legenda que não explica o próprio número ao lado. */
+  const porBarbeiro = [...acc.values()]
+    .map((l) => ({ ...l, pct: Math.round(safeDiv(l.valor, l.base) * 1000) / 10 }))
+    .sort((a, b) => b.valor - a.valor);
+
+  return {
+    total: porBarbeiro.reduce((s, l) => s + l.valor, 0),
+    porBarbeiro,
+  };
+}
+
+/* ------------------------------------------------------------------ */
 /* DRE                                                                 */
 /* ------------------------------------------------------------------ */
 
@@ -208,57 +318,6 @@ export function folhaMensal(staff: Doc<StaffDoc>[]) {
 }
 
 /**
- * Comissão de serviço, calculada POR RESERVA.
- *
- * O rateio era o percentual do tenant aplicado a um total, o que só funciona
- * enquanto todo mundo ganha igual. `StaffDoc.commissionPct` existe desde o
- * multi-barbeiro e nada o lia: o barbeiro contratado a 50% e o que entrou a
- * 30% apareciam com o mesmo custo no DRE.
- *
- * Como cada reserva já carrega `staffId`, dá para atribuir a comissão a quem
- * de fato atendeu. Quem não tem percentual próprio cai no padrão da barbearia.
- */
-export function comissaoDeServicos(params: {
-  bookings: Doc<BookingDoc>[];
-  staff: Doc<StaffDoc>[];
-  periodo: Periodo;
-  padraoPct: number;
-  /**
-   * Comissões congeladas na conclusão. Quando existe uma para a reserva, ela
-   * VENCE — é o valor que de fato foi acertado com o barbeiro naquele dia.
-   */
-  commissions?: Doc<CommissionDoc>[];
-}) {
-  const pctPorStaff = new Map(params.staff.map((s) => [s.id, s.commissionPct]));
-
-  /* Atendimentos anteriores ao trigger de materialização não têm comissão
-   * gravada, e sem este fallback o histórico inteiro apareceria zerado no dia
-   * em que o trigger entrou. A derivação continua valendo para eles — com a
-   * ressalva conhecida de que relê o cadastro atual. */
-  const congeladaPorBooking = new Map(
-    (params.commissions ?? [])
-      .filter((c) => dentroDoPeriodo(c.date, params.periodo))
-      .map((c) => [c.bookingId, c])
-  );
-
-  let total = 0;
-  for (const b of params.bookings) {
-    if (!isRevenue(b) || !dentroDoPeriodo(b.date, params.periodo)) continue;
-
-    const congelada = congeladaPorBooking.get(b.id);
-    if (congelada) {
-      total += congelada.commissionAmount;
-      continue;
-    }
-
-    // `commissionPct` é gravado como `null` no cadastro inicial, não ausente.
-    const pct = pctPorStaff.get(b.staffId) ?? params.padraoPct;
-    total += (b.value * pct) / 100;
-  }
-  return Math.round(total);
-}
-
-/**
  * Taxa de maquininha do período, somada dos pagamentos congelados.
  *
  * `gatewayFeesTotal` era um parâmetro que nenhum chamador preenchia, então o
@@ -284,17 +343,20 @@ export function resultadoDoMes(params: {
   movements: Doc<InventoryMovementDoc>[];
   periodo: Periodo;
   policies: TenantPolicies;
-  gatewayFeesTotal?: number;
+  /** Salário fixo, para quem não trabalha por comissão. Ainda sem tela. */
   payroll?: number;
   /**
    * Equipe e reservas do período — juntas, permitem ratear a comissão por quem
-   * atendeu. Ausentes, a comissão cai no percentual único da barbearia, que é o
-   * comportamento correto para operação solo.
+   * atendeu e cobrar a taxa de recebimento por meio. Ausentes, a comissão cai
+   * no percentual único da barbearia, que é o comportamento correto para
+   * operação solo.
    */
   staff?: Doc<StaffDoc>[];
   bookings?: Doc<BookingDoc>[];
   /** Congeladas na conclusão — vencem sobre a derivação quando existem. */
   commissions?: Doc<CommissionDoc>[];
+  /** Soma de `taxasDePagamento` sobre os pagamentos congelados do período. */
+  gatewayFeesTotal?: number;
 }) {
   const { receita, expenses, movements, periodo, policies } = params;
 
@@ -315,6 +377,10 @@ export function resultadoDoMes(params: {
     .filter((m) => m.kind === "compra" && dentroDoPeriodo(m.date, periodo))
     .reduce((s, m) => s + m.value, 0);
 
+  /* Vem somado de `taxasDePagamento`, sobre os pagamentos CONGELADOS, e não
+   * derivado das reservas com a taxa vigente hoje: mudar a taxa da maquininha
+   * não pode reescrever o que já foi pago. Provado em produção — 1,99/3,49 →
+   * 2,99/4,99 não alterou pagamento anterior nenhum. */
   const gatewayFees = params.gatewayFeesTotal ?? 0;
 
   /* Comissão do profissional.
@@ -325,25 +391,33 @@ export function resultadoDoMes(params: {
    * custo variável da operação, invisível na tela que existe para decidir se
    * contrata ou demite barbeiro.
    *
-   * Com a lista de profissionais, o serviço é rateado POR RESERVA, respeitando
-   * o percentual de cada um. Sem ela, cai no percentual da barbearia aplicado
-   * ao total — que é o certo enquanto todos ganham igual. Produto segue sobre o
-   * lucro da revenda: é o que sobra para dividir depois de pagar a mercadoria. */
+   * Duas bases diferentes, de propósito — ver `commissionSplit`. Serviço paga
+   * sobre o faturamento, rateado POR RESERVA e respeitando o percentual de cada
+   * um; produto paga sobre o lucro, porque o custo de compra não é receita de
+   * ninguém.
+   *
+   * Sem a lista de profissionais não há a quem ratear: cai no percentual da
+   * barbearia aplicado ao total, que é o certo enquanto todos ganham igual. O
+   * DRE perde só o detalhe por pessoa, não o custo. */
   const receitaDeServico = receita.servicos + receita.encaixes;
-  const lucroDeProduto = Math.max(receita.produtos - cmv, 0);
   const padraoPct = policies.commissionSplit.barberPct;
 
-  const comissaoDeServico = params.staff
-    ? comissaoDeServicos({
+  const servico = params.staff
+    ? comissoesDeServico({
         bookings: params.bookings ?? [],
         staff: params.staff,
         periodo,
-        padraoPct,
+        policies,
         commissions: params.commissions,
       })
-    : Math.round((receitaDeServico * padraoPct) / 100);
+    : {
+        total: Math.round((receitaDeServico * padraoPct) / 100),
+        porBarbeiro: [] as ComissaoDeBarbeiro[],
+      };
 
-  const commissions = comissaoDeServico + Math.round((lucroDeProduto * padraoPct) / 100);
+  const lucroLoja = Math.max(receita.produtos - cmv, 0);
+  const commissionsLoja = Math.round((lucroLoja * padraoPct) / 100);
+  const commissions = servico.total + commissionsLoja;
 
   /* Simples Nacional (Anexo III) incide sobre RECEITA BRUTA, e é devido mesmo
    * no mês em que a barbearia dá prejuízo. Cobrar a alíquota sobre o resultado
@@ -375,6 +449,10 @@ export function resultadoDoMes(params: {
     cmv,
     gatewayFees,
     commissions,
+    /** Só a parte de serviço, aberta por pessoa — é o que a tela detalha. */
+    commissionsServico: servico.total,
+    commissionsLoja,
+    comissaoPorBarbeiro: servico.porBarbeiro,
     variableCost,
     contributionMargin,
     contributionMarginPct,

@@ -62,12 +62,26 @@ export function AgendaDoDia() {
   );
 }
 
-/** O DRE, resumido ao que o dono realmente lê. */
+/**
+ * O DRE, resumido ao que o dono realmente lê.
+ *
+ * ⚠️ Os números precisam FECHAR na subtração, e precisam ser plausíveis para o
+ * setor. Este bloco já errou nas duas coisas: mostrava "sobrou R$ 7.516" abaixo
+ * de linhas que somavam R$ 4.412, e vendia 60% de margem num ramo que opera
+ * entre 15% e 30% (Sebrae). Um barbeiro que conhece o próprio negócio lê 60% e
+ * conclui, com razão, que a página é fantasia.
+ *
+ * A comissão aparece SEPARADA e em primeiro lugar de propósito: é a maior
+ * despesa de uma barbearia com equipe e é justamente a linha que o concorrente
+ * não desconta. É o argumento inteiro do produto numa linha só.
+ */
 export function ResumoDoMes() {
   const linhas = [
     { rotulo: "Faturamento", valor: "R$ 12.469", tom: "text-ivory" },
-    { rotulo: "Custo variável", valor: "− R$ 3.104", tom: "text-ivory-muted" },
-    { rotulo: "Despesa fixa", valor: "− R$ 4.953", tom: "text-ivory-muted" },
+    { rotulo: "Comissão dos barbeiros", valor: "− R$ 4.612", tom: "text-ivory-muted" },
+    { rotulo: "Produto e maquininha", valor: "− R$ 641", tom: "text-ivory-muted" },
+    { rotulo: "Despesa fixa", valor: "− R$ 4.087", tom: "text-ivory-muted" },
+    { rotulo: "Imposto (Simples)", valor: "− R$ 188", tom: "text-ivory-muted" },
   ];
   return (
     <div className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-5 shadow-[var(--shadow-md)]">
@@ -84,10 +98,10 @@ export function ResumoDoMes() {
       </div>
       <div className="mt-1 flex items-baseline justify-between border-t border-border pt-3">
         <span className="text-sm text-ivory">Sobrou</span>
-        <span className="font-display text-2xl text-success">R$ 7.516</span>
+        <span className="font-display text-2xl text-success">R$ 2.941</span>
       </div>
       <p className="text-xs text-ivory-muted">
-        Ponto de equilíbrio no <strong className="text-ivory">dia 17</strong> — a
+        Ponto de equilíbrio no <strong className="text-ivory">dia 18</strong> — a
         partir dele, o mês vira lucro.
       </p>
     </div>
@@ -119,6 +133,95 @@ export function ProjecaoCurta() {
         A linha tracejada é o zero. Você vê o dia em que o caixa vira antes de
         ele virar.
       </p>
+    </div>
+  );
+}
+
+/** Mapa de calor de ocupação — o elemento visual mais forte do painel. */
+export function MapaDeCalor() {
+  const dias = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+  const horas = ["09", "10", "11", "12", "14", "15", "16", "17", "18"];
+  // Padrão fixo: sábado cheio, meio de semana à tarde vazio. É como uma
+  // barbearia de verdade se comporta, e é o que a tela revela ao dono.
+  const ocupacao = [
+    [40, 60, 30, 20, 10, 30, 50, 40, 20],
+    [30, 50, 40, 20, 20, 40, 60, 50, 30],
+    [50, 70, 50, 30, 30, 50, 70, 60, 40],
+    [60, 80, 60, 40, 40, 60, 80, 70, 50],
+    [80, 100, 80, 50, 60, 90, 100, 90, 70],
+    [100, 100, 90, 70, 80, 100, 100, 80, 40],
+  ];
+
+  return (
+    <div className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-5 shadow-[var(--shadow-md)]">
+      <p className="text-xs font-semibold uppercase tracking-wider text-ivory-muted">
+        Ocupação por dia e horário
+      </p>
+      <div className="flex gap-2">
+        <div className="flex flex-col gap-1 pt-[18px]">
+          {dias.map((d) => (
+            <span key={d} className="h-5 text-[10px] leading-5 text-ivory-muted">{d}</span>
+          ))}
+        </div>
+        <div className="flex-1">
+          <div className="mb-1 flex gap-1">
+            {horas.map((h) => (
+              <span key={h} className="flex-1 text-center text-[10px] text-ivory-muted">{h}</span>
+            ))}
+          </div>
+          <div className="flex flex-col gap-1">
+            {ocupacao.map((linha, i) => (
+              <div key={dias[i]} className="flex gap-1">
+                {linha.map((v, j) => (
+                  <span
+                    key={`${i}-${j}`}
+                    className="h-5 flex-1 rounded"
+                    style={{
+                      backgroundColor: "var(--color-gold)",
+                      // Opacidade e não cores diferentes: a escala fica ordenável
+                      // a olho, que é o que um mapa de calor precisa entregar.
+                      opacity: 0.06 + (v / 100) * 0.85,
+                    }}
+                  />
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <p className="text-xs text-ivory-muted">
+        Sábado às 10h lota. Quarta às 12h está vazia — é ali que uma promoção
+        rende.
+      </p>
+    </div>
+  );
+}
+
+/** A equipe, como ela aparece no painel. */
+export function EquipeResumo() {
+  const barbeiros = [
+    { nome: "Rômulo", atendimentos: 84, valor: "R$ 6.240", pct: 100 },
+    { nome: "Léo", atendimentos: 61, valor: "R$ 4.180", pct: 72 },
+    { nome: "Vinícius", atendimentos: 38, valor: "R$ 2.740", pct: 45 },
+  ];
+  return (
+    <div className="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-5 shadow-[var(--shadow-md)]">
+      <p className="text-xs font-semibold uppercase tracking-wider text-ivory-muted">
+        Equipe no mês
+      </p>
+      {barbeiros.map((b) => (
+        <div key={b.nome} className="flex flex-col gap-1.5">
+          <div className="flex items-baseline justify-between text-sm">
+            <span className="text-ivory">{b.nome}</span>
+            <span className="text-ivory-muted">
+              {b.atendimentos} atendimentos · <span className="text-ivory">{b.valor}</span>
+            </span>
+          </div>
+          <div className="h-1.5 overflow-hidden rounded-full bg-surface-raised">
+            <span className="block h-full rounded-full bg-gold" style={{ width: `${b.pct}%` }} />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

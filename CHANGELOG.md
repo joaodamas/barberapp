@@ -1,6 +1,6 @@
 # Changelog
 
-Histórico de mudanças do JPBarber — plataforma de gestão para barbearias.
+Histórico de mudanças do CorteHub — plataforma de gestão para barbearias.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
 ## [2026-08-12] — a esteira publica pela primeira vez
@@ -79,6 +79,179 @@ vencer.
 
 ## [Não publicado]
 
+### O dono passa a conseguir cancelar um atendimento
+
+`cancelBooking` existia desde sempre e só o app do CLIENTE chamava. Na operação
+real o cliente liga, manda mensagem ou avisa no balcão — ou seja, o caminho mais
+usado era justamente o que não existia. O horário ficava preso como confirmado,
+entrava na previsão do dia e virava alerta de atraso de alguém que já tinha
+desmarcado.
+
+A agenda do painel ganhou "Cancelar" nas reservas em aberto. Vai pela Cloud
+Function, e não por `patchDoc` como as outras ações da tela, porque aqui há
+dinheiro do cliente: quem calcula a devolução é o servidor, com a política da
+barbearia. Deixar a tela gravar `refundedAmount` poria a conta do cliente na mão
+de quem tem o botão. A função já distinguia os dois casos e grava
+`cancelled_by_shop` quando quem cancela é o dono.
+
+Dois defeitos fechados no caminho:
+
+- **A tela prometia uma devolução e o servidor gravava outra.**
+  `refundAmountFor` lia a constante da plataforma e ignorava
+  `tenant.policies.cancellation`, enquanto o `cancelBooking` decide com a
+  política da barbearia. Numa barbearia com janela própria — 48h em vez de 24h —
+  as duas contas divergiam numa faixa inteira, sem erro em log nenhum e com a
+  diferença indo para o bolso do cliente. A função passa a receber a política.
+- **A conta do cancelamento não tinha teste nenhum**, porque morava dentro do
+  `onCall`: exercer exigia emulador, autenticação e reserva semeada. Extraída
+  para `desfechoDoCancelamento`, no mesmo padrão de `financial-events.ts`, com
+  9 testes — inclusive o de que o rótulo (`by_shop` × `by_client`) não muda a
+  devolução: a barbearia que desmarca não retém taxa por isso, e o cliente que
+  avisou o dono em vez de usar o app não perde dinheiro por isso.
+
+O botão sai para o cliente com aviso pronto no WhatsApp, e só depois de a
+escrita ter dado certo — avisar antes faria o dono comunicar um cancelamento que
+pode ter falhado.
+
+⚠️ **Ninguém clicou nele ainda.** 162 testes no web, 130 nas functions, build e
+lint limpos — o que, pela regra do documento de prontidão, não promove nada.
+
+### Duas linhas de trabalho voltam a ser uma
+
+A branch da auditoria e a `main` andaram uma semana em paralelo e construíram
+**as mesmas coisas duas vezes**, com desenhos incompatíveis. A reconciliação
+não foi escolher um lado: em quase todo ponto de choque cada versão tinha uma
+metade que a outra não tinha.
+
+- **Custo de mão de obra no DRE.** Os dois lados acharam e corrigiram o mesmo
+  defeito, sem saber um do outro. A `main` foi mais longe — corrigiu também a
+  base do Simples Nacional, que incidia sobre o resultado e não sobre a receita
+  bruta, subestimando o imposto em cerca de 3× — e fez a comissão congelada
+  vencer sobre a derivação. A branch tinha o detalhe por pessoa na tela e a
+  trava de margem contra a regressão. Ficaram as duas metades: o cálculo da
+  `main`, o detalhe e a trava da branch.
+- **Percentual exibido por barbeiro** passa a ser recalculado do que foi somado,
+  em vez de copiado do cadastro. Num mês em que a taxa mudou, parte dos
+  atendimentos está congelada na taxa antiga: mostrar só uma delas seria uma
+  legenda que não explica o número ao lado dela.
+- **Planos.** A branch tinha três níveis com preço e matriz documentados; a
+  `main` tinha dois, já no ar. Decidido manter os três e o **modo leitura** — ao
+  vencer, o dono continua vendo tudo e o cliente continua agendando pelo link; o
+  que trava é editar. Barbearia que perde a agenda no meio de um sábado não
+  volta para negociar. O corte seco (`AcessoExpirado`) saiu.
+- **Furo fechado de brinde:** os dois desenhos caíam num `?? ALL_FEATURES`
+  quando o plano era desconhecido — um typo no console entregava o catálogo
+  inteiro de graça. Agora o plano é normalizado na entrada, o mapa é
+  `Record<PlanId, …>`, e não sobrou fallback generoso em lugar nenhum. Documento
+  gravado na linha de dois planos é **traduzido** (`completo` → `gestao`), não
+  rebaixado.
+- **Meio de pagamento.** O modelo de três valores da branch (`pix`/`cartao`/
+  `local`) foi substituído pelo de quatro da `main`, que separa onde o pagamento
+  aconteceu de como o dinheiro entrou e já foi validado em produção. A taxa da
+  maquininha deixa de ser derivada da reserva e passa a vir dos pagamentos
+  congelados.
+
+**Achado ao juntar:** os dois botões "Escolher um plano" do modo leitura
+apontavam para `/painel/plano`, uma rota que nunca foi criada. O convite mais
+importante do produto — o que aparece justamente quando a barbearia parou de
+pagar — levava a um 404, e nenhum teste pegaria isso porque a rota inexistente
+compila. Agora caem no WhatsApp comercial com a mensagem pronta, que é o que a
+`main` já fazia, porque **não existe checkout de assinatura**: a contratação é
+humana. Sem número configurado, o botão não é renderizado.
+
+160 testes no web e 121 nas functions, verdes, e o build passa. O que ainda
+**não** foi provado é o que a lista de prontidão já dizia: nada disto passou por
+produção.
+
+### 🔴 O DRE não contabilizava o custo do trabalho
+
+O número que é o diferencial do produto estava errado, e errado para cima.
+
+A comissão era calculada **apenas sobre o lucro da loja de produtos**. Os 91% da
+receita que vêm de serviço não geravam um centavo de custo de mão de obra. Medido
+na barbearia de referência (168 atendimentos, R$ 12.432 em serviço, rateio de
+40%):
+
+| | Antes | Depois |
+|---|---|---|
+| Custo de mão de obra lançado | R$ 140 | R$ 4.765 |
+| Taxa de recebimento | R$ 0 | R$ 257 |
+| Margem de contribuição | 94,6% | 57,8% |
+| Resultado do mês | R$ 8.159 (59,8%) | R$ 3.439 (25,2%) |
+| Ponto de equilíbrio | dia 13 | dia 24 |
+
+O setor opera com margem de 15% a 30% (Sebrae) e margem de contribuição de 45% a
+65%. O motor entregava 2 a 4 vezes isso. Num produto financeiro, errado para cima
+é o pior tipo de erro: o dono se sente bem, decide mal, e quando o extrato não
+bate ele conclui — corretamente — que o sistema mente.
+
+**O que mudou**
+
+- Comissão de **serviço** incide sobre o faturamento do atendimento; a de
+  **produto** continua sobre o lucro da venda. São bases diferentes de propósito,
+  e confundi-las foi a causa raiz.
+- Cada reserva paga o percentual **do barbeiro que atendeu**
+  (`StaffDoc.commissionPct`), não uma média. O DRE abre a comissão por pessoa,
+  com base, percentual e número de atendimentos.
+- Reserva órfã (sem barbeiro correspondente) gera custo pelo padrão da barbearia
+  e aparece nomeada como não identificada — somar zero esconderia custo real.
+- `gatewayFeePct` entra nas políticas do tenant, tipado como
+  `Record<PaymentMethod, number>`: um meio de pagamento novo passa a não compilar
+  até alguém decidir a taxa dele.
+- A linha "Custo de Folha (operação solo)" era renderizada sempre em R$ 0,00,
+  sugerindo que mão de obra estava contabilizada e custava nada. Só aparece
+  quando existe salário fixo.
+
+**Decisão contábil:** o pagamento do dono-barbeiro entra como comissão (custo
+variável), não como pró-labore no custo fixo. O resultado final é idêntico nas
+duas modelagens; esta evita um degrau absurdo no dia da primeira contratação — a
+margem de contribuição cairia de 95% para 58% sem nada ter piorado — e mantém o
+ponto de equilíbrio na definição padrão.
+
+**O teste que protegia o defeito.** Existia um caso chamado *"comissão sai do
+lucro da loja, no rateio do tenant"*: ele passava porque afirmava exatamente o
+comportamento errado. Foi substituído, e entrou uma trava que falha se a margem
+sair das faixas do setor.
+
+**A landing dizia o contrário do certo.** O texto afirmava *"a comissão sai do
+lucro, não do preço cheio"* — a premissa que causou o bug. E o card de resultado
+mostrava "sobrou R$ 7.516" abaixo de linhas que somavam R$ 4.412. Os dois foram
+corrigidos, com a comissão agora em primeiro lugar no card, porque é a linha que
+o concorrente não desconta.
+
+Achado na auditoria financeira da branch `claude/barbershop-video-strategy-do3jzc`
+(F1), confirmado por execução contra o código corrente.
+
+### Fotografia na landing
+
+Duas fotos geradas, não três, e só onde a seção fala de gente: a origem e a
+equipe. Espalhar foto pelo resto devolveria a página ao território de banco de
+imagens, que é o que ela existe para evitar.
+
+- **"De onde veio"** era o único bloco sem nada visual. Virou duas colunas com o
+  retrato vertical.
+- **Equipe**: a horizontal com o cartão de equipe sobreposto **à esquerda** — as
+  duas cadeiras ocupadas estão à direita do quadro e são elas que sustentam o
+  título. Na primeira versão o cartão tapava justo os barbeiros.
+
+Três coisas nos arquivos originais:
+
+1. **A vertical tinha a marca d'água do Gemini** — estrela branca de quatro
+   pontas na barra da camisa. Cortada fora. A horizontal estava limpa.
+2. **8,2 MB de PNG cada** → 120 KB e 92 KB em WebP. No celular o navegador baixa
+   a variante de 640px: **91 KB de foto na página inteira**. É o mesmo argumento
+   de desempenho que descartou glassmorphism e mesh gradient.
+3. A terceira imagem ficou de fora: frasco azul brigando com a paleta quente e
+   uma interface falsa borrada no celular — o tipo de detalhe que denuncia
+   geração por IA.
+
+Importadas estaticamente, então o Next calcula dimensão e desfoque de
+carregamento sozinho (sem pulo de layout), e carregam preguiçosamente por
+estarem abaixo da dobra.
+
+⚠️ As imagens carregam SynthID, a marca d'água invisível do Google. Não aparece
+nem atrapalha, mas são detectáveis como geradas por IA — não usar em material
+que afirme serem fotos de uma barbearia parceira real.
 ### Verdade financeira — o dinheiro para de mudar depois do fato
 
 O DRE recalculava tudo a cada abertura da tela. Mudar a comissão de um barbeiro
@@ -563,7 +736,7 @@ Dublin não tem o mesmo deslocamento que uma de julho.
 
 ### Marca e vitrine
 
-- Marca do JPBarber, na terceira tentativa. As duas primeiras foram reprovadas: a
+- Marca do CorteHub, na terceira tentativa. As duas primeiras foram reprovadas: a
   primeira vazava o monograma sobre fundo da mesma cor; a segunda virou uma linha
   em ascensão, que é o símbolo mais genérico que existe em software. As letras
   são traços desenhados, não texto com fonte.
@@ -612,11 +785,44 @@ Ordenado por quem trava o quê. Nada aqui é bug — é o que ainda não existe.
 ### Qualidade e operação
 | | |
 |---|---|
-| **App Check** | Não habilitado. Qualquer um chama as funções de fora do app — as regras protegem os dados, não o consumo |
+| **App Check** | **Em andamento.** O app está registrado no console; falta criar as chaves reCAPTCHA v3, instalar o SDK e só então aplicar. Ver abaixo |
 | **Observabilidade** | Ninguém é avisado se uma function começar a falhar |
 | **Tradução das telas** | 18 telas em português, cravado. Fuso e moeda já são por barbearia |
-| **Wordmark em curvas** | "JPBarber" na assinatura horizontal ainda é texto com fonte; fora do app cai numa substituta |
+| **Wordmark em curvas** | "CorteHub" na assinatura horizontal ainda é texto com fonte; fora do app cai numa substituta |
 | **Logo e página do O Siqueira** | Pedido no começo do dia, nunca feito. Depende das fotos do salão |
+
+### Achados vizinhos, abertos no motor financeiro
+
+Vieram da mesma auditoria que originou a correção do DRE
+(`claude/barbershop-video-strategy-do3jzc`, ainda não mesclada).
+
+| | |
+|---|---|
+| **A projeção não desconta custo variável** (F2) | "Resultado projetado" e "Resultado do mês" são grandezas diferentes com nome parecido. **Piorou com a correção do DRE**: a distância entre as duas telas passou de ~20% para mais de 200%. Ou as duas usam a mesma cadeia, ou a projeção passa a se chamar "Saldo de caixa projetado" |
+| **Mensalista ignora o período** (F3) | Todo mês do histórico recebe o MRR de hoje — inclusive meses anteriores à existência do clube de assinatura. Distorce a comparação mês a mês, que é o indicador para o qual a tela existe |
+| **Assinante é contado duas vezes** | Não existe vínculo entre mensalista e reserva. A visita de um assinante entra na receita pelo valor da reserva **e** pela mensalidade |
+
+### App Check — onde parou
+
+O provedor escolhido é **reCAPTCHA v3**, não Enterprise: Enterprise cobra acima
+de 10 mil verificações/mês e exige habilitar API no Cloud.
+
+1. ✅ App registrado no console do Firebase
+2. ⬜ Criar as chaves em `google.com/recaptcha/admin/create` — domínios
+   `axon-barber.web.app`, `axon-barber.firebaseapp.com`, `jpproject.com.br`
+   (cobre os subdomínios), `localhost` e, quando existir, `cortehub.com.br`
+3. ⬜ Secret key no console; **site key** vai para o código
+4. ⬜ `initializeAppCheck` + `ReCaptchaV3Provider`, com token de debug para o
+   ambiente local — sem ele, emulador e `lvh.me` param de funcionar
+5. ⬜ `enforceAppCheck: true` em cada `onCall`, e só então aplicar
+
+⚠️ **Registrar é inerte; aplicar não.** Ligar a aplicação antes de o SDK estar em
+produção derruba o agendamento do O Siqueira. Olhar as métricas de requisições
+com e sem atestado por alguns dias primeiro.
+
+A CSP **não precisa mudar**: `script-src` já libera `www.google.com` e
+`www.gstatic.com`, e `frame-src` já tem `www.google.com` — foram parar lá por
+causa do login por SMS.
 
 ## [2026-07-31]
 
