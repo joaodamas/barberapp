@@ -28,6 +28,7 @@
     "indexes": "firestore.indexes.json"
   },
   "storage": {
+    "bucket": "axon-barber.firebasestorage.app",
     "rules": "storage.rules"
   },
   "emulators": {
