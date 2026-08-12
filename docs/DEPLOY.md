@@ -357,3 +357,26 @@ publicado — o mesmo que hoje só funciona em `localhost`:
 6. Concluir pelo modal novo, informando a forma de pagamento
 7. `payments` materializado com a taxa congelada
 8. Action Center some com o fechamento pendente
+
+### O caminho da falta
+
+Entrou em 11/08 e é o que a suíte verde não prova. Precisa de uma reserva com
+horário já passado — o mais simples é marcar para daqui a poucos minutos e
+esperar a tolerância vencer.
+
+9. Passada a tolerância, a linha da agenda mostra os minutos de atraso e
+   oferece **"Não veio"**; o Action Center levanta o item com as duas saídas
+10. **"Não veio" → Confirmar falta** grava `status = no_show`
+11. **Nenhum** `payments/{bookingId}` nem `commissions/{bookingId}` nasce disso
+    — falta não é receita
+12. O horário continua **ocupado** na agenda: a ocupação do dia não muda
+13. O item de atraso **some** da coluna lateral, por mudança de estado
+14. **"Veio depois"** na mesma linha reabre o modal de pagamento e conclui
+    normalmente — e é aí que `payments` é materializado
+15. Salvar a **tolerância** em `/painel/configuracoes` não apaga o resto de
+    `policies.booking`: a reserva pelo `/agendar` continua respeitando a
+    antecedência mínima
+
+O passo 15 parece burocracia e não é: era o bug que o merge raso de `policies`
+produzia, e o sintoma dele é a agenda aceitar reserva para horário que já
+passou — longe da tela onde a mudança foi feita.
