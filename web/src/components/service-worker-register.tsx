@@ -3,11 +3,24 @@
 import { useEffect, useState } from "react";
 
 /**
- * Registra o service worker e avisa quando há versão nova.
+ * Registra o service worker e resolve a troca de versão.
  *
  * O SW não faz `skipWaiting()` sozinho: ativar o build novo enquanto a aba
- * ainda executa o anterior faz ela pedir chunks que já não existem. Quem decide
- * a troca é o usuário, por este aviso.
+ * ainda executa o anterior faz ela pedir chunks que já não existem.
+ *
+ * Quem decide a troca depende de haver algo a perder:
+ *
+ * - **Antes do primeiro toque** a atualização se aplica sozinha. A pessoa
+ *   acabou de chegar, não há formulário preenchido nem rolagem a perder, e o
+ *   recarregamento é invisível. É o caso do dono que abre o painel de manhã
+ *   depois de uma publicação da véspera.
+ * - **Depois do primeiro toque**, pergunta. Recarregar por baixo de quem está
+ *   no meio de uma tarefa é perder o que ela estava fazendo.
+ *
+ * A URL leva o build (`/sw.js?v=…`) porque é isso que faz o navegador enxergar
+ * worker novo: ele só procura atualização quando o byte do script muda, e
+ * `sw.js` é estático. Sem a query, nenhum deploy dispara `updatefound` — este
+ * aviso existia desde sempre e nunca teve como aparecer.
  */
 export function ServiceWorkerRegister() {
   const [temAtualizacao, setTemAtualizacao] = useState(false);
@@ -19,18 +32,42 @@ export function ServiceWorkerRegister() {
 
     let cancelado = false;
 
+    let interagiu = false;
+    const marcarInteracao = () => {
+      interagiu = true;
+    };
+    const eventosDeInteracao = ["pointerdown", "keydown"] as const;
+    for (const evento of eventosDeInteracao) {
+      window.addEventListener(evento, marcarInteracao, { once: true, passive: true });
+    }
+
+    /* Worker novo pronto para assumir. Sem interação, troca calada — o
+     * `controllerchange` abaixo recarrega e a aba volta com o build novo. */
+    function resolverTroca(worker: ServiceWorker) {
+      if (cancelado) return;
+      if (interagiu) setTemAtualizacao(true);
+      else worker.postMessage("SKIP_WAITING");
+    }
+
     navigator.serviceWorker
-      .register("/sw.js")
+      /* `updateViaCache: "none"` para o próprio script nunca sair de cache
+       * HTTP: a checagem de versão não pode depender de uma resposta velha. */
+      .register(`/sw.js?v=${process.env.NEXT_PUBLIC_BUILD_ID ?? "dev"}`, {
+        updateViaCache: "none",
+      })
       .then((registration) => {
         if (cancelado) return;
-        if (registration.waiting) setTemAtualizacao(true);
+        // Já estava esperando de uma sessão anterior.
+        if (registration.waiting) resolverTroca(registration.waiting);
 
         registration.addEventListener("updatefound", () => {
           const instalando = registration.installing;
           if (!instalando) return;
           instalando.addEventListener("statechange", () => {
+            /* Sem `controller` é a primeira instalação da vida: não há versão
+             * anterior para trocar, e avisar seria ruído. */
             if (instalando.state === "installed" && navigator.serviceWorker.controller) {
-              setTemAtualizacao(true);
+              resolverTroca(instalando);
             }
           });
         });
@@ -48,6 +85,9 @@ export function ServiceWorkerRegister() {
     return () => {
       cancelado = true;
       navigator.serviceWorker.removeEventListener("controllerchange", aoTrocarControlador);
+      for (const evento of eventosDeInteracao) {
+        window.removeEventListener(evento, marcarInteracao);
+      }
     };
   }, []);
 

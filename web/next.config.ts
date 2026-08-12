@@ -3,6 +3,21 @@ import type { NextConfig } from "next";
 
 const isDev = process.env.NODE_ENV !== "production";
 
+/**
+ * Identidade desta publicação, exposta ao cliente.
+ *
+ * Existe por um motivo só: o service worker é registrado como
+ * `/sw.js?v=<build>`, e é essa query que faz o navegador enxergar worker novo a
+ * cada deploy. Sem ela o arquivo é byte-idêntico entre builds, nenhuma
+ * atualização é detectada, e quem já usou o app continua na versão anterior —
+ * foi o que aconteceu em produção em 11/08.
+ *
+ * No CI vem do commit, que é a identidade real do que foi publicado. Fora dele
+ * cai no relógio: em desenvolvimento o SW nem é registrado, e um build local
+ * avulso só precisa não colidir com o anterior.
+ */
+const BUILD_ID = process.env.GITHUB_SHA?.slice(0, 12) ?? String(Date.now());
+
 /* Firebase Auth abre popup de OAuth e o SDK conversa com vários domínios do
  * Google — a CSP precisa listá-los explicitamente, senão o login quebra. */
 const CSP = [
@@ -50,6 +65,10 @@ const nextConfig: NextConfig = {
    * build. `standalone` faz o Next rastrear apenas os arquivos realmente
    * alcançados em execução. */
   output: "standalone",
+
+  /* Inlined em tempo de build. O cliente precisa dele para montar a URL do
+   * service worker — ver BUILD_ID acima. */
+  env: { NEXT_PUBLIC_BUILD_ID: BUILD_ID },
 
 
   /* O multi-tenant só é testável localmente com subdomínio de verdade
