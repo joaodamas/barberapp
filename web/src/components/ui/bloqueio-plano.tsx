@@ -1,10 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { Lock, TrendingUp } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useAcesso } from "@/lib/tenant-context";
+import { hasPlatformContact, platformWhatsappUrl } from "@/lib/platform";
+import { useAcesso, useTenant } from "@/lib/tenant-context";
 
 /**
  * Porta de um recurso que depende do plano.
@@ -16,6 +16,13 @@ import { useAcesso } from "@/lib/tenant-context";
  * Duas situações diferentes, dois textos diferentes:
  * — trial vencido ou barbearia suspensa: o problema é a conta, não o plano;
  * — plano inferior: o recurso existe e está a um clique de distância.
+ *
+ * O botão cai no WhatsApp comercial, e não numa tela de planos: não existe
+ * checkout de assinatura ainda, e a contratação é humana. Apontava para
+ * `/painel/plano`, que nunca foi criada — o convite mais importante do produto
+ * levava a um 404. (`/planos` é outra coisa: são os planos que a BARBEARIA
+ * vende aos clientes dela.) Sem número configurado o botão não aparece: um
+ * "Escolher um plano" que não abre nada é pior do que não existir.
  */
 export function BloqueioPlano({
   titulo,
@@ -25,6 +32,7 @@ export function BloqueioPlano({
   descricao: string;
 }) {
   const acesso = useAcesso();
+  const tenant = useTenant();
   const daConta = acesso.motivo !== null;
 
   return (
@@ -46,9 +54,19 @@ export function BloqueioPlano({
             : descricao}
         </p>
       </div>
-      <Link href="/painel/plano">
-        <Button>{daConta ? "Escolher um plano" : "Ver planos"}</Button>
-      </Link>
+      {hasPlatformContact() && (
+        <a
+          href={platformWhatsappUrl(
+            daConta
+              ? `Olá! Sou dono da ${tenant.brand.name} e quero contratar um plano para voltar a editar.`
+              : `Olá! Sou dono da ${tenant.brand.name} e quero saber do plano que abre "${titulo}".`
+          )}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <Button>{daConta ? "Escolher um plano" : "Ver planos"}</Button>
+        </a>
+      )}
     </Card>
   );
 }
@@ -62,6 +80,7 @@ export function BloqueioPlano({
  */
 export function AvisoModoLeitura() {
   const acesso = useAcesso();
+  const tenant = useTenant();
   if (acesso.podeEditar) return null;
 
   return (
@@ -76,9 +95,18 @@ export function AvisoModoLeitura() {
         Você continua vendo tudo, mas não consegue alterar. Seus clientes seguem
         agendando normalmente.
       </span>
-      <Link href="/painel/plano" className="font-semibold text-gold-light underline underline-offset-2">
-        Escolher um plano
-      </Link>
+      {hasPlatformContact() && (
+        <a
+          href={platformWhatsappUrl(
+            `Olá! Sou dono da ${tenant.brand.name} e quero contratar um plano para voltar a editar.`
+          )}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-semibold text-gold-light underline underline-offset-2"
+        >
+          Escolher um plano
+        </a>
+      )}
     </div>
   );
 }

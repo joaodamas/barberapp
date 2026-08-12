@@ -62,7 +62,19 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if isSelf(userId) || isPlatformAdmin();
-      allow create: if isSelf(userId);
+
+      /* `create` precisa da mesma guarda do `update`.
+       *
+       * Só o `update` filtrava os campos de autoridade, e `delete` é permitido:
+       * dava para apagar o próprio documento e recriá-lo já com
+       * `platformAdmin: true`. Nenhuma regra e nenhuma função leem esses campos
+       * do documento hoje — a autoridade vem do custom claim, e é por isso que
+       * não era explorável. Mas o `update` blindado passa a impressão de que o
+       * campo é confiável, e no dia em que alguém escrever um painel de suporte
+       * que leia `/users/{uid}.platformAdmin` a escalada fica pronta. */
+      allow create: if isSelf(userId)
+                    && !request.resource.data.keys()
+                         .hasAny(['barbershops', 'platformAdmin']);
       // Ninguém edita o próprio vínculo nem o próprio papel por aqui.
       allow update: if isSelf(userId)
                     && !request.resource.data.diff(resource.data)
@@ -122,11 +134,21 @@ service cloud.firestore {
       allow read: if true;
       // Criar e excluir barbearia é ato da plataforma, não do lojista.
       allow create, delete: if isPlatformAdmin();
-      // O dono edita a própria barbearia, menos o que define o contrato.
+
+      /* O dono edita a própria barbearia, menos o que define o contrato.
+       *
+       * `features` e `trial` entraram nesta lista porque são o contrato tanto
+       * quanto `plan`: `features` é lido como gate de recurso e `trial` decide
+       * quando o acesso vence. Sem eles aqui, o dono liberava o plano de cima e
+       * empurrava o fim do teste para 2099 com uma escrita direta do navegador,
+       * sem passar por função nenhuma. `createdBy` entrou junto, por sustentar
+       * o limite de uma conta por barbearia. */
       allow update: if isPlatformAdmin()
                     || (isOwnerOf(barbershopId)
                         && !request.resource.data.diff(resource.data)
-                             .affectedKeys().hasAny(['slug', 'plan', 'status', 'createdAt']));
+                             .affectedKeys().hasAny(['slug', 'plan', 'status',
+                                                     'createdAt', 'createdBy',
+                                                     'features', 'trial']));
 
       /* -------- contrato com a plataforma: nunca público -------- */
 

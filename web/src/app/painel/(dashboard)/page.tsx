@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import {
   AlertCircle,
@@ -10,20 +11,32 @@ import {
   Landmark,
   Percent,
   Scissors,
+  UserX,
   Wallet,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
 import { Button } from "@/components/ui/button";
+import { Modal } from "@/components/ui/modal";
 import { bookingStatusMeta } from "@/lib/booking-status";
-import { paymentMethodLabel } from "@/lib/payment-method";
+import {
+  avaliarOperacao,
+  estaAtrasado,
+  minutosDeAtraso,
+  repartirParaExibicao,
+  type ActionIntent,
+  type ActionItem,
+} from "@/lib/action-center";
+import { usePayments } from "@/lib/db/use-shop-data";
+import type { PaymentMethod } from "@/lib/types";
+import { labelDoPagamento, PAYMENT_METHODS, paymentMethodLabel } from "@/lib/payment-method";
 import { formatBRL, formatPhonePtBR, safePct } from "@/lib/format";
 import { bookingPolicy } from "@/lib/business-rules";
 import { useTenant } from "@/lib/tenant-context";
 import { useBookings, useServices, useStaff } from "@/lib/db/use-shop-data";
 import { patchDoc } from "@/lib/db/repository";
-import { capacidadeDiaria, caixaDoDia } from "@/lib/analytics";
-import { OCCUPIES_SLOT } from "@/lib/domain";
+import { capacidadeDiaria, caixaDoDia, mesPeriodo } from "@/lib/analytics";
+import { monthOf, OCCUPIES_SLOT } from "@/lib/domain";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { toISODate } from "@/lib/format";
 import type { BookingDoc } from "@/lib/domain";
@@ -34,10 +47,14 @@ export default function PainelHojePage() {
   const { brand } = tenant;
   const { items: todas, status } = useBookings();
   const { items: services, status: statusServicos } = useServices();
+  const payments = usePayments();
   const { items: equipe } = useStaff();
 
   const hoje = toISODate(new Date());
   const bookings = todas.filter((b) => b.date === hoje);
+
+  const agora = useRelogio();
+  const toleranciaAtrasoMin = tenant.policies.booking.lateToleranceMinutes;
 
   const getServicesByIds = (ids: string[]) =>
     ids.map((id) => services.find((s) => s.id === id)).filter(Boolean) as Array<{ name: string }>;
@@ -65,32 +82,82 @@ export default function PainelHojePage() {
   const previsaoHoje = agendados.reduce((s, b) => s + b.value, 0);
 
   /* "Precisa de você" derivado do estado real, não de uma lista fixa. */
-  const precisaDeVoce = [
-    fitInRequests.length > 0 && {
-      id: "fit-in",
-      label: `${fitInRequests.length} encaixe(s) aguardando sua resposta`,
-      href: "/painel",
-      tone: "gold" as const,
-    },
-    /* Só acusa falta de serviço depois que a consulta responde — antes disso
-     * a lista está vazia porque ainda não chegou, não porque não existe. */
-    statusServicos === "pronto" && services.length === 0 && {
-      id: "servicos",
-      label: "Nenhum serviço cadastrado — o cliente não tem o que agendar",
-      href: "/comecar",
-      tone: "danger" as const,
-    },
-  ].filter(Boolean) as Array<{ id: string; label: string; href: string; tone: "gold" | "danger" }>;
+  /* A decisão de o que exige atenção mora no motor (`lib/action-center.ts`),
+   * não aqui. Antes era um array montado na tela com duas condicionais: cada
+   * regra nova cresceria em JSX, e a operação passaria a ser interpretada de
+   * um jeito em cada tela. */
+  const itensDeAcao = avaliarOperacao({
+    bookings,
+    services,
+    statusServicos,
+    payments: payments.items,
+    fees: tenant.policies.paymentFees,
+    periodo: mesPeriodo(monthOf(hoje)),
+    agora,
+    toleranciaAtrasoMin,
+  });
+  const { visiveis: acoesVisiveis, ocultos: acoesOcultas } =
+    repartirParaExibicao(itensDeAcao);
 
+  const semColunaLateral = itensDeAcao.length === 0 && fitInRequests.length === 0;
+  const [aFechar, setAFechar] = useState<Doc<BookingDoc> | null>(null);
+  const [faltaDe, setFaltaDe] = useState<Doc<BookingDoc> | null>(null);
 
-  const semColunaLateral = precisaDeVoce.length === 0 && fitInRequests.length === 0;
   const caixaHoje = caixaDoDia(agendados);
   const recebidoReal = caixaHoje.total;
 
-  function complete(id: string) {
-    void patchDoc(tenant.id, "bookings", id, { status: "completed" }).catch((e) =>
-      console.error("[hoje] falha ao concluir", e)
-    );
+  /**
+   * Concluir passa a perguntar COMO o cliente pagou.
+   *
+   * O cliente marca sem pagar — quem sabe se entrou Pix, dinheiro ou maquininha
+   * é quem está no balcão. Sem essa informação, `payments.feePct` seria zero
+   * para sempre e o lucro apareceria maior do que é.
+   *
+   * Método e status vão na MESMA escrita: o trigger financeiro lê o documento
+   * depois da atualização, e gravar em duas etapas materializaria o pagamento
+   * antes de o método existir.
+   */
+  function concluirCom(metodo: PaymentMethod) {
+    const booking = aFechar;
+    if (!booking) return;
+    setAFechar(null);
+    void patchDoc(tenant.id, "bookings", booking.id, {
+      status: "completed",
+      paymentMethod: metodo,
+    }).catch((e) => console.error("[hoje] falha ao concluir", e));
+  }
+
+  /**
+   * A falta é marcada por quem estava no balcão — nunca pelo sistema.
+   *
+   * Fechar o expediente convertendo em falta tudo que ficou em aberto seria
+   * mais cômodo e estaria errado: o dono que atendeu, cobrou e esqueceu de
+   * fechar ganharia uma falta falsa no histórico do cliente — que amanhã
+   * alimenta régua de pagamento antecipado. O sistema aponta o que está em
+   * aberto; quem viu a cadeira decide o que aconteceu.
+   *
+   * Não materializa dinheiro: `payments` e `commissions` nascem da conclusão,
+   * e falta não é receita. O horário continua ocupado na agenda (`no_show`
+   * está em `OCCUPIES_SLOT`), porque ele foi reservado e ninguém mais pôde
+   * usá-lo — é exatamente o custo que a falta representa.
+   */
+  function marcarFalta() {
+    const booking = faltaDe;
+    if (!booking) return;
+    setFaltaDe(null);
+    void patchDoc(tenant.id, "bookings", booking.id, {
+      status: "no_show",
+    }).catch((e) => console.error("[hoje] falha ao marcar falta", e));
+  }
+
+  /* A tela não decide nada: recebe a intenção que o motor declarou e sabe onde
+   * ela acontece. `navegar` nem chega aqui — vira `Link` no próprio item. */
+  function executarIntencao(intent: ActionIntent) {
+    if (intent.kind === "navegar") return;
+    const alvo = bookings.find((b) => b.id === intent.bookingId);
+    if (!alvo) return;
+    if (intent.kind === "fecharAtendimento") setAFechar(alvo);
+    else setFaltaDe(alvo);
   }
 
   function resolveFitIn(booking: Doc<BookingDoc>, approve: boolean) {
@@ -230,26 +297,21 @@ export default function PainelHojePage() {
         </Card>
       </section>
 
-      {precisaDeVoce.length > 0 && (
+      {acoesVisiveis.length > 0 && (
         <section className="md:col-start-2 md:row-start-4">
           <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm">
             Precisa de você
           </h2>
           <div className="flex flex-col gap-2 md:gap-3">
-            {precisaDeVoce.map((item) => (
-              <Link key={item.id} href={item.href}>
-                <Card interactive className="flex flex-row items-center gap-3 py-3">
-                  <AlertCircle
-                    size={18}
-                    className={
-                      item.tone === "danger" ? "text-danger" : "text-gold-light"
-                    }
-                  />
-                  <p className="flex-1 text-sm text-ivory">{item.label}</p>
-                  <ChevronRight size={16} className="text-ivory-muted" />
-                </Card>
-              </Link>
+            {acoesVisiveis.map((item) => (
+              <ItemDeAcao key={item.id} item={item} onExecutar={executarIntencao} />
             ))}
+            {acoesOcultas.length > 0 && (
+              <p className="px-1 text-xs text-ivory-muted">
+                E mais {acoesOcultas.length} pendência(s) — resolva as de cima
+                para ver as próximas.
+              </p>
+            )}
           </div>
         </section>
       )}
@@ -350,9 +412,24 @@ export default function PainelHojePage() {
                 {bookingsDoDia.map((booking) => {
                   const statusMeta = bookingStatusMeta[booking.status];
                   const bookingServices = getServicesByIds(booking.serviceIds);
-                  const canComplete =
+                  const emAberto =
                     booking.status === "confirmed" ||
                     booking.status === "confirmed_by_client";
+                  /* A falta não é beco sem saída: cliente que aparece 40 min
+                   * depois volta a ser atendimento pelo mesmo caminho. Sem
+                   * isso, um toque errado no "Não veio" viraria receita perdida
+                   * no relatório, e a única correção seria mexer no banco. */
+                  const podeConcluir = emAberto || booking.status === "no_show";
+                  /* Quem responde "isto está atrasado?" é o motor — a tela só
+                   * pergunta. Comparar minuto com tolerância aqui daria duas
+                   * verdades: a coluna lateral acusando o atraso e a linha ao
+                   * lado sem oferecer a ação. */
+                  const atrasado = estaAtrasado({
+                    booking,
+                    agora,
+                    toleranciaMin: toleranciaAtrasoMin,
+                  });
+                  const atrasoMin = agora ? minutosDeAtraso(booking, agora) : null;
                   const digitos = String(booking.clientWhatsapp ?? "").replace(/\D/g, "");
 
                   return (
@@ -362,6 +439,11 @@ export default function PainelHojePage() {
                     >
                       <td className="whitespace-nowrap px-4 py-3 font-display text-gold-light md:px-6">
                         {booking.time}
+                        {atrasado && (
+                          <span className="block font-sans text-[11px] text-danger">
+                            {atrasoMin} min atrasado
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-ivory">
                         {booking.clientName}
@@ -389,22 +471,37 @@ export default function PainelHojePage() {
                         {bookingServices.map((s) => s.name).join(" + ")}
                       </td>
                       <td className="px-4 py-3 text-ivory-muted">
-                        {paymentMethodLabel[booking.paymentMethod]}
+                        {labelDoPagamento(booking.paymentOrigin, booking.paymentMethod)}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-right text-ivory">
                         {formatBRL(booking.value)}
                       </td>
                       <td className="px-4 py-3 md:px-6">
-                        {canComplete ? (
-                          <button
-                            onClick={() => complete(booking.id)}
-                            className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ivory-muted transition-colors hover:border-success hover:text-success"
-                          >
-                            <Check size={14} /> Concluir
-                          </button>
-                        ) : (
-                          <Pill tone={statusMeta.tone}>{statusMeta.label}</Pill>
-                        )}
+                        <div className="flex flex-wrap items-center gap-2">
+                          {!emAberto && (
+                            <Pill tone={statusMeta.tone}>{statusMeta.label}</Pill>
+                          )}
+                          {podeConcluir && (
+                            <button
+                              onClick={() => setAFechar(booking)}
+                              className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ivory-muted transition-colors hover:border-success hover:text-success"
+                            >
+                              <Check size={14} />
+                              {booking.status === "no_show" ? "Veio depois" : "Concluir"}
+                            </button>
+                          )}
+                          {/* Só depois da tolerância. Oferecer "não veio" às
+                              13:59 para um horário das 14:00 é convidar o erro
+                              no gesto mais repetido do dia. */}
+                          {atrasado && (
+                            <button
+                              onClick={() => setFaltaDe(booking)}
+                              className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ivory-muted transition-colors hover:border-danger hover:text-danger"
+                            >
+                              <UserX size={14} /> Não veio
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -414,7 +511,206 @@ export default function PainelHojePage() {
           </Card>
         )}
       </section>
+
+      {/* Uma pergunta, quatro opções, e cada opção JÁ conclui.
+          Um botão "Confirmar" separado somaria um segundo clique ao gesto mais
+          repetido do dia — o fechamento precisa custar um toque, senão o dono
+          volta para o caderno. */}
+      <Modal
+        open={!!aFechar}
+        onClose={() => setAFechar(null)}
+        title="Como o cliente pagou?"
+      >
+        <p className="mb-4 text-sm text-ivory-muted">
+          {aFechar?.clientName} · {aFechar ? formatBRL(aFechar.value) : ""}
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          {PAYMENT_METHODS.map((metodo) => (
+            <button
+              key={metodo}
+              type="button"
+              onClick={() => concluirCom(metodo)}
+              className="flex min-h-16 cursor-pointer items-center justify-center rounded-xl border border-border text-sm font-medium text-ivory transition-colors hover:border-gold hover:bg-gold/10 hover:text-gold-light"
+            >
+              {paymentMethodLabel[metodo]}
+            </button>
+          ))}
+        </div>
+        <p className="mt-4 text-xs text-ivory-muted">
+          A taxa da maquininha é registrada com o valor de hoje e não muda
+          depois. Ajuste em Configurações.
+        </p>
+      </Modal>
+
+      {/* Falta pede confirmação; concluir não.
+          Não é simetria perdida — concluir é o desfecho esperado e acontece
+          dezenas de vezes por dia, enquanto a falta entra no histórico do
+          cliente e é a única das duas que alguém pode acionar sem querer, a
+          partir de um item da coluna lateral. */}
+      <Modal
+        open={!!faltaDe}
+        onClose={() => setFaltaDe(null)}
+        title="Marcar falta?"
+      >
+        <p className="mb-3 text-sm text-ivory">
+          {faltaDe?.clientName} · {faltaDe?.time} ·{" "}
+          {faltaDe ? formatBRL(faltaDe.value) : ""}
+        </p>
+        <p className="mb-5 text-sm text-ivory-muted">
+          O valor não entra como receita do dia, e o horário continua ocupado na
+          agenda — foi reservado e ninguém mais pôde usá-lo. Se ele aparecer
+          depois, é só concluir o atendimento normalmente.
+        </p>
+        <div className="flex gap-2">
+          <Button className="flex-1" onClick={marcarFalta}>
+            Confirmar falta
+          </Button>
+          <Button
+            variant="secondary"
+            className="flex-1"
+            onClick={() => setFaltaDe(null)}
+          >
+            Cancelar
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 }
 
+/**
+ * O relógio como fonte externa — que é o que ele é: um sistema fora do React,
+ * que muda sozinho e que ninguém deriva de estado nenhum.
+ *
+ * Por que existe: `new Date()` lido no render congela no instante da montagem.
+ * O atendimento das 14:00 continuaria "no horário" às 15:30 até que outra coisa
+ * provocasse re-render — e a única coisa que provoca é chegar reserva nova, que
+ * é justamente o que não acontece num dia parado.
+ *
+ * Um intervalo só, compartilhado por quem estiver ouvindo, e desligado quando o
+ * último sai. `useSyncExternalStore` exige que a leitura devolva a MESMA
+ * referência enquanto o dado não muda — daí o cache; devolver `new Date()` a
+ * cada leitura faria o React re-renderizar para sempre.
+ */
+const INTERVALO_RELOGIO_MS = 60_000;
+
+let agoraCache: Date | null = null;
+let timerRelogio: ReturnType<typeof setInterval> | null = null;
+const ouvintesDoRelogio = new Set<() => void>();
+
+function assinarRelogio(notificar: () => void) {
+  ouvintesDoRelogio.add(notificar);
+
+  if (!timerRelogio) {
+    timerRelogio = setInterval(() => {
+      agoraCache = new Date();
+      for (const ouvinte of ouvintesDoRelogio) ouvinte();
+    }, INTERVALO_RELOGIO_MS);
+  }
+
+  /* A primeira hora chega aqui, na assinatura — e não no render. É o que tira
+   * o relógio do servidor: lá o valor é `null`, e um alerta que aparece no HTML
+   * e some na hidratação é pior que um que chega um instante depois. */
+  agoraCache = new Date();
+  notificar();
+
+  return () => {
+    ouvintesDoRelogio.delete(notificar);
+    if (ouvintesDoRelogio.size === 0 && timerRelogio) {
+      clearInterval(timerRelogio);
+      timerRelogio = null;
+    }
+  };
+}
+
+function useRelogio() {
+  return useSyncExternalStore(
+    assinarRelogio,
+    () => agoraCache,
+    () => null
+  );
+}
+
+/**
+ * Um item do Action Center.
+ *
+ * A tela NÃO decide se algo é alerta, nem qual a gravidade — só sabe desenhar o
+ * que o motor entregou e executar a intenção declarada. `navegar` vira link; o
+ * resto abre o modal correspondente aqui mesmo, porque a ação acontece nesta
+ * tela e o motor não pode conhecer React.
+ */
+function ItemDeAcao({
+  item,
+  onExecutar,
+}: {
+  item: ActionItem;
+  onExecutar: (intent: ActionIntent) => void;
+}) {
+  const tom =
+    item.severity === "critical"
+      ? "text-danger"
+      : item.severity === "warning"
+        ? "text-gold-light"
+        : "text-ivory-muted";
+
+  const cabecalho = (
+    <>
+      <p className="text-sm text-ivory">{item.title}</p>
+      <p className="mt-0.5 text-xs text-ivory-muted">{item.reason}</p>
+    </>
+  );
+
+  /* Duas saídas para o mesmo fato: o card deixa de ser um alvo de clique só.
+   * Card inteiro clicável com dois botões dentro é o desenho que produz o
+   * toque errado — e aqui o toque errado marca falta em quem foi atendido. */
+  if (item.secondary) {
+    const secundaria = item.secondary;
+    return (
+      <Card className="flex flex-col gap-3 py-3">
+        <div className="flex flex-row items-start gap-3">
+          <AlertCircle size={18} className={`mt-0.5 shrink-0 ${tom}`} />
+          <div className="min-w-0 flex-1">{cabecalho}</div>
+        </div>
+        <div className="flex gap-2">
+          <Button className="flex-1" onClick={() => onExecutar(item.intent)}>
+            {item.actionLabel}
+          </Button>
+          <Button
+            variant="secondary"
+            className="flex-1"
+            onClick={() => onExecutar(secundaria.intent)}
+          >
+            {secundaria.actionLabel}
+          </Button>
+        </div>
+      </Card>
+    );
+  }
+
+  const conteudo = (
+    <Card interactive className="flex flex-row items-start gap-3 py-3">
+      <AlertCircle size={18} className={`mt-0.5 shrink-0 ${tom}`} />
+      <div className="min-w-0 flex-1">
+        {cabecalho}
+        <p className="mt-1.5 text-xs font-medium text-gold-light">
+          {item.actionLabel}
+        </p>
+      </div>
+      <ChevronRight size={16} className="mt-0.5 shrink-0 text-ivory-muted" />
+    </Card>
+  );
+
+  if (item.intent.kind === "navegar") {
+    return <Link href={item.intent.href}>{conteudo}</Link>;
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => onExecutar(item.intent)}
+      className="text-left"
+    >
+      {conteudo}
+    </button>
+  );
+}

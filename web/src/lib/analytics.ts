@@ -1,4 +1,4 @@
-import { safeDiv } from "@/lib/format";
+import { safeDiv, toISODate } from "@/lib/format";
 import {
   isReceived,
   isRevenue,
@@ -7,12 +7,15 @@ import {
   type BookingDoc,
   type ExpenseDoc,
   type InventoryMovementDoc,
+  type CommissionDoc,
+  type PaymentDoc,
   type ProductDoc,
   type StaffDoc,
   type SubscriberDoc,
 } from "@/lib/domain";
 import type { Doc } from "@/lib/db/repository";
 import type { TenantPolicies } from "@/lib/tenant";
+import type { PaymentMethod } from "@/lib/types";
 
 /**
  * Derivações financeiras a partir do dado bruto.
@@ -59,6 +62,8 @@ export function receitaDoMes(params: {
   movements: Doc<InventoryMovementDoc>[];
   subscribers: Doc<SubscriberDoc>[];
   periodo: Periodo;
+  /** Data de referência — decide se o retrato de mensalistas vale no período. */
+  hoje?: Date;
 }): ReceitaDoMes {
   const { bookings, movements, subscribers, periodo } = params;
 
@@ -73,10 +78,20 @@ export function receitaDoMes(params: {
     .filter((m) => m.kind === "venda" && dentroDoPeriodo(m.date, periodo))
     .reduce((s, m) => s + m.value, 0);
 
-  // Mensalidade é cobrada por assinatura e não passa pelo balcão.
-  const mensalistas = subscribers
-    .filter((s) => s.status === "ativo")
-    .reduce((s, sub) => s + sub.price, 0);
+  /* Mensalidade é cobrada por assinatura e não passa pelo balcão.
+   *
+   * `SubscriberDoc` guarda o estado de HOJE — tem `status`, não tem `createdAt`
+   * nem `canceledAt`. Somar isso em qualquer período fazia o MRR atual aparecer
+   * em todo mês do histórico: 40 assinantes de hoje viravam receita de um
+   * janeiro que teve 5, e o comparativo de crescimento achatava porque os dois
+   * meses carregavam a mesma constante.
+   *
+   * Enquanto `subscription_invoices` não for escrita, o retrato só vale no
+   * período que contém a data de referência — o único em que ele é verdade. */
+  const referencia = toISODate(params.hoje ?? new Date());
+  const mensalistas = dentroDoPeriodo(referencia, periodo)
+    ? subscribers.filter((s) => s.status === "ativo").reduce((s, sub) => s + sub.price, 0)
+    : 0;
 
   const caixa = servicos + encaixes + produtos;
 
@@ -123,8 +138,12 @@ export function caixaDiario(params: {
   for (const b of params.bookings) {
     if (!isRevenue(b) || !dentroDoPeriodo(b.date, params.periodo)) continue;
     const d = dia(b.date);
+    /* Débito e crédito somam na coluna "cartão": o caixa diário responde por
+     * onde o dinheiro entrou no balcão, e as duas maquininhas são a mesma fila.
+     * A distinção existe onde importa — em `payments`, que congela a taxa de
+     * cada uma e alimenta o custo de adquirência no DRE. */
     if (b.paymentMethod === "pix") d.pix += b.value;
-    else if (b.paymentMethod === "cartao") d.cartao += b.value;
+    else if (b.paymentMethod === "debit" || b.paymentMethod === "credit") d.cartao += b.value;
     else d.dinheiro += b.value;
     d.total += b.value;
     d.appointments += 1;
@@ -181,26 +200,50 @@ export function comissoesDeServico(params: {
   staff: Doc<StaffDoc>[];
   periodo: Periodo;
   policies: TenantPolicies;
+  /**
+   * Comissões congeladas na conclusão do atendimento. Quando existe uma para a
+   * reserva, ela VENCE — é o valor que de fato foi acertado com o barbeiro
+   * naquele dia, e reler o cadastro atual faria o mês fechado se reescrever
+   * sozinho toda vez que alguém mudasse um percentual.
+   *
+   * Atendimentos anteriores ao trigger de materialização não têm comissão
+   * gravada; sem a derivação como fallback, o histórico inteiro apareceria
+   * zerado no dia em que o trigger entrou.
+   */
+  commissions?: Doc<CommissionDoc>[];
 }): { total: number; porBarbeiro: ComissaoDeBarbeiro[] } {
   const { bookings, staff, periodo, policies } = params;
   const padrao = policies.commissionSplit.barberPct;
   const porId = new Map(staff.map((s) => [s.id, s]));
   const acc = new Map<string, ComissaoDeBarbeiro>();
 
+  /* Só as de serviço: a comissão de produto tem outra base — o lucro da venda,
+   * não o faturamento — e é somada separadamente. Sem este filtro, uma comissão
+   * de produto que compartilhasse `bookingId` entraria com a base errada. */
+  const congelada = new Map(
+    (params.commissions ?? [])
+      .filter((c) => c.origin === "servico" && dentroDoPeriodo(c.date, periodo))
+      .map((c) => [c.bookingId, c])
+  );
+
   for (const b of bookings) {
     if (!isRevenue(b) || !dentroDoPeriodo(b.date, periodo)) continue;
 
     const pessoa = porId.get(b.staffId);
+    const doDia = congelada.get(b.id);
+
     /* Reserva órfã ainda custa dinheiro: o corte aconteceu e alguém recebeu.
      * Cair no percentual da barbearia é melhor que somar zero — mas o nome
      * fica explícito para o dono ver que há dado a corrigir. */
-    const pct = pessoa?.commissionPct ?? padrao;
+    const pct = doDia?.commissionPct ?? pessoa?.commissionPct ?? padrao;
+    const base = doDia?.commissionBase ?? b.value;
+    const valor = doDia?.commissionAmount ?? Math.round((base * pct) / 100);
 
     let linha = acc.get(b.staffId);
     if (!linha) {
       linha = {
         staffId: b.staffId,
-        nome: pessoa?.name ?? "Barbeiro não identificado",
+        nome: doDia?.staffName ?? pessoa?.name ?? "Barbeiro não identificado",
         base: 0,
         pct,
         valor: 0,
@@ -208,12 +251,17 @@ export function comissoesDeServico(params: {
       };
       acc.set(b.staffId, linha);
     }
-    linha.base += b.value;
+    linha.base += base;
+    linha.valor += valor;
     linha.atendimentos += 1;
   }
 
+  /* O percentual exibido é recalculado do que foi somado, e não copiado do
+   * cadastro: num mês em que a taxa do barbeiro mudou, parte dos atendimentos
+   * está congelada na taxa antiga e parte na nova. Mostrar só uma delas seria
+   * uma legenda que não explica o próprio número ao lado. */
   const porBarbeiro = [...acc.values()]
-    .map((l) => ({ ...l, valor: Math.round((l.base * l.pct) / 100) }))
+    .map((l) => ({ ...l, pct: Math.round(safeDiv(l.valor, l.base) * 1000) / 10 }))
     .sort((a, b) => b.valor - a.valor);
 
   return {
@@ -222,31 +270,70 @@ export function comissoesDeServico(params: {
   };
 }
 
-/**
- * O que a maquininha come, por meio de recebimento.
- *
- * Antes era sempre R$ 0 — a linha existia na tela e nenhum chamador fornecia o
- * valor. Sobre R$ 13.650, a diferença entre zero e a taxa real é de R$ 135 a
- * R$ 430 por mês que sumiam do custo.
- */
-export function taxasDeGateway(params: {
-  bookings: Doc<BookingDoc>[];
-  periodo: Periodo;
-  policies: TenantPolicies;
-}): number {
-  const { bookings, periodo, policies } = params;
-  let total = 0;
-  for (const b of bookings) {
-    if (!isRevenue(b) || !dentroDoPeriodo(b.date, periodo)) continue;
-    const pct = policies.gatewayFeePct[b.paymentMethod] ?? 0;
-    total += (b.value * pct) / 100;
-  }
-  return Math.round(total);
-}
-
 /* ------------------------------------------------------------------ */
 /* DRE                                                                 */
 /* ------------------------------------------------------------------ */
+
+/**
+ * Despesas recorrentes que já valem numa data — uma por compromisso.
+ *
+ * `recurring` é um booleano num documento de data única: nada gera a ocorrência
+ * do mês seguinte. As duas telas que leem esse campo discordavam sobre ele — o
+ * DRE filtrava por período e perdia a despesa no mês seguinte ao lançamento,
+ * enquanto a Projeção pegava todos os lançamentos de todos os meses e cobrava
+ * seis aluguéis no mesmo dia depois de seis meses de uso.
+ *
+ * Aqui o compromisso vale a partir do lançamento e segue valendo. Quando o dono
+ * relançou a mesma despesa na mão, a chave `categoria|descrição` reconhece que
+ * é o mesmo compromisso e vale a versão mais recente — o reajuste do aluguel
+ * substitui o valor velho em vez de somar com ele.
+ */
+export function despesasRecorrentesVigentes(
+  expenses: Doc<ExpenseDoc>[],
+  ateData: string
+): Doc<ExpenseDoc>[] {
+  const porCompromisso = new Map<string, Doc<ExpenseDoc>>();
+
+  for (const e of expenses) {
+    if (!e.recurring || e.date > ateData) continue;
+    const chave = `${e.category}|${e.description}`.trim().toLowerCase();
+    const atual = porCompromisso.get(chave);
+    if (!atual || e.date > atual.date) porCompromisso.set(chave, e);
+  }
+
+  return [...porCompromisso.values()];
+}
+
+/**
+ * Folha mensal da equipe.
+ *
+ * Quem está fora do quadro não entra: o cadastro é preservado para o histórico
+ * e para um eventual retorno, mas o salário não é mais devido. Sem salário
+ * definido conta zero — o arranjo mais comum em barbearia é só comissão.
+ */
+export function folhaMensal(staff: Doc<StaffDoc>[]) {
+  return staff
+    .filter((s) => s.active !== false)
+    .reduce((soma, s) => soma + (s.salary ?? 0), 0);
+}
+
+/**
+ * Taxa de maquininha do período, somada dos pagamentos congelados.
+ *
+ * `gatewayFeesTotal` era um parâmetro que nenhum chamador preenchia, então o
+ * DRE debitava zero de taxa: numa barbearia que passa metade do faturamento no
+ * crédito, some cerca de 1,5% do faturamento total do resultado.
+ */
+export function taxasDePagamento(
+  payments: Doc<PaymentDoc>[],
+  periodo: Periodo
+) {
+  return Math.round(
+    payments
+      .filter((p) => dentroDoPeriodo(p.date, periodo))
+      .reduce((soma, p) => soma + (p.feeAmount ?? 0), 0)
+  );
+}
 
 export type ResultadoDoMes = ReturnType<typeof resultadoDoMes>;
 
@@ -254,20 +341,35 @@ export function resultadoDoMes(params: {
   receita: ReceitaDoMes;
   expenses: Doc<ExpenseDoc>[];
   movements: Doc<InventoryMovementDoc>[];
-  /** Necessários para o custo de mão de obra e a taxa de recebimento. */
-  bookings: Doc<BookingDoc>[];
-  staff: Doc<StaffDoc>[];
   periodo: Periodo;
   policies: TenantPolicies;
   /** Salário fixo, para quem não trabalha por comissão. Ainda sem tela. */
   payroll?: number;
+  /**
+   * Equipe e reservas do período — juntas, permitem ratear a comissão por quem
+   * atendeu e cobrar a taxa de recebimento por meio. Ausentes, a comissão cai
+   * no percentual único da barbearia, que é o comportamento correto para
+   * operação solo.
+   */
+  staff?: Doc<StaffDoc>[];
+  bookings?: Doc<BookingDoc>[];
+  /** Congeladas na conclusão — vencem sobre a derivação quando existem. */
+  commissions?: Doc<CommissionDoc>[];
+  /** Soma de `taxasDePagamento` sobre os pagamentos congelados do período. */
+  gatewayFeesTotal?: number;
 }) {
   const { receita, expenses, movements, periodo, policies } = params;
 
-  const doPeriodo = expenses.filter((e) => dentroDoPeriodo(e.date, periodo));
-  const fixedExpenses = doPeriodo.filter((e) => e.recurring).reduce((s, e) => s + e.value, 0);
-  const variableOperatingExpenses = doPeriodo
-    .filter((e) => !e.recurring)
+  /* Custo fixo é o que está VIGENTE no período, não o que foi lançado nele.
+   * O filtro por período fazia o aluguel marcado como recorrente em agosto
+   * sumir do DRE de setembro: o mês seguinte nascia com custo fixo R$ 0,00 e
+   * lucro inflado no valor da conta, até o dono relançar tudo na mão. */
+  const fixedExpenses = despesasRecorrentesVigentes(expenses, periodo.fim).reduce(
+    (s, e) => s + e.value,
+    0
+  );
+  const variableOperatingExpenses = expenses
+    .filter((e) => !e.recurring && dentroDoPeriodo(e.date, periodo))
     .reduce((s, e) => s + e.value, 0);
 
   // CMV = custo de compra do que foi vendido no período.
@@ -275,20 +377,56 @@ export function resultadoDoMes(params: {
     .filter((m) => m.kind === "compra" && dentroDoPeriodo(m.date, periodo))
     .reduce((s, m) => s + m.value, 0);
 
-  const gatewayFees = taxasDeGateway({ bookings: params.bookings, periodo, policies });
+  /* Vem somado de `taxasDePagamento`, sobre os pagamentos CONGELADOS, e não
+   * derivado das reservas com a taxa vigente hoje: mudar a taxa da maquininha
+   * não pode reescrever o que já foi pago. Provado em produção — 1,99/3,49 →
+   * 2,99/4,99 não alterou pagamento anterior nenhum. */
+  const gatewayFees = params.gatewayFeesTotal ?? 0;
 
-  /* Duas bases diferentes, de propósito — ver `commissionSplit`. Serviço paga
-   * sobre o faturamento; produto paga sobre o lucro, porque o custo de compra
-   * não é receita de ninguém. */
-  const servico = comissoesDeServico({
-    bookings: params.bookings,
-    staff: params.staff,
-    periodo,
-    policies,
-  });
+  /* Comissão do profissional.
+   *
+   * A base era só o lucro de revenda de produto — o serviço, que é o negócio
+   * inteiro de uma barbearia, ficava de fora. Numa loja de 400 cortes a R$ 50,
+   * a comissão real de 40% é R$ 8.000 no mês e o DRE mostrava R$ 0,00: o maior
+   * custo variável da operação, invisível na tela que existe para decidir se
+   * contrata ou demite barbeiro.
+   *
+   * Duas bases diferentes, de propósito — ver `commissionSplit`. Serviço paga
+   * sobre o faturamento, rateado POR RESERVA e respeitando o percentual de cada
+   * um; produto paga sobre o lucro, porque o custo de compra não é receita de
+   * ninguém.
+   *
+   * Sem a lista de profissionais não há a quem ratear: cai no percentual da
+   * barbearia aplicado ao total, que é o certo enquanto todos ganham igual. O
+   * DRE perde só o detalhe por pessoa, não o custo. */
+  const receitaDeServico = receita.servicos + receita.encaixes;
+  const padraoPct = policies.commissionSplit.barberPct;
+
+  const servico = params.staff
+    ? comissoesDeServico({
+        bookings: params.bookings ?? [],
+        staff: params.staff,
+        periodo,
+        policies,
+        commissions: params.commissions,
+      })
+    : {
+        total: Math.round((receitaDeServico * padraoPct) / 100),
+        porBarbeiro: [] as ComissaoDeBarbeiro[],
+      };
+
   const lucroLoja = Math.max(receita.produtos - cmv, 0);
-  const commissionsLoja = Math.round((lucroLoja * policies.commissionSplit.barberPct) / 100);
+  const commissionsLoja = Math.round((lucroLoja * padraoPct) / 100);
   const commissions = servico.total + commissionsLoja;
+
+  /* Simples Nacional (Anexo III) incide sobre RECEITA BRUTA, e é devido mesmo
+   * no mês em que a barbearia dá prejuízo. Cobrar a alíquota sobre o resultado
+   * subestimava o imposto em cerca de 3× — R$ 360 em vez de R$ 1.200 num mês
+   * de R$ 20.000 faturados — e o dono planejava com dinheiro que é do governo.
+   *
+   * Fica fora de `variableCost` para a escada do DRE continuar legível, e a
+   * identidade `grossRevenue − totalCost === result` segue valendo. */
+  const tax = Math.round((receita.bruta * policies.taxRatePct) / 100);
 
   const variableCost = cmv + gatewayFees + commissions;
   const contributionMargin = receita.bruta - variableCost;
@@ -298,7 +436,6 @@ export function resultadoDoMes(params: {
   const fixedCost = fixedExpenses + variableOperatingExpenses + payroll;
 
   const resultBeforeTax = contributionMargin - fixedCost;
-  const tax = resultBeforeTax > 0 ? Math.round((resultBeforeTax * policies.taxRatePct) / 100) : 0;
   const result = resultBeforeTax - tax;
 
   const totalCost = variableCost + fixedCost + tax;
@@ -548,7 +685,16 @@ export function projecaoDeCaixa(params: {
   const media = (dow: number) => (soma[dow] ? Math.round(soma[dow].total / soma[dow].n) : 0);
 
   const ativos = params.subscribers.filter((s) => s.status === "ativo");
-  const recorrentes = params.expenses.filter((e) => e.recurring);
+  /* Um compromisso recorrente por conta, não um por lançamento.
+   *
+   * Era `expenses.filter(e => e.recurring)` sobre o histórico inteiro: depois
+   * de seis meses de uso havia seis documentos "Aluguel", e a projeção cobrava
+   * os seis no mesmo dia — R$ 12.000 num dia 5 que devia ser R$ 2.000. O erro
+   * crescia a cada mês em que o produto era usado. */
+  const recorrentes = despesasRecorrentesVigentes(
+    params.expenses,
+    toISODate(params.inicio)
+  );
 
   const resultado: DiaProjetado[] = [];
   let cumulative = 0;
@@ -592,8 +738,11 @@ export function projecaoDeCaixa(params: {
       })
       .reduce((s, sub) => s + sub.price, 0);
 
+    /* Mesma regra de dia da cobrança do mensalista, agora para a conta a pagar:
+     * o dia do lançamento é o do vencimento, e o que cai no 31 vence no último
+     * dia de um mês de 30 — antes nunca era cobrado nesses meses. */
     const fixedExpense = recorrentes
-      .filter((e) => Number(e.date.slice(-2)) === d.getDate())
+      .filter((e) => Math.min(Number(e.date.slice(-2)), ultimoDiaDoMes) === d.getDate())
       .reduce((s, e) => s + e.value, 0);
 
     const net = bookingRevenue + subscriptionCharge - fixedExpense;
@@ -625,12 +774,15 @@ export function estoqueBaixo(products: Doc<ProductDoc>[]) {
 /** Caixa do dia por meio de pagamento — a tela Hoje. */
 export function caixaDoDia(bookings: Doc<BookingDoc>[]) {
   const recebidas = bookings.filter(isReceived);
-  const por = (m: string) =>
-    recebidas.filter((b) => b.paymentMethod === m).reduce((s, b) => s + b.value, 0);
+  const soma = (metodos: PaymentMethod[]) =>
+    recebidas
+      .filter((b) => b.paymentMethod && metodos.includes(b.paymentMethod))
+      .reduce((s, b) => s + b.value, 0);
+
   return {
-    pix: por("pix"),
-    cartao: por("cartao"),
-    dinheiro: por("local"),
+    pix: soma(["pix"]),
+    cartao: soma(["debit", "credit"]),
+    dinheiro: soma(["cash"]),
     total: recebidas.reduce((s, b) => s + b.value, 0),
   };
 }

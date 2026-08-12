@@ -3,10 +3,12 @@
 import { useTenant } from "@/lib/tenant-context";
 import {
   useBookings, useExpenses, useInventoryMovements,
-  useProducts, useServices, useStaff, useSubscribers, combineStatus,
+  useCommissions, usePayments, useProducts, useServices, useStaff,
+  useSubscribers, combineStatus,
 } from "@/lib/db/use-shop-data";
 import {
-  caixaDiario, capacidadeDiaria, horariosDaJornada, indicadores,
+  caixaDiario, capacidadeDiaria, folhaMensal, horariosDaJornada, indicadores,
+  taxasDePagamento,
   mapaDeCalor, mesPeriodo, projecaoDeCaixa, receitaDoMes,
   recorrenciaDeClientes, resultadoDoMes, topServicos,
 } from "@/lib/analytics";
@@ -46,29 +48,45 @@ export function useFinanceiro(mes: string, horizonte: Horizonte = "mensal") {
   const subscribers = useSubscribers();
   const services = useServices();
   const staff = useStaff();
+  const commissions = useCommissions();
+  const payments = usePayments();
   const products = useProducts();
 
   const periodo = mesPeriodo(mes);
-  const status = combineStatus(bookings, expenses, movements, subscribers, services, products);
+  const status = combineStatus(
+    bookings, expenses, movements, subscribers, services, products, staff,
+    commissions, payments
+  );
 
   const receita = receitaDoMes({
     bookings: bookings.items,
     movements: movements.items,
     subscribers: subscribers.items,
     periodo,
+    hoje: new Date(),
   });
 
   const dre = resultadoDoMes({
     receita,
     expenses: expenses.items,
     movements: movements.items,
-    /* Sem estes dois o custo de mão de obra some do DRE — que foi exatamente o
-     * defeito corrigido em 05/08/2026. A comissão sai de cada reserva, na taxa
-     * do barbeiro que atendeu. */
-    bookings: bookings.items,
-    staff: staff.items,
     periodo,
     policies: tenant.policies,
+    /* `payroll` era um parâmetro opcional que nenhum chamador preenchia, e a
+     * comissão usava o percentual único da barbearia mesmo com `commissionPct`
+     * gravado por profissional. Com a equipe e as reservas aqui, a linha de
+     * mão de obra do DRE deixa de ser R$ 0,00 estrutural e passa a respeitar o
+     * que cada barbeiro combinou — defeito corrigido em 05/08/2026. */
+    payroll: folhaMensal(staff.items),
+    staff: staff.items,
+    bookings: bookings.items,
+    /* Congeladas vencem sobre a derivação. Atendimentos anteriores ao trigger
+     * não têm comissão gravada e continuam derivando — sem esse fallback o
+     * histórico apareceria zerado no dia em que o trigger entrou. */
+    commissions: commissions.items,
+    /* A taxa da maquininha finalmente entra no resultado: era um parâmetro que
+     * nenhum chamador preenchia, e o DRE debitava zero. */
+    gatewayFeesTotal: taxasDePagamento(payments.items, periodo),
   });
 
   const caixa = caixaDiario({
@@ -132,19 +150,6 @@ export function useFinanceiro(mes: string, horizonte: Horizonte = "mensal") {
   };
 }
 
-/** Mês corrente em `YYYY-MM`. */
-export function mesAtual(offset = 0) {
-  const d = new Date();
-  d.setMonth(d.getMonth() - offset);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
-
-/** "Julho de 2026" a partir de `YYYY-MM`. */
-export function rotuloDoMes(mes: string) {
-  const [ano, m] = mes.split("-").map(Number);
-  const label = new Date(ano, m - 1, 1).toLocaleDateString("pt-BR", {
-    month: "long",
-    year: "numeric",
-  });
-  return label.charAt(0).toUpperCase() + label.slice(1);
-}
+/* Vivem em `format.ts` — módulo puro, testável sem montar hook. Reexportadas
+ * aqui porque as telas do financeiro já as importam deste caminho. */
+export { mesAtual, rotuloDoMes } from "@/lib/format";

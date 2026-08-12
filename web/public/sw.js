@@ -1,4 +1,19 @@
-const CACHE_NAME = "barbearia-v4";
+/**
+ * A versão vem da URL de registro (`/sw.js?v=<build>`), e não de uma constante.
+ *
+ * Como constante, ela nunca mudava — e é isso que mantinha um usuário existente
+ * na versão anterior depois de publicar. O navegador só procura service worker
+ * novo quando o BYTE do arquivo muda; `sw.js` é estático e não muda a cada
+ * build, então nenhum deploy jamais disparou `updatefound`. O aviso "Nova
+ * versão disponível" existia e nunca teve como aparecer, e o cache atravessava
+ * publicação após publicação servindo RSC e chunks de builds antigos.
+ *
+ * Com o build na query, cada publicação muda a URL do script: o navegador vê
+ * worker novo, instala, e o `activate` abaixo — que já apagava tudo com nome
+ * diferente — passa a ter o que apagar.
+ */
+const VERSAO = new URL(self.location.href).searchParams.get("v") || "dev";
+const CACHE_NAME = `barbearia-${VERSAO}`;
 const OFFLINE_URL = "/offline";
 const APP_SHELL = [
   OFFLINE_URL,

@@ -14,6 +14,11 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
  * essa preferência costuma ter enjoo com movimento, e uma página inteira que
  * desliza é exatamente o gatilho. Nesse caso o conteúdo nasce visível, sem
  * transição nenhuma.
+ *
+ * Essa preferência é resolvida em CSS (`motion-reduce:`), e não lendo
+ * `matchMedia` no efeito. Além de dispensar JavaScript, evita o instante em que
+ * o conteúdo nasce transparente e só aparece depois da hidratação — que é
+ * justamente o movimento que a preferência pede para não existir.
  */
 export function Reveal({
   children,
@@ -29,11 +34,6 @@ export function Reveal({
   const [visivel, setVisivel] = useState(false);
 
   useEffect(() => {
-    const reduzir = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduzir) {
-      setVisivel(true);
-      return;
-    }
     const el = ref.current;
     if (!el) return;
 
@@ -57,7 +57,9 @@ export function Reveal({
       ref={ref}
       style={{ transitionDelay: `${delay}ms` }}
       className={
-        "transition-[opacity,transform] duration-700 ease-out motion-reduce:transition-none " +
+        "transition-[opacity,transform] duration-700 ease-out " +
+        // Quem pediu menos movimento vê o bloco já no lugar, sem transição.
+        "motion-reduce:translate-y-0 motion-reduce:opacity-100 motion-reduce:transition-none " +
         (visivel ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0") +
         (className ? ` ${className}` : "")
       }
@@ -91,10 +93,6 @@ export function RevealPalavras({
   const ref = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setVisivel(true);
-      return;
-    }
     const el = ref.current;
     if (!el) return;
     const o = new IntersectionObserver(
@@ -117,7 +115,8 @@ export function RevealPalavras({
           key={`${palavra}-${i}`}
           style={{ transitionDelay: `${i * 45}ms` }}
           className={
-            "inline-block transition-[opacity,transform] duration-500 ease-out motion-reduce:transition-none " +
+            "inline-block transition-[opacity,transform] duration-500 ease-out " +
+            "motion-reduce:translate-y-0 motion-reduce:opacity-100 motion-reduce:transition-none " +
             (visivel ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0") +
             (destaque?.includes(palavra) ? ` ${classeDestaque}` : "")
           }

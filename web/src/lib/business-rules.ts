@@ -38,12 +38,17 @@ export const reschedulePolicy = {
 /** Devolução de um cancelamento, segundo a política acima. */
 export function refundAmountFor(params: {
   value: number;
-  paymentMethod: "pix" | "cartao" | "local";
+  /**
+   * Nulo enquanto o atendimento não foi concluído — e sem pagamento não há o
+   * que devolver. Antes a checagem era `=== "local"`, que confundia lugar com
+   * instrumento: quem pagou Pix no balcão também aparecia como "não pagou".
+   */
+  paymentMethod: PaymentMethod | null;
   hoursUntilStart: number;
 }) {
   const { value, paymentMethod, hoursUntilStart } = params;
 
-  if (paymentMethod === "local") {
+  if (!paymentMethod) {
     return { amount: 0, retainedPct: 0, tier: "sem_pagamento" as const };
   }
   if (hoursUntilStart >= cancellationPolicy.fullRefundHours) {
@@ -75,6 +80,18 @@ export const bookingPolicy = {
   slotMinutes: 30,
   /** Prazo para o barbeiro responder a um pedido de encaixe (PRD §4, épico 6). */
   fitInExpirationMinutes: 45,
+  /**
+   * Quanto tempo depois do horário a reserva em aberto vira atraso.
+   *
+   * Barbearia trabalha com atraso normal — cliente que chega cinco minutos
+   * depois não é falta, é terça-feira. Com tolerância zero todo atendimento do
+   * dia viraria alerta e a seção "Precisa de você" perderia a credibilidade
+   * antes do almoço.
+   *
+   * É política, não constante: quem atende com hora marcada apertada quer 10;
+   * quem trabalha por ordem de chegada quer 40.
+   */
+  lateToleranceMinutes: 15,
 } as const;
 
 /** Dias da semana em que a barbearia abre (0 = domingo). Fechada aos domingos. */
@@ -107,24 +124,6 @@ export const commissionSplit = {
   barberPct: 40,
   shopPct: 60,
 } as const;
-
-/**
- * Taxa efetiva por meio de recebimento, em percentual.
- *
- * Referência da Stone, usada até a barbearia configurar a dela. O padrão é
- * proposital: zero seria uma afirmação FALSA — quem recebe por cartão paga a
- * maquininha —, e errado para baixo num custo é errado para cima no lucro.
- *
- * `local` é o que se paga no balcão (dinheiro ou maquininha da casa) e não
- * passa por gateway nenhum. O tipo é `Record<PaymentMethod, number>` de
- * propósito: um meio de pagamento novo passa a NÃO COMPILAR até alguém decidir
- * qual é a taxa dele, em vez de entrar valendo zero em silêncio.
- */
-export const gatewayFeePct: Record<PaymentMethod, number> = {
-  pix: 0.99,
-  cartao: 3.15,
-  local: 0,
-};
 
 /** Alíquota efetiva estimada do Simples Nacional sobre o lucro bruto. */
 export const taxRatePct = 6;

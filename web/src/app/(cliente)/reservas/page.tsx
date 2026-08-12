@@ -8,7 +8,7 @@ import { Pill } from "@/components/ui/pill";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { bookingStatusMeta } from "@/lib/booking-status";
-import { paymentMethodLabel } from "@/lib/payment-method";
+import { labelDoPagamento } from "@/lib/payment-method";
 import { formatBRL, formatDatePtBR } from "@/lib/format";
 import { useTenant } from "@/lib/tenant-context";
 import { useAuth } from "@/lib/auth-context";
@@ -248,7 +248,7 @@ export default function ReservasPage() {
               </div>
               <div className="flex items-center justify-between border-t border-border pt-2 text-sm md:pt-3 md:text-base">
                 <span className="text-ivory-muted">
-                  {booking?.paymentMethod === "local" ? "A pagar no salão" : "Valor pago"}
+                  {booking?.paymentMethod ? "Valor pago" : "A pagar no salão"}
                 </span>
                 <span className="font-display font-semibold text-ivory md:text-lg">
                   {formatBRL(booking?.value ?? 0)}
@@ -302,7 +302,7 @@ export default function ReservasPage() {
                       {bServices.map((s) => s.name).join(" + ")}
                     </p>
                     <p className="truncate text-xs capitalize text-ivory-muted md:text-sm">
-                      {formatDatePtBR(b.date)} às {b.time} · {paymentMethodLabel[b.paymentMethod]}
+                      {formatDatePtBR(b.date)} às {b.time} · {labelDoPagamento(b.paymentOrigin, b.paymentMethod)}
                     </p>
                   </div>
                   <span className="shrink-0 font-display font-semibold text-ivory">

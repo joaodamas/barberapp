@@ -5,84 +5,9 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
-  web:
-    name: web (typecheck · lint · testes · build)
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: web
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: web/package-lock.json
-
-      - run: npm ci
-      - run: npm run typecheck
-      - run: npm run lint
-      - run: npm run test
-
-      - name: Build de produção
-        # Chaves fictícias: o build só precisa que a config exista. As reais
-        # ficam no ambiente de deploy.
-        env:
-          NEXT_PUBLIC_FIREBASE_API_KEY: ci-placeholder
-          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ci.firebaseapp.com
-          NEXT_PUBLIC_FIREBASE_PROJECT_ID: ci
-          NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ci.appspot.com
-          NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "000000000000"
-          NEXT_PUBLIC_FIREBASE_APP_ID: "1:000000000000:web:0000000000000000000000"
-          NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID: G-0000000000
-        run: npm run build
-
-  functions:
-    name: functions (typecheck · testes · build)
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: functions
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: functions/package-lock.json
-
-      - run: npm ci
-      - run: npm run typecheck
-
-      # Valida as regras de placeholder da Meta ANTES de qualquer submissão —
-      # a aprovação leva dias e a rejeição custa o ciclo inteiro.
-      - run: npm run test
-      - run: npm run build
-
-  rules:
-    name: regras do firestore (isolamento entre barbearias)
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: functions
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: functions/package-lock.json
-      # O emulador do Firestore roda sobre a JVM.
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 21
-
-      - run: npm ci
-      - run: npm install -g firebase-tools
-
-      # Prova que uma barbearia não alcança dado de outra. Um furo aqui vaza o
-      # financeiro de um cliente pagante para outro — é o teste que não pode
-      # faltar antes de qualquer deploy de regras.
-      - run: npm run test:rules
+  qualidade:
+    uses: ./.github/workflows/qualidade.yml

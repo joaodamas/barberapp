@@ -3,7 +3,9 @@ import Link from "next/link";
 import { AuthGuard } from "@/components/auth-guard";
 import { DemoBanner } from "@/components/demo-banner";
 import { AvisoModoLeitura } from "@/components/ui/bloqueio-plano";
+import { AvisoDeTrial } from "@/components/acesso";
 import { getTenant } from "@/lib/tenant-server";
+import { TenantLive } from "@/lib/tenant-live";
 import { PainelBottomNav } from "@/components/painel-bottom-nav";
 import { PainelSidebarNav } from "@/components/painel-sidebar-nav";
 
@@ -12,9 +14,22 @@ export default async function PainelDashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { brand } = await getTenant();
+  const tenant = await getTenant();
+  const { brand } = tenant;
 
+  /* Não há corte de acesso aqui, e é decisão de produto: trial vencido e conta
+   * suspensa caem em MODO LEITURA, não em porta fechada. Barbearia que perde a
+   * agenda no meio de um sábado não volta para negociar — cria caso. O dono
+   * continua vendo tudo, o cliente continua agendando pelo link, e o que trava
+   * é editar. Quem decide isso é `acessoDaBarbearia`, uma vez, e as telas leem
+   * o resultado por `useAcesso`. Ver `docs/COBRANCA-E-ENTRADA.md`.
+   *
+   * Daqui para dentro, a ficha da barbearia vem do Firestore em tempo real, e
+   * não do cache de 300s do servidor: este é o único lugar do produto onde
+   * alguém EDITA a ficha, e ver o valor antigo depois de salvar é a interface
+   * mentindo sobre o que foi gravado. A vitrine pública segue cacheada. */
   return (
+    <TenantLive inicial={tenant}>
     <AuthGuard requireOwner>
       <a
         href="#conteudo"
@@ -23,6 +38,9 @@ export default async function PainelDashboardLayout({
         Pular para o conteúdo
       </a>
       <DemoBanner />
+      {/* Os dois se completam e nunca aparecem juntos: o de trial avisa nos
+          últimos dias, o de leitura explica depois que venceu. */}
+      <AvisoDeTrial tenant={tenant} />
       <AvisoModoLeitura />
       <div className="mx-auto flex min-h-full w-full max-w-md flex-1 flex-col md:h-full md:max-w-none md:flex-row md:overflow-hidden">
         <PainelSidebarNav />
@@ -45,5 +63,6 @@ export default async function PainelDashboardLayout({
         </div>
       </div>
     </AuthGuard>
+    </TenantLive>
   );
 }

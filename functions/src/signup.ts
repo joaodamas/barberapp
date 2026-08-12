@@ -1,6 +1,7 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { getAuth } from "firebase-admin/auth";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
+import { featuresFor, type PlanId } from "./plans";
 
 /**
  * Cadastro self-service de uma barbearia.
@@ -18,6 +19,9 @@ const RESERVED_SLUGS = new Set([
 ]);
 
 export const TRIAL_DAYS = 7;
+
+/** O teste roda no plano de cima: o dono só escolhe o plano ao fim dele. */
+export const TRIAL_PLAN: PlanId = "gestao";
 
 /** Catálogo inicial — o dono ajusta preço e apaga o que não faz. */
 const SEED_SERVICES = [
@@ -143,8 +147,12 @@ export const signUpBarbershop = onCall<SignUpInput>(async (request) => {
     tx.set(shopRef, {
       slug,
       status: "trial",
-      plan: "completo", // trial libera tudo; o plano é escolhido no fim
+      plan: TRIAL_PLAN, // trial libera tudo; o plano é escolhido no fim
       trial,
+      /* Gravado explicitamente: quando o campo falta, o leitor do servidor
+       * precisa adivinhar — e adivinhava liberando tudo, de graça e para
+       * sempre, em toda barbearia criada por aqui. */
+      features: featuresFor(TRIAL_PLAN),
       brand: {
         name,
         shortName: shortNameFrom(name),
@@ -222,6 +230,34 @@ export const signUpBarbershop = onCall<SignUpInput>(async (request) => {
   };
 });
 
+/**
+ * Campos que o onboarding pode gravar no documento da barbearia.
+ *
+ * A função escreve com o Admin SDK, que IGNORA `firestore.rules`. Sem esta
+ * lista, `Object.assign(update, data)` repassava qualquer chave enviada pelo
+ * cliente: o dono chamava com `{ plan: "completo", status: "ativo",
+ * trial: null }` e reescrevia exatamente os campos que a regra protege —
+ * saindo do teste para ativo permanente, virando plano de cima de graça e
+ * desfazendo a própria suspensão por inadimplência. Nenhum teste de regra
+ * pegaria isso, porque este caminho contorna as regras.
+ *
+ * A allowlist é nominal, não por prefixo: `brand.` liberado em bloco deixaria
+ * passar chave nova que a tela ainda não manda.
+ */
+export const ONBOARDING_WRITABLE_FIELDS = new Set([
+  "brand.name",
+  "brand.shortName",
+  "brand.accentColor",
+  "contact.address",
+  "contact.whatsapp",
+  "contact.instagram",
+  "schedule.weekdays",
+  "schedule.opensAt",
+  "schedule.closesAt",
+  "schedule.slotMinutes",
+  "schedule.breaks",
+]);
+
 /** Marca um passo do onboarding como concluído. */
 export const completeOnboardingStep = onCall<{
   barbershopId: string;
@@ -242,7 +278,17 @@ export const completeOnboardingStep = onCall<{
   const update: Record<string, unknown> = {
     "onboarding.completedSteps": FieldValue.arrayUnion(step),
   };
-  if (data) Object.assign(update, data);
+
+  /* Recusa em vez de ignorar em silêncio: campo fora da lista é tela nova
+   * mandando o que ainda não foi liberado, ou tentativa de escalada. Ignorar
+   * faria o dono ver "salvo" com o dado no chão. */
+  for (const [campo, valor] of Object.entries(data ?? {})) {
+    if (!ONBOARDING_WRITABLE_FIELDS.has(campo)) {
+      throw new HttpsError("invalid-argument", `O onboarding não grava "${campo}".`);
+    }
+    update[campo] = valor;
+  }
+
   if (step === "compartilhar") {
     update["onboarding.completedAt"] = FieldValue.serverTimestamp();
     update["onboarding.sharedLink"] = true;

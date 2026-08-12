@@ -3,7 +3,128 @@
 Histórico de mudanças do CorteHub — plataforma de gestão para barbearias.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [2026-08-12] — a esteira publica pela primeira vez
+
+Tudo abaixo deixou de ser "não publicado": foi ao ar em 12/08 pelo GitHub
+Actions, no commit `5a3bef6`. Publicar não foi um passo administrativo — foi o
+que revelou três defeitos que nenhuma suíte pegaria, porque os três só existem
+depois que alguém publica.
+
+### O deploy existia e nunca tinha rodado
+
+Faltava a credencial: o ambiente `producao` estava sem secret e sem variável.
+Criada a conta de serviço com papéis mínimos (`actAs` só na conta de runtime,
+escrita só nos buckets de código, papel personalizado no lugar de
+`roles/firebase.viewer`, que entregaria a leitura do Firestore de todos os
+clientes junto).
+
+Na primeira execução real, a **trava de alvo derrubou o deploy antes de
+conferir alvo nenhum**: `require('./.firebaserc')` — sem extensão, o Node
+carrega o arquivo com o loader de JavaScript, e `{"projects": {` vira
+`SyntaxError`. Nunca tinha aparecido porque o job jamais havia passado da
+checagem de credencial.
+
+E o `next/font/google` derrubou outra tentativa: o build baixa Oswald e Manrope
+em tempo de build, e a Google devolveu **404**. Toda publicação depende de um
+serviço de terceiro estar de pé — registrado como bloqueador.
+
+### A interface parava de mentir sobre o que foi salvo
+
+O dono salvava a tolerância, o Firestore gravava certo, ele recarregava e a
+tela mostrava o valor antigo. A ficha da barbearia era cacheada por 300s, com o
+comentário "a ficha muda quando o dono edita a marca" — premissa que caiu no dia
+em que Configurações virou tela de escrita nesse mesmo documento. **Já valia
+para as taxas**, antes desta entrega.
+
+Gravação certa com interface mentindo é pior que falhar: o dono salva de novo e
+para de confiar na tela. Agora o painel lê a ficha em tempo real; a vitrine
+pública mantém o cache, que é onde ele se paga.
+
+Na revisão do PR apareceu o buraco da própria correção: o formulário semeava o
+estado com `useState(tenant…)`, que lê o valor **uma vez**. O snapshot chegava
+com o valor novo, o campo continuava com o velho, e salvar gravaria o velho por
+cima — a tela desfazendo a mudança do dono.
+
+### O aviso de versão nova existia e nunca teve como aparecer
+
+Com o deploy publicado, o painel continuava mostrando a versão anterior. Só
+cedeu depois de apagar o `CacheStorage` e desregistrar o worker à mão.
+
+O navegador só procura service worker novo quando o **byte** do script muda, e
+`sw.js` é estático: nenhum deploy jamais disparou `updatefound`. O aviso "Nova
+versão disponível" estava no código desde a fundação, bem feito, com tratamento
+até para múltiplos deploys com a aba aberta — e nunca teve como ser acionado.
+O cache atravessava publicação após publicação servindo RSC e chunks antigos.
+
+Não era o cache mal desenhado. Era o cache **nunca girando**. O worker agora é
+registrado como `/sw.js?v=<build>`, e o `activate` — que já apagava todo cache
+de nome diferente — passou a ter o que apagar.
+
+> **Código correto que nunca executa é indistinguível de código ausente**, e
+> nenhum teste unitário pega isso.
+
+### Prontidão para o piloto virou documento
+
+`docs/GO-LIVE-READINESS.md` — lista única do que falta para entregar a uma
+barbearia real, em quatro estados, com um padrão de evidência: teste verde não
+promove para "validado", e toda linha validada nomeia a evidência.
+
+Sete bloqueadores. Dois apareceram só por montar a lista: **o dono não consegue
+cancelar um atendimento pelo painel** (`cancelBooking` é chamado só pelo app do
+cliente) e o SEC-001 confirmado ao vivo na política de IAM.
+
+E quatro correções ao que se acreditava — inclusive duas deste changelog:
+comissão por barbeiro **já estava feita**, e o trial **já bloqueia** o acesso ao
+vencer.
+
 ## [Não publicado]
+
+### Duas linhas de trabalho voltam a ser uma
+
+A branch da auditoria e a `main` andaram uma semana em paralelo e construíram
+**as mesmas coisas duas vezes**, com desenhos incompatíveis. A reconciliação
+não foi escolher um lado: em quase todo ponto de choque cada versão tinha uma
+metade que a outra não tinha.
+
+- **Custo de mão de obra no DRE.** Os dois lados acharam e corrigiram o mesmo
+  defeito, sem saber um do outro. A `main` foi mais longe — corrigiu também a
+  base do Simples Nacional, que incidia sobre o resultado e não sobre a receita
+  bruta, subestimando o imposto em cerca de 3× — e fez a comissão congelada
+  vencer sobre a derivação. A branch tinha o detalhe por pessoa na tela e a
+  trava de margem contra a regressão. Ficaram as duas metades: o cálculo da
+  `main`, o detalhe e a trava da branch.
+- **Percentual exibido por barbeiro** passa a ser recalculado do que foi somado,
+  em vez de copiado do cadastro. Num mês em que a taxa mudou, parte dos
+  atendimentos está congelada na taxa antiga: mostrar só uma delas seria uma
+  legenda que não explica o número ao lado dela.
+- **Planos.** A branch tinha três níveis com preço e matriz documentados; a
+  `main` tinha dois, já no ar. Decidido manter os três e o **modo leitura** — ao
+  vencer, o dono continua vendo tudo e o cliente continua agendando pelo link; o
+  que trava é editar. Barbearia que perde a agenda no meio de um sábado não
+  volta para negociar. O corte seco (`AcessoExpirado`) saiu.
+- **Furo fechado de brinde:** os dois desenhos caíam num `?? ALL_FEATURES`
+  quando o plano era desconhecido — um typo no console entregava o catálogo
+  inteiro de graça. Agora o plano é normalizado na entrada, o mapa é
+  `Record<PlanId, …>`, e não sobrou fallback generoso em lugar nenhum. Documento
+  gravado na linha de dois planos é **traduzido** (`completo` → `gestao`), não
+  rebaixado.
+- **Meio de pagamento.** O modelo de três valores da branch (`pix`/`cartao`/
+  `local`) foi substituído pelo de quatro da `main`, que separa onde o pagamento
+  aconteceu de como o dinheiro entrou e já foi validado em produção. A taxa da
+  maquininha deixa de ser derivada da reserva e passa a vir dos pagamentos
+  congelados.
+
+**Achado ao juntar:** os dois botões "Escolher um plano" do modo leitura
+apontavam para `/painel/plano`, uma rota que nunca foi criada. O convite mais
+importante do produto — o que aparece justamente quando a barbearia parou de
+pagar — levava a um 404, e nenhum teste pegaria isso porque a rota inexistente
+compila. Agora caem no WhatsApp comercial com a mensagem pronta, que é o que a
+`main` já fazia, porque **não existe checkout de assinatura**: a contratação é
+humana. Sem número configurado, o botão não é renderizado.
+
+160 testes no web e 121 nas functions, verdes, e o build passa. O que ainda
+**não** foi provado é o que a lista de prontidão já dizia: nada disto passou por
+produção.
 
 ### 🔴 O DRE não contabilizava o custo do trabalho
 
@@ -94,6 +215,130 @@ estarem abaixo da dobra.
 ⚠️ As imagens carregam SynthID, a marca d'água invisível do Google. Não aparece
 nem atrapalha, mas são detectáveis como geradas por IA — não usar em material
 que afirme serem fotos de uma barbearia parceira real.
+### Verdade financeira — o dinheiro para de mudar depois do fato
+
+O DRE recalculava tudo a cada abertura da tela. Mudar a comissão de um barbeiro
+hoje reescrevia o que ele ganhou em março, e o acerto do mês passado deixava de
+bater com o que o sistema mostrava. O princípio adotado: **derive o que descreve
+o presente, materialize o que vira histórico.**
+
+- Ao concluir um atendimento, a Cloud Function `materializeFinancialsOnCompletion`
+  grava dois documentos com os valores **congelados**: `commissions/{bookingId}`
+  com o percentual vigente naquele instante, e `payments/{bookingId}` com a taxa
+  da maquininha do método usado.
+- **Idempotência por construção**, não por trava: o id do documento é derivado do
+  `bookingId`. Reprocessar o mesmo evento reescreve o mesmo documento em vez de
+  criar um segundo — e o Eventarc entrega mais de uma vez por design.
+- O fechamento passou a perguntar **como o cliente pagou**. Sem isso, o pagamento
+  era materializado com taxa zero e o lucro do mês aparecia maior do que é.
+- `paymentOrigin` separa **onde** o pagamento aconteceu (presencial ou online) de
+  **como** o dinheiro entrou (`paymentMethod`). São perguntas diferentes e
+  estavam colapsadas numa só.
+- Tela de **Configurações** com as quatro taxas por método. Todas nascem em 0 —
+  taxa inventada é pior que taxa ausente, porque parece verdade.
+
+**Validado em produção, não só em teste:** com o atendimento já concluído, mudar
+a comissão de 40% para 50% não alterou os R$ 20 registrados; mudar as taxas de
+1,99/3,49 para 2,99/4,99 não alterou os pagamentos anteriores. O histórico
+parou de se reescrever sozinho.
+
+### Action Center — o painel passa a dizer o que fazer
+
+- Motor de decisão em `lib/action-center.ts`, **separado da interface**. A tela
+  apresenta o que o motor decidiu; não existe regra de negócio em JSX.
+- Regra de admissão: um item só existe se responder *o que aconteceu*, *por que
+  importa agora* e *o que eu faço*. Faltando qualquer uma, é indicador — e
+  indicador vive no topo da tela, não aqui.
+- **Item morre por mudança de estado, nunca por descarte.** Não existe
+  "dispensar": é retrato da operação agora, não caixa de notificações.
+- Contrato completo em `docs/ACTION-CENTER-CONTRATO.md`, com as 10 situações
+  catalogadas e os 8 invariantes.
+
+### A falta deixa de ser um estado que não existe
+
+`no_show` estava no tipo, no rótulo e nas regras de segurança — e **nada no
+sistema o gravava**. O cliente que não aparecia ficava para sempre como
+"confirmado": o horário constava como atendimento no dia, o valor não era
+receita nem perda, e a taxa de falta era um número que ninguém podia calcular.
+
+- **Quem marca a falta é quem estava no balcão.** Botão *"Não veio"* na linha da
+  agenda, mais o item de atraso na coluna lateral — mesma escrita, dois pontos
+  de entrada, nenhum dos dois grava sem confirmação.
+- **O fechamento automático no fim do expediente foi recusado.** Converter em
+  falta tudo que ficou em aberto seria mais cômodo: o dono que atendeu, cobrou e
+  esqueceu de fechar ganharia uma falta falsa no histórico do cliente — que
+  amanhã alimenta a régua de pagamento antecipado. É o tipo de erro que não
+  aparece em lugar nenhum; o número só fica errado, e quem paga é o cliente que
+  nunca faltou.
+- **A falta não é beco sem saída:** cliente que aparece 40 minutos depois volta a
+  ser atendimento pelo mesmo caminho, com *"Veio depois"*. Sem isso, um toque
+  errado só teria correção no banco.
+- Falta **não materializa dinheiro** — `payments` e `commissions` continuam
+  nascendo da conclusão. Mas **continua ocupando o horário** na agenda: ele foi
+  reservado e ninguém mais pôde usá-lo, que é exatamente o custo da falta.
+
+### Atendimento atrasado — a regra que contradizia o próprio contrato
+
+O painel passou a apontar a reserva que passou do horário e continua em aberto,
+com tolerância configurável (`policies.booking.lateToleranceMinutes`, padrão 15).
+Barbearia trabalha com atraso normal: com tolerância curta demais, todo
+atendimento vira alerta e a seção perde credibilidade antes do almoço.
+
+O catálogo descrevia esta situação como 🔴 crítica **e** 🟡 estimada ao mesmo
+tempo — e o invariante 3 diz que estimado nunca é crítico. A contradição não era
+do invariante: era de o item estar enunciado como a conclusão errada.
+
+> O motor não afirma que o cliente faltou. Afirma que **a reserva não teve
+> desfecho e o horário passou** — verificável no dado, sem inferência. Qual das
+> duas coisas aconteceu é justamente a pergunta que o item devolve ao dono.
+
+Daí as duas ações no mesmo item (*Concluir* · *Marcar falta*), e a regra que
+fica para as próximas: **fato que comporta duas leituras opostas é enunciado
+como fato, com as duas saídas** — enunciar a mais provável seria estimativa
+vestida de certeza.
+
+### Corrigido
+
+- **Salvar uma política parcial apagaria as outras.** `policies` era mesclado
+  raso: gravar só `policies.booking.lateToleranceMinutes` faria a barbearia
+  perder antecedência mínima, janela da agenda e prazo de encaixe — e uma agenda
+  com `minAdvanceMinutes` indefinido aceita reserva para horário que já passou.
+  O mesmo cuidado que `paymentFees` já tinha.
+- **O tipo do tenant afirmava que a tolerância *é* 15.** As políticas herdavam o
+  tipo do literal `as const`, então a barbearia que salvasse 30 não compilava.
+  Vale enquanto o valor é constante de código — e este deixou de ser.
+- O relógio do painel virou fonte externa (`useSyncExternalStore`). Lido no
+  render, ele congelava na montagem: o atendimento das 14:00 seguiria "no
+  horário" às 15:30, porque num dia parado nada provoca re-render.
+
+### Esteira e deploy
+
+- **Os 66 testes de isolamento entre barbearias não rodavam em lugar nenhum** —
+  nem local (sem emulador), nem no CI (o job estava vermelho desde sempre, e o
+  `emulators:exec` abortava antes de subir). Agora rodam a cada push. A prova de
+  que a barbearia A não alcança o dado da B deixou de ser teórica.
+- O job `web` morria no lint e **nunca chegava a rodar teste nem build**: o build
+  de produção passou meses sem ser verificado por ninguém.
+- A verificação virou workflow reutilizável. Push e deploy chamam o mesmo
+  arquivo — publicar exige a esteira inteira verde, por construção.
+- **Deploy saiu da máquina local e foi para o GitHub Actions**, manual
+  (`workflow_dispatch`), com aprovação e restrito à `main`. No Windows o deploy
+  de Hosting quebra com `EPERM: symlink`, e a alternativa seria baixar a guarda
+  do sistema operacional.
+- `main` protegida: PR obrigatório, três checks verdes, **sem bypass para
+  administrador**.
+- Runbook, inventário de permissões e auditoria de segurança em `docs/DEPLOY.md`.
+
+### Corrigido — incidente com as regras de produção
+
+- Um `firebase deploy --only firestore:rules` publicou as regras do repositório
+  por cima das de produção, que estavam mais novas, e **removeu as regras de 6
+  coleções** por 28 minutos — incluindo `staff`, lida pelo `createBooking`. O
+  repositório estava 30 commits atrás da produção sem ninguém saber.
+- Corrigido baixando o ruleset anterior pela API e reaplicando só as correções
+  pretendidas. A divergência repositório↔produção foi reconciliada, e hoje
+  regras, storage e índices estão em paridade conferida.
+- É a razão de o deploy ter deixado de sair de máquina local.
 
 ### Plataforma multi-barbearia
 
@@ -330,6 +575,16 @@ barbearia original vira o tenant piloto, não o único cliente.
 - Envio de WhatsApp, gateway de pagamento, estorno via API e cobrança do próprio
   SaaS. Sem eles o produto não é vendável.
 - Verificação comercial na Meta — sem ela, 250 destinatários únicos por 24h.
+- **SEC-001 (alta):** a conta de runtime de todas as Cloud Functions tem
+  `roles/editor` no projeto. É o padrão do Firebase, e significa que uma falha
+  de execução em qualquer função alcança o projeto inteiro. Também é o teto de
+  privilégio da esteira de deploy, que precisa agir como ela. Corrigir exige
+  conta de runtime dedicada e redeploy das 19 functions.
+- **SEC-002 (média):** há um único `owner` no projeto Google Cloud, sem conta de
+  emergência. Perder essa conta é perder o projeto.
+- **DX (baixa):** `npm run test:rules` não roda no Windows — o Git Bash não
+  preserva as aspas simples do script. Roda no CI. O dev no Windows depende de
+  adaptar a citação à mão.
 
 ---
 

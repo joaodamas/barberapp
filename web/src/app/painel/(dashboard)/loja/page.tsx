@@ -8,7 +8,8 @@ import { Pill } from "@/components/ui/pill";
 import { Modal } from "@/components/ui/modal";
 import { formatBRL } from "@/lib/format";
 import { useProducts } from "@/lib/db/use-shop-data";
-import { useTenant } from "@/lib/tenant-context";
+import { useFeature, useTenant } from "@/lib/tenant-context";
+import { RecursoBloqueado } from "@/components/recurso-bloqueado";
 import { createDoc } from "@/lib/db/repository";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { commissionSplit, splitSale, taxRatePct } from "@/lib/business-rules";
@@ -26,7 +27,25 @@ const emptyForm = {
   minStock: "5",
 };
 
+/* O gate mora num componente à parte, e não num retorno antecipado dentro do
+ * conteúdo: os hooks do conteúdo passariam a ser chamados condicionalmente. */
 export default function LojaPage() {
+  const liberado = useFeature("store");
+
+  if (!liberado) {
+    return (
+      <RecursoBloqueado
+        titulo="Loja"
+        oQueFaz="Cadastra o que você revende, calcula preço de venda a partir do custo e acompanha o estoque com aviso de mínimo."
+        porQueVale="Pomada e shampoo têm margem melhor que corte e não ocupam cadeira. Sem controle, o que some do balcão some do caixa sem aparecer."
+      />
+    );
+  }
+
+  return <LojaConteudo />;
+}
+
+function LojaConteudo() {
   const { id: barbershopId } = useTenant();
   const { items: products, status } = useProducts();
   const [simPrice, setSimPrice] = useState(45);

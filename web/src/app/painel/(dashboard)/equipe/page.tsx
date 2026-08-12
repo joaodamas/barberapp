@@ -3,13 +3,11 @@
 import { useState } from "react";
 import { Plus, Trash2, UserPlus, Users } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { useServices, useStaff } from "@/lib/db/use-shop-data";
 import { createDoc, patchDoc, removeDoc } from "@/lib/db/repository";
 import { useTenant } from "@/lib/tenant-context";
-import { commissionSplit } from "@/lib/business-rules";
 
 /**
  * A equipe.
@@ -30,6 +28,9 @@ import { commissionSplit } from "@/lib/business-rules";
  */
 export default function EquipePage() {
   const tenant = useTenant();
+  /* Do tenant, não da constante da plataforma: a barbearia que combinou 50/50
+   * via 40% aqui e o split correto no DRE — duas telas, dois números. */
+  const padraoDaCasa = tenant.policies.commissionSplit.barberPct;
   const { items: equipe, status } = useStaff();
   const { items: servicos } = useServices();
   const [erro, setErro] = useState<string | null>(null);
@@ -162,17 +163,45 @@ export default function EquipePage() {
                     min={0}
                     max={100}
                     defaultValue={b.commissionPct ?? ""}
-                    placeholder={String(commissionSplit.barberPct)}
+                    placeholder={String(padraoDaCasa)}
                     onBlur={(e) => {
                       const v = e.target.value.trim();
                       salvar(b.id, "commissionPct", v === "" ? null : Number(v));
                     }}
                     className="min-h-11 w-24 rounded-xl border border-border bg-surface-raised px-3 text-sm text-ivory"
                   />
-                  <span className="text-sm text-ivory-muted">% do lucro</span>
+                  {/* Dizia "% do lucro", e a base da comissão de serviço é o
+                      valor do atendimento. O rótulo errado aqui vira discussão
+                      com o barbeiro no dia do acerto. */}
+                  <span className="text-sm text-ivory-muted">% do atendimento</span>
                 </div>
                 <p className="text-xs text-ivory-muted">
-                  Em branco usa o padrão da barbearia ({commissionSplit.barberPct}%).
+                  Em branco usa o padrão da barbearia ({padraoDaCasa}%).
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-ivory-muted">
+                  Salário mensal
+                </label>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-ivory-muted">R$</span>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    defaultValue={b.salary ?? ""}
+                    placeholder="0,00"
+                    onBlur={(e) => {
+                      const v = Math.max(Number(e.target.value) || 0, 0);
+                      if (v !== (b.salary ?? 0)) salvar(b.id, "salary", v);
+                    }}
+                    className="min-h-11 w-32 rounded-xl border border-border bg-surface-raised px-3 text-sm text-ivory"
+                  />
+                </div>
+                <p className="text-xs text-ivory-muted">
+                  Fixo, além da comissão. Entra como custo de folha no DRE —
+                  deixe em branco para quem trabalha só por comissão.
                 </p>
               </div>
 

@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { useFeature } from "@/lib/tenant-context";
+import { RecursoBloqueado } from "@/components/recurso-bloqueado";
 import { CalendarClock } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
@@ -32,7 +34,25 @@ const FILTER_LABELS: Record<Filter, string> = {
   cancelado: "Cancelado",
 };
 
+/* O gate mora num componente à parte, e não num retorno antecipado dentro do
+ * conteúdo: os hooks do conteúdo passariam a ser chamados condicionalmente. */
 export default function MensalPage() {
+  const liberado = useFeature("subscriptions");
+
+  if (!liberado) {
+    return (
+      <RecursoBloqueado
+        titulo="Mensalistas"
+        oQueFaz="Cadastra planos de assinatura, acompanha quem está em dia e quem atrasou, e mostra a receita recorrente no fechamento do mês."
+        porQueVale="É a receita que entra mesmo na semana em que a barbearia esvazia — e a que faz o cliente voltar sem você precisar chamar."
+      />
+    );
+  }
+
+  return <MensalConteudo />;
+}
+
+function MensalConteudo() {
   const [filter, setFilter] = useState<Filter>("todos");
   const { items: subscribers, status } = useSubscribers();
 

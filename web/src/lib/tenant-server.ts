@@ -1,16 +1,12 @@
 import "server-only";
 import { cache } from "react";
 import { headers } from "next/headers";
-import {
-  ALL_FEATURES,
-  DEFAULT_LOCALE,
-  DEFAULT_SCHEDULE,
-  DEFAULT_TENANT,
-  PLATFORM_DEFAULT_POLICIES,
-  slugFromHost,
-  type Tenant,
-  type TenantTrial,
-} from "@/lib/tenant";
+import { DEFAULT_TENANT, slugFromHost, type Tenant } from "@/lib/tenant";
+/* A normalização mora em `tenant-shape` porque o painel também precisa dela:
+ * ele lê a mesma ficha pelo SDK cliente, em tempo real. Duas implementações do
+ * mesmo merge divergiriam, e o preço da divergência é uma política sumir num
+ * caminho de leitura e não no outro. */
+import { toTenant } from "@/lib/tenant-shape";
 
 /**
  * Resolve a barbearia do subdomínio, no servidor.
@@ -167,74 +163,4 @@ function decode(value: unknown): unknown {
 function readString(field: unknown): string | undefined {
   const value = decode(field);
   return typeof value === "string" ? value : undefined;
-}
-
-/** Documento do Firestore → `Tenant`, com o padrão da plataforma no que faltar. */
-function toTenant(id: string, data: Record<string, unknown>): Tenant {
-  const brand = (data.brand ?? {}) as Partial<Tenant["brand"]>;
-  const contact = (data.contact ?? {}) as Partial<Tenant["contact"]>;
-  const policies = (data.policies ?? {}) as Partial<Tenant["policies"]>;
-  const features = (data.features ?? {}) as Partial<Tenant["features"]>;
-  const locale = (data.locale ?? {}) as Partial<Tenant["locale"]>;
-
-  return {
-    id,
-    slug: String(data.slug ?? id),
-    status: (data.status as Tenant["status"]) ?? "ativo",
-    plan: typeof data.plan === "string" ? data.plan : undefined,
-    brand: { ...DEFAULT_TENANT.brand, ...brand },
-    contact: { ...DEFAULT_TENANT.contact, ...contact },
-    /* Barbearia sem `locale` gravado herda o padrão da plataforma. Nunca
-     * `undefined`: `Intl` com fuso indefinido cai no fuso do SERVIDOR, que é
-     * UTC — e aí a data da confirmação escorrega um dia sem erro nenhum. */
-    locale: { ...DEFAULT_LOCALE, ...locale },
-    // Política ausente cai no padrão da plataforma — nunca em undefined, que
-    // viraria NaN em cálculo de reembolso.
-    policies: { ...PLATFORM_DEFAULT_POLICIES, ...policies },
-    /* Sem espalhar ALL_FEATURES por cima: fazer isso daria tudo a todo mundo e
-     * é exatamente o motivo de o plano nunca ter valido nada. O que o plano
-     * libera é decidido em `acessoDaBarbearia`; aqui fica só o que o documento
-     * declarar explicitamente. */
-    features: features as Tenant["features"],
-    schedule: { ...DEFAULT_SCHEDULE, ...((data.schedule ?? {}) as object) },
-    trial: toTrial(data.trial),
-    onboarding: toOnboarding(data.onboarding),
-  };
-}
-
-/**
- * Timestamp do Firestore → ISO.
- *
- * O tenant atravessa de Server para Client Component. `Timestamp` é uma classe
- * e o React recusa: "Only plain objects can be passed to Client Components".
- * TODA data que sai daqui precisa passar por esta função — foi assim que o
- * `onboarding.completedAt` derrubou a rota inteira com 500.
- */
-function toISO(value: unknown): string | null {
-  if (!value) return null;
-  if (typeof value === "string") return value;
-  if (typeof (value as { toDate?: () => Date }).toDate === "function") {
-    return (value as { toDate: () => Date }).toDate().toISOString();
-  }
-  if (value instanceof Date) return value.toISOString();
-  return null;
-}
-
-function toTrial(raw: unknown): TenantTrial | null {
-  if (!raw || typeof raw !== "object") return null;
-  const value = raw as { startedAt?: unknown; endsAt?: unknown };
-  const startedAt = toISO(value.startedAt);
-  const endsAt = toISO(value.endsAt);
-  return startedAt && endsAt ? { startedAt, endsAt } : null;
-}
-
-function toOnboarding(raw: unknown): Tenant["onboarding"] {
-  const value = (raw ?? {}) as Record<string, unknown>;
-  return {
-    completedSteps: Array.isArray(value.completedSteps)
-      ? (value.completedSteps as Tenant["onboarding"]["completedSteps"])
-      : [],
-    completedAt: toISO(value.completedAt),
-    sharedLink: value.sharedLink === true,
-  };
 }
