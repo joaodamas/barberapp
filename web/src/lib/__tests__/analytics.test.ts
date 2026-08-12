@@ -68,7 +68,10 @@ describe("receita", () => {
     expect(r.encaixes).toBe(50);
   });
 
-  it("mensalidade não entra no caixa do balcão", () => {
+  /* Este teste afirmava `bruta === caixa + mensalistas` — ou seja, passava
+   * porque codificava o defeito, igual ao "comissão sai do lucro da loja" que a
+   * auditoria de agosto derrubou. Plano ativo não é dinheiro recebido. */
+  it("mensalidade NÃO entra na receita realizada — é contratada", () => {
     const r = receitaDoMes({
       bookings: [bk({ id: "1", value: 90 })],
       movements: [mv({ id: "m1", value: 45 })],
@@ -76,9 +79,50 @@ describe("receita", () => {
       periodo: P,
       hoje: new Date("2026-07-15T12:00:00"),
     });
+
     expect(r.caixa).toBe(135);
-    expect(r.bruta).toBe(284);
-    expect(r.caixa + r.mensalistas).toBe(r.bruta);
+    // O único lastro de um mensalista "ativo" é uma caixinha marcada: não há
+    // cobrança, e `subscription_invoices` não é escrita por ninguém.
+    expect(r.bruta).toBe(135);
+    expect(r.mensalistas).toBe(149);
+  });
+
+  it("nenhum mensalista muda a receita bruta, por mais que sejam", () => {
+    const semAssinantes = receitaDoMes({
+      bookings: [bk({ id: "1", value: 90 })],
+      movements: [], subscribers: [], periodo: P,
+      hoje: new Date("2026-07-15T12:00:00"),
+    });
+    const comQuarenta = receitaDoMes({
+      bookings: [bk({ id: "1", value: 90 })],
+      movements: [],
+      subscribers: Array.from({ length: 40 }, (_, i) => sub({ id: `s${i}`, price: 149 })),
+      periodo: P,
+      hoje: new Date("2026-07-15T12:00:00"),
+    });
+
+    expect(comQuarenta.bruta).toBe(semAssinantes.bruta);
+    expect(comQuarenta.mensalistas).toBe(5960);
+  });
+
+  it("o imposto não incide sobre dinheiro que não entrou", () => {
+    /* `bruta` é a base do Simples Nacional. Com o MRR dentro, o dono separava
+     * imposto sobre mensalidade que talvez não tivesse sido paga — e, no dia
+     * 1º, sobre o mês inteiro de uma vez, porque nada olha `nextCharge`. */
+    const bookings = [bk({ id: "1", value: 1000 })];
+    const receita = receitaDoMes({
+      bookings, movements: [],
+      subscribers: Array.from({ length: 10 }, (_, i) => sub({ id: `s${i}`, price: 149 })),
+      periodo: P,
+      hoje: new Date("2026-07-15T12:00:00"),
+    });
+    const r = resultadoDoMes({
+      receita, bookings, expenses: [], movements: [], periodo: P,
+      policies: PLATFORM_DEFAULT_POLICIES, staff: [st({ id: "s1" })],
+    });
+
+    expect(r.tax).toBe(Math.round((1000 * PLATFORM_DEFAULT_POLICIES.taxRatePct) / 100));
+    expect(r.grossRevenue).toBe(1000);
   });
 
   it("o retrato de mensalistas não contamina mês passado", () => {

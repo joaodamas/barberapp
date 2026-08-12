@@ -78,16 +78,35 @@ export function receitaDoMes(params: {
     .filter((m) => m.kind === "venda" && dentroDoPeriodo(m.date, periodo))
     .reduce((s, m) => s + m.value, 0);
 
-  /* Mensalidade é cobrada por assinatura e não passa pelo balcão.
+  /* Mensalidade é receita CONTRATADA, não realizada — e por isso fica fora da
+   * receita bruta.
    *
-   * `SubscriberDoc` guarda o estado de HOJE — tem `status`, não tem `createdAt`
-   * nem `canceledAt`. Somar isso em qualquer período fazia o MRR atual aparecer
-   * em todo mês do histórico: 40 assinantes de hoje viravam receita de um
-   * janeiro que teve 5, e o comparativo de crescimento achatava porque os dois
-   * meses carregavam a mesma constante.
+   * O único lastro de que este dinheiro entrou é alguém ter deixado o status
+   * como `ativo`. Não existe cobrança: `subscriptions` é flag de plano, e
+   * `subscription_invoices` não é escrita por ninguém. Somando isso em `bruta`,
+   * o produto AFIRMAVA um recebimento cuja evidência era uma caixinha marcada.
    *
-   * Enquanto `subscription_invoices` não for escrita, o retrato só vale no
-   * período que contém a data de referência — o único em que ele é verdade. */
+   * O custo era concreto e triplo. No dia 1º o DRE já mostrava o mês inteiro de
+   * MRR como recebido, porque nada aqui olha `nextCharge`. O Simples Nacional
+   * incide sobre `bruta`, então o dono separava imposto sobre dinheiro que
+   * talvez não tivesse entrado. E a margem — o número que ele usa para decidir
+   * preço — subia junto.
+   *
+   * Um mensalista que parou de pagar seguia gerando receita até alguém lembrar
+   * de mudar o status à mão.
+   *
+   * `nextCharge` não resolveria: ele diz quando DEVERIA cobrar, não que foi
+   * pago. Trocaria uma afirmação sem evidência por outra. Quando existir
+   * cobrança de verdade — assinatura → cobrança → recebimento → confirmação —,
+   * a mensalidade recebida volta para `bruta` com lastro.
+   *
+   * Continua exposta em `mensalistas` para a tela mostrar à parte: o dono
+   * precisa enxergar o contratado, só não pode confundi-lo com o realizado.
+   *
+   * O recorte por período segue valendo pelo motivo antigo: `SubscriberDoc`
+   * guarda o estado de HOJE, sem `createdAt` nem `canceledAt`. Somar em
+   * qualquer período fazia o MRR atual aparecer em todo mês do histórico — 40
+   * assinantes de hoje viravam receita de um janeiro que teve 5. */
   const referencia = toISODate(params.hoje ?? new Date());
   const mensalistas = dentroDoPeriodo(referencia, periodo)
     ? subscribers.filter((s) => s.status === "ativo").reduce((s, sub) => s + sub.price, 0)
@@ -99,9 +118,11 @@ export function receitaDoMes(params: {
     servicos,
     encaixes,
     produtos,
+    /** CONTRATADA, não realizada. Fora de `bruta` de propósito. */
     mensalistas,
     caixa,
-    bruta: caixa + mensalistas,
+    /** Receita REALIZADA: só o que tem lastro em atendimento ou venda. */
+    bruta: caixa,
     atendimentos: atendidos.length,
   };
 }

@@ -33,10 +33,12 @@ export default function FinanceiroPage() {
   const mes = mesAtual();
   const { dre: r, receita, caixa, projecao, raw, status } = useFinanceiro(mes);
 
+  /* Sem mensalistas: esta é a composição da receita REALIZADA, e mensalidade
+   * não tem lastro de recebimento enquanto não houver cobrança. Ela aparece
+   * logo abaixo, com nome próprio. */
   const revenueBreakdown = [
     { label: "Serviços avulsos", value: receita.servicos },
     { label: "Produtos (loja)", value: receita.produtos },
-    { label: "Mensalistas", value: receita.mensalistas },
     { label: "Encaixes", value: receita.encaixes },
   ].filter((item) => item.value > 0);
 
@@ -106,9 +108,13 @@ export default function FinanceiroPage() {
           <KpiTile
             tone="neutral"
             icon={Wallet}
-            label="Receita bruta"
+            label="Receita realizada"
             value={formatBRL(r.grossRevenue)}
-            caption={`caixa ${formatBRL(cashFlowMonthTotal)} + mensalistas ${formatBRL(mrr.billed)}`}
+            caption={
+              mrr.billed > 0
+                ? `${formatBRL(mrr.billed)} de mensalidade contratada não entram aqui`
+                : "atendimentos e vendas com desfecho registrado"
+            }
           />
           <KpiTile tone="danger" icon={TrendingDown} label="Despesas" value={formatBRL(totalExpenses)} />
           <KpiTile
