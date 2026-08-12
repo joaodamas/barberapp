@@ -37,6 +37,7 @@ import { useTenant } from "@/lib/tenant-context";
 import type { TenantPolicies } from "@/lib/tenant";
 import { useBookings, useServices, useStaff } from "@/lib/db/use-shop-data";
 import { patchDoc } from "@/lib/db/repository";
+import { soAvisaSeGravou } from "@/lib/so-avisa-se-gravou";
 import { capacidadeDiaria, caixaDoDia, mesPeriodo } from "@/lib/analytics";
 import { monthOf, OCCUPIES_SLOT } from "@/lib/domain";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
@@ -107,6 +108,13 @@ export default function PainelHojePage() {
   const [aCancelar, setACancelar] = useState<Doc<BookingDoc> | null>(null);
   const [cancelando, setCancelando] = useState(false);
   const [erroCancelar, setErroCancelar] = useState<string | null>(null);
+  /* Uma falha de gravação precisa aparecer ONDE a ação foi disparada. Antes ela
+   * ia só para o console: o diálogo fechava, o dono entendia "pronto", e no
+   * caso do encaixe o WhatsApp ainda saía confirmando o que não existia. */
+  const [salvando, setSalvando] = useState(false);
+  const [erroAoFechar, setErroAoFechar] = useState<string | null>(null);
+  const [erroDaFalta, setErroDaFalta] = useState<string | null>(null);
+  const [erroDoEncaixe, setErroDoEncaixe] = useState<Record<string, string>>({});
 
   /* A conta que o dono vê antes de confirmar, com a política DESTA barbearia —
    * a mesma que `cancelBooking` vai aplicar do lado do servidor. Enquanto isto
@@ -130,14 +138,22 @@ export default function PainelHojePage() {
    * depois da atualização, e gravar em duas etapas materializaria o pagamento
    * antes de o método existir.
    */
-  function concluirCom(metodo: PaymentMethod) {
+  async function concluirCom(metodo: PaymentMethod) {
     const booking = aFechar;
     if (!booking) return;
-    setAFechar(null);
-    void patchDoc(tenant.id, "bookings", booking.id, {
-      status: "completed",
-      paymentMethod: metodo,
-    }).catch((e) => console.error("[hoje] falha ao concluir", e));
+    setSalvando(true);
+    setErroAoFechar(null);
+    const r = await soAvisaSeGravou({
+      gravar: () =>
+        patchDoc(tenant.id, "bookings", booking.id, {
+          status: "completed",
+          paymentMethod: metodo,
+        }),
+      // Fechar o diálogo É o aviso: é assim que o dono lê "deu certo".
+      avisar: () => setAFechar(null),
+    });
+    setSalvando(false);
+    if (!r.ok) setErroAoFechar(r.erro);
   }
 
   /**
@@ -154,13 +170,17 @@ export default function PainelHojePage() {
    * está em `OCCUPIES_SLOT`), porque ele foi reservado e ninguém mais pôde
    * usá-lo — é exatamente o custo que a falta representa.
    */
-  function marcarFalta() {
+  async function marcarFalta() {
     const booking = faltaDe;
     if (!booking) return;
-    setFaltaDe(null);
-    void patchDoc(tenant.id, "bookings", booking.id, {
-      status: "no_show",
-    }).catch((e) => console.error("[hoje] falha ao marcar falta", e));
+    setSalvando(true);
+    setErroDaFalta(null);
+    const r = await soAvisaSeGravou({
+      gravar: () => patchDoc(tenant.id, "bookings", booking.id, { status: "no_show" }),
+      avisar: () => setFaltaDe(null),
+    });
+    setSalvando(false);
+    if (!r.ok) setErroDaFalta(r.erro);
   }
 
   /**
@@ -221,10 +241,22 @@ export default function PainelHojePage() {
     else setFaltaDe(alvo);
   }
 
-  function resolveFitIn(booking: Doc<BookingDoc>, approve: boolean) {
-    void patchDoc(tenant.id, "bookings", booking.id, {
-      status: approve ? "confirmed" : "cancelled_by_shop",
-    }).catch((e) => console.error("[hoje] falha ao resolver encaixe", e));
+  /**
+   * O caso mais grave dos três, e o motivo de `soAvisaSeGravou` existir.
+   *
+   * A mensagem ao cliente saía ANTES de a reserva ser gravada — `window.open`
+   * incondicional, logo depois de um `void patchDoc(...)`. Com a rede caindo, o
+   * dono confirmava a um TERCEIRO um encaixe que não existia, e o cliente
+   * aparecia para um horário sem reserva.
+   *
+   * Tela errada se resolve recarregando; mensagem enviada, não.
+   */
+  async function resolveFitIn(booking: Doc<BookingDoc>, approve: boolean) {
+    /* Limpa só o erro DESTE encaixe: com dois pendentes, apagar o mapa
+     * inteiro esconderia a falha do outro cartão. */
+    setErroDoEncaixe((atual) =>
+      Object.fromEntries(Object.entries(atual).filter(([id]) => id !== booking.id))
+    );
 
     const firstName = booking.clientName.split(" ")[0];
     const serviceNames = getServicesByIds(booking.serviceIds)
@@ -233,10 +265,19 @@ export default function PainelHojePage() {
     const message = approve
       ? `Olá ${firstName}! Seu encaixe de hoje às ${booking.time} (${serviceNames}) foi confirmado. Te esperamos! — ${brand.name}`
       : `Olá ${firstName}, infelizmente não conseguimos encaixar o horário das ${booking.time} hoje. Posso te mandar as próximas vagas livres?`;
-    window.open(
-      `https://wa.me/${booking.clientWhatsapp}?text=${encodeURIComponent(message)}`,
-      "_blank"
-    );
+
+    const r = await soAvisaSeGravou({
+      gravar: () =>
+        patchDoc(tenant.id, "bookings", booking.id, {
+          status: approve ? "confirmed" : "cancelled_by_shop",
+        }),
+      avisar: () =>
+        window.open(
+          `https://wa.me/${booking.clientWhatsapp}?text=${encodeURIComponent(message)}`,
+          "_blank"
+        ),
+    });
+    if (!r.ok) setErroDoEncaixe((atual) => ({ ...atual, [booking.id]: r.erro }));
   }
 
   return (
@@ -414,9 +455,15 @@ export default function PainelHojePage() {
                     Recusar
                   </Button>
                 </div>
+                {erroDoEncaixe[booking.id] && (
+                  <p role="alert" className="text-xs text-danger">
+                    {erroDoEncaixe[booking.id]} Nenhuma mensagem foi enviada ao
+                    cliente.
+                  </p>
+                )}
                 <p className="text-[11px] text-ivory-muted">
-                  Aprovar ou recusar já abre o WhatsApp do cliente com a
-                  mensagem pronta.
+                  Aprovar ou recusar abre o WhatsApp do cliente com a mensagem
+                  pronta — só depois de o encaixe ser gravado.
                 </p>
               </Card>
             ))}
@@ -544,7 +591,10 @@ export default function PainelHojePage() {
                           )}
                           {podeConcluir && (
                             <button
-                              onClick={() => setAFechar(booking)}
+                              onClick={() => {
+                                setErroAoFechar(null);
+                                setAFechar(booking);
+                              }}
                               className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ivory-muted transition-colors hover:border-success hover:text-success"
                             >
                               <Check size={14} />
@@ -556,7 +606,10 @@ export default function PainelHojePage() {
                               no gesto mais repetido do dia. */}
                           {atrasado && (
                             <button
-                              onClick={() => setFaltaDe(booking)}
+                              onClick={() => {
+                                setErroDaFalta(null);
+                                setFaltaDe(booking);
+                              }}
                               className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ivory-muted transition-colors hover:border-danger hover:text-danger"
                             >
                               <UserX size={14} /> Não veio
@@ -604,13 +657,19 @@ export default function PainelHojePage() {
             <button
               key={metodo}
               type="button"
-              onClick={() => concluirCom(metodo)}
+              disabled={salvando}
+              onClick={() => void concluirCom(metodo)}
               className="flex min-h-16 cursor-pointer items-center justify-center rounded-xl border border-border text-sm font-medium text-ivory transition-colors hover:border-gold hover:bg-gold/10 hover:text-gold-light"
             >
               {paymentMethodLabel[metodo]}
             </button>
           ))}
         </div>
+        {erroAoFechar && (
+          <p role="alert" className="mt-4 text-sm text-danger">
+            {erroAoFechar}
+          </p>
+        )}
         <p className="mt-4 text-xs text-ivory-muted">
           A taxa da maquininha é registrada com o valor de hoje e não muda
           depois. Ajuste em Configurações.
@@ -636,13 +695,19 @@ export default function PainelHojePage() {
           agenda — foi reservado e ninguém mais pôde usá-lo. Se ele aparecer
           depois, é só concluir o atendimento normalmente.
         </p>
+        {erroDaFalta && (
+          <p role="alert" className="mb-4 text-sm text-danger">
+            {erroDaFalta}
+          </p>
+        )}
         <div className="flex gap-2">
-          <Button className="flex-1" onClick={marcarFalta}>
-            Confirmar falta
+          <Button className="flex-1" disabled={salvando} onClick={() => void marcarFalta()}>
+            {salvando ? "Salvando…" : "Confirmar falta"}
           </Button>
           <Button
             variant="secondary"
             className="flex-1"
+            disabled={salvando}
             onClick={() => setFaltaDe(null)}
           >
             Cancelar
