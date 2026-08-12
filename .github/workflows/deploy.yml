@@ -85,7 +85,12 @@ jobs:
             exit 1
           fi
 
-          NO_REPO=$(node -p "require('./.firebaserc').projects.default")
+          # Lido como JSON explicitamente. `require('./.firebaserc')` parece
+          # equivalente e não é: sem extensão, o Node carrega o arquivo com o
+          # loader de JavaScript, e `{"projects": {` vira erro de sintaxe. A
+          # trava de alvo derrubava o deploy antes de conferir alvo nenhum —
+          # e só apareceu no dia em que o job passou da checagem da credencial.
+          NO_REPO=$(node -p "JSON.parse(require('fs').readFileSync('.firebaserc','utf8')).projects.default")
           # try/catch para que um JSON malformado não jogue pedaço de
           # credencial no log.
           DA_CREDENCIAL=$(node -e "try{process.stdout.write(String(JSON.parse(process.env.CREDENCIAL).project_id))}catch(e){process.stdout.write('ilegivel')}")
