@@ -173,9 +173,35 @@ jobs:
         if: inputs.escopo == 'tudo' || inputs.escopo == 'somente regras e índices'
         run: firebase deploy --only firestore:indexes --project "$PROJETO" --non-interactive
 
-      - name: Regras do Firestore e do Storage
+      # As regras do STORAGE ficam de fora, e a ausência é deliberada.
+      #
+      # Cinco publicações seguidas morreram aqui com uma mensagem falsa —
+      # "Firebase Storage has not been set up on project axon-barber" — enquanto
+      # o console mostra o Storage configurado, com bucket e abas de arquivos e
+      # regras. O firebase-tools traduz assim um 404 do endpoint
+      # `v1alpha/projects/{p}/defaultBucket`, que responde 200 para o owner e
+      # 404 para a conta da esteira.
+      #
+      # Foram tentados, sem sucesso: `firebasestorage.defaultBucket.get`,
+      # `buckets.get` e `buckets.list` no papel personalizado; depois o
+      # `roles/firebasestorage.viewer` inteiro, que contém as três; e por fim
+      # declarar o bucket em `firebase.json`, que não elimina a consulta. A
+      # propagação foi descartada com mais de dez minutos entre a concessão e a
+      # tentativa.
+      #
+      # Segurar TODA a publicação por causa disto custava caro e entregava
+      # pouco: nenhuma tela do produto usa Storage — o ajudante existe em
+      # `lib/firebase.ts` e ninguém o chama. As regras estão escritas e passam
+      # nos testes de emulador do job de qualidade; o que não existe é a
+      # publicação delas.
+      #
+      # ⚠️ ANTES de existir a primeira tela que envia arquivo, isto precisa
+      # voltar. Sem as regras publicadas, o bucket fica com o padrão do projeto
+      # — e aí o que hoje é ausência vira buraco. Registrado em
+      # `docs/GO-LIVE-READINESS.md`.
+      - name: Regras do Firestore
         if: inputs.escopo == 'tudo' || inputs.escopo == 'somente regras e índices'
-        run: firebase deploy --only firestore:rules,storage --project "$PROJETO" --non-interactive
+        run: firebase deploy --only firestore:rules --project "$PROJETO" --non-interactive
 
       - name: Cloud Functions
         if: inputs.escopo == 'tudo' || inputs.escopo == 'somente functions'
