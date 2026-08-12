@@ -45,17 +45,31 @@ export function refundAmountFor(params: {
    */
   paymentMethod: PaymentMethod | null;
   hoursUntilStart: number;
+  /**
+   * A política DA BARBEARIA. Omitida, vale a da plataforma.
+   *
+   * Existe porque esta função só sabia da constante do módulo enquanto o
+   * `cancelBooking` decide com `shop.policies.cancellation`: numa barbearia com
+   * política própria, a tela prometia uma devolução e o servidor gravava outra
+   * — sem erro em lugar nenhum, e a conta errada indo para o cliente.
+   */
+  policy?: {
+    fullRefundHours: number;
+    partialRefundHours: number;
+    cancellationFeePct: number;
+  };
 }) {
   const { value, paymentMethod, hoursUntilStart } = params;
+  const policy = params.policy ?? cancellationPolicy;
 
   if (!paymentMethod) {
     return { amount: 0, retainedPct: 0, tier: "sem_pagamento" as const };
   }
-  if (hoursUntilStart >= cancellationPolicy.fullRefundHours) {
+  if (hoursUntilStart >= policy.fullRefundHours) {
     return { amount: value, retainedPct: 0, tier: "integral" as const };
   }
-  if (hoursUntilStart >= cancellationPolicy.partialRefundHours) {
-    const retainedPct = cancellationPolicy.cancellationFeePct;
+  if (hoursUntilStart >= policy.partialRefundHours) {
+    const retainedPct = policy.cancellationFeePct;
     return {
       amount: Math.round(value * (1 - retainedPct / 100) * 100) / 100,
       retainedPct,

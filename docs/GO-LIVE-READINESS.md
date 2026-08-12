@@ -109,15 +109,37 @@ Reduzir o risco com uma segunda conta **não** cria recuperação institucional.
 Continua valendo que o projeto de um produto vendido a terceiros vive fora de
 qualquer organização. Não bloqueia o primeiro piloto; bloqueia crescer.
 
-### 2.5 O dono não consegue cancelar um atendimento
+### 2.5 ~~O dono não consegue cancelar um atendimento~~ — resolvido, não provado
 
 **Descoberto ao montar este inventário.** `cancelBooking` e `rescheduleBooking`
-existem e funcionam, mas são chamados **só pelo app do cliente**
-(`/reservas`). No painel, a única escrita de cancelamento é a recusa de encaixe.
+existem e funcionam, mas eram chamados **só pelo app do cliente** (`/reservas`).
+No painel, a única escrita de cancelamento era a recusa de encaixe.
 
 Na operação real o cliente liga, manda mensagem ou simplesmente avisa no balcão
-— e o dono não tem caminho. O horário fica preso como confirmado, entra na
-previsão do dia e vira alerta de atraso.
+— e o dono não tinha caminho. O horário ficava preso como confirmado, entrava na
+previsão do dia e virava alerta de atraso de quem já havia desmarcado.
+
+**Feito em 12/08:** a agenda do painel ganhou "Cancelar" nas reservas em aberto.
+Vai pela Cloud Function, e não por `patchDoc` como as outras ações da tela,
+porque aqui há dinheiro: quem calcula a devolução é o servidor, com a política
+da barbearia. O diálogo mostra a conta antes de gravar, o horário volta a ficar
+livre e o cliente é avisado por WhatsApp depois de a escrita dar certo.
+
+Dois defeitos fechados junto:
+
+- `refundAmountFor` lia a constante da plataforma e ignorava
+  `tenant.policies.cancellation`. Numa barbearia com política própria, a tela
+  prometia uma devolução e o servidor gravava outra — sem erro em log nenhum, e
+  a diferença indo para o bolso do cliente.
+- A conta do cancelamento morava dentro do `onCall` e por isso **não tinha
+  teste nenhum**: exercer exigia emulador, autenticação e reserva semeada.
+  Extraída para `desfechoDoCancelamento`, agora com 9 testes.
+
+> 🟡 **Ninguém clicou neste botão ainda.** Typecheck, lint, 162 testes no web e
+> 130 nas functions, e o build passa — o que, pela regra 1 deste documento, não
+> promove nada. Sobe para ✅ quando um cancelamento real acontecer no domínio
+> publicado. Deixa de ser bloqueador porque o caminho existe; entra na fila do
+> item 3.
 
 ### 2.6 O build depende da Google estar de pé
 
@@ -157,6 +179,7 @@ Código existe, testes passam, produção não viu.
 |---|---|
 | Action Center — as 5 regras no ar | só o estado **vazio** foi observado em produção; nenhuma regra foi vista disparando |
 | Cancelamento pelo cliente | `/reservas` chama a função; ninguém cancelou de verdade |
+| Cancelamento pelo dono | botão novo na agenda do painel (12/08); nenhum clique real, nem em emulador |
 | Remarcação | idem, mais a política de 2 remarcações |
 | Encaixe aprovado/recusado | a tela existe desde antes; nunca verificada no domínio |
 | Trial vencido cai em **modo leitura** | o corte seco saiu em 12/08: o dono passa a ver tudo sem editar, e o cliente segue agendando. Nunca houve tenant vencido para exercer |

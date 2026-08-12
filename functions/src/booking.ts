@@ -365,10 +365,57 @@ export const rescheduleBooking = onCall<{
 });
 
 /**
- * Cancelamento pelo cliente.
+ * Quanto volta para o cliente, e sob que rótulo o cancelamento é gravado.
  *
- * A devolução é calculada aqui, com a política da barbearia — o cliente não
- * pode nem escolher a faixa nem gravar o status.
+ * Separado do handler porque o caminho do DONO deixou de ser exceção: desde que
+ * o painel ganhou o botão de cancelar, é por aqui que passa o cancelamento que
+ * mais acontece na vida real — o cliente que avisa no balcão. Dentro do `onCall`
+ * isto só se exercia com emulador, autenticação e reserva semeada, e por isso
+ * nunca se exerceu.
+ *
+ * `refund` é decidido AQUI e não no cliente: quem tem o botão não pode escolher
+ * a própria faixa de devolução.
+ */
+export function desfechoDoCancelamento(params: {
+  value: number;
+  /** Sem método gravado, o dinheiro nunca entrou — não há o que devolver. */
+  paymentMethod: string | null | undefined;
+  horasAteOAtendimento: number;
+  politica: {
+    fullRefundHours?: number;
+    partialRefundHours?: number;
+    cancellationFeePct?: number;
+  };
+  /** O dono cancelando reserva de OUTRA pessoa. */
+  peloDono: boolean;
+}) {
+  const janelaIntegral = params.politica.fullRefundHours ?? 24;
+  const janelaParcial = params.politica.partialRefundHours ?? 6;
+  const taxaPct = params.politica.cancellationFeePct ?? 25;
+  const horas = params.horasAteOAtendimento;
+
+  let refund = 0;
+  if (params.paymentMethod) {
+    if (horas >= janelaIntegral) refund = params.value;
+    else if (horas >= janelaParcial) {
+      refund = Math.round(params.value * (1 - taxaPct / 100) * 100) / 100;
+    }
+  }
+
+  /* Os dois rótulos existem porque alimentam contas diferentes: falta e
+   * desistência do cliente entram na régua dele, e o que a barbearia desmarca
+   * não pode contar contra quem não desmarcou nada. */
+  return {
+    refund,
+    status: params.peloDono ? "cancelled_by_shop" : "cancelled_by_client",
+  } as const;
+}
+
+/**
+ * Cancelamento pelo cliente ou pelo dono.
+ *
+ * A devolução é calculada aqui, com a política da barbearia — nem o cliente nem
+ * o dono escolhem a faixa ou gravam o status.
  */
 export const cancelBooking = onCall<{ barbershopId: string; bookingId: string }>(
   async (request) => {
@@ -396,26 +443,20 @@ export const cancelBooking = onCall<{ barbershopId: string; bookingId: string }>
       throw new HttpsError("permission-denied", "Essa reserva não é sua.");
     }
 
-    const politica = (shopSnap.data()?.policies ?? {}).cancellation ?? {};
-    const janelaIntegral: number = politica.fullRefundHours ?? 24;
-    const janelaParcial: number = politica.partialRefundHours ?? 6;
-    const taxaPct: number = politica.cancellationFeePct ?? 25;
-
     const { timeZone } = localeDoDocumento(shopSnap.data());
     const horas =
       (instanteNoFuso(booking.date, booking.time, timeZone).getTime() - Date.now()) / 3_600_000;
 
-    let refund = 0;
-    // Sem método gravado, o dinheiro nunca entrou — não há o que devolver.
-    if (booking.paymentMethod) {
-      if (horas >= janelaIntegral) refund = booking.value;
-      else if (horas >= janelaParcial) {
-        refund = Math.round(booking.value * (1 - taxaPct / 100) * 100) / 100;
-      }
-    }
+    const { refund, status } = desfechoDoCancelamento({
+      value: booking.value,
+      paymentMethod: booking.paymentMethod,
+      horasAteOAtendimento: horas,
+      politica: (shopSnap.data()?.policies ?? {}).cancellation ?? {},
+      peloDono: ehDono && booking.clientId !== uid,
+    });
 
     await bookingRef.update({
-      status: ehDono && booking.clientId !== uid ? "cancelled_by_shop" : "cancelled_by_client",
+      status,
       cancelledAt: FieldValue.serverTimestamp(),
       refundedAmount: refund,
     });

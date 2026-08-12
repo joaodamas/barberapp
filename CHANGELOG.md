@@ -79,6 +79,43 @@ vencer.
 
 ## [Não publicado]
 
+### O dono passa a conseguir cancelar um atendimento
+
+`cancelBooking` existia desde sempre e só o app do CLIENTE chamava. Na operação
+real o cliente liga, manda mensagem ou avisa no balcão — ou seja, o caminho mais
+usado era justamente o que não existia. O horário ficava preso como confirmado,
+entrava na previsão do dia e virava alerta de atraso de alguém que já tinha
+desmarcado.
+
+A agenda do painel ganhou "Cancelar" nas reservas em aberto. Vai pela Cloud
+Function, e não por `patchDoc` como as outras ações da tela, porque aqui há
+dinheiro do cliente: quem calcula a devolução é o servidor, com a política da
+barbearia. Deixar a tela gravar `refundedAmount` poria a conta do cliente na mão
+de quem tem o botão. A função já distinguia os dois casos e grava
+`cancelled_by_shop` quando quem cancela é o dono.
+
+Dois defeitos fechados no caminho:
+
+- **A tela prometia uma devolução e o servidor gravava outra.**
+  `refundAmountFor` lia a constante da plataforma e ignorava
+  `tenant.policies.cancellation`, enquanto o `cancelBooking` decide com a
+  política da barbearia. Numa barbearia com janela própria — 48h em vez de 24h —
+  as duas contas divergiam numa faixa inteira, sem erro em log nenhum e com a
+  diferença indo para o bolso do cliente. A função passa a receber a política.
+- **A conta do cancelamento não tinha teste nenhum**, porque morava dentro do
+  `onCall`: exercer exigia emulador, autenticação e reserva semeada. Extraída
+  para `desfechoDoCancelamento`, no mesmo padrão de `financial-events.ts`, com
+  9 testes — inclusive o de que o rótulo (`by_shop` × `by_client`) não muda a
+  devolução: a barbearia que desmarca não retém taxa por isso, e o cliente que
+  avisou o dono em vez de usar o app não perde dinheiro por isso.
+
+O botão sai para o cliente com aviso pronto no WhatsApp, e só depois de a
+escrita ter dado certo — avisar antes faria o dono comunicar um cancelamento que
+pode ter falhado.
+
+⚠️ **Ninguém clicou nele ainda.** 162 testes no web, 130 nas functions, build e
+lint limpos — o que, pela regra do documento de prontidão, não promove nada.
+
 ### Duas linhas de trabalho voltam a ser uma
 
 A branch da auditoria e a `main` andaram uma semana em paralelo e construíram
