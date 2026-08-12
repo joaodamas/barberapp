@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   atendimentosAtrasados,
   avaliarOperacao,
+  desfechosEsquecidos,
   encaixesAguardando,
   estaAtrasado,
   fechamentosPendentes,
@@ -262,7 +263,7 @@ describe("atendimento atrasado", () => {
       ],
       agora: AS_10h20, toleranciaMin: 5,
     });
-    expect(itens.map((i) => i.id)).toEqual([
+    expect(itens.map((i: { id: string }) => i.id)).toEqual([
       "atendimento-atrasado:antigo",
       "atendimento-atrasado:recente",
     ]);
@@ -396,5 +397,94 @@ describe("repartição para exibição", () => {
 
   it("com poucos itens, não há nada escondido", () => {
     expect(repartirParaExibicao(comCriticos(2)).ocultos).toHaveLength(0);
+  });
+});
+
+describe("desfecho esquecido — o que ficou para trás", () => {
+  const HOJE = "2026-08-12";
+
+  it("acha a reserva de ontem que ninguém fechou", () => {
+    /* O painel Hoje mostra `date === hoje` e o DRE só conta `completed`: sem
+     * este avaliador, o corte que aconteceu ontem e ninguém concluiu some à
+     * meia-noite, e o dono só percebe quando o mês fecha menor. */
+    const itens = desfechosEsquecidos({
+      todas: [bk({ id: "1", date: "2026-08-11", status: "confirmed", clientName: "Léo" })],
+      hoje: HOJE,
+    });
+
+    expect(itens).toHaveLength(1);
+    expect(itens[0].severity).toBe("critical");
+    expect(itens[0].title).toMatch(/ontem/);
+    expect(itens[0].intent).toEqual({ kind: "fecharAtendimento", bookingId: "1" });
+  });
+
+  it("oferece as DUAS saídas, porque o dado não diz qual aconteceu", () => {
+    // Concluir sozinho inventa receita; marcar falta sozinho mancha o cliente.
+    const [item] = desfechosEsquecidos({
+      todas: [bk({ id: "1", date: "2026-08-11", status: "confirmed" })],
+      hoje: HOJE,
+    });
+    expect(item.secondary?.intent).toEqual({ kind: "marcarFalta", bookingId: "1" });
+  });
+
+  it("não alarma sobre o dia de hoje — isso é a agenda, não uma pendência", () => {
+    expect(
+      desfechosEsquecidos({
+        todas: [bk({ id: "1", date: HOJE, status: "confirmed" })],
+        hoje: HOJE,
+      })
+    ).toEqual([]);
+  });
+
+  it("ignora o que já teve desfecho", () => {
+    const itens = desfechosEsquecidos({
+      todas: [
+        bk({ id: "1", date: "2026-08-10", status: "completed" }),
+        bk({ id: "2", date: "2026-08-10", status: "no_show" }),
+        bk({ id: "3", date: "2026-08-10", status: "cancelled_by_client" }),
+        bk({ id: "4", date: "2026-08-10", status: "cancelled_by_shop" }),
+      ],
+      hoje: HOJE,
+    });
+    expect(itens).toEqual([]);
+  });
+
+  it("reserva não paga não vira cobrança de desfecho", () => {
+    // Mesma razão do avaliador de atraso: quem não pagou não tem horário
+    // garantido, e cobrar desfecho de algo que talvez expire é alarme falso.
+    expect(
+      desfechosEsquecidos({
+        todas: [bk({ id: "1", date: "2026-08-10", status: "pending_payment" })],
+        hoje: HOJE,
+      })
+    ).toEqual([]);
+  });
+
+  it("quanto mais velho, mais urgente — a lembrança é o dado que se perde", () => {
+    const [ontem] = desfechosEsquecidos({
+      todas: [bk({ id: "1", date: "2026-08-11", status: "confirmed" })],
+      hoje: HOJE,
+    });
+    const [antigo] = desfechosEsquecidos({
+      todas: [bk({ id: "2", date: "2026-08-01", status: "confirmed" })],
+      hoje: HOJE,
+    });
+
+    expect(antigo.urgency).toBeLessThan(ontem.urgency);
+    expect(antigo.title).toMatch(/11 dias/);
+  });
+
+  it("do mais antigo para o mais recente", () => {
+    const itens = desfechosEsquecidos({
+      todas: [
+        bk({ id: "novo", date: "2026-08-11", status: "confirmed" }),
+        bk({ id: "velho", date: "2026-08-05", status: "confirmed" }),
+      ],
+      hoje: HOJE,
+    });
+    expect(itens.map((i) => i.id)).toEqual([
+      "desfecho-esquecido:velho",
+      "desfecho-esquecido:novo",
+    ]);
   });
 });
