@@ -169,20 +169,37 @@ Dois defeitos fechados junto:
 > publicado. Deixa de ser bloqueador porque o caminho existe; entra na fila do
 > item 3.
 
-### 2.6 O build depende da Google estar de pé
+### 2.6 ~~O build depende da Google estar de pé~~ — resolvido
 
-`layout.tsx` importa **Fraunces e Manrope** de `next/font/google`, e isso
-**baixa as fontes em tempo de build**. Em 11/08 o `fonts.gstatic.com` devolveu
-404 e derrubou um deploy real; a reexecução passou.
+`layout.tsx` importava Fraunces e Manrope de `next/font/google`, e isso **baixava
+as fontes em tempo de build**. Em 11/08 o `fonts.gstatic.com` devolveu 404 e
+derrubou um deploy real; a reexecução passou. Não bloqueava a operação —
+bloqueava **publicar**, e com barbearia em uso a correção urgente de um bug
+ficaria refém de um serviço de terceiro.
 
-> Eram Oswald e Manrope quando este item foi escrito. A troca por Fraunces veio
-> no merge de 12/08 e não muda nada aqui: a dependência é do `next/font/google`,
-> não de qual fonte.
+**Feito em 12/08:** os dois arquivos passam a ser servidos por nós, via
+`next/font/local`. São as mesmas fontes variáveis no subconjunto latino — 118 KB
+de Fraunces, 24 KB de Manrope. Auto-hospedar não engorda nada; tira uma
+resolução de DNS e um handshake de outro domínio do caminho crítico, e de quebra
+o IP de cada visitante deixa de ir para a Google, o que conversa com o §2.1.
 
-Não bloqueia a operação — bloqueia **publicar**. Com barbearia em uso, a
-correção urgente de um bug fica refém de um serviço de terceiro. Auto-hospedar
-as duas fontes resolve, e de quebra tira o IP de cada visitante do caminho da
-Google, o que conversa com o item 2.1.
+A Fraunces sai com `preload: false`: ela só aparece na landing e na assinatura
+da marca, e pré-carregá-la no layout raiz custaria 118 KB no celular de quem só
+quer marcar um corte.
+
+**Verificado no navegador, com o servidor de produção de pé:**
+
+| | |
+|---|---|
+| Título da marca | renderiza em `fraunces` |
+| Corpo | renderiza em `manrope` |
+| Requisições a `fonts.gstatic.com` | **nenhuma** |
+| `/login` em carga limpa | baixa só a Manrope |
+
+> Um aviso sobre a medição: numa primeira leitura a Fraunces aparecia baixando
+> no `/login`. Era artefato da própria medição — `document.fonts.check()` força
+> o carregamento. Em carga limpa, não desce. Instrumento que interfere no que
+> mede vale para navegador também.
 
 ### 2.7 O ciclo operacional de falta não foi provado
 
