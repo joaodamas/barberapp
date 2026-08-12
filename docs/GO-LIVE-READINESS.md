@@ -121,9 +121,13 @@ previsão do dia e vira alerta de atraso.
 
 ### 2.6 O build depende da Google estar de pé
 
-`layout.tsx` importa Oswald e Manrope de `next/font/google`, e isso **baixa as
-fontes em tempo de build**. Em 11/08 o `fonts.gstatic.com` devolveu 404 e
-derrubou um deploy real; a reexecução passou.
+`layout.tsx` importa **Fraunces e Manrope** de `next/font/google`, e isso
+**baixa as fontes em tempo de build**. Em 11/08 o `fonts.gstatic.com` devolveu
+404 e derrubou um deploy real; a reexecução passou.
+
+> Eram Oswald e Manrope quando este item foi escrito. A troca por Fraunces veio
+> no merge de 12/08 e não muda nada aqui: a dependência é do `next/font/google`,
+> não de qual fonte.
 
 Não bloqueia a operação — bloqueia **publicar**. Com barbearia em uso, a
 correção urgente de um bug fica refém de um serviço de terceiro. Auto-hospedar
@@ -155,7 +159,9 @@ Código existe, testes passam, produção não viu.
 | Cancelamento pelo cliente | `/reservas` chama a função; ninguém cancelou de verdade |
 | Remarcação | idem, mais a política de 2 remarcações |
 | Encaixe aprovado/recusado | a tela existe desde antes; nunca verificada no domínio |
-| Trial bloqueia o acesso ao vencer | o corte existe no layout do painel; nunca houve tenant vencido |
+| Trial vencido cai em **modo leitura** | o corte seco saiu em 12/08: o dono passa a ver tudo sem editar, e o cliente segue agendando. Nunca houve tenant vencido para exercer |
+| Planos bloqueiam de verdade | três níveis com matriz em `COBRANCA-E-ENTRADA.md`; em produção só existe barbearia em trial, que libera tudo |
+| `revisarAssinaturas` move trial vencido para suspenso | roda 06:00, e está em **`DRY_RUN = true`**: hoje só registra o que faria. Ninguém leu o log dela ainda |
 | Isolamento entre barbearias | 66 testes verdes no CI; em produção só existe **uma** barbearia |
 | Rotação do cache do PWA | a primeira publicação criou `barbearia-<sha>`; provar exige a **próxima** — não vale deploy artificial |
 | Botão "Atualizar" do PWA | **observado sem funcionar** em 11/08: nem o clique nem um `SKIP_WAITING` direto trocaram o worker. O caminho "fechar e reabrir" funciona |
@@ -181,6 +187,14 @@ Cada linha com a evidência que a sustenta.
 | Configurações grava e reflete na hora | tolerância 5 → 10 → 5, com selo "Salvo" e sem recarregar |
 | Merge de política parcial | o documento real em produção tem `policies.booking` com **um** campo; sem o merge, a agenda aceitaria horário já passado |
 | PWA troca de versão ao fechar e reabrir | `barbearia-v4` e `barbearia-dev` purgados; sobrou `barbearia-5a3bef6cc3d5` |
+
+> ⚠️ **As três primeiras linhas foram provadas contra o código de 11/08, e o
+> merge de 12/08 reescreveu o cálculo da comissão** — juntou a versão da `main`
+> com o detalhe por barbeiro da branch e passou a recalcular o percentual
+> exibido a partir do que foi somado. A regra provada continua valendo por
+> desenho e por teste, mas a evidência nomeada aqui é anterior ao código atual.
+> Pela regra 1 deste documento, teste verde não promove: **re-exercer os três
+> após a próxima publicação.**
 
 ---
 
