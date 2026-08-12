@@ -8,7 +8,8 @@ produto é) e `DOCUMENTACAO-TECNICA-FUNCIONAL.md` (o que existe hoje). Aqui fica
 o contexto, as decisões que já foram tomadas com o porquê, e as coisas que
 custam caro quando alguém as refaz sem saber.
 
-**Última revisão: 12/08/2026.**
+**Última revisão: 12/08/2026** — ao fim do dia em que a esteira publicou o
+produto inteiro pela primeira vez.
 
 ---
 
@@ -75,6 +76,52 @@ Isso não é zelo. É consequência de fatos:
 E uma distinção mantida de propósito: **"não existe" é diferente de "está
 quebrado".** Funcionalidade ausente é escopo; funcionalidade que mente é
 defeito.
+
+---
+
+## 3.1 A lente de confiança — a pergunta que rege o resto
+
+Estabelecida em 12/08, depois de o padrão de evidência já estar valendo. Ela não
+substitui a régua da seção 3: diz **onde procurar**.
+
+> **O sistema não pode afirmar que algo aconteceu quando não aconteceu.
+> E não pode deixar de reconhecer algo que aconteceu.**
+
+As duas metades importam, e a segunda foi a que achou o defeito mais caro.
+
+A pergunta que a operacionaliza, e que vale fazer antes de escrever qualquer
+funcionalidade nova:
+
+> Se uma barbearia real entrar amanhã e o dono confiar a agenda e o financeiro
+> dele a isto, **onde ele se dá mal?**
+
+Não é "a funcionalidade está implementada?". É se ele pode acreditar no que a
+tela diz.
+
+### Ela achou três classes de defeito em três aplicações
+
+| Classe | O que era | Onde |
+|---|---|---|
+| **Falso positivo operacional** | aprovar encaixe abria o WhatsApp com *"seu encaixe foi confirmado"* **antes** de saber se a reserva gravou — o dono afirmava a um TERCEIRO algo que não aconteceu | PR #16 |
+| **Falso negativo** | atendimento de ontem não fechado **sumia à meia-noite**: não virava receita, não entrava no DRE, e não havia tela onde reencontrá-lo | PR #17 |
+| **Falso positivo financeiro** | mensalista com status `ativo` contava como receita **recebida**, sem cobrança nenhuma por trás — inflando resultado, margem e imposto | PR #18 |
+
+Nenhum dos três estava em lista alguma. Todos passavam na suíte verde.
+
+### Dois padrões que ela ensinou a reconhecer
+
+1. **Escrita "dispara e esquece".** `void gravar().catch(console.error)` seguido
+   de qualquer coisa que anuncie sucesso. A regra virou módulo com nome próprio:
+   `soAvisaSeGravou`. Anunciar antes de gravar é o defeito; e **mensagem enviada
+   a um cliente não se desfaz**, enquanto tela errada se resolve recarregando.
+2. **Teste que codifica o defeito.** `expect(caixa + mensalistas).toBe(bruta)`
+   passava afirmando o comportamento errado — mesmo formato do
+   `"comissão sai do lucro da loja"` que a auditoria de agosto derrubou. Teste
+   verde sobre premissa errada é pior que teste ausente: dá confiança.
+
+### O que ainda não passou pela lente
+
+Fidelidade, estoque, onboarding e o app do cliente. É por onde continuar.
 
 ---
 
@@ -148,7 +195,9 @@ Cada item aqui custou dinheiro, tempo ou um defeito em produção.
    corrigiram **o mesmo defeito do DRE** de forma independente, sem saber uma da
    outra, com desenhos incompatíveis de plano e de meio de pagamento. Reconciliar
    custou mais que qualquer uma das duas implementações.
-9. **Não peça ao dono para preencher taxa que a plataforma pode inventar.** Taxa
+9. **Não anuncie antes de gravar.** Nem ao dono, nem — muito menos — ao cliente
+   dele. Ver `soAvisaSeGravou` e a seção 3.1.
+10. **Não peça ao dono para preencher taxa que a plataforma pode inventar.** Taxa
    é contrato de cada barbearia com a maquininha dela: o padrão é **zero**,
    porque chutar uma média faria o DRE debitar dinheiro que talvez não seja
    cobrado. Zero é honesto; a tela sinaliza que o dado falta.
@@ -193,3 +242,26 @@ git status
 
 Quem chega e lê só os documentos conclui que o produto está mais adiantado do
 que o que está publicado. É a mesma armadilha da seção 5, item 5.
+
+### O estado ao fim de 12/08
+
+| | |
+|---|---|
+| `main` | `c9b3671` — mais o PR #18, verde e aguardando merge |
+| Publicado | `dfdcb3fc73d0`, run `31630794236` |
+| Represado de propósito | PRs #16, #17 e #18 — a rodada de validação compara contra a versão publicada, e trocá-la no meio embaralha as observações |
+
+**A esteira publicou o produto inteiro pela primeira vez neste dia**, e custou
+sete aprovações. Três lacunas apareceram no caminho, todas invisíveis até a
+publicação ir até o fim:
+
+1. Credencial sem permissão de Storage — não resolvida; as regras de Storage
+   saíram do escopo do deploy, com a limitação escrita.
+2. Conta de deploy sem papel de Cloud Scheduler — resolvida com
+   `roles/cloudscheduler.admin`.
+3. **A rotina de expurgo estava em produção sem gatilho nenhum.** Function
+   `ACTIVE`, nenhum job agendado: código publicado que nunca executaria. É a
+   mesma lição do `sw.js`, numa camada acima.
+
+O deploy exige **aprovação humana** no ambiente `producao` — o portão é
+deliberado, e uma ferramenta não deve clicá-lo.
