@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { formatBRL } from "@/lib/format";
 import { useTenant } from "@/lib/tenant-context";
-import { useClients, useProducts } from "@/lib/db/use-shop-data";
+import { useClients, useProducts, useStaff } from "@/lib/db/use-shop-data";
 import { filtrarClientes } from "@/lib/clientes-busca";
 import { mascararWhatsapp } from "@/lib/whatsapp-numero";
 import { chaveDeIdempotencia } from "@/lib/chave-de-idempotencia";
@@ -48,9 +48,11 @@ export function VenderProduto({ aoVender }: { aoVender?: () => void }) {
   const tenant = useTenant();
   const { items: produtos } = useProducts();
   const { items: clientes } = useClients();
+  const { items: equipe } = useStaff();
 
   const [linhas, setLinhas] = useState<Linha[]>([]);
   const [metodo, setMetodo] = useState<PaymentMethod | null>(null);
+  const [vendedorClicado, setVendedorClicado] = useState<string | null>(null);
   const [busca, setBusca] = useState("");
   const [cliente, setCliente] = useState<Doc<ClientDoc> | null>(null);
   const [buscando, setBuscando] = useState(false);
@@ -101,6 +103,25 @@ export function VenderProduto({ aoVender }: { aoVender?: () => void }) {
   );
 
   const encontrados = useMemo(() => filtrarClientes(clientes, busca, 6), [clientes, busca]);
+
+  /* Quem vendeu — Rodada 3.1.
+   *
+   * A comissão de produto virou fato, e todo fato precisa de beneficiário.
+   * Antes ela era um agregado do mês derivado da política de hoje; agora nasce
+   * na venda, congelada, e sem vendedor não nasce.
+   *
+   * Com um barbeiro só, o servidor não escolhe sozinho como faz no
+   * agendamento: aqui a escolha tem consequência financeira direta no acerto
+   * de alguém, e um padrão silencioso pagaria comissão para quem talvez não
+   * tenha vendido. A tela pré-seleciona e deixa visível. */
+  const ativos = useMemo(() => equipe.filter((b) => b.active !== false), [equipe]);
+  const vendedorId =
+    vendedorClicado && ativos.some((b) => b.id === vendedorClicado)
+      ? vendedorClicado
+      : ativos.length === 1
+        ? ativos[0].id
+        : null;
+
   const podeConfirmar = linhas.length > 0 && metodo !== null;
 
   async function confirmar() {
@@ -117,6 +138,7 @@ export function VenderProduto({ aoVender }: { aoVender?: () => void }) {
         itens: linhas,
         paymentMethod: metodo,
         clientId: cliente?.id ?? null,
+        staffId: vendedorId,
         idempotencyKey: chave,
       });
 
@@ -124,6 +146,7 @@ export function VenderProduto({ aoVender }: { aoVender?: () => void }) {
       setLinhas([]);
       setMetodo(null);
       setCliente(null);
+      setVendedorClicado(null);
       setBusca("");
       setBuscando(false);
       /* Chave nova só DEPOIS do sucesso: se a venda falhar e o dono tentar de
@@ -290,6 +313,40 @@ export function VenderProduto({ aoVender }: { aoVender?: () => void }) {
               </Button>
             )}
           </div>
+
+          {/* Vendedor — define de quem é a comissão */}
+          {ativos.length > 1 && (
+            <div className="flex flex-col gap-1.5">
+              <p className="text-[11px] uppercase tracking-wide text-ivory-muted">
+                Quem vendeu <span className="normal-case tracking-normal">(opcional)</span>
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {ativos.map((b) => (
+                  <button
+                    key={b.id}
+                    type="button"
+                    aria-pressed={vendedorId === b.id}
+                    onClick={() => setVendedorClicado(vendedorId === b.id ? null : b.id)}
+                    className={
+                      "min-h-11 rounded-xl border px-3 text-sm transition-colors " +
+                      (vendedorId === b.id
+                        ? "border-gold bg-gold/10 text-ivory"
+                        : "border-border text-ivory-muted hover:border-gold/60")
+                    }
+                  >
+                    {b.name}
+                  </button>
+                ))}
+              </div>
+              {/* Diz a consequência de deixar em branco, em vez de deixar o dono
+                  descobrir no acerto do fim do mês. */}
+              {!vendedorId && (
+                <p className="text-[11px] text-ivory-muted">
+                  Sem indicar quem vendeu, a venda não gera comissão.
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Pagamento — obrigatório, e o motivo está no comentário */}
           <div className="flex flex-col gap-1.5">

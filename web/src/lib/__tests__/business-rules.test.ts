@@ -94,4 +94,37 @@ describe("rateio de venda", () => {
   it("barbeiro + barbearia somam 100%", () => {
     expect(commissionSplit.barberPct + commissionSplit.shopPct).toBe(100);
   });
+
+  /* P1-7 · o simulador da Loja anunciava o padrão da PLATAFORMA (40%) a uma
+   * barbearia que combinou outro. A tela de Equipe já lia do tenant; a Loja
+   * ficou para trás, e a Rodada 3.1 tornou a divergência visível: agora a
+   * comissão nasce congelada com o percentual do barbeiro, então o número
+   * anunciado no simulador não descrevia venda nenhuma. */
+  it("respeita o percentual da barbearia, não o padrão da plataforma", () => {
+    const r = splitSale({ price: 45, cost: 18, barberPct: 50 });
+    expect(r.commission).toBeCloseTo(13.5);
+    expect(r.commission).not.toBeCloseTo(27 * (commissionSplit.barberPct / 100));
+  });
+
+  it("percentual zero é uma escolha legítima, não ausência de valor", () => {
+    /* Um `|| 40` no lugar do `??` transformaria "esta barbearia não paga
+     * comissão de produto" no padrão da casa — foi o mesmo cuidado tomado em
+     * `comissoes.ts`. */
+    const r = splitSale({ price: 45, cost: 18, barberPct: 0 });
+    expect(r.commission).toBe(0);
+    expect(r.shopProfit).toBeCloseTo(27 - 27 * (taxRatePct / 100));
+  });
+
+  it("sem percentual explícito, mantém o padrão da plataforma", () => {
+    /* O default preserva quem já chamava com dois argumentos. */
+    expect(splitSale({ price: 45, cost: 18 }).commission).toBeCloseTo(
+      splitSale({ price: 45, cost: 18, barberPct: commissionSplit.barberPct }).commission
+    );
+  });
+
+  it("o imposto também vem da barbearia quando informado", () => {
+    const r = splitSale({ price: 45, cost: 18, barberPct: 50, taxPct: 0 });
+    expect(r.tax).toBe(0);
+    expect(r.shopProfit).toBeCloseTo(13.5);
+  });
 });

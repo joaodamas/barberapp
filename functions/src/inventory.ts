@@ -3,6 +3,7 @@ import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { hojeNoFuso, localeDoDocumento } from "./locale";
 import { SEM_TAXA, type PaymentFees, type PaymentMethod } from "./financial-events";
 import { documentoDePagamento, idDoPagamento } from "./payments";
+import { comissaoDaVenda, idDaComissao } from "./comissoes";
 
 /**
  * A venda de produto — G1.
@@ -66,6 +67,17 @@ export type InventoryMovementDoc = {
   clientId: string | null;
   /** Atendimento a que a venda ficou casada, quando houver. */
   bookingId: string | null;
+  /**
+   * Quem vendeu — Rodada 3.1.
+   *
+   * Faltava, e a ausência só apareceu ao materializar a comissão de produto:
+   * `commissions.staffId` não tinha de onde sair. Sem beneficiário, ou a
+   * comissão não nasce, ou nasce um valor a pagar que nenhum acerto alcança.
+   *
+   * Nulo é caso legítimo: venda registrada sem indicar o vendedor não gera
+   * comissão, e a barbearia fica com o lucro inteiro.
+   */
+  staffId: string | null;
   date: string;
 };
 
@@ -189,6 +201,8 @@ export function movimentoDeCompra(params: {
     paymentMethod: params.paymentMethod,
     clientId: null,
     bookingId: null,
+    /* Compra não tem vendedor: ninguém ganha comissão por receber mercadoria. */
+    staffId: null,
     supplier: params.supplier,
     date: params.date,
   };
@@ -208,6 +222,7 @@ export function movimentoDeVenda(params: {
   paymentMethod: PaymentMethod;
   clientId: string | null;
   bookingId: string | null;
+  staffId?: string | null;
   date: string;
 }): InventoryMovementDoc {
   return {
@@ -220,6 +235,7 @@ export function movimentoDeVenda(params: {
     paymentMethod: params.paymentMethod,
     clientId: params.clientId,
     bookingId: params.bookingId,
+    staffId: params.staffId ?? null,
     date: params.date,
   };
 }
@@ -265,6 +281,23 @@ export async function gravarVendaComTravaDeEstoque(params: {
    * para quem ainda não preencheu as taxas em Configurações.
    */
   fees?: PaymentFees;
+  /**
+   * Quem vendeu, e sob que percentual — Rodada 3.1.
+   *
+   * Lido ANTES da transação, junto das taxas: barbeiro e política são
+   * configuração, não estado disputado. O percentual vem congelado daqui para o
+   * documento de comissão, e mudar o split amanhã não reescreve o acerto de
+   * hoje — que é o P1-7.
+   *
+   * Ausente, a venda não gera comissão. É caso legítimo: venda sem vendedor
+   * indicado deixa o lucro inteiro com a barbearia.
+   */
+  vendedor?: {
+    staffId: string;
+    uid: string | null;
+    staffName: string | null;
+    commissionPct: number;
+  };
 }): Promise<{
   movementIds: string[];
   value: number;
@@ -356,6 +389,7 @@ export async function gravarVendaComTravaDeEstoque(params: {
           paymentMethod: params.paymentMethod,
           clientId: params.clientId,
           bookingId: params.bookingId,
+          staffId: params.vendedor?.staffId ?? null,
           date: params.date,
         }),
       };
@@ -394,6 +428,39 @@ export async function gravarVendaComTravaDeEstoque(params: {
           ...(params.extras ?? {}),
         }
       );
+
+      /* Rodada 3.1 · a comissão de produto vira FATO.
+       *
+       * Era derivada a cada leitura, do agregado do mês, com a política de
+       * HOJE — mudar o split reescrevia o acerto de meses fechados (P1-7). E
+       * como o CMV estava zerado por D19, a base era o faturamento inteiro: o
+       * dono pagava comissão sobre o custo da mercadoria.
+       *
+       * Aqui a base é o lucro DAQUELA linha, com o `unitCost` que ela mesma
+       * congelou. Não depende de nenhum agregado nem de nenhuma leitura
+       * posterior. */
+      const comissao = params.vendedor
+        ? comissaoDaVenda({
+            movementId: m.movementRef.id,
+            staffId: params.vendedor.staffId,
+            uid: params.vendedor.uid,
+            staffName: params.vendedor.staffName,
+            unitPrice: m.movimento.unitPrice,
+            unitCost: m.movimento.unitCost,
+            quantidade: m.item.quantity,
+            commissionPct: params.vendedor.commissionPct,
+            date: params.date,
+          })
+        : null;
+
+      if (comissao) {
+        tx.set(
+          params.shopRef
+            .collection("commissions")
+            .doc(idDaComissao({ origem: "produto", refId: m.movementRef.id })),
+          { ...comissao, ...(params.extras ?? {}) }
+        );
+      }
     }
 
     return {
@@ -412,6 +479,8 @@ type VendaInput = {
   /** O carrinho. Uma venda pode ter mais de um produto, e é atômica entre eles. */
   itens: ItemDaVenda[];
   paymentMethod: PaymentMethod;
+  /** Quem vendeu. Sem ele a venda não gera comissão — ver `comissoes.ts`. */
+  staffId?: string | null;
   clientId?: string | null;
   bookingId?: string | null;
   /**
@@ -477,11 +546,43 @@ export const registrarVendaDeProduto = onCall<VendaInput>(async (request) => {
   /* Taxas lidas AQUI, fora da transação: são política, não estado disputado.
    * Congelam no pagamento — mudar a taxa da maquininha amanhã não reescreve o
    * que foi recebido hoje. */
-  const politicas = (shopSnap.get("policies") ?? {}) as { paymentFees?: Partial<PaymentFees> };
+  const politicas = (shopSnap.get("policies") ?? {}) as {
+    paymentFees?: Partial<PaymentFees>;
+    commissionSplit?: { barberPct?: number };
+  };
   const fees: PaymentFees = { ...SEM_TAXA, ...(politicas.paymentFees ?? {}) };
+
+  /* O vendedor e o percentual, lidos AGORA e congelados no documento.
+   *
+   * Mesma leitura que `materializeFinancialsOnCompletion` faz para o serviço:
+   * o percentual do barbeiro quando ele tem um, o padrão da casa quando não.
+   * Depois desta escrita, nada relê `policies` para reconstruir a comissão —
+   * que é justamente o defeito P1-7 do lado da loja. */
+  const staffId = request.data?.staffId ? String(request.data.staffId) : null;
+  const vendedorSnap = staffId
+    ? await shopRef.collection("staff").doc(staffId).get()
+    : null;
+
+  if (staffId && !vendedorSnap?.exists) {
+    throw new HttpsError("not-found", "Esse profissional não está cadastrado.");
+  }
+  if (vendedorSnap?.exists && vendedorSnap.get("active") === false) {
+    throw new HttpsError("failed-precondition", "Esse profissional não está ativo.");
+  }
+
+  const vendedor = vendedorSnap?.exists
+    ? {
+        staffId: staffId as string,
+        uid: (vendedorSnap.get("uid") as string | null) ?? null,
+        staffName: (vendedorSnap.get("name") as string | null) ?? null,
+        commissionPct:
+          Number(vendedorSnap.get("commissionPct") ?? politicas.commissionSplit?.barberPct) || 0,
+      }
+    : undefined;
 
   return gravarVendaComTravaDeEstoque({
     fees,
+    vendedor,
     db,
     shopRef,
     itens: itens.map((i) => ({ productId: String(i.productId), quantity: i.quantity })),

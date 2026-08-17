@@ -148,11 +148,23 @@ if (commissionSplit.barberPct + commissionSplit.shopPct !== 100) {
   );
 }
 
-/** Decomposição de uma venda: quanto é comissão, imposto e sobra da barbearia. */
-export function splitSale(params: { price: number; cost: number }) {
+/**
+ * Decomposição de uma venda: quanto é comissão, imposto e sobra da barbearia.
+ *
+ * `barberPct` e `taxPct` vêm de quem chama — normalmente do tenant. As
+ * constantes acima são o padrão da PLATAFORMA, e usá-las direto na tela fazia a
+ * barbearia que combinou 50/50 ler 40% (P1-7). `??` e não `||`: 0% de comissão
+ * é escolha legítima, não campo vazio.
+ */
+export function splitSale(params: {
+  price: number;
+  cost: number;
+  barberPct?: number;
+  taxPct?: number;
+}) {
   const grossProfit = Math.max(params.price - params.cost, 0);
-  const commission = (grossProfit * commissionSplit.barberPct) / 100;
-  const tax = (grossProfit * taxRatePct) / 100;
+  const commission = (grossProfit * (params.barberPct ?? commissionSplit.barberPct)) / 100;
+  const tax = (grossProfit * (params.taxPct ?? taxRatePct)) / 100;
   return {
     grossProfit,
     commission,

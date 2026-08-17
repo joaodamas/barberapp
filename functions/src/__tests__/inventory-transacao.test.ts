@@ -89,7 +89,7 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  for (const col of ["inventory_movements", "products", "payments"]) {
+  for (const col of ["inventory_movements", "products", "payments", "commissions"]) {
     const snap = await db.collection(`barbershops/${SHOP}/${col}`).get();
     await Promise.all(snap.docs.map((d) => d.ref.delete()));
   }
@@ -705,5 +705,155 @@ describe("G1.6 · o pagamento nasce com a venda", () => {
     const [p] = await pagamentos();
     expect(p.feeAmount).toBe(0);
     expect(p.grossAmount).toBe(45);
+  });
+});
+
+/* ================================================================== */
+/* 3.1 · a comissão de produto nasce com a venda                       */
+/* ================================================================== */
+
+const VENDEDOR = { staffId: "rafael", uid: "uid-rafael", staffName: "Rafael", commissionPct: 40 };
+
+function venderComVendedor(params: {
+  productId: string;
+  quantity: number;
+  chave?: string;
+  vendedor?: typeof VENDEDOR;
+}) {
+  return gravarVendaComTravaDeEstoque({
+    db,
+    shopRef: shopRef(),
+    itens: [{ productId: params.productId, quantity: params.quantity }],
+    paymentMethod: "credit",
+    clientId: null,
+    bookingId: null,
+    date: HOJE,
+    chave: params.chave,
+    fees: TAXAS,
+    vendedor: params.vendedor ?? VENDEDOR,
+  });
+}
+
+async function comissoes() {
+  const s = await shopRef().collection("commissions").get();
+  return s.docs.map((d) => ({ ...d.data(), id: d.id }) as Record<string, unknown> & { id: string });
+}
+
+describe("3.1 · comissão de produto", () => {
+  it("a venda grava a comissão, na mesma transação", async () => {
+    await venderComVendedor({ productId: "pomada", quantity: 1 });
+
+    const cs = await comissoes();
+    expect(cs).toHaveLength(1);
+    expect(cs[0].origin).toBe("produto");
+    expect(cs[0].staffId).toBe("rafael");
+  });
+
+  it("a base é o LUCRO da linha, não o faturamento", async () => {
+    /* Pomada: venda 45, custo 18 → lucro 27 → 40% = 10,80. Com o CMV zerado
+     * por D19, a derivação antiga pagava 40% de 45 = 18. */
+    await venderComVendedor({ productId: "pomada", quantity: 1 });
+    const [c] = await comissoes();
+    expect(c.commissionBase).toBe(27);
+    expect(c.commissionAmount).toBe(10.8);
+  });
+
+  it("o percentual fica CONGELADO — mudar o split não reescreve o passado", async () => {
+    /* É o P1-7. A derivação relia `policies` a cada leitura: renegociar de 40%
+     * para 50% em outubro mudava o acerto de setembro. */
+    await venderComVendedor({ productId: "pomada", quantity: 1 });
+    await shopRef().set({ policies: { commissionSplit: { barberPct: 50 } } }, { merge: true });
+
+    const [c] = await comissoes();
+    expect(c.commissionPct).toBe(40);
+    expect(c.commissionAmount).toBe(10.8);
+  });
+
+  it("o custo congelado da linha é o que entra na base", async () => {
+    /* Encadeia com G1.5: comprar mais caro sobe o custo médio, e a comissão da
+     * venda seguinte cai — mas a da venda anterior não muda. */
+    await venderComVendedor({ productId: "pomada", quantity: 1 });
+    await comprar({ productId: "pomada", quantity: 10, unitCost: 30 });
+    await venderComVendedor({ productId: "pomada", quantity: 1, chave: "depois" });
+
+    const cs = await comissoes();
+    const bases = cs.map((c) => Number(c.commissionBase)).sort((a, b) => a - b);
+    /* Antes: 45 − 18 = 27.
+     *
+     * Depois: a primeira venda já baixou o estoque para 9, então o médio
+     * ponderado é (9 × 18 + 10 × 30) ÷ 19 = 24,32 — e não 24, que seria o
+     * médio sobre 10. O lucro cai para 45 − 24,32 = 20,68.
+     *
+     * A conta importa aqui: o custo médio depende do estoque NAQUELE instante,
+     * e não do estoque inicial do produto. */
+    expect(bases).toEqual([20.68, 27]);
+  });
+
+  it("SEM vendedor não nasce comissão, e a venda acontece igual", async () => {
+    await gravarVendaComTravaDeEstoque({
+      db,
+      shopRef: shopRef(),
+      itens: [{ productId: "pomada", quantity: 1 }],
+      paymentMethod: "cash",
+      clientId: null,
+      bookingId: null,
+      date: HOJE,
+      fees: TAXAS,
+    });
+
+    expect(await comissoes()).toHaveLength(0);
+    expect(await movimentos()).toHaveLength(1);
+    expect(await estoqueDe("pomada")).toBe(9);
+  });
+
+  it("o movimento registra QUEM vendeu", async () => {
+    await venderComVendedor({ productId: "pomada", quantity: 1 });
+    const [m] = await movimentos();
+    expect(m.staffId).toBe("rafael");
+  });
+
+  it("carrinho de dois produtos gera duas comissões, uma por linha", async () => {
+    await gravarVendaComTravaDeEstoque({
+      db,
+      shopRef: shopRef(),
+      itens: [
+        { productId: "pomada", quantity: 1 },
+        { productId: "ultima", quantity: 1 },
+      ],
+      paymentMethod: "pix",
+      clientId: null,
+      bookingId: null,
+      date: HOJE,
+      fees: TAXAS,
+      vendedor: VENDEDOR,
+    });
+
+    const cs = await comissoes();
+    expect(cs).toHaveLength(2);
+    /* pomada 45−18=27 → 10,80 · ultima 55−22=33 → 13,20 */
+    expect(cs.reduce((s, c) => s + Number(c.commissionAmount), 0)).toBeCloseTo(24, 2);
+  });
+
+  it("REEXECUTAR não paga a comissão duas vezes", async () => {
+    await venderComVendedor({ productId: "pomada", quantity: 1, chave: "k1" });
+    await venderComVendedor({ productId: "pomada", quantity: 1, chave: "k1" });
+
+    const cs = await comissoes();
+    expect(cs).toHaveLength(1);
+    expect(Number(cs[0].commissionAmount)).toBe(10.8);
+  });
+
+  it("venda que FALHA não deixa comissão órfã", async () => {
+    await expect(
+      venderComVendedor({ productId: "ultima", quantity: 5 })
+    ).rejects.toThrow(/estoque insuficiente/);
+    expect(await comissoes()).toHaveLength(0);
+  });
+
+  it("o id da comissão deriva do movimento", async () => {
+    const r = await venderComVendedor({ productId: "pomada", quantity: 1 });
+    const [c] = await comissoes();
+    expect(c.id).toBe(`comissao_venda_${r.movementIds[0]}`);
+    expect(c.movementId).toBe(r.movementIds[0]);
   });
 });

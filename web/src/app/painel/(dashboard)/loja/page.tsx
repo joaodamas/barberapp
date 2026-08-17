@@ -17,7 +17,7 @@ import type { Doc } from "@/lib/db/repository";
 import type { ProductDoc } from "@/lib/domain";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
-import { commissionSplit, splitSale, taxRatePct } from "@/lib/business-rules";
+import { splitSale } from "@/lib/business-rules";
 
 /* `profitPct` é margem sobre o PREÇO de venda (preço = custo ÷ (1 − m)), não
  * markup sobre o custo. 100% seria divisão por zero: limitamos e avisamos, em
@@ -51,7 +51,15 @@ export default function LojaPage() {
 }
 
 function LojaConteudo() {
-  const { id: barbershopId } = useTenant();
+  const { id: barbershopId, policies } = useTenant();
+  /* P1-7 · do tenant, não da constante da plataforma.
+   *
+   * A tela de Equipe já lia daqui; a Loja continuava anunciando os 40% padrão
+   * a quem tinha combinado outro. A Rodada 3.1 tornou isso indefensável: a
+   * comissão de produto agora nasce congelada com o percentual DO BARBEIRO, e
+   * o simulador estava prometendo um número que venda nenhuma produzia. */
+  const padraoDaCasa = policies.commissionSplit.barberPct;
+  const impostoDaCasa = policies.taxRatePct;
   const { items: products, status } = useProducts();
   const [simPrice, setSimPrice] = useState(45);
   const [simCost, setSimCost] = useState(18);
@@ -63,8 +71,8 @@ function LojaConteudo() {
   const lowStock = products.filter((p) => p.stock < p.minStock);
 
   const simSplit = useMemo(
-    () => splitSale({ price: simPrice, cost: simCost }),
-    [simPrice, simCost]
+    () => splitSale({ price: simPrice, cost: simCost, barberPct: padraoDaCasa, taxPct: impostoDaCasa }),
+    [simPrice, simCost, padraoDaCasa, impostoDaCasa]
   );
 
   const preview = useMemo(() => {
@@ -73,9 +81,9 @@ function LojaConteudo() {
     const profitPct = Math.min(Math.max(rawPct, 0), MAX_PROFIT_PCT);
     const clamped = rawPct !== profitPct;
     const price = cost / (1 - profitPct / 100);
-    const split = splitSale({ price, cost });
+    const split = splitSale({ price, cost, barberPct: padraoDaCasa, taxPct: impostoDaCasa });
     return { cost, price, profitPct, clamped, ...split, netProfit: split.shopProfit };
-  }, [form.cost, form.profitPct]);
+  }, [form.cost, form.profitPct, padraoDaCasa, impostoDaCasa]);
 
   function openModal() {
     setForm(emptyForm);
@@ -232,15 +240,20 @@ function LojaConteudo() {
             </label>
             <div className="flex items-center justify-between border-t border-border pt-3 text-sm md:text-base">
               <span className="text-ivory-muted">
-                Comissão do profissional ({commissionSplit.barberPct}% do lucro)
+                Comissão do profissional ({padraoDaCasa}% do lucro)
               </span>
               <span className="font-display font-semibold text-gold-light md:text-lg">
                 {formatBRL(simSplit.commission)}
               </span>
             </div>
+            {/* O simulador projeta com o padrão da casa, mas a comissão real
+                nasce com o percentual de quem vendeu. Dizer isso aqui custa
+                uma linha; deixar o dono descobrir no acerto custa a confiança
+                dele na tela. */}
             <p className="text-xs text-ivory-muted md:text-sm">
-              Rateio automático sobre o lucro da venda, não sobre o preço
-              cheio.
+              Rateio sobre o lucro da venda, não sobre o preço cheio. Usa o
+              padrão da casa — quem tem percentual próprio na Equipe recebe o
+              dele.
             </p>
           </Card>
         </section>
@@ -332,17 +345,21 @@ function LojaConteudo() {
             <Row label="Preço de venda" value={formatBRL(preview.price)} strong />
             <Row label="Lucro bruto" value={formatBRL(preview.grossProfit)} />
             <Row
-              label={`Comissão do profissional (${commissionSplit.barberPct}%)`}
+              label={`Comissão do profissional (${padraoDaCasa}%)`}
               value={`− ${formatBRL(preview.commission)}`}
               tone="danger"
             />
             <Row
-              label={`Imposto (${taxRatePct}%)`}
+              label={`Imposto (${impostoDaCasa}%)`}
               value={`− ${formatBRL(preview.tax)}`}
               tone="danger"
             />
+            {/* A sobra é derivada do que ficou, não de um `shopPct` guardado à
+                parte: os dois números sairiam do mesmo lugar e poderiam
+                divergir se o percentual do barbeiro viesse do tenant e o da
+                casa não. */}
             <Row
-              label={`Sobra da barbearia (${commissionSplit.shopPct}% − imposto)`}
+              label={`Sobra da barbearia (${100 - padraoDaCasa}% − imposto)`}
               value={formatBRL(preview.shopProfit)}
               tone="success"
               strong

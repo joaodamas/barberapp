@@ -43,7 +43,13 @@ export type ProductDoc = {
  * o histórico é auditável e a regra pode mudar sem tornar o passado indecifrável.
  */
 export type CommissionDoc = {
-  bookingId: string;
+  /**
+   * De que fato veio. Ausente nas comissões anteriores à Rodada 3.1 — todas de
+   * serviço, que era a única materializada.
+   */
+  bookingId?: string;
+  /** Venda que originou a comissão de produto. */
+  movementId?: string;
   staffId: string;
   uid: string | null;
   staffName?: string | null;
@@ -154,6 +160,14 @@ export type InventoryMovementDoc = {
   clientId?: string | null;
   /** Atendimento a que a venda ficou casada, quando houver. */
   bookingId?: string | null;
+  /**
+   * Quem vendeu — Rodada 3.1.
+   *
+   * Faltava, e a ausência só apareceu ao materializar a comissão de produto:
+   * `commissions.staffId` não tinha de onde sair. Nulo é caso legítimo — venda
+   * sem vendedor indicado não gera comissão.
+   */
+  staffId?: string | null;
 };
 
 /**
