@@ -24,7 +24,14 @@
 > | 🔴 | **D13** · o dono **não consegue criar uma reserva** | Day in the Life, 09:00 | potencial release blocker — decisão de produto pendente |
 > | 🔴 | **P1-11** · a legenda do caixa ensina uma regra que não existe mais | confirmado **na interface** | corrigir antes do piloto |
 > | ⚫ | **D14** · templates de WhatsApp prometem **pagamento online e estorno**, que não existem | varredura da regra canônica | latente — sai no dia em que o envio funcionar |
+> | 🟡 | **D15** · a **lista de todas as barbearias** é enumerável sem login | isolamento multi-tenant | exposição comercial da plataforma |
+> | 🟡 | **D16** · o índice de **slugs** também é enumerável | isolamento multi-tenant | mesma origem de D15 |
 > | ✅ | ~~"login válido não avança"~~ | **retirado** — ver §8 | não era achado |
+>
+> **Isolamento multi-tenant: 182 verificações, nenhuma violação passou.** A Alfa
+> não lê nem escreve nada da Beta, em nenhuma das 19 subcoleções, nem por
+> collection group, nem por query filtrada. Detalhe em
+> `ISOLAMENTO-MULTI-TENANT.md`.
 >
 > D1–D12 (reconciliação e matriz) estão em `LEDGER-DE-VALIDACAO.md` e
 > `MATRIZ-FATO-VISAO.md`. **D3, D8 e D11 seguem em decisão pendente** até a
@@ -74,6 +81,7 @@ achados P0 e P1 desta auditoria passam todos por uma suíte verde.**
 6. [O que está certo e vale preservar](#6-o-que-está-certo-e-vale-preservar)
 7. [Ordem de correção sugerida](#7-ordem-de-correção-sugerida)
 8. [Um achado retirado, e a regra que ele produziu](#8-um-achado-retirado-e-a-regra-que-ele-produziu)
+9. [D13 contra a especificação](#9-d13-contra-a-especificação--o-que-o-blueprint-diz)
 
 ---
 
@@ -1019,3 +1027,72 @@ O episódio também expôs um limite de método: **automação não executa Day 
 Life.** Metade do que ele mede é se a pessoa entende a tela, e isso nenhum script
 responde. O roteiro em `DAY-IN-THE-LIFE.md` é para execução humana, por alguém
 que não participou da construção.
+
+---
+
+## 9. D13 contra a especificação — o que o BLUEPRINT diz
+
+Levantado em 17/08 para decidir se **D13** (o dono não consegue criar uma
+reserva) é divergência de produto ou comportamento conforme.
+
+A pergunta é uma só: **o proprietário deveria conseguir criar reserva em nome do
+cliente, segundo a proposta oficial?**
+
+### O que o BLUEPRINT especifica
+
+**§3.2 — Cliente** (`barbershops/{id}/clients/{id}`, marcado ❌ **criar**):
+
+```ts
+uid: string | null;                        // conta no app; nulo para walk-in
+origin: "app" | "balcao" | "importacao";
+```
+
+> **Invariante:** `whatsapp` único por barbearia — chave de deduplicação entre
+> quem agenda pelo app e **quem chega no balcão**.
+>
+> **Escreve:** `createBooking` (upsert), **tela de Clientes**.
+
+**§3.5 — Reserva:** *"Criada **só** por `createBooking`."*
+
+**Bloco 2 — OPERAR** lista as ações do painel: *"iniciar · concluir · não
+compareceu"*, e *"Agenda semanal e por profissional"* como ausente. **Não
+menciona criar reserva.**
+
+### O que isso permite afirmar
+
+✅ **O produto prevê o cliente que não usa o app.** `uid: null` para walk-in e
+`origin: "balcao"` são explícitos, e a invariante de deduplicação existe
+justamente para conciliar quem agenda pelo app com quem chega no balcão.
+
+✅ **A especificação prevê uma tela de Clientes** que escreve esse documento —
+ela não existe hoje.
+
+❌ **A especificação NÃO diz, em nenhum ponto, que o dono cria reservas.** Ela
+diz que a reserva é criada *só* por `createBooking`, e `createBooking` usa o
+`uid` de quem chama como `clientId` — ou seja, no desenho atual só cria reserva
+**para si mesmo**.
+
+### Conclusão
+
+**D13 permanece 🟠 GAP DE PRODUTO / DECISÃO PENDENTE.** Não sobe a release
+blocker, porque a especificação não o contradiz explicitamente.
+
+Mas o levantamento acrescenta uma evidência que aperta a decisão: **a
+especificação descreve um cliente de balcão, sem conta no app, e não descreve o
+caminho pelo qual a reserva dele nasce.** É uma lacuna da própria especificação,
+não uma decisão de manter o produto self-service.
+
+A pergunta para a decisão deixa de ser *"o blueprint permite?"* e passa a ser:
+
+> Como um cliente com `origin: "balcao"` e `uid: null` — que a especificação
+> prevê — consegue ter um horário marcado?
+
+Hoje não consegue. Ou a resposta é uma tela de agendamento no painel, ou é a
+tela de Clientes prevista em §3.2 com a reserva saindo dali. As duas passam pelo
+mesmo lugar: **alguém que não é o cliente precisa poder criar a reserva.**
+
+> **A regra que este levantamento respeita.** A auditoria quase criou um bug de
+> login que não existia (§8); o risco simétrico é transformar uma expectativa
+> nossa em requisito que nunca foi especificado. Por isso D13 fica onde está até
+> a decisão de produto — e o que está registrado acima é o que o documento diz,
+> não o que seria razoável ele dizer.
