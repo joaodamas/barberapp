@@ -12,7 +12,7 @@
     "logs": "firebase functions:log",
     "test": "vitest run --exclude 'src/__tests__/firestore-rules.test.ts' --exclude 'src/__tests__/storage-rules.test.ts' --exclude 'src/__tests__/booking-concorrencia.test.ts' --exclude 'src/__tests__/isolamento-multi-tenant.test.ts'",
     "typecheck": "tsc --noEmit",
-    "test:rules": "firebase emulators:exec --only firestore,storage --project regras-multi-tenant 'vitest run src/__tests__/firestore-rules.test.ts src/__tests__/storage-rules.test.ts'",
+    "test:rules": "firebase emulators:exec --only firestore,storage --project regras-multi-tenant \"vitest run src/__tests__/firestore-rules.test.ts src/__tests__/storage-rules.test.ts\"",
     "test:concorrencia": "firebase emulators:exec --only firestore --project concorrencia-agenda \"vitest run src/__tests__/booking-concorrencia.test.ts\"",
     "test:tudo": "npm run test && npm run test:concorrencia && npm run test:isolamento && npm run test:rules",
     "test:isolamento": "firebase emulators:exec --only firestore --project isolamento-multi-tenant \"vitest run src/__tests__/isolamento-multi-tenant.test.ts\""

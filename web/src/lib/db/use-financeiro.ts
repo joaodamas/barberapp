@@ -8,10 +8,11 @@ import {
 } from "@/lib/db/use-shop-data";
 import {
   caixaDiario, capacidadeDiaria, folhaMensal, horariosDaJornada, indicadores,
-  taxasDePagamento,
+  taxasDePagamento, HORIZONTES,
   mapaDeCalor, mesPeriodo, projecaoDeCaixa, receitaDoMes,
   recorrenciaDeClientes, resultadoDoMes, topServicos,
 } from "@/lib/analytics";
+import type { Horizonte } from "@/lib/analytics";
 
 /**
  * Tudo que o financeiro precisa, calculado a partir do dado bruto.
@@ -21,23 +22,16 @@ import {
  * Agora todas descem daqui, e um número divergente é bug de cálculo num lugar
  * só.
  */
-/**
- * Horizontes de projeção.
+/* `HORIZONTES` mudou para `analytics.ts` e volta reexportado, como `mesAtual` e
+ * `rotuloDoMes` no fim deste arquivo.
  *
- * Quanto mais longe, menos "previsão" e mais "modelo": ninguém marca corte
- * para daqui a seis meses, então além de ~60 dias praticamente todo dia é
- * estimativa em cima da média histórica por dia da semana. A tela precisa
- * DIZER isso — projeção anual apresentada com a mesma confiança da mensal é
- * número bonito que induz decisão errada.
- */
-export const HORIZONTES = {
-  mensal: { dias: 30, rotulo: "Mensal", porMes: false },
-  trimestral: { dias: 91, rotulo: "Trimestral", porMes: true },
-  semestral: { dias: 182, rotulo: "Semestral", porMes: true },
-  anual: { dias: 365, rotulo: "Anual", porMes: true },
-} as const;
-
-export type Horizonte = keyof typeof HORIZONTES;
+ * O motivo é P1-14: enquanto a tabela morava aqui, importá-la puxava junto o
+ * cliente do Firebase, e nenhum teste puro conseguia afirmar nada sobre ela — a
+ * alternativa seria copiar os números para dentro do teste, que é exatamente o
+ * erro que a correção de D6 tirou do `seis-visoes.test.ts`. Ela é dado de
+ * análise, não estado de hook; ao lado de `projecaoDeCaixa` é o lugar dela. */
+export { HORIZONTES } from "@/lib/analytics";
+export type { Horizonte } from "@/lib/analytics";
 
 export function useFinanceiro(mes: string, horizonte: Horizonte = "mensal") {
   const diasDeProjecao = HORIZONTES[horizonte].dias;

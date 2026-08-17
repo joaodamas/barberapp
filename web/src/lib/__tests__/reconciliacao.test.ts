@@ -303,12 +303,30 @@ describe("DIVERGE · D1/D5 · arredondamento para real inteiro", () => {
   });
 });
 
-describe("DIVERGE · D2 · ticket médio mistura produto com atendimento", () => {
-  it("divide receita COM produtos pelo número de atendimentos de serviço", () => {
-    /* 680 ÷ 8 = 85. O ticket de serviço real é 390 ÷ 8 = 48,75. O dono decide
-     * preço com esse número. */
-    expect(kpis.avgTicket).toBe(85);
+describe("CONVERGE · D2 · o ticket médio mede o atendimento", () => {
+  it("divide a receita de SERVIÇO pelos atendimentos de serviço", () => {
+    /* Divergência fechada na Rodada 1.
+     *
+     * Dividia 680 (com os R$ 290 de produto) por 8 atendimentos e dava 85 — o
+     * numerador de uma grandeza sobre o denominador de outra, 74% acima do real.
+     * É o número com que o dono decide preço.
+     *
+     * Sobra 0,25 contra o ledger, e ela NÃO é de D2: `indicadores` arredonda ao
+     * real, não ao centavo. Isso é D1/D5, aberto e registrado abaixo — a
+     * correção de um achado não pode ser usada para varrer outro. */
+    expect(kpis.avgTicket).toBe(49);
     expect(LEDGER.indicadores.ticketDeServico).toBe(48.75);
+    expect(kpis.avgTicket - LEDGER.indicadores.ticketDeServico).toBeCloseTo(0.25, 2);
+  });
+
+  it("o produto continua medido, com nome próprio", () => {
+    /* A correção não podia apagar a informação: quem vende bem no balcão precisa
+     * enxergar isso. Os 85 antigos viraram um indicador legítimo — só deixaram
+     * de se chamar "ticket médio". */
+    expect(kpis.avgTicketComProduto).toBe(85);
+    expect(kpis.avgTicketComProduto).toBe(
+      Math.round(LEDGER.receita.realizada / LEDGER.indicadores.atendimentos)
+    );
   });
 });
 

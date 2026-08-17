@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { KpiTile } from "@/components/ui/kpi-tile";
 import { formatBRL } from "@/lib/format";
 import { useFinanceiro, mesAtual, rotuloDoMes } from "@/lib/db/use-financeiro";
+import { composicaoDaReceita } from "@/lib/analytics";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { useFeature, useTenant } from "@/lib/tenant-context";
 import { RecursoBloqueado } from "@/components/recurso-bloqueado";
@@ -66,12 +67,13 @@ function DreConteudo() {
   const products = raw.products;
   const nomeProduto = new Map(raw.services.map((s) => [s.id, s.name]));
 
-  const revenueBreakdown = [
-    { label: "Serviços avulsos", value: receita.servicos },
-    { label: "Produtos (loja)", value: receita.produtos },
-    { label: "Mensalistas", value: receita.mensalistas },
-    { label: "Encaixes", value: receita.encaixes },
-  ].filter((i) => i.value > 0);
+  /* A composição vem de `composicaoDaReceita`, a mesma que o Financeiro usa.
+   *
+   * Aqui a lista era montada à mão e incluía "Mensalistas": os filhos somavam
+   * 928 sob um cabeçalho de 680, e quem expandisse e somasse não fechava. A
+   * mensalidade não sumiu — ela aparece logo abaixo, no cartão de receita
+   * CONTRATADA, que é onde ela é verdade. */
+  const revenueBreakdown = composicaoDaReceita(receita);
 
   const topServices = raw.tops;
   const {

@@ -12,7 +12,7 @@ desenvolvimento segue a partir dele.
 > **Toda alteração feita depois de `aadf76f` declara o que mudou e o que precisa
 > ser revalidado.**
 
-Sem isso, a confiança construída em 651 verificações se dissolve sem ninguém
+Sem isso, a confiança construída em 635 verificações se dissolve sem ninguém
 perceber. Cada item abaixo carrega a coluna **revalidar** — e ela é parte da
 tarefa, não uma sugestão.
 
@@ -38,22 +38,43 @@ irrelevante. Uma promessa falsa ao cliente final é o contrário.
 
 ---
 
-# 🔴 Bloco 1 — Release blockers
+# ✅ Bloco 1 — Release blockers · **FECHADO**
 
-*Impedem colocar na mão de uma barbearia que paga.*
+*Impediam colocar na mão de uma barbearia que paga.*
 
-| # | O que é | Por que bloqueia | Custo | Revalidar |
-|---|---|---|---|---|
-| **D14** | Templates de WhatsApp prometem **estorno em 5 dias** e **pagamento antecipado** — não há gateway nem caminho de pagamento online | A promessa vai para o **cliente final**, que não contratou nada com a plataforma. É a mesma classe do checkout falso, esperando o gatilho do envio | baixo — reescrever 2 templates | catálogo de templates |
-| **P1-11** | A legenda do caixa ensina que *"Pix e cartão contam assim que confirmados"* — nenhum meio conta antes da conclusão | O dono lê que recebeu e não recebeu. É o número que ele confere todo dia | **1 linha** | Dashboard |
-| **D10** | A **previsão do dia não desconta a falta confirmada** | Depois de marcar "não veio", a previsão continua contando o valor. O dono fecha o dia com um número que já sabe ser falso | **1 linha** | Dashboard · previsão |
-| **D6 / P1-2** | No DRE, os filhos da receita somam **928** sob um cabeçalho de **680** — mensalista listado dentro da receita realizada | O dono expande, soma, e não fecha. Quebra a confiança na tela inteira | **1 linha** | DRE · 6 visões |
-| **P1-1** | Despesas: KPIs dizem *"no mês"* e somam o **histórico inteiro**, com **"julho de 2026"** cravado | O erro cresce a cada mês de uso. No terceiro mês, mostra o triplo | baixo | Despesas · DRE |
-| **P1-15** | O login abre na aba **"Celular"**, e o provider SMS não está habilitado | É o primeiro contato de **todo cliente** com o produto, e ele está quebrado por padrão | **1 linha** | login |
+**Rodada 1 executada em 17/08 sobre `aadf76f`. Relatório em `RODADA-1.md`.**
 
-> **Por que P1-11, D10, D6 e P1-1 estão aqui e não em "financeiro".** Nenhum é
-> erro de cálculo complexo — os quatro são números ou frases que **induzem o dono
-> ao erro**. O critério do bloco não é dificuldade, é consequência.
+| # | O que era | Correção | Estado |
+|---|---|---|---|
+| **D14** | Templates prometiam estorno, pagamento antecipado, cobrança recorrente, autoatendimento de plano e avaliação. Estimado em 2 templates; a varredura achou **15, com 30 ocorrências** — e a única mensagem que o produto **já envia** prometia devolução integral | 15 templates reescritos · `promessas.test.ts` (10 casos, 8 falhavam) | 🟢 |
+| **P1-11** | A legenda do caixa ensinava *"Pix e cartão contam assim que confirmados"* | frase reescrita a partir de `isReceived` · 4 testes de invariante | 🟢 |
+| **D10** | A previsão do dia não descontava a falta confirmada | `previsaoDoDia` · 5 testes | 🟢 |
+| **D6 / P1-2** | Filhos da receita somavam **928** sob cabeçalho de **680** | `composicaoDaReceita` como fonte única · 7 testes | 🟢 |
+| **P1-1** | KPIs diziam *"no mês"* e somavam o histórico, com **"julho de 2026"** cravado | `resumoDeDespesas` · rótulos derivados · 5 testes | 🟢 |
+| **P1-15** | Login abria na aba "Celular" com o provider SMS desabilitado | `metodos-de-login.ts` · 5 testes, um deles a invariante que faltava | 🟢 |
+
+> **Por que P1-11, D10, D6 e P1-1 estavam aqui e não em "financeiro".** Nenhum
+> era erro de cálculo complexo — os quatro eram números ou frases que **induziam
+> o dono ao erro**. O critério do bloco não é dificuldade, é consequência.
+
+**Falta ainda:** nenhuma dessas telas foi **aberta**. A suíte prova a origem dos
+números; a leitura deles é o Day in the Life, com executor humano.
+
+### D17 · avaliação de atendimento — **permanece aberto**
+
+Achado durante a varredura de D14: `pos_atendimento` convidava o cliente a
+*"avaliar o atendimento"* num endereço onde não há o que avaliar.
+
+**O que foi feito:** o convite saiu do template, e `promessas.test.ts` impede que
+volte. A mensagem não promete mais.
+
+**Por que continua 🟠 aberto:** tirar a frase resolveu a mentira, não a lacuna.
+**Não existe avaliação em lugar nenhum do produto** — nem nota, nem estrela, nem
+review, nem no web, nem nas functions, nem no domínio. Enquanto a capacidade não
+existir, D17 é gap de produto e fica no Bloco 2, não riscado no Bloco 1.
+
+É a distinção que a régua desta fase exige: **parar de afirmar não é o mesmo que
+passar a fazer.**
 
 ---
 
@@ -70,6 +91,7 @@ irrelevante. Uma promessa falsa ao cliente final é o contrário.
 | **P1-4** | Remarcar oferece horários **já ocupados por outros clientes** — a tela usa cálculo local que só enxerga as reservas do próprio cliente | O cliente tenta remarcar e leva erro. É o defeito que `availableSlots` corrigiu no agendar e não foi aplicado aqui | baixo | agenda |
 | **P1-13** | O limite de 2 remarcações vive num `useState` — zera com F5 | A tela anuncia uma regra que não existe | baixo | reservas |
 | **P2-4** | Jornada por barbeiro é lida pelo servidor e **não tem interface** | Folga e horário próprio são funcionalidade inalcançável | médio | agenda |
+| **D17** | **Não existe avaliação de atendimento.** Nem nota, nem estrela, nem review — em nenhuma camada | A régua pós-atendimento perde o gatilho de reputação, e a barbearia não tem como saber o que o cliente achou. A promessa já saiu do template (Rodada 1); a capacidade continua ausente | médio | catálogo de templates · pós-atendimento |
 
 ---
 
@@ -83,12 +105,12 @@ irrelevante. Uma promessa falsa ao cliente final é o contrário.
 | **D8 / D11** | **Resultado e caixa não se separam.** Não existe, em lugar nenhum, um número que responda *"quanto sobrou no caixa"* | O Fluxo de Caixa é faturamento diário com nome de fluxo de caixa. É o núcleo da promessa "gestão financeira" | alto | ledger · 6 visões · Fluxo |
 | **D4** | A venda de produto entra no caixa **toda como dinheiro** | O caixa por meio de pagamento não fecha com a realidade | médio | ledger · Fluxo |
 | **D7** | Venda de produto **não gera taxa de maquininha** | A taxa de cartão sobre produto some do custo | médio | ledger · DRE |
-| **D2** | Ticket médio divide receita **com produtos** por atendimentos de serviço | 85,00 onde o real é 48,75 — 74% maior. É número de decisão de preço | **1 linha** | Números |
+| ~~**D2**~~ | ~~Ticket médio divide receita **com produtos** por atendimentos de serviço~~ | ✅ **fechado na Rodada 1.** `avgTicket` mede serviço; os R$ 85 viraram `avgTicketComProduto` | — | Números |
 | **P1-7** | A Loja calcula comissão e imposto com a **constante da plataforma**, não com a política da barbearia | Quem combinou 50/50 vê 40% | baixo | Loja |
-| **P1-9** | Sob "Faturamento da loja", a legenda mostra a **comissão total do mês** | Número de outra grandeza sob o cartão errado | **1 linha** | Financeiro |
+| ~~**P1-9**~~ | ~~Sob "Faturamento da loja", a legenda mostra a **comissão total do mês**~~ | ✅ **fechado na Rodada 1.** `commissionsLoja` no lugar de `commissions` | — | Financeiro |
 | **P1-10** | "Crescimento líquido de mensalistas" conta **todos os ativos como novos** | O dado não sustenta a afirmação: falta `createdAt` | baixo | Financeiro |
-| **D9** | O KPI **"Despesas"** mostra o custo total (2.997,50), não as despesas (2.550) | Rótulo descreve outra coisa | **1 linha** | Financeiro |
-| **P1-14** | A projeção diz *"acumulado nos 30 dias"* em **todos** os horizontes | Rótulo fixo com seletor variável | **1 linha** | Projeção |
+| ~~**D9**~~ | ~~O KPI **"Despesas"** mostra o custo total (2.997,50), não as despesas (2.550)~~ | ✅ **fechado na Rodada 1.** Virou "Custo total", com as **seis** parcelas enumeradas e somadas por teste | — | Financeiro |
+| ~~**P1-14**~~ | ~~A projeção diz *"acumulado nos 30 dias"* em **todos** os horizontes~~ | ✅ **fechado na Rodada 1.** Legenda derivada de `HORIZONTES[horizonte].dias` | — | Projeção |
 | **D1 / D5** | Taxas e imposto arredondam **ao real**, não ao centavo | Sistemático e sempre a favor do lucro aparente | baixo | ledger · DRE |
 | **D12** | Venda de produto não aparece no **Dashboard** | Quem vende no balcão não vê no caixa do dia | decisão | Dashboard |
 
@@ -123,12 +145,24 @@ irrelevante. Uma promessa falsa ao cliente final é o contrário.
 Não é a ordem dos blocos. É a que entrega valor comercial mais rápido com menor
 risco de revalidação.
 
-### Rodada 1 — as promessas falsas e os números que mentem
+### ✅ Rodada 1 — as promessas falsas e os números que mentem
 `D14 · P1-11 · D10 · D6 · P1-1 · P1-15 · D2 · D9 · P1-14 · P1-9`
 
-Dez itens, quase todos de **uma linha**, e nenhum toca o modelo. Revalidação
-barata: Dashboard, DRE e Financeiro. **Elimina a categoria FALSE PROMISE do
+**Executada em 17/08. Dez itens, dez verdes.** Relatório completo em
+`RODADA-1.md`. Nenhum tocou o modelo. **A categoria FALSE PROMISE saiu do
 produto** — que é o que separa "tem bug" de "mente".
+
+Três coisas que a execução ensinou, e que valem para as próximas rodadas:
+
+1. **A estimativa do backlog é chute até a varredura.** D14 estava orçado em
+   "2 templates"; eram 15, com 30 ocorrências e uma família de promessa que
+   ninguém tinha visto (avaliação de atendimento).
+2. **Corrigir rótulo cria rótulo errado.** Três defeitos nasceram *dentro* desta
+   rodada, e o que os pegou foi revalidar a tela inteira e somar as parcelas —
+   não reler a linha alterada.
+3. **Suíte verde não abriu tela nenhuma.** Os 680 testes provam a origem dos
+   números. Se a frase nova cabe no cartão e faz sentido para quem lê, isso
+   continua sendo o Day in the Life.
 
 ### Rodada 2 — a operação que falta
 `D13 · G1 · G2 · P1-4 · P1-13`

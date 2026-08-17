@@ -127,6 +127,77 @@ export function receitaDoMes(params: {
   };
 }
 
+/**
+ * De onde vem a receita REALIZADA — a composição que as telas listam.
+ *
+ * Existia duas vezes, montada à mão em cada tela, e as duas discordavam: o
+ * Financeiro excluía mensalista e o DRE o incluía. No DRE isso quebrava a
+ * própria árvore — os filhos somavam 928 sob um cabeçalho de 680, e o dono que
+ * expandisse e somasse na mão não fechava.
+ *
+ * Mensalista fica de fora porque **não é receita realizada**: é contrato sem
+ * lastro de recebimento. Ele não some do produto — aparece com nome próprio,
+ * como receita contratada, e na projeção como cobrança futura. A regra, escrita:
+ * **contratado projeta, realizado fatura.**
+ *
+ * Linha zerada não entra: uma barbearia que não vende produto não precisa ver
+ * "Produtos (loja) · R$ 0,00" todo mês.
+ */
+export function composicaoDaReceita(receita: ReceitaDoMes) {
+  return [
+    { label: "Serviços avulsos", value: receita.servicos },
+    { label: "Produtos (loja)", value: receita.produtos },
+    { label: "Encaixes", value: receita.encaixes },
+  ].filter((item) => item.value > 0);
+}
+
+/**
+ * Quanto o dia ainda pode render.
+ *
+ * Somava tudo que ocupa a agenda — e `no_show` ocupa, corretamente, porque a
+ * cadeira foi reservada e ninguém mais pôde usá-la. O efeito: depois de o dono
+ * marcar "não veio", o recebido caía para zero e a previsão continuava contando
+ * o valor. A barra mostrava 0% de um número que já se sabia que não viria.
+ *
+ * Previsão e ocupação respondem perguntas diferentes: uma é sobre dinheiro que
+ * ainda pode entrar, a outra sobre a cadeira que foi perdida. A falta continua
+ * ocupando; ela só deixa de ser prevista.
+ */
+export function previsaoDoDia(bookings: Doc<BookingDoc>[]) {
+  return bookings
+    .filter((b) => b.status !== "no_show" && OCCUPIES_SLOT.includes(b.status))
+    .reduce((soma, b) => soma + b.value, 0);
+}
+
+/**
+ * O resumo de despesas de um período.
+ *
+ * A tela somava TODAS as despesas já lançadas e rotulava "Total no mês" — o erro
+ * cresce a cada mês de uso, e no terceiro mostra o triplo do que o dono gastou.
+ */
+export function resumoDeDespesas(expenses: Doc<ExpenseDoc>[], periodo: Periodo) {
+  const doPeriodo = expenses.filter((e) => dentroDoPeriodo(e.date, periodo));
+
+  const porCategoria = new Map<string, number>();
+  for (const e of doPeriodo) {
+    porCategoria.set(e.category, (porCategoria.get(e.category) ?? 0) + e.value);
+  }
+
+  let maiorCategoria = { categoria: "—", valor: 0 };
+  for (const [categoria, valor] of porCategoria) {
+    if (valor > maiorCategoria.valor) maiorCategoria = { categoria, valor };
+  }
+
+  return {
+    lancamentos: doPeriodo.length,
+    total: doPeriodo.reduce((s, e) => s + e.value, 0),
+    recorrentes: doPeriodo.filter((e) => e.recurring).reduce((s, e) => s + e.value, 0),
+    maiorCategoria,
+    /** A lista já recortada, para a tabela não refazer o filtro. */
+    itens: doPeriodo,
+  };
+}
+
 /* ------------------------------------------------------------------ */
 /* Caixa dia a dia                                                     */
 /* ------------------------------------------------------------------ */
@@ -504,7 +575,10 @@ function breakEvenDayFor(receita: number, custo: number, diasNoMes: number) {
 export type Indicadores = {
   revenue: number;
   appointments: number;
+  /** Valor médio do ATENDIMENTO — só serviço, que é o que a cadeira produz. */
   avgTicket: number;
+  /** O mesmo atendimento, contando o que o cliente levou do balcão. */
+  avgTicketComProduto: number;
   occupancyPct: number;
   noShowPct: number;
   noShowCount: number;
@@ -524,10 +598,25 @@ export function indicadores(params: {
   const noShow = doPeriodo.filter((b) => b.status === "no_show");
   const cancelados = doPeriodo.filter((b) => b.status === "cancelled_by_client");
 
+  /* O ticket mede o ATENDIMENTO.
+   *
+   * Dividia `receita.bruta` — que inclui a venda de produto — pelo número de
+   * atendimentos de serviço: o numerador de uma grandeza sobre o denominador de
+   * outra. Numa massa de 8 atendimentos, dava R$ 85,00 onde o serviço médio é
+   * R$ 48,75, 74% maior. É o número com que o dono decide preço.
+   *
+   * O valor com produto não some: ganha nome próprio, porque quem vende bem no
+   * balcão precisa enxergar isso. São duas perguntas, e agora têm duas
+   * respostas. */
+  const receitaDeServico = params.receita.servicos + params.receita.encaixes;
+
   return {
     revenue: params.receita.bruta,
     appointments: params.receita.atendimentos,
-    avgTicket: Math.round(safeDiv(params.receita.bruta, params.receita.atendimentos)),
+    avgTicket: Math.round(safeDiv(receitaDeServico, params.receita.atendimentos)),
+    avgTicketComProduto: Math.round(
+      safeDiv(params.receita.bruta, params.receita.atendimentos)
+    ),
     occupancyPct: Math.min(Math.round(safeDiv(ocupados.length, params.capacidade) * 100), 100),
     noShowPct: Math.round(safeDiv(noShow.length, doPeriodo.length) * 1000) / 10,
     noShowCount: noShow.length,
@@ -672,6 +761,29 @@ function semanaDoAno(iso: string) {
 /* ------------------------------------------------------------------ */
 /* Projeção de caixa                                                   */
 /* ------------------------------------------------------------------ */
+
+/**
+ * Horizontes de projeção.
+ *
+ * Quanto mais longe, menos "previsão" e mais "modelo": ninguém marca corte
+ * para daqui a seis meses, então além de ~60 dias praticamente todo dia é
+ * estimativa em cima da média histórica por dia da semana. A tela precisa
+ * DIZER isso — projeção anual apresentada com a mesma confiança da mensal é
+ * número bonito que induz decisão errada.
+ *
+ * `dias` é a fonte única do horizonte: o mesmo valor alimenta o cálculo e o
+ * rótulo. A legenda da tela dizia "acumulado nos 30 dias" cravado, com este
+ * seletor de quatro opções logo acima — errada em três dos quatro casos, e o
+ * erro crescia com o horizonte (P1-14).
+ */
+export const HORIZONTES = {
+  mensal: { dias: 30, rotulo: "Mensal", porMes: false },
+  trimestral: { dias: 91, rotulo: "Trimestral", porMes: true },
+  semestral: { dias: 182, rotulo: "Semestral", porMes: true },
+  anual: { dias: 365, rotulo: "Anual", porMes: true },
+} as const;
+
+export type Horizonte = keyof typeof HORIZONTES;
 
 export type DiaProjetado = {
   date: string;

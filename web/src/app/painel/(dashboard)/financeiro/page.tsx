@@ -23,6 +23,7 @@ import { formatBRL, safePct } from "@/lib/format";
 import { useFinanceiro, mesAtual, rotuloDoMes } from "@/lib/db/use-financeiro";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { paymentGateways } from "@/lib/business-rules";
+import { composicaoDaReceita } from "@/lib/analytics";
 
 const REVENUE_BAR_SHADES = ["bg-gold", "bg-gold/75", "bg-gold/50", "bg-gold/30"];
 
@@ -36,11 +37,7 @@ export default function FinanceiroPage() {
   /* Sem mensalistas: esta é a composição da receita REALIZADA, e mensalidade
    * não tem lastro de recebimento enquanto não houver cobrança. Ela aparece
    * logo abaixo, com nome próprio. */
-  const revenueBreakdown = [
-    { label: "Serviços avulsos", value: receita.servicos },
-    { label: "Produtos (loja)", value: receita.produtos },
-    { label: "Encaixes", value: receita.encaixes },
-  ].filter((item) => item.value > 0);
+  const revenueBreakdown = composicaoDaReceita(receita);
 
   const mrr = {
     billed: receita.mensalistas,
@@ -116,7 +113,21 @@ export default function FinanceiroPage() {
                 : "atendimentos e vendas com desfecho registrado"
             }
           />
-          <KpiTile tone="danger" icon={TrendingDown} label="Despesas" value={formatBRL(totalExpenses)} />
+          {/* "Despesas" descrevia outra coisa: o valor é o CUSTO TOTAL — CMV,
+              taxas, comissões, folha e imposto incluídos. O dono pensa em
+              aluguel e luz, que somam bem menos. O número está certo para o que
+              é, e agora o rótulo diz o que ele é.
+              A legenda enumera as SEIS parcelas de `totalCost`, e não cinco: a
+              folha fixa entra por `folhaMensal(staff)` e some da conta de quem
+              lê. Uma enumeração incompleta seria o mesmo defeito num tamanho
+              menor. `rodada-1.test.ts` prova que as seis fecham o total. */}
+          <KpiTile
+            tone="danger"
+            icon={TrendingDown}
+            label="Custo total"
+            value={formatBRL(totalExpenses)}
+            caption="comissões, folha, taxas, produto, despesas e imposto"
+          />
           <KpiTile
             tone={signTone(operatingResult)}
             icon={TrendingUp}
@@ -286,7 +297,7 @@ export default function FinanceiroPage() {
             icon={Store}
             label="Faturamento da loja"
             value={formatBRL(commercialStats.storeRevenue)}
-            caption={`comissão do profissional: ${formatBRL(r.commissions)}`}
+            caption={`comissão sobre o lucro da loja: ${formatBRL(r.commissionsLoja)}`}
           />
         </div>
       </section>

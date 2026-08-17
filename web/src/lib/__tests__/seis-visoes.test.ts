@@ -4,6 +4,7 @@ import {
   caixaDiario,
   caixaDoDia,
   comissoesDeServico,
+  composicaoDaReceita,
   mesPeriodo,
   projecaoDeCaixa,
   receitaDoMes,
@@ -208,29 +209,41 @@ describe("visão 2 · Financeiro", () => {
 /* VISÃO 3 · DRE                                                       */
 /* ------------------------------------------------------------------ */
 
-/** A árvore de receita, como `dre/page.tsx` a monta (l. 69-74). */
-const arvoreDaReceita = [
-  { label: "Serviços avulsos", value: receita.servicos },
-  { label: "Produtos (loja)", value: receita.produtos },
-  { label: "Mensalistas", value: receita.mensalistas },
-  { label: "Encaixes", value: receita.encaixes },
-].filter((i) => i.value > 0);
+/**
+ * A árvore de receita, como o DRE a monta.
+ *
+ * Era uma cópia manual das linhas 69-74 de `dre/page.tsx`. Depois da correção
+ * de D6 as duas telas passaram a chamar `composicaoDaReceita`, e a cópia aqui
+ * virou risco: ela continuaria verde descrevendo uma tela que não existe mais.
+ * Chamar a função é o que mantém este arquivo medindo o produto.
+ */
+const arvoreDaReceita = composicaoDaReceita(receita);
 
 describe("visão 3 · DRE", () => {
   it("a escada fecha na identidade", () => {
     expect(dre.grossRevenue - dre.totalCost).toBeCloseTo(dre.result, 2);
   });
 
-  it("ERRO · I4 — os filhos da receita NÃO somam o cabeçalho", () => {
-    /* O cabeçalho do grupo é `grossRevenue` (680) e a árvore lista mensalistas
-     * (248) entre os filhos. O dono expande, soma na mão, e não fecha.
+  it("I4 — os filhos da receita somam o cabeçalho", () => {
+    /* Era o único ERRO desta suíte (D6). O cabeçalho do grupo é `grossRevenue`
+     * (680) e a árvore listava mensalistas (248) entre os filhos, somando 928:
+     * o dono expandia, somava na mão, e não fechava. Pior, o Financeiro fazia a
+     * mesma composição SEM mensalista — as duas telas discordavam sobre o que
+     * compõe a receita realizada.
      *
-     * A tela de Financeiro faz a mesma composição SEM mensalista — as duas
-     * telas discordam sobre o que compõe a receita realizada. */
+     * Corrigido na Rodada 1 com uma fonte só para as duas telas. */
     const somaDosFilhos = arvoreDaReceita.reduce((s, i) => s + i.value, 0);
     expect(dre.grossRevenue).toBe(680);
-    expect(somaDosFilhos).toBe(928);
-    expect(somaDosFilhos - dre.grossRevenue).toBe(248);
+    expect(somaDosFilhos).toBe(680);
+    expect(somaDosFilhos - dre.grossRevenue).toBe(0);
+  });
+
+  it("os R$ 248 de mensalista não sumiram — mudaram de bloco", () => {
+    /* A correção de D6 não é esconder o contratado. Ele continua na receita, com
+     * nome próprio, fora da árvore do realizado: contratado projeta, realizado
+     * fatura. Se alguém "corrigisse" zerando o campo, este teste cairia. */
+    expect(receita.mensalistas).toBe(248);
+    expect(arvoreDaReceita.map((i) => i.label)).not.toContain("Mensalistas");
   });
 
   it("a comissão do DRE bate com a soma por barbeiro", () => {

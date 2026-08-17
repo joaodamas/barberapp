@@ -13,17 +13,27 @@ Gate A, **sem alterar o produto**.
 | Frente | Testes | Resultado |
 |---|---|---|
 | Firestore — ataque sistemático | **76** | ✅ nenhuma violação passou |
-| Firestore — regras (suíte anterior) | 66 | ✅ |
-| Storage | 16 | ✅ |
+| Firestore — regras (suíte anterior) | 52 | ✅ |
+| Storage — regras | 14 | ✅ |
 | Autorização das Cloud Functions | **24** | ✅ |
-| | **182** | |
+| | **166** | |
 
 ```bash
 cd functions
 npm run test:isolamento    # 76 · o ataque
-npm run test:rules         # 66 + 16 · regras de Firestore e Storage
+npm run test:rules         # 52 + 14 · regras de Firestore e Storage
 npm test                   # inclui os 24 de autorização
 ```
+
+> **Correção de 17/08, na Rodada 1.** Esta tabela dizia **182**, e o erro tinha
+> duas partes: `66` era o total do `test:rules` — Firestore **e** Storage juntos
+> —, e o Storage foi somado outra vez embaixo, ainda por cima como `16` em vez
+> de `14`. Contado uma vez cada, dá **166**.
+>
+> Nenhuma verificação deixou de rodar: as quatro suítes passam, e o resultado
+> desta análise não muda. O que muda é o número que a folha declara — e um
+> número inflado a favor da própria auditoria é o pior erro que ela pode
+> cometer. Foi daqui que saiu o **82** de `GATE-B.md`, corrigido junto.
 
 **Conclusão:** a Alfa opera a própria casa integralmente e **é incapaz de ler ou
 modificar qualquer dado da Beta**. Dois pontos de exposição da própria
@@ -196,5 +206,5 @@ Honestidade sobre o alcance:
 
 ---
 
-*182 verificações, sem alteração de produto. Os dois achados (D15, D16) são de
+*166 verificações, sem alteração de produto. Os dois achados (D15, D16) são de
 exposição da plataforma, não de vazamento entre barbearias.*

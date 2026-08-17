@@ -18,8 +18,14 @@ import { useAuth } from "@/lib/auth-context";
 import { useTenant } from "@/lib/tenant-context";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  metodoPadrao,
+  metodosDisponiveis,
+  mostrarSeletor,
+  type MetodoDeLogin,
+} from "@/lib/metodos-de-login";
 
-type Method = "phone" | "email";
+type Method = MetodoDeLogin;
 type PhoneStep = "phone" | "code";
 type EmailMode = "entrar" | "criar";
 
@@ -65,7 +71,9 @@ export default function LoginPage() {
   const { user, claims, loading } = useAuth();
   const tenant = useTenant();
   const { brand } = tenant;
-  const [method, setMethod] = useState<Method>("phone");
+  /* O caminho de entrada precisa FUNCIONAR. A regra e o porquê estão em
+   * `lib/metodos-de-login.ts`, onde o teste consegue afirmá-los. */
+  const [method, setMethod] = useState<Method>(metodoPadrao());
 
   const [phoneStep, setPhoneStep] = useState<PhoneStep>("phone");
   const [phone, setPhone] = useState("");
@@ -235,8 +243,9 @@ export default function LoginPage() {
       </div>
 
       <Card className="flex w-full max-w-sm flex-col gap-4 p-6">
+        {mostrarSeletor() && (
         <div className="flex gap-2 rounded-xl border border-border bg-surface p-1">
-          {(["phone", "email"] as Method[]).map((m) => (
+          {metodosDisponiveis().map((m) => (
             <button
               key={m}
               type="button"
@@ -257,6 +266,7 @@ export default function LoginPage() {
             </button>
           ))}
         </div>
+        )}
 
         {method === "phone" ? (
           phoneStep === "phone" ? (

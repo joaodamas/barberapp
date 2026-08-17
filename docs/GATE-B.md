@@ -5,11 +5,19 @@
 Esta é a decisão, e ela não é técnica: olha **produto, operação, financeiro e
 segurança**, não a suíte de testes. Os testes são insumo, não resposta.
 
-**Estado: aguardando a última evidência.** O código está congelado em `59c851f`
-e nada é alterado até o Day in the Life humano voltar — inclusive D14, que já
-está classificado como release blocker. Corrigi-lo agora contaminaria a leitura
-do teste: o executor precisa ver o produto que estamos prestes a liberar,
-promessas latentes incluídas.
+**Estado: aguardando a evidência operacional.** As três dimensões técnicas estão
+respondidas; a quarta — operação — continua sem resposta, e nenhuma suíte a
+responde por ela.
+
+> **Atualização de 17/08.** O congelamento foi levantado: `aadf76f` passou a ser
+> **marco de comparação, não portão de desenvolvimento**, e a Fase 3 abriu. A
+> **Rodada 1** fechou os dez itens de promessa falsa e número enganoso —
+> inclusive **D14** e **P1-11**, que esta folha registra como abertos abaixo.
+> Relatório em `RODADA-1.md`; backlog em `BACKLOG-FASE-3.md`.
+>
+> As tabelas da §2 e a §4 ficam como estavam **de propósito**: são o retrato do
+> estado congelado, e é contra ele que a Rodada 1 se compara. O que mudou está
+> anotado linha a linha.
 
 ---
 
@@ -27,8 +35,26 @@ Verificação executada no momento do congelamento:
 | `functions` — typecheck · testes | ✅ **212** |
 | `functions` — concorrência (emulador) | ✅ **13** |
 | `functions` — isolamento multi-tenant (emulador) | ✅ **76** |
-| `functions` — regras Firestore + Storage (emulador) | ✅ **82** |
-| | **651 verificações** |
+| `functions` — regras Firestore + Storage (emulador) | ✅ **66** |
+| | **635 verificações** |
+
+> **Correção de 17/08, na Rodada 1.** Esta tabela registrava **82** para as
+> regras e **651** no total. Os dois arquivos não mudaram desde o congelamento e
+> declaram **66** testes (52 Firestore + 14 Storage) — que é o que roda, medido
+> duas vezes. O total correto da baseline é **635**.
+>
+> A origem foi encontrada: o resumo de `ISOLAMENTO-MULTI-TENANT.md` lia `66`
+> como "regras do Firestore" e somava Storage **outra vez** embaixo, como `16`
+> em vez de `14`. Os `+16` desceram para cá como `82`, e o mesmo engano inflava
+> as "182 verificações" de isolamento, que são **166**. Corrigido nos dois docs.
+>
+> Vale a regra 2 na direção inversa: **nenhum PASS sem evidência que o
+> reproduza.** Um número inflado a favor da própria auditoria é o pior tipo de
+> erro que ela pode cometer.
+>
+> *Nota operacional:* `npm run test:rules` usa aspas simples e falha no
+> PowerShell — as suítes rodam, mas o script precisa das aspas duplas que
+> `test:concorrencia` e `test:isolamento` já usam.
 
 ```bash
 cd web       && npm run check && npm run build
@@ -43,9 +69,9 @@ cd functions && npm run typecheck && npm run test:tudo
 
 | Frente | Estado |
 |---|---|
-| Isolamento entre barbearias | 🟢 **182 verificações, nenhuma violação passou** |
+| Isolamento entre barbearias | 🟢 **166 verificações, nenhuma violação passou** |
 | Autorização das Cloud Functions | 🟢 as 21 classificadas e verificadas |
-| Storage | 🟢 16 verificações |
+| Storage | 🟢 14 verificações |
 | Regras do Firestore | 🟢 negar por padrão, com fallback duplo |
 | **SEC-001** · runtime das functions com `roles/editor` | 🔴 **aberto** |
 | **SEC-002** · owner e billing únicos, fora de organização | 🔴 **aberto** |
@@ -65,10 +91,10 @@ cd functions && npm run typecheck && npm run test:tudo
 | Congelamento do fato (comissão e taxa) | 🟢 provado, inclusive contra reversão indevida |
 | Reconciliação contra ledger independente | 🟢 os R$ 348 indevidos ficaram fora |
 | Invariantes entre as 6 visões | 🟢 I1, I2, I3, I5, I6, I7 valem |
-| **I4** · filhos do DRE somam o cabeçalho | ❌ **D6** |
+| **I4** · filhos do DRE somam o cabeçalho | ❌ **D6** → ✅ fechado na Rodada 1 |
 | **D3** · CMV = compras, não custo do vendido | ⏸ **modelo — decisão pendente** |
 | **D8/D11** · resultado × caixa não se separam | ⏸ **modelo — decisão pendente** |
-| D1, D2, D4, D5, D7, D9, D10 | 🟠 P1/P2, quantificados |
+| D1, D2, D4, D5, D7, D9, D10 | 🟠 P1/P2, quantificados — **D2, D9, D10 fechados na Rodada 1** |
 
 > A diferença entre o ledger e o sistema é **R$ 34,75 em R$ 680 — 5,1%** — e é
 > explicável item a item. Ela **não escala linearmente**: D3 cresce com a
@@ -80,7 +106,7 @@ cd functions && npm run typecheck && npm run test:tudo
 |---|---|
 | Os 6 P0 do Gate A | 🟢 fechados com teste |
 | Promessas falsas eliminadas | 🟢 checkout, encaixe, política, preço, notificações |
-| **D14** · WhatsApp promete estorno e pagamento online | 🔴 **release blocker, congelado** |
+| **D14** · WhatsApp promete estorno e pagamento online | 🔴 release blocker → ✅ **fechado na Rodada 1** (15 templates, 30 ocorrências) |
 | **D13** · o dono não consegue criar reserva | 🟠 **gap — decisão pendente** |
 | Venda de produto | 🟠 sem caminho na interface |
 | Cadastro de mensalista | 🟠 sem caminho na interface |

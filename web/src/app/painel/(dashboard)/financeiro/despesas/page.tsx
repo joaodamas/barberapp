@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
 import { Modal } from "@/components/ui/modal";
 import { formatBRL, formatDateShortPtBR } from "@/lib/format";
+import { mesPeriodo, resumoDeDespesas } from "@/lib/analytics";
+import { mesAtual, rotuloDoMes } from "@/lib/db/use-financeiro";
 import {
   expenseCategories,
   expensePaymentMethods,
@@ -53,27 +55,22 @@ export default function DespesasPage() {
   /** Exclusão pedia confirmação em Reservas mas apagava lançamento num clique. */
   const [pendingDelete, setPendingDelete] = useState<Expense | null>(null);
 
-  // A ordenação vem do Firestore (`orderBy date desc`); o sort local existia
-  // porque a lista era um array fixo fora de ordem.
-  const sorted = expenses;
   const [saving, setSaving] = useState(false);
 
-  const total = expenses.reduce((s, e) => s + e.value, 0);
-  const recurringTotal = expenses
-    .filter((e) => e.recurring)
-    .reduce((s, e) => s + e.value, 0);
+  /* Os KPIs diziam "no mês" e somavam o HISTÓRICO INTEIRO — o erro crescia a
+   * cada mês de uso, e no terceiro mostrava o triplo do que o dono gastou. Um
+   * dos rótulos trazia "julho de 2026" cravado no código.
+   *
+   * O recorte agora é o mês exibido, e o rótulo diz qual é. */
+  const mes = mesAtual();
+  const resumo = useMemo(() => resumoDeDespesas(expenses, mesPeriodo(mes)), [expenses, mes]);
+  const total = resumo.total;
+  const recurringTotal = resumo.recorrentes;
+  const topCategory = { category: resumo.maiorCategoria.categoria, value: resumo.maiorCategoria.valor };
 
-  const topCategory = useMemo(() => {
-    const byCategory = new Map<string, number>();
-    for (const e of expenses) {
-      byCategory.set(e.category, (byCategory.get(e.category) ?? 0) + e.value);
-    }
-    let best = { category: "—", value: 0 };
-    for (const [category, value] of byCategory) {
-      if (value > best.value) best = { category, value };
-    }
-    return best;
-  }, [expenses]);
+  // A ordenação vem do Firestore (`orderBy date desc`); a lista já vem recortada
+  // pelo mês, para a tabela não repetir o filtro dos KPIs.
+  const sorted = resumo.itens;
 
   function openModal() {
     setEditingId(null);
@@ -167,7 +164,7 @@ export default function DespesasPage() {
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm text-ivory-muted md:text-base">
-            {expenses.length} lançamento(s) cadastrado(s)
+            {resumo.lancamentos} lançamento(s) em {rotuloDoMes(mes)}
           </p>
           <h1 className="text-xl text-ivory md:text-3xl md:tracking-tight">Despesas</h1>
         </div>
@@ -183,8 +180,8 @@ export default function DespesasPage() {
             <CheckSquare size={12} className="text-gold-light" />
             <p className="text-[11px] uppercase tracking-wide text-ivory-muted md:text-xs">Lançamentos</p>
           </div>
-          <p className="font-display text-lg font-semibold text-ivory md:text-2xl">{expenses.length}</p>
-          <p className="text-[11px] text-ivory-muted md:text-xs">no mês atual</p>
+          <p className="font-display text-lg font-semibold text-ivory md:text-2xl">{resumo.lancamentos}</p>
+          <p className="text-[11px] text-ivory-muted md:text-xs">em {rotuloDoMes(mes)}</p>
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-5">
           <div className="flex items-center gap-1.5">
@@ -192,7 +189,7 @@ export default function DespesasPage() {
             <p className="text-[11px] uppercase tracking-wide text-ivory-muted md:text-xs">Total no mês</p>
           </div>
           <p className="font-display text-lg font-semibold text-ivory md:text-2xl">{formatBRL(total)}</p>
-          <p className="text-[11px] text-ivory-muted md:text-xs">julho de 2026</p>
+          <p className="text-[11px] text-ivory-muted md:text-xs">{rotuloDoMes(mes)}</p>
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-5">
           <div className="flex items-center gap-1.5">
@@ -208,7 +205,7 @@ export default function DespesasPage() {
             <p className="text-[11px] uppercase tracking-wide text-ivory-muted md:text-xs">Maior categoria</p>
           </div>
           <p className="font-display text-lg font-semibold text-ivory md:text-xl">{topCategory.category}</p>
-          <p className="text-[11px] text-ivory-muted md:text-xs">{formatBRL(topCategory.value)} no mês</p>
+          <p className="text-[11px] text-ivory-muted md:text-xs">{formatBRL(topCategory.value)} em {rotuloDoMes(mes)}</p>
         </Card>
       </div>
 
@@ -242,8 +239,12 @@ export default function DespesasPage() {
             )}
             {status === "pronto" && sorted.length === 0 && (
               <tr>
+                {/* "ainda" valia quando a lista era o histórico inteiro. Com o
+                    recorte por mês, um mês vazio não significa que nunca houve
+                    despesa — e o dono precisa saber que está olhando um recorte,
+                    ou vai lançar de novo o que já lançou. */}
                 <td colSpan={7} className="px-4 py-10 text-center text-sm text-ivory-muted md:px-6">
-                  Nenhuma despesa lançada ainda.
+                  Nenhuma despesa lançada em {rotuloDoMes(mes)}.
                 </td>
               </tr>
             )}

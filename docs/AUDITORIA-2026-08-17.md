@@ -22,13 +22,19 @@
 > | | Achado | Origem | Estado |
 > |---|---|---|---|
 > | 🔴 | **D13** · o dono **não consegue criar uma reserva** | Day in the Life, 09:00 | potencial release blocker — decisão de produto pendente |
-> | 🔴 | **P1-11** · a legenda do caixa ensina uma regra que não existe mais | confirmado **na interface** | corrigir antes do piloto |
-> | ⚫ | **D14** · templates de WhatsApp prometem **pagamento online e estorno**, que não existem | varredura da regra canônica | latente — sai no dia em que o envio funcionar |
+> | ✅ | **P1-11** · a legenda do caixa ensina uma regra que não existe mais | confirmado **na interface** | corrigido na Rodada 1 · 4 testes de invariante |
+> | ✅ | **D14** · templates de WhatsApp prometem **pagamento online e estorno**, que não existem | varredura da regra canônica | corrigido na Rodada 1 — eram **15 templates e 30 ocorrências**, não 2 |
+> | 🟠 | **D17** · `pos_atendimento` convida o cliente a **avaliar o atendimento**, e não existe avaliação em lugar nenhum do produto | varredura de D14 | promessa removida na Rodada 1 · **gap permanece aberto** no Bloco 2 |
 > | 🟡 | **D15** · a **lista de todas as barbearias** é enumerável sem login | isolamento multi-tenant | exposição comercial da plataforma |
 > | 🟡 | **D16** · o índice de **slugs** também é enumerável | isolamento multi-tenant | mesma origem de D15 |
 > | ✅ | ~~"login válido não avança"~~ | **retirado** — ver §8 | não era achado |
 >
-> **Isolamento multi-tenant: 182 verificações, nenhuma violação passou.** A Alfa
+> **Rodada 1 (Fase 3) executada em 17/08: os dez itens fechados, relatório em
+> `RODADA-1.md`.** Além de P1-11, D14 e D17, fecharam D10, D6/P1-2, P1-1, P1-15,
+> D2, D9, P1-14 e P1-9. Nenhum tocou o modelo financeiro: **D3 e D8/D11 seguem
+> pendentes de decisão.**
+>
+> **Isolamento multi-tenant: 166 verificações, nenhuma violação passou.** A Alfa
 > não lê nem escreve nada da Beta, em nenhuma das 19 subcoleções, nem por
 > collection group, nem por query filtrada. Detalhe em
 > `ISOLAMENTO-MULTI-TENANT.md`.

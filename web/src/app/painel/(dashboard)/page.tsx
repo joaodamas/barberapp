@@ -38,7 +38,7 @@ import type { TenantPolicies } from "@/lib/tenant";
 import { useBookings, useServices, useStaff } from "@/lib/db/use-shop-data";
 import { patchDoc } from "@/lib/db/repository";
 import { soAvisaSeGravou } from "@/lib/so-avisa-se-gravou";
-import { capacidadeDiaria, caixaDoDia, mesPeriodo } from "@/lib/analytics";
+import { capacidadeDiaria, caixaDoDia, mesPeriodo, previsaoDoDia } from "@/lib/analytics";
 import { monthOf, OCCUPIES_SLOT } from "@/lib/domain";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { toISODate } from "@/lib/format";
@@ -83,7 +83,10 @@ export default function PainelHojePage() {
   const horariosLivres = Math.max(totalSlots - agendados.length, 0);
   const ocupacaoPct = Math.round(safePct(agendados.length, totalSlots));
 
-  const previsaoHoje = agendados.reduce((s, b) => s + b.value, 0);
+  /* A previsão é sobre o que ainda pode virar receita — e a falta já
+   * confirmada não pode. Ver `previsaoDoDia`: a cadeira continua ocupada
+   * (`agendados`), o valor é que sai da conta. */
+  const previsaoHoje = previsaoDoDia(bookings);
 
   /* "Precisa de você" derivado do estado real, não de uma lista fixa. */
   /* A decisão de o que exige atenção mora no motor (`lib/action-center.ts`),
@@ -331,9 +334,14 @@ export default function PainelHojePage() {
               {formatBRL(recebidoReal)}
             </span>
           </div>
+          {/* A regra é UMA para todos os meios desde agosto: o dinheiro entra
+              quando o atendimento é concluído. A legenda anterior descrevia o
+              comportamento anterior — Pix e cartão contando na confirmação — e
+              ensinava ao dono que ele já tinha recebido o que ainda não
+              recebeu. Ver `isReceived` em `lib/domain.ts`. */}
           <p className="text-xs text-ivory-muted">
-            Pix e cartão contam assim que confirmados; dinheiro só entra quando
-            o cliente é atendido e marcado como concluído.
+            O valor entra aqui quando você conclui o atendimento — em qualquer
+            forma de pagamento. A previsão desconta faltas e cancelamentos.
           </p>
         </Card>
       </section>

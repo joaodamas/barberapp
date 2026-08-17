@@ -134,7 +134,7 @@ function ProjecaoConteudo() {
           icon={TrendingUp}
           label="Resultado projetado"
           value={formatBRL(resultadoProjetado)}
-          caption="acumulado nos 30 dias"
+          caption={`acumulado em ${HORIZONTES[horizonte].dias} dias`}
         />
         <KpiTile
           tone={signTone(tightestDay.cumulative)}
