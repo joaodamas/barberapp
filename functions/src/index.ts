@@ -35,6 +35,7 @@ export {
   cancelBooking,
   rescheduleBooking,
 } from "./booking";
+export { registrarVendaDeProduto } from "./inventory";
 export { availableSlots } from "./availability";
 export { revisarAssinaturas } from "./billing";
 export { definirPlano } from "./subscription";

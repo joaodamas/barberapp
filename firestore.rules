@@ -269,7 +269,25 @@ service cloud.firestore {
                     || (isStaffOf(barbershopId) && resource.data.uid == request.auth.uid);
         allow write: if false;
       }
-      match /inventory_movements/{moveId} { allow read, write: if isStaffOf(barbershopId); }
+      /* Estoque: LÊ quem toca a loja, ESCREVE só o servidor — G1.
+       *
+       * Era `read, write: if isStaffOf(...)`, e ficou assim enquanto a coleção
+       * não era escrita por ninguém. A partir do momento em que existe
+       * `registrarVendaDeProduto`, deixar a escrita aberta reabre tudo que a
+       * transação protege:
+       *
+       * 1. baixar estoque sem registrar a venda, ou registrar a venda sem
+       *    baixar estoque — as duas metades do fato deixam de ser atômicas;
+       * 2. gravar `unitCost` escolhido a dedo, que é escrever o CMV na mão;
+       * 3. furar a checagem de estoque e vender o que não existe;
+       * 4. duas vendas simultâneas consumindo a mesma unidade.
+       *
+       * Mesmo desenho de `bookings` e `payments`: o fato econômico nasce no
+       * servidor ou não nasce. */
+      match /inventory_movements/{moveId} {
+        allow read: if isStaffOf(barbershopId);
+        allow write: if false;
+      }
 
       /* -------- escrita exclusiva do servidor -------- */
 

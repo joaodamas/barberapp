@@ -547,6 +547,26 @@ describe("8 · a Alfa opera normalmente a própria casa", () => {
     await assertSucceeds(getDocs(collection(db, `barbershops/${ALFA}/clients`)));
   });
 
+  it("o dono LÊ o próprio estoque, e NÃO escreve direto — G1", async () => {
+    /* A escrita era `if isStaffOf(...)` e ficou assim enquanto ninguém escrevia
+     * a coleção. Com `registrarVendaDeProduto` existindo, deixá-la aberta
+     * reabriria tudo que a transação protege: baixar estoque sem registrar a
+     * venda, gravar `unitCost` a dedo — que é escrever o CMV na mão —, furar a
+     * checagem de estoque, e duas vendas consumindo a mesma unidade. */
+    const db = as(DONO_ALFA);
+    await assertSucceeds(getDocs(collection(db, `barbershops/${ALFA}/inventory_movements`)));
+    await assertFails(
+      setDoc(doc(db, `barbershops/${ALFA}/inventory_movements`, "na-mao"), {
+        productId: "pomada",
+        kind: "venda",
+        quantity: 1,
+        unitCost: 0,
+        value: 45,
+        date: "2026-08-17",
+      })
+    );
+  });
+
   it("mas nem o dono ESCREVE direto — o cadastro nasce pelo servidor", async () => {
     /* Mesmo desenho de `bookings`: a tela nunca grava direto. Sem isso, o
      * cadastro poderia nascer sem a reserva e a deduplicação por WhatsApp

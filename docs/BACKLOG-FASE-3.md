@@ -85,7 +85,7 @@ passar a fazer.**
 | # | O que é | Impacto comercial | Custo | Revalidar |
 |---|---|---|---|---|
 | ~~**D13**~~ | ~~O dono não consegue criar uma reserva~~ | ✅ **fechado na Rodada 2.** `createBookingAtCounter` + `MarcarNoBalcao` no painel Hoje. Cliente de balcão nasce `origin: "balcao"`, `uid: null`. Verificado **na tela**, com reserva gravada | — | agenda · concorrência |
-| **G1** | **Não há tela de venda de produto.** `inventory_movements` não é escrita por ninguém | Receita de loja, CMV e comissão de produto são estruturalmente zero. A Loja é um cadastro com simulador | médio | ledger · 6 visões · DRE |
+| ~~**G1**~~ | ~~Não há tela de venda de produto~~ | ✅ **fechado na Rodada 2B.** `registrarVendaDeProduto` com transação atômica, custo congelado, meio de pagamento no fato, carrinho e idempotência. Escrita direta fechada nas regras. **Verificado na tela**, com venda gravada | — | ledger · 6 visões · DRE |
 | **G2** | **Não há cadastro de mensalista.** `subscriptions` não é escrita por ninguém | A tela Mensal nunca recebe dado, e a régua D-5→D+5 é campo morto. Mensalista está na matriz de planos como recurso vendido | médio | ledger · financeiro |
 | **G3** | **Ficha de cliente — mínimo entregue na Rodada 2.** `clients/{uid}` para quem tem conta, id gerado para o balcão; WhatsApp único por barbearia; fusão preserva o histórico | ✅ identidade, deduplicação e vínculo existem. **Falta o resto do Bloco 3**: Customer 360, risco de perda, reativação, aniversário | médio (o que resta) | isolamento (87) |
 | ~~**P1-4**~~ | ~~Remarcar oferece horários já ocupados por outros clientes~~ | ✅ **fechado na Rodada 2.** A tela passou a usar `availableSlots` com o `staffId` da própria reserva | — | agenda |

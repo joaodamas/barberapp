@@ -10,6 +10,7 @@ import { formatBRL } from "@/lib/format";
 import { useProducts } from "@/lib/db/use-shop-data";
 import { useFeature, useTenant } from "@/lib/tenant-context";
 import { RecursoBloqueado } from "@/components/recurso-bloqueado";
+import { VenderProduto } from "@/components/vender-produto";
 import { createDoc } from "@/lib/db/repository";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { commissionSplit, splitSale, taxRatePct } from "@/lib/business-rules";
@@ -113,6 +114,12 @@ function LojaConteudo() {
           Adicionar produto
         </Button>
       </div>
+
+      {/* G1 · vender vem ANTES do catálogo.
+          O dono abre a Loja com alguém no balcão esperando, não para conferir
+          margem. Cadastrar produto é tarefa de quando a caixa chega; vender é
+          o gesto do dia — e o que ele faz primeiro precisa estar em cima. */}
+      <VenderProduto />
 
       {lowStock.length > 0 && (
         <Card className="flex items-start gap-3 border-danger/30 md:p-5">

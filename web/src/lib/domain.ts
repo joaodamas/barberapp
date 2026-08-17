@@ -78,15 +78,58 @@ export type PaymentDoc = {
   netAmount: number;
 };
 
-/** Entrada e saída de estoque — alimenta o CMV do DRE. */
+/**
+ * Entrada e saída de estoque — alimenta o CMV do DRE.
+ *
+ * Escrito só pelo servidor desde G1: `registrarVendaDeProduto` grava o
+ * movimento e baixa o estoque na mesma transação. As regras negam escrita
+ * direta, porque as duas metades do fato precisam ser atômicas.
+ *
+ * ## O que os campos novos ainda NÃO mudam
+ *
+ * `unitCost`, `paymentMethod`, `clientId` e `bookingId` passaram a existir no
+ * fato, e `analytics.ts` **continua sem lê-los** — de propósito. O CMV ainda
+ * soma as compras do período (D3) e o caixa ainda joga toda venda em dinheiro
+ * (D4), agora sobre um documento que já sabe responder direito.
+ *
+ * É a posição deliberada em que G1 deixa o produto: **o fato está certo e
+ * algumas visões continuam erradas.** Corrigir as leituras aqui apagaria a
+ * evidência que a Rodada 3 precisa encontrar.
+ */
 export type InventoryMovementDoc = {
   productId: string;
   /** `compra` entra no CMV; `venda` entra na receita da loja. */
-  kind: "compra" | "venda";
+  kind: "compra" | "venda" | "ajuste" | "perda";
   quantity: number;
   /** Valor total do movimento, não unitário. */
   value: number;
   date: string;
+  /**
+   * Preço unitário praticado, CONGELADO na venda.
+   *
+   * Ausente nos movimentos anteriores a G1 — não havia como gravá-lo.
+   */
+  unitPrice?: number;
+  /**
+   * Custo unitário no instante da venda, CONGELADO.
+   *
+   * É o campo que vai sustentar o CMV por competência. Sem ele, o custo do
+   * vendido só se reconstrói a partir de `products.cost`, que é o custo de
+   * HOJE — e uma reposição mais cara reescreveria o lucro de meses fechados.
+   */
+  unitCost?: number;
+  /**
+   * Como o cliente pagou ESTA venda.
+   *
+   * Vivia fora do documento: a massa de teste precisava de um mapa paralelo
+   * (`MEIO_DA_VENDA`) para representar o que o modelo não sabia guardar. Era a
+   * premissa N12 como dívida.
+   */
+  paymentMethod?: PaymentMethod | null;
+  /** Quem levou. Nulo na venda de balcão sem cadastro — é caso normal. */
+  clientId?: string | null;
+  /** Atendimento a que a venda ficou casada, quando houver. */
+  bookingId?: string | null;
 };
 
 /**
