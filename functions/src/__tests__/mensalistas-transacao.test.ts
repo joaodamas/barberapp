@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { initializeApp, deleteApp, type App } from "firebase-admin/app";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { emitirFaturasDaCompetencia } from "../mensalistas";
+import { documentoDePagamento, idDoPagamento } from "../payments";
 
 /**
  * G2 — a emissão de faturas, contra o emulador.
@@ -73,7 +74,7 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  for (const col of ["subscriptions", "subscription_invoices"]) {
+  for (const col of ["subscriptions", "subscription_invoices", "payments"]) {
     const snap = await db.collection(`barbershops/${SHOP}/${col}`).get();
     await Promise.all(snap.docs.map((d) => d.ref.delete()));
   }
@@ -187,5 +188,107 @@ describe("G2 · emissão de faturas", () => {
     await emitir("2026-09");
     const [f] = await faturas();
     expect(f.id).toBe("fatura_a1_2026-09");
+  });
+});
+
+/* ================================================================== */
+/* G1.6 · o pagamento da mensalidade vira fato financeiro completo      */
+/* ================================================================== */
+
+const TAXAS = { dinheiro: 0, pix: 0.99, debito: 1.99, credito: 3.49 };
+
+async function pagamentos() {
+  const s = await shopRef().collection("payments").get();
+  return s.docs.map((d) => ({ ...d.data(), id: d.id }) as Record<string, unknown> & { id: string });
+}
+
+/**
+ * Marca a fatura como paga pela MESMA rota do handler.
+ *
+ * O handler é um `onCall`, então a transação é replicada aqui — mas só a
+ * sequência, e o que ela grava é verificado contra o mesmo `documentoDePagamento`
+ * que a produção usa. O caminho completo passa pela tela, na verificação.
+ */
+async function receber(invoiceId: string, metodo: "pix" | "cash" | "debit" | "credit") {
+  const ref = shopRef().collection("subscription_invoices").doc(invoiceId);
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (snap.get("status") === "paga") return { repetida: true };
+
+    tx.update(ref, { status: "paga", paidAt: "2026-09-04", paymentMethod: metodo });
+    tx.set(
+      shopRef().collection("payments").doc(idDoPagamento({ origem: "mensalidade", invoiceId })),
+      documentoDePagamento({
+        ref: { origem: "mensalidade", invoiceId },
+        clientId: (snap.get("clientId") as string | null) ?? null,
+        date: "2026-09-04",
+        bruto: Number(snap.get("amount")) || 0,
+        metodo,
+        fees: TAXAS,
+      })
+    );
+    return { repetida: false };
+  });
+}
+
+describe("G1.6 · pagamento da mensalidade", () => {
+  it("gera pagamento com a taxa do método", async () => {
+    /* Era D7/D21: a mensalidade guardava `paymentMethod` na fatura e não
+     * gerava `payments`, então R$ 149 no crédito não debitava taxa nenhuma. */
+    await assinar("a1", { price: 149, billingDay: 5, startedAt: "2026-01-10" });
+    await emitir("2026-09");
+    const [f] = await faturas();
+
+    await receber(String(f.id), "credit");
+
+    const ps = await pagamentos();
+    expect(ps).toHaveLength(1);
+    expect(ps[0].origin).toBe("mensalidade");
+    expect(ps[0].grossAmount).toBe(149);
+    expect(ps[0].feePct).toBe(3.49);
+    expect(ps[0].feeAmount).toBe(5.2);
+  });
+
+  it("o id deriva da fatura", async () => {
+    await assinar("a1", { price: 149, billingDay: 5, startedAt: "2026-01-10" });
+    await emitir("2026-09");
+    const [f] = await faturas();
+    await receber(String(f.id), "pix");
+
+    const [p] = await pagamentos();
+    expect(p.id).toBe(`pagamento_fatura_${f.id}`);
+    expect(p.invoiceId).toBe(f.id);
+  });
+
+  it("RECEBER DE NOVO não cria segundo pagamento nem cobra a taxa duas vezes", async () => {
+    await assinar("a1", { price: 149, billingDay: 5, startedAt: "2026-01-10" });
+    await emitir("2026-09");
+    const [f] = await faturas();
+
+    await receber(String(f.id), "credit");
+    const segunda = await receber(String(f.id), "credit");
+
+    expect(segunda.repetida).toBe(true);
+    const ps = await pagamentos();
+    expect(ps).toHaveLength(1);
+    expect(Number(ps[0].feeAmount)).toBe(5.2);
+  });
+
+  it("carrega o cliente da fatura", async () => {
+    await assinar("a1", { price: 149, billingDay: 5, startedAt: "2026-01-10" });
+    await emitir("2026-09");
+    const [f] = await faturas();
+    await receber(String(f.id), "pix");
+
+    const [p] = await pagamentos();
+    expect(p.clientId).toBe("cliente-a1");
+  });
+
+  it("fatura não paga não deixa pagamento", async () => {
+    /* Emitir é cobrança, não recebimento. O fato financeiro nasce no pagamento
+     * — é a regra que separa contratado, faturado e recebido. */
+    await assinar("a1", { price: 149, billingDay: 5, startedAt: "2026-01-10" });
+    await emitir("2026-09");
+    expect(await pagamentos()).toHaveLength(0);
   });
 });

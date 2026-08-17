@@ -55,9 +55,33 @@ export type CommissionDoc = {
   commissionAmount: number;
 };
 
-/** Pagamento recebido — escrito só pelo servidor. */
+/**
+ * Pagamento recebido — escrito só pelo servidor.
+ *
+ * Desde G1.6 nasce nas TRÊS origens, com a taxa congelada e id derivado do
+ * fato:
+ *
+ * ```
+ * pagamento_{bookingId}          serviço       conclusão do atendimento
+ * pagamento_venda_{movementId}   produto       dentro da transação da venda
+ * pagamento_fatura_{invoiceId}   mensalidade   ao marcar a fatura como paga
+ * ```
+ *
+ * Antes, só o serviço gerava pagamento — e como `gatewayFeesTotal` soma esta
+ * coleção, produto e mensalidade não debitavam taxa nenhuma no DRE mesmo com o
+ * `paymentMethod` gravado nos dois fatos (D7 · D21).
+ *
+ * A referência fica explícita em vez de um `refId` genérico: uma abstração que
+ * esconde a origem economiza um campo e cobra em toda consulta futura.
+ */
 export type PaymentDoc = {
+  /** De que fato o dinheiro veio. Ausente nos pagamentos anteriores a G1.6. */
+  origin?: "servico" | "produto" | "mensalidade";
   bookingId?: string;
+  /** Movimento de venda que originou o pagamento. */
+  movementId?: string;
+  /** Fatura de mensalidade que originou o pagamento. */
+  invoiceId?: string;
   subscriptionId?: string;
   clientId: string | null;
   date: string;

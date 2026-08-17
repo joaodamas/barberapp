@@ -35,6 +35,8 @@ import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { hojeNoFuso, localeDoDocumento } from "./locale";
 import { metodoValido } from "./inventory";
+import { documentoDePagamento, idDoPagamento } from "./payments";
+import { SEM_TAXA, type PaymentFees } from "./financial-events";
 import type { PaymentMethod } from "./financial-events";
 
 /**
@@ -434,6 +436,10 @@ export const registrarPagamentoDeMensalidade = onCall<{
   const hoje = hojeNoFuso(localeDoDocumento(shopSnap.data()).timeZone);
   const ref = shopRef.collection("subscription_invoices").doc(String(invoiceId));
 
+  /* Taxas lidas fora da transação — política, não estado disputado. */
+  const politicas = (shopSnap.get("policies") ?? {}) as { paymentFees?: Partial<PaymentFees> };
+  const fees: PaymentFees = { ...SEM_TAXA, ...(politicas.paymentFees ?? {}) };
+
   return db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     if (!snap.exists) throw new HttpsError("not-found", "Fatura não encontrada.");
@@ -460,6 +466,29 @@ export const registrarPagamentoDeMensalidade = onCall<{
       paymentMethod,
       registradoPor: uid,
     });
+
+    /* G1.6 · o pagamento da mensalidade vira fato financeiro completo.
+     *
+     * A mensalidade paga registrava `paymentMethod` na própria fatura e não
+     * gerava `payments` — e como `gatewayFeesTotal` soma `payments`, uma
+     * mensalidade de R$ 149 no crédito não debitava taxa nenhuma no DRE.
+     *
+     * Id derivado da fatura: reexecutar não cobra a taxa duas vezes. E a
+     * escrita acontece na MESMA transação que marca a fatura como paga — não
+     * existe caminho em que a fatura esteja paga e o pagamento não exista. */
+    tx.set(
+      shopRef
+        .collection("payments")
+        .doc(idDoPagamento({ origem: "mensalidade", invoiceId: String(invoiceId) })),
+      documentoDePagamento({
+        ref: { origem: "mensalidade", invoiceId: String(invoiceId) },
+        clientId: (snap.get("clientId") as string | null) ?? null,
+        date: hoje,
+        bruto: Number(snap.get("amount")) || 0,
+        metodo: paymentMethod,
+        fees,
+      })
+    );
 
     return {
       invoiceId: String(invoiceId),

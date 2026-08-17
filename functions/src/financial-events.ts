@@ -1,5 +1,6 @@
 import { onDocumentUpdated } from "firebase-functions/v2/firestore";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
+import { valoresDoPagamento } from "./payments";
 
 /**
  * Materialização do evento financeiro do atendimento.
@@ -100,12 +101,17 @@ export function calcularEventoFinanceiro(params: {
   const valor = Number(params.valor) || 0;
   const commissionPct = Number(params.commissionPctDoBarbeiro ?? params.padraoPct) || 0;
 
-  /* Sem método, a taxa é DESCONHECIDA, não zero. Materializamos assim mesmo,
-   * com `paymentMethod: null` explícito: o bruto aconteceu e precisa existir no
-   * histórico. O nulo é o que permite separar depois "não teve taxa" de "não
-   * sabemos a taxa" — gravar 0 sem marca apagaria essa diferença. */
-  const feePct = params.metodo ? taxaDoMetodo(params.metodo, params.fees) : 0;
-  const feeAmount = centavos((valor * feePct) / 100);
+  /* A conta da TAXA mora em `payments.ts` desde G1.6, e não aqui.
+   *
+   * Ela passou a ser feita em três lugares — serviço, venda de produto e
+   * mensalidade — e três cópias da mesma fórmula é o padrão que esta auditoria
+   * mais encontrou: a correção aplicada num caminho só. Delegar mantém uma
+   * fonte e deixa os testes desta função continuarem valendo como estão.
+   *
+   * Sem método, a taxa é DESCONHECIDA, não zero. Materializa assim mesmo, com
+   * `paymentMethod: null` explícito: o bruto aconteceu e precisa existir no
+   * histórico, e o nulo separa "não teve taxa" de "não sabemos a taxa". */
+  const payment = valoresDoPagamento({ bruto: valor, metodo: params.metodo, fees: params.fees });
 
   return {
     commission: {
@@ -115,11 +121,7 @@ export function calcularEventoFinanceiro(params: {
     },
     payment: {
       paymentOrigin: params.origem ?? "in_person",
-      paymentMethod: params.metodo,
-      grossAmount: valor,
-      feePct,
-      feeAmount,
-      netAmount: centavos(valor - feeAmount),
+      ...payment,
     },
   };
 }

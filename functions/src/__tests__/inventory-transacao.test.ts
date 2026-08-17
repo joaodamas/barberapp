@@ -89,7 +89,7 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  for (const col of ["inventory_movements", "products"]) {
+  for (const col of ["inventory_movements", "products", "payments"]) {
     const snap = await db.collection(`barbershops/${SHOP}/${col}`).get();
     await Promise.all(snap.docs.map((d) => d.ref.delete()));
   }
@@ -582,5 +582,128 @@ describe("G1.5 · a entrada sobe o estoque e registra o fato", () => {
     const entrou = ms.filter((m) => m.kind === "compra").reduce((s, m) => s + Number(m.quantity), 0);
     const saiu = ms.filter((m) => m.kind === "venda").reduce((s, m) => s + Number(m.quantity), 0);
     expect(10 + entrou - saiu).toBe(17);
+  });
+});
+
+/* ================================================================== */
+/* G1.6 · a venda gera PAGAMENTO com a taxa congelada                  */
+/* ================================================================== */
+
+const TAXAS = { dinheiro: 0, pix: 0.99, debito: 1.99, credito: 3.49 };
+
+function venderComTaxa(params: {
+  productId: string;
+  quantity: number;
+  paymentMethod: PaymentMethod;
+  chave?: string;
+}) {
+  return gravarVendaComTravaDeEstoque({
+    db,
+    shopRef: shopRef(),
+    itens: [{ productId: params.productId, quantity: params.quantity }],
+    paymentMethod: params.paymentMethod,
+    clientId: null,
+    bookingId: null,
+    date: HOJE,
+    chave: params.chave,
+    fees: TAXAS,
+  });
+}
+
+async function pagamentos() {
+  const s = await shopRef().collection("payments").get();
+  return s.docs.map((d) => ({ ...d.data(), id: d.id }) as Record<string, unknown> & { id: string });
+}
+
+describe("G1.6 · o pagamento nasce com a venda", () => {
+  it("uma venda gera um pagamento, na mesma transação", async () => {
+    /* Não é o botão que cria o pagamento — é o fato econômico. Escrevê-lo fora
+     * da transação abriria o estado em que a venda existe e o dinheiro dela
+     * não, que é o que `payments` serve para impedir. */
+    await venderComTaxa({ productId: "pomada", quantity: 2, paymentMethod: "credit" });
+
+    const ps = await pagamentos();
+    expect(ps).toHaveLength(1);
+    expect(ps[0].origin).toBe("produto");
+    expect(ps[0].grossAmount).toBe(90);
+  });
+
+  it("a taxa é a do MÉTODO, congelada no documento", async () => {
+    /* Era D7/D21: a venda registrava `paymentMethod` e não gerava pagamento,
+     * então `gatewayFeesTotal` não via taxa nenhuma de produto. */
+    await venderComTaxa({ productId: "pomada", quantity: 2, paymentMethod: "credit" });
+    const [p] = await pagamentos();
+    expect(p.feePct).toBe(3.49);
+    expect(p.feeAmount).toBe(3.14);
+    expect(p.netAmount).toBe(86.86);
+  });
+
+  it("débito paga taxa de débito, não de crédito", async () => {
+    await venderComTaxa({ productId: "pomada", quantity: 2, paymentMethod: "debit" });
+    const [p] = await pagamentos();
+    expect(p.feePct).toBe(1.99);
+  });
+
+  it("o id do pagamento deriva do movimento", async () => {
+    const r = await venderComTaxa({ productId: "pomada", quantity: 1, paymentMethod: "pix" });
+    const [p] = await pagamentos();
+    expect(p.id).toBe(`pagamento_venda_${r.movementIds[0]}`);
+    expect(p.movementId).toBe(r.movementIds[0]);
+  });
+
+  it("REEXECUTAR não cria segundo pagamento nem cobra a taxa duas vezes", async () => {
+    /* A garantia central de G1.6. Toque duplo ou retry de rede não pode dobrar
+     * o custo de adquirência do mês. */
+    await venderComTaxa({ productId: "pomada", quantity: 2, paymentMethod: "credit", chave: "k1" });
+    await venderComTaxa({ productId: "pomada", quantity: 2, paymentMethod: "credit", chave: "k1" });
+
+    const ps = await pagamentos();
+    expect(ps).toHaveLength(1);
+    expect(ps.reduce((s, p) => s + Number(p.feeAmount), 0)).toBe(3.14);
+    expect(await estoqueDe("pomada")).toBe(8);
+  });
+
+  it("carrinho de dois produtos gera DOIS pagamentos, um por linha", async () => {
+    /* Um por movimento, porque o id deriva do movimento — e é o que permite
+     * rastrear a taxa até o produto que a gerou. */
+    await gravarVendaComTravaDeEstoque({
+      db,
+      shopRef: shopRef(),
+      itens: [
+        { productId: "pomada", quantity: 1 },
+        { productId: "ultima", quantity: 1 },
+      ],
+      paymentMethod: "credit",
+      clientId: null,
+      bookingId: null,
+      date: HOJE,
+      fees: TAXAS,
+    });
+
+    const ps = await pagamentos();
+    expect(ps).toHaveLength(2);
+    expect(ps.reduce((s, p) => s + Number(p.grossAmount), 0)).toBe(100);
+  });
+
+  it("venda que FALHA por estoque não deixa pagamento órfão", async () => {
+    await expect(
+      venderComTaxa({ productId: "ultima", quantity: 5, paymentMethod: "pix" })
+    ).rejects.toThrow(/estoque insuficiente/);
+    expect(await pagamentos()).toHaveLength(0);
+  });
+
+  it("sem taxas cadastradas, o pagamento existe e não inventa custo", async () => {
+    await gravarVendaComTravaDeEstoque({
+      db,
+      shopRef: shopRef(),
+      itens: [{ productId: "pomada", quantity: 1 }],
+      paymentMethod: "credit",
+      clientId: null,
+      bookingId: null,
+      date: HOJE,
+    });
+    const [p] = await pagamentos();
+    expect(p.feeAmount).toBe(0);
+    expect(p.grossAmount).toBe(45);
   });
 });

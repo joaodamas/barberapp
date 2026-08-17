@@ -1,7 +1,8 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { hojeNoFuso, localeDoDocumento } from "./locale";
-import type { PaymentMethod } from "./financial-events";
+import { SEM_TAXA, type PaymentFees, type PaymentMethod } from "./financial-events";
+import { documentoDePagamento, idDoPagamento } from "./payments";
 
 /**
  * A venda de produto — G1.
@@ -253,6 +254,17 @@ export async function gravarVendaComTravaDeEstoque(params: {
   chave?: string;
   /** Campos extras de auditoria — quem registrou, quando. */
   extras?: Record<string, unknown>;
+  /**
+   * Taxas da barbearia, lidas ANTES da transação — G1.6.
+   *
+   * São política, não estado disputado: ler fora não abre corrida. Passá-las
+   * como argumento mantém a transação sem I/O extra e torna o congelamento da
+   * taxa verificável sem emulador.
+   *
+   * Ausentes, o pagamento nasce com taxa zero — que é o comportamento correto
+   * para quem ainda não preencheu as taxas em Configurações.
+   */
+  fees?: PaymentFees;
 }): Promise<{
   movementIds: string[];
   value: number;
@@ -357,6 +369,31 @@ export async function gravarVendaComTravaDeEstoque(params: {
        * determinístico — é o que o teste de concorrência verifica. */
       tx.update(m.productRef, { stock: m.estoqueAntes - m.item.quantity });
       tx.set(m.movementRef, { ...m.movimento, ...(params.extras ?? {}) });
+
+      /* G1.6 · o pagamento nasce com a venda, na MESMA transação.
+       *
+       * Não é o botão que cria o pagamento — é o fato econômico. Escrevê-lo
+       * fora daqui abriria o estado em que a venda existe e o dinheiro dela
+       * não, que é exatamente o que `payments` serve para impedir.
+       *
+       * Uma linha por produto, com id derivado do movimento: idempotência por
+       * construção, e reexecutar não cobra a taxa duas vezes. */
+      tx.set(
+        params.shopRef
+          .collection("payments")
+          .doc(idDoPagamento({ origem: "produto", movementId: m.movementRef.id })),
+        {
+          ...documentoDePagamento({
+            ref: { origem: "produto", movementId: m.movementRef.id },
+            clientId: params.clientId,
+            date: params.date,
+            bruto: m.movimento.value,
+            metodo: params.paymentMethod,
+            fees: params.fees ?? SEM_TAXA,
+          }),
+          ...(params.extras ?? {}),
+        }
+      );
     }
 
     return {
@@ -437,7 +474,14 @@ export const registrarVendaDeProduto = onCall<VendaInput>(async (request) => {
    * subcoleção em vez de um movimento, e o Firestore aceitaria sem reclamar. */
   const chave = String(request.data?.idempotencyKey ?? "").replace(/[^A-Za-z0-9_-]/g, "");
 
+  /* Taxas lidas AQUI, fora da transação: são política, não estado disputado.
+   * Congelam no pagamento — mudar a taxa da maquininha amanhã não reescreve o
+   * que foi recebido hoje. */
+  const politicas = (shopSnap.get("policies") ?? {}) as { paymentFees?: Partial<PaymentFees> };
+  const fees: PaymentFees = { ...SEM_TAXA, ...(politicas.paymentFees ?? {}) };
+
   return gravarVendaComTravaDeEstoque({
+    fees,
     db,
     shopRef,
     itens: itens.map((i) => ({ productId: String(i.productId), quantity: i.quantity })),
