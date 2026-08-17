@@ -6,6 +6,7 @@ import { useTenant } from "@/lib/tenant-context";
 import type {
   BookingDoc, ClientDoc, CommissionDoc, ExpenseDoc, InventoryMovementDoc,
   LoyaltyTransactionDoc, PaymentDoc, PlanDoc, ProductDoc, ServiceDoc,
+  SubscriptionInvoiceDoc,
   StaffDoc, SubscriberDoc,
 } from "@/lib/domain";
 
@@ -62,6 +63,18 @@ export const useExpenses = () =>
 
 export const useSubscribers = () =>
   useShopCollection<SubscriberDoc>("subscriptions", { orderByField: "name" });
+
+/**
+ * As faturas de mensalidade — G2.
+ *
+ * É o lastro que faltava: antes, "receita de mensalista" saía de um status
+ * marcado como `ativo`. Escritas só pelo servidor.
+ */
+export const useSubscriptionInvoices = () =>
+  useShopCollection<SubscriptionInvoiceDoc>("subscriptionInvoices", {
+    orderByField: "dueDate",
+    direction: "desc",
+  });
 
 export const useInventoryMovements = () =>
   useShopCollection<InventoryMovementDoc>("inventoryMovements", {

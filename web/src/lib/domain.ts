@@ -229,16 +229,66 @@ export type BookingDoc = {
   origin?: "app" | "balcao" | "importacao";
 };
 
+/**
+ * O mensalista — G2.
+ *
+ * Escrito só pelo servidor (`criarMensalista`, `cancelarMensalista`). O plano é
+ * COPIADO, não referenciado: renomear ou reajustar o plano não pode reescrever
+ * o que o cliente contratou.
+ *
+ * **Uma assinatura não é receita realizada.** Ela é contrato. O fato financeiro
+ * nasce no pagamento da fatura — `SubscriptionInvoiceDoc` abaixo.
+ */
 export type SubscriberDoc = {
   clientId: string;
   name: string;
+  /** Igual a `name`; `name` existe porque as leituras ordenam por ele. */
+  clientName?: string;
   planId: string;
   planName: string;
   price: number;
   status: "ativo" | "suspenso" | "cancelado";
   /** ISO `YYYY-MM-DD`, ou vazio quando cancelado. */
-  nextCharge: string;
+  nextCharge?: string;
+  /** Dia do mês em que vence. 31 cobra no último dia de fevereiro. */
+  billingDay?: number;
+  startedAt?: string;
+  canceledAt?: string | null;
+  /**
+   * @deprecated Campo morto: a tela contava por estágio e ninguém nunca o
+   * gravou — os sete baldes mostravam zero para sempre. A régua passou a ser
+   * DERIVADA de `SubscriptionInvoiceDoc.dueDate`, que responde certo em
+   * qualquer data. Um estágio gravado ficaria velho no dia seguinte.
+   */
   dueStage?: "D-5" | "D-3" | "D-1" | "D0" | "D+1" | "D+3" | "D+5";
+};
+
+/**
+ * A fatura mensal do mensalista — G2.
+ *
+ * É o que faltava para a mensalidade ter lastro. Antes, "receita de mensalista"
+ * era derivada de uma caixinha marcada como `ativo`: o produto AFIRMAVA um
+ * recebimento cuja evidência era um status.
+ *
+ * `amount` e `competencia` são congelados na emissão; `paymentMethod` nasce no
+ * pagamento. Mesmo desenho de `unitCost` em G1 — reajustar o plano em outubro
+ * não pode alterar a fatura de setembro.
+ *
+ * A regra: **a fatura também não é receita realizada.** O pagamento dela é o
+ * fato financeiro, e como ele entra no resultado é decisão da Rodada 3.
+ */
+export type SubscriptionInvoiceDoc = {
+  subscriptionId: string;
+  clientId: string;
+  /** `YYYY-MM`. Resolve o MRR histórico que o estado de hoje não sabe responder. */
+  competencia: string;
+  dueDate: string;
+  /** CONGELADO na emissão. */
+  amount: number;
+  planName: string;
+  status: "aberta" | "paga" | "cancelada";
+  paidAt: string | null;
+  paymentMethod: PaymentMethod | null;
 };
 
 export type ExpenseDoc = {

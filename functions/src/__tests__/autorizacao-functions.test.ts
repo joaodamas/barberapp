@@ -48,6 +48,7 @@ const GUARDAS = [
   /token\.barbershops/, // lê o vínculo do claim
   /platformAdmin/, // operador da plataforma
   /token\.role/, // modelo antigo, ainda aceito no bootstrap
+  /exigirVinculo\(/, // a MESMA leitura, centralizada — ver o teste logo abaixo
 ];
 
 type Handler = { nome: string; corpo: string; arquivo: string };
@@ -138,6 +139,24 @@ describe("toda function que recebe barbershopId verifica o vínculo", () => {
     for (const h of queRecebemTenant) {
       expect(/request\.auth/.test(h.corpo), h.nome).toBe(true);
     }
+  });
+
+  it("🔒 `exigirVinculo` realmente lê o claim, e recusa quem não é da casa", () => {
+    /* A guarda aceita como padrão em `GUARDAS` é uma CHAMADA. Sem verificar o
+     * que ela faz, bastaria alguém escrever uma função vazia com esse nome para
+     * quatro handlers passarem no teste sem guarda nenhuma.
+     *
+     * Este caso fecha o buraco: o padrão só vale porque o corpo do helper faz a
+     * mesma leitura que o regex exigiria inline. */
+    const fonte = readFileSync(resolve(SRC, "mensalistas.ts"), "utf8");
+    const helper = fonte.slice(
+      fonte.indexOf("function exigirVinculo"),
+      fonte.indexOf("export const criarMensalista")
+    );
+    expect(helper).toMatch(/token\.barbershops/);
+    expect(helper).toMatch(/"owner"/);
+    expect(helper).toMatch(/"staff"/);
+    expect(helper).toMatch(/permission-denied/);
   });
 });
 

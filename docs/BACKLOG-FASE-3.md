@@ -86,7 +86,7 @@ passar a fazer.**
 |---|---|---|---|---|
 | ~~**D13**~~ | ~~O dono não consegue criar uma reserva~~ | ✅ **fechado na Rodada 2.** `createBookingAtCounter` + `MarcarNoBalcao` no painel Hoje. Cliente de balcão nasce `origin: "balcao"`, `uid: null`. Verificado **na tela**, com reserva gravada | — | agenda · concorrência |
 | ~~**G1**~~ | ~~Não há tela de venda de produto~~ | ✅ **fechado na Rodada 2B.** `registrarVendaDeProduto` com transação atômica, custo congelado, meio de pagamento no fato, carrinho e idempotência. Escrita direta fechada nas regras. **Verificado na tela**, com venda gravada | — | ledger · 6 visões · DRE |
-| **G2** | **Não há cadastro de mensalista.** `subscriptions` não é escrita por ninguém | A tela Mensal nunca recebe dado, e a régua D-5→D+5 é campo morto. Mensalista está na matriz de planos como recurso vendido | médio | ledger · financeiro |
+| ~~**G2**~~ | ~~Não há cadastro de mensalista~~ | ✅ **fechado na Rodada 2B.** Assinatura + **fatura por competência** + pagamento. `amount` e `competencia` congelados na emissão, `paymentMethod` no pagamento. `dueStage` deixou de ser campo morto e virou derivado. **Verificado na tela**, ciclo completo | — | ledger · financeiro |
 | **G3** | **Ficha de cliente — mínimo entregue na Rodada 2.** `clients/{uid}` para quem tem conta, id gerado para o balcão; WhatsApp único por barbearia; fusão preserva o histórico | ✅ identidade, deduplicação e vínculo existem. **Falta o resto do Bloco 3**: Customer 360, risco de perda, reativação, aniversário | médio (o que resta) | isolamento (87) |
 | ~~**P1-4**~~ | ~~Remarcar oferece horários já ocupados por outros clientes~~ | ✅ **fechado na Rodada 2.** A tela passou a usar `availableSlots` com o `staffId` da própria reserva | — | agenda |
 | ~~**P1-13**~~ | ~~O limite de 2 remarcações vive num `useState` — zera com F5~~ | ✅ **fechado na Rodada 2.** Era pior: `rescheduleBooking` **nunca soube do limite**. `rescheduleCount` virou campo, gravado com `increment` dentro da transação | — | reservas |
@@ -101,6 +101,7 @@ passar a fazer.**
 
 | # | O que é | Consequência | Custo | Revalidar |
 |---|---|---|---|---|
+| **D18** | **Possível dupla contagem no plano ilimitado.** O mensalista paga a mensalidade E o atendimento dele vira `booking` com `value` cheio, que entra na receita realizada. A mesma pessoa fatura duas vezes no mesmo mês | Não vi tratamento em lugar nenhum: `PlanDoc.unlimited` existe e nada o consulta na criação da reserva. É erro de RECEITA, não de apresentação — e cresce com o número de mensalistas | decisão de modelo | ledger · DRE · 6 visões · indicadores |
 | **D3** | **CMV soma as compras do período**, não o custo do que foi vendido | Num mês de reposição, o lucro da loja despenca sem nada ter piorado. Cresce com o uso | alto | ledger · DRE · 6 visões |
 | **D8 / D11** | **Resultado e caixa não se separam.** Não existe, em lugar nenhum, um número que responda *"quanto sobrou no caixa"* | O Fluxo de Caixa é faturamento diário com nome de fluxo de caixa. É o núcleo da promessa "gestão financeira" | alto | ledger · 6 visões · Fluxo |
 | **D4** | A venda de produto entra no caixa **toda como dinheiro** | O caixa por meio de pagamento não fecha com a realidade | médio | ledger · Fluxo |
@@ -164,10 +165,12 @@ Três coisas que a execução ensinou, e que valem para as próximas rodadas:
    números. Se a frase nova cabe no cartão e faz sentido para quem lê, isso
    continua sendo o Day in the Life.
 
-### 🔄 Rodada 2 — a operação que falta
+### ✅ Rodada 2 — a operação que falta
 `G3-mínimo · D13 · G1 · G2 · P1-4 · P1-13`
 
-**Fechados:** G3-mínimo, D13, P1-4, P1-13. **Restam:** G1 e G2.
+**Todos fechados.** Os três fatos que faltavam existem: cliente, venda e
+assinatura/cobrança. A Rodada 3 vai reconciliar o modelo financeiro sobre fato
+que nasce no produto, e não sobre massa semeada.
 
 G3 entrou na frente porque não estava no plano e é a chave dos três: o cliente de
 balcão que D13 cria não tem conta, o mensalista de G2 aponta para um `clientId`,

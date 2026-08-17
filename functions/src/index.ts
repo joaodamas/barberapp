@@ -36,6 +36,12 @@ export {
   rescheduleBooking,
 } from "./booking";
 export { registrarVendaDeProduto } from "./inventory";
+export {
+  criarMensalista,
+  cancelarMensalista,
+  gerarFaturasDoMes,
+  registrarPagamentoDeMensalidade,
+} from "./mensalistas";
 export { availableSlots } from "./availability";
 export { revisarAssinaturas } from "./billing";
 export { definirPlano } from "./subscription";

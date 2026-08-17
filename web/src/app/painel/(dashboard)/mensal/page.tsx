@@ -6,8 +6,11 @@ import { RecursoBloqueado } from "@/components/recurso-bloqueado";
 import { CalendarClock } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
-import { formatBRL, formatDatePtBR, safePct } from "@/lib/format";
-import { useSubscribers } from "@/lib/db/use-shop-data";
+import { formatBRL, formatDatePtBR, safePct, toISODate } from "@/lib/format";
+import { useSubscribers, useSubscriptionInvoices } from "@/lib/db/use-shop-data";
+import { GerirMensalistas } from "@/components/gerir-mensalistas";
+import { mesAtual } from "@/lib/db/use-financeiro";
+import { resumoDasFaturas } from "@/lib/mensalidade";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { Users } from "lucide-react";
 import type { SubscriberDoc } from "@/lib/domain";
@@ -55,6 +58,7 @@ export default function MensalPage() {
 function MensalConteudo() {
   const [filter, setFilter] = useState<Filter>("todos");
   const { items: subscribers, status } = useSubscribers();
+  const { items: faturas } = useSubscriptionInvoices();
 
   /* MRR derivado da lista: cobrável = ativos; contratado inclui suspensos, que
    * voltam a pagar ao regularizar. */
@@ -67,12 +71,27 @@ function MensalConteudo() {
   const filtered =
     filter === "todos" ? subscribers : subscribers.filter((s) => s.status === filter);
 
+  /* A régua vem das faturas, não do campo morto. Mesma fonte que
+     `GerirMensalistas` usa logo acima — uma conta só para os dois blocos. */
+  const competencia = mesAtual();
+  const reguaPorEstagio = resumoDasFaturas(
+    faturas,
+    competencia,
+    toISODate(new Date())
+  ).porEstagio;
+
   return (
     <div className="flex flex-col gap-6 pt-1 md:gap-10 md:pt-2">
       <div>
         <p className="text-sm text-ivory-muted md:text-base">Mensalistas</p>
         <h1 className="text-xl text-ivory md:text-4xl md:tracking-tight">Mensal</h1>
       </div>
+
+      {/* G2 · contratar e receber vem PRIMEIRO.
+          O dono abre a tela Mensal para cobrar quem está devendo, não para ler
+          MRR. O bloco de indicadores continua abaixo, e o "Recebido" daqui é o
+          único número da tela com lastro de pagamento. */}
+      <GerirMensalistas competencia={competencia} />
 
       <div className="grid gap-4 md:grid-cols-[1fr_1.3fr] md:gap-8">
         <Card className="flex flex-col gap-3 md:p-6">
@@ -100,9 +119,11 @@ function MensalConteudo() {
           </p>
           <div className="flex items-center justify-between gap-1 md:gap-2">
             {RULER_STAGES.map((stage) => {
-              const count = subscribers.filter(
-                (s) => s.dueStage === stage
-              ).length;
+              /* Contava por `s.dueStage` — campo que NINGUÉM nunca gravou, então
+                 os sete baldes mostravam zero para sempre. A régua passou a ser
+                 derivada de `dueDate` das FATURAS, que é o documento que sabe a
+                 competência e responde certo em qualquer data. */
+              const count = reguaPorEstagio[stage] ?? 0;
               return (
                 <div key={stage} className="flex flex-1 flex-col items-center gap-1 md:gap-2">
                   <div
@@ -177,7 +198,15 @@ function MensalConteudo() {
                     <td className="px-4 py-3 text-ivory md:px-6">{s.name}</td>
                     <td className="px-4 py-3 text-ivory-muted">{s.planName}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-ivory-muted">
-                      {s.nextCharge !== "—" ? formatDatePtBR(s.nextCharge) : "—"}
+                      {/* `nextCharge` virou opcional em G2: o vencimento passou
+                          a ser derivado da FATURA (`dueDate`), que é o
+                          documento que sabe a competência. A assinatura guarda
+                          `billingDay`, não uma data solta que envelhece. */}
+                      {s.nextCharge && s.nextCharge !== "—"
+                        ? formatDatePtBR(s.nextCharge)
+                        : s.billingDay
+                          ? `todo dia ${s.billingDay}`
+                          : "—"}
                     </td>
                     <td className="px-4 py-3 md:px-6">
                       <Pill tone={meta.tone}>{meta.label}</Pill>
