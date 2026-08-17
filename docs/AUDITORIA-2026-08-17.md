@@ -15,7 +15,20 @@
 > | 🟠 | **P1-6** preço inventado | ✅ corrigido | "R$ 149" saiu das duas telas |
 > | 🟠 | **P1-16** notificações que não persistem | ✅ corrigido | as chaves falsas saíram; o texto diz o que acontece |
 >
-> **Suíte:** functions 141 → **188** · web 177 → **204** · concorrência **13** (nova) · build limpo.
+> **Suíte:** functions 141 → **188** · web 177 → **268** · concorrência **13** (nova) · build limpo.
+>
+> ### Achados posteriores ao Gate A
+>
+> | | Achado | Origem | Estado |
+> |---|---|---|---|
+> | 🔴 | **D13** · o dono **não consegue criar uma reserva** | Day in the Life, 09:00 | potencial release blocker — decisão de produto pendente |
+> | 🔴 | **P1-11** · a legenda do caixa ensina uma regra que não existe mais | confirmado **na interface** | corrigir antes do piloto |
+> | ⚫ | **D14** · templates de WhatsApp prometem **pagamento online e estorno**, que não existem | varredura da regra canônica | latente — sai no dia em que o envio funcionar |
+> | ✅ | ~~"login válido não avança"~~ | **retirado** — ver §8 | não era achado |
+>
+> D1–D12 (reconciliação e matriz) estão em `LEDGER-DE-VALIDACAO.md` e
+> `MATRIZ-FATO-VISAO.md`. **D3, D8 e D11 seguem em decisão pendente** até a
+> evidência operacional fechar.
 >
 > Os **P1 financeiros** (P1-1, P1-2, P1-7, P1-9, P1-10, P1-11, P1-14) são a
 > próxima frente, junto da reconciliação de ponta a ponta com massa conhecida.
@@ -60,6 +73,7 @@ achados P0 e P1 desta auditoria passam todos por uma suíte verde.**
 5. [Onde a documentação diverge do código](#5-onde-a-documentação-diverge-do-código)
 6. [O que está certo e vale preservar](#6-o-que-está-certo-e-vale-preservar)
 7. [Ordem de correção sugerida](#7-ordem-de-correção-sugerida)
+8. [Um achado retirado, e a regra que ele produziu](#8-um-achado-retirado-e-a-regra-que-ele-produziu)
 
 ---
 
@@ -962,3 +976,46 @@ A ordem é por **dano × custo**, não por gravidade pura.
 
 *Auditoria conduzida sobre `659091a` em 17/08/2026. Cada achado nomeia arquivo e
 linha; nenhum foi promovido a partir de documentação.*
+
+---
+
+## 8. Um achado retirado, e a regra que ele produziu
+
+Durante o Day in the Life de 17/08, foi levantado como **achado crítico** que o
+dono autenticava com credenciais válidas e a tela não saía do login.
+
+A evidência era o `lastLoginAt` do emulador de Auth, que mostrava uma
+autenticação bem-sucedida segundos antes da observação.
+
+**O achado estava errado.** O log do servidor de desenvolvimento mostrava, nas
+mesmas tentativas:
+
+```
+[auth] auth/user-not-found   FirebaseError
+[auth] auth/user-not-found   FirebaseError
+[auth] auth/wrong-password   FirebaseError
+```
+
+A autenticação **falhou de fato**, por resíduo acumulado nos campos pela
+automação do teste. O produto se comportou corretamente: recusou a credencial e
+exibiu *"Senha incorreta."* em português.
+
+`lastLoginAt` registrava uma sessão anterior, e foi lido como se fosse a da
+tentativa observada. **Uma evidência adjacente foi tomada por prova.**
+
+### A regra
+
+> **Nenhum FAIL sem evidência que reproduza o comportamento do produto.**
+>
+> Sinal de infraestrutura — timestamp, contador, métrica — indica onde procurar.
+> Não substitui ver o produto fazendo a coisa errada.
+
+É a mesma família dos defeitos que esta auditoria persegue, invertida: em vez de
+o sistema afirmar algo que não aconteceu, foi **a auditoria** que quase afirmou.
+Registrado porque o custo de um falso P0 é alto — ele desvia esforço de
+correções reais e corrói a confiança em toda a lista.
+
+O episódio também expôs um limite de método: **automação não executa Day in the
+Life.** Metade do que ele mede é se a pessoa entende a tela, e isso nenhum script
+responde. O roteiro em `DAY-IN-THE-LIFE.md` é para execução humana, por alguém
+que não participou da construção.
