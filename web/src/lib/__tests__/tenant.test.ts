@@ -170,12 +170,70 @@ describe("o que a barbearia pode fazer", () => {
     expect(a.motivo).toBe("cancelada");
   });
 
-  it("liberação pontual no documento vence o plano — é como o suporte destrava", () => {
+  it("liberação pontual destrava acima do plano — é como o suporte abre uma exceção", () => {
+    /* A intenção continua valendo; o campo mudou. Antes era `features`, o mesmo
+     * onde o backend grava o retrato do plano na criação — e por isso o retrato
+     * virava exceção permanente. Agora é `featuresExtras`, que só existe no
+     * documento quando alguém decidiu abrir. */
     const a = acessoDaBarbearia(
-      base({ status: "ativo", plan: "agenda", features: { advancedFinance: true } as never }),
+      base({
+        status: "ativo",
+        plan: "agenda",
+        featuresExtras: { advancedFinance: true },
+      }),
       hoje
     );
     expect(a.features.advancedFinance).toBe(true);
+    // E não abre nada além do que foi pedido.
+    expect(a.features.store).toBe(false);
+  });
+
+  it("o DOWNGRADE tem efeito, mesmo com o retrato antigo no documento", () => {
+    /* O furo que isto fecha, e o caminho exato dele:
+     *
+     * `signUpBarbershop` grava `features: featuresFor("gestao")`, porque o
+     * trial roda no plano de cima. Quando essa barbearia contratasse o plano
+     * Agenda, o `features` gravado sobreporia o do plano e ela continuaria com
+     * DRE, loja e mensalistas — de graça, para sempre, sem ninguém perceber,
+     * porque a tela segue funcionando.
+     *
+     * O plano contratado é a autoridade. `features` é histórico. */
+    const a = acessoDaBarbearia(
+      base({
+        status: "ativo",
+        plan: "agenda",
+        features: {
+          subscriptions: true,
+          store: true,
+          loyalty: true,
+          whatsapp: true,
+          advancedFinance: true,
+        },
+      }),
+      hoje
+    );
+
+    expect(a.features.advancedFinance).toBe(false);
+    expect(a.features.store).toBe(false);
+    expect(a.features.subscriptions).toBe(false);
+    expect(a.features.loyalty).toBe(false);
+    // WhatsApp está no plano de entrada por decisão comercial.
+    expect(a.features.whatsapp).toBe(true);
+  });
+
+  it("liberação pontual não REMOVE o que o plano dá", () => {
+    /* `featuresExtras` só soma. Um `false` gravado ali não pode tirar do
+     * cliente algo que ele está pagando. */
+    const a = acessoDaBarbearia(
+      base({
+        status: "ativo",
+        plan: "gestao",
+        featuresExtras: { advancedFinance: false, store: false },
+      }),
+      hoje
+    );
+    expect(a.features.advancedFinance).toBe(true);
+    expect(a.features.store).toBe(true);
   });
 });
 

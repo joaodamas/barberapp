@@ -1,6 +1,12 @@
 # Documentação técnica funcional — CorteHub
 
-Levantada a partir do código em **17/08/2026**, no commit `659091a` da `main`.
+Levantada a partir do código em **17/08/2026**, no commit `659091a` da `main`,
+e **atualizada no mesmo dia** para o fechamento do Gate A
+(branch `hardening/p0-2026-08-17`), que zerou os seis bloqueadores P0.
+
+Onde o Gate A mudou o comportamento, o texto descreve o estado NOVO e diz o que
+havia antes — a versão anterior deste arquivo está no commit `dfd53df`, e serve
+de retrato do que foi auditado.
 
 Descreve **o que existe**, não o que foi planejado. Onde uma tela aparenta
 funcionar e não funciona, isso está na seção
@@ -288,7 +294,7 @@ uma lista de quem é cliente de qual barbearia.
 | `commissions/{id}` | comissão apurada e congelada | só servidor |
 | `payments/{id}` | pagamento apurado e congelado | só servidor |
 | `refunds/{id}` | estornos | **ninguém** |
-| `subscriptions/{id}` | mensalistas | **ninguém** — ver P0-1 |
+| `subscriptions/{id}` | mensalistas | **ninguém** — a contratação passou a ser humana, pela barbearia |
 | `subscription_invoices/{id}` | faturas de mensalidade | **ninguém** |
 | `inventory_movements/{id}` | compra e venda de produto | **ninguém** — ver P1-8 |
 | `loyalty_transactions/{id}` | carimbos e resgates | só servidor |
@@ -324,6 +330,9 @@ type Tenant = {
     paymentFees:  { dinheiro; pix; debito; credito };   // % da maquininha
   };
   features: { subscriptions; store; loyalty; whatsapp; advancedFinance };
+  /* Só ADICIONA sobre o plano. `features` é o retrato da criação; a
+     autoridade sobre o que está liberado hoje é `acessoDaBarbearia`. */
+  featuresExtras?: Partial<typeof features>;
   schedule: { weekdays; opensAt; closesAt; breaks[]; slotMinutes };
   trial: { startedAt; endsAt } | null;
   onboarding: { completedSteps[]; completedAt; sharedLink };
@@ -510,7 +519,10 @@ Retorna `{ bookingId, value, status, durationMin, staffId }`.
 > cláusulas de igualdade exigiriam índice composto, e índice faltando derruba a
 > criação de reserva em produção.
 >
-> ⚠️ O conflito é por **horário exato**, não por intervalo — ver **P0-2**.
+> ✅ **Gate A.** O conflito passou a ser por **janela**, e não por horário
+> exato — ver [§8](#8-motor-de-agenda). A transação foi extraída para
+> `gravarComTravaDeHorario` e é exercida sob concorrência real contra o
+> emulador. `isFitIn` é **recusado**: o encaixe saiu da proposta.
 
 #### `rescheduleBooking` (callable)
 
@@ -519,8 +531,11 @@ aplica antecedência mínima e a janela de remarcação (`minHoursBefore`, padr�
 o dono é isento), e revalida conflito na mesma transação: senão remarcar seria a
 porta dos fundos para furar a fila. Grava `rescheduledFrom` e `rescheduledAt`.
 
-> ⚠️ Não incrementa contador de remarcações (P1-13) e valida a jornada da loja, e
-> não a do barbeiro (P2-2).
+> ✅ **Gate A.** A checagem de conflito passou a ser por janela, igual à da
+> criação — remarcar era a porta dos fundos para a sobreposição.
+>
+> ⚠️ Continua sem incrementar contador de remarcações (P1-13) e validando a
+> jornada da loja, e não a do barbeiro (P2-2).
 
 #### `cancelBooking` (callable)
 
@@ -542,7 +557,9 @@ contar contra quem não desmarcou nada. Os dois rótulos **não** mudam a devolu
 
 Grava `refundedAmount` — **e dinheiro nenhum volta**, porque não há gateway.
 
-> ⚠️ Não checa se a reserva ainda está aberta — ver **P0-3**.
+> ✅ **Gate A.** Passou a recusar reserva que não esteja aberta. Cancelar uma
+> `completed` tirava o atendimento desse estado e o gatilho financeiro lia isso
+> como conclusão desfeita, **apagando** `payments` e `commissions`.
 
 ### 7.2 Disponibilidade — `availability.ts`
 
@@ -560,9 +577,10 @@ jornada do barbeiro (ou da loja), intervalos com verificação de **interseção
 antecedência mínima e a duração total pedida (*"um combo de 60 min não pode
 começar 30 min antes do almoço nem 30 min antes de fechar"*).
 
-> ⚠️ A ocupação considera só o **horário de início** das reservas existentes —
-> **P0-2**. E, por devolver apenas os livres, matou o fluxo de encaixe no app do
-> cliente — **P1-3**.
+> ✅ **Gate A.** A ocupação passou a ser por **janela** (`agenda.ts`), a mesma
+> conta que a transação de `createBooking` usa — as duas pontas não podem mais
+> discordar. O encaixe, que este desenho havia deixado sem caminho, foi
+> **removido da proposta** em vez de reativado.
 
 ### 7.3 Cadastro — `signup.ts`
 
@@ -603,7 +621,10 @@ Ambas gravam claim e documento juntos — o claim fora da transação, com log
 explícito e orientação de reexecutar `grantShopRole` se falhar. Um dono não pode
 revogar o próprio acesso: outra conta precisa fazê-lo.
 
-> ⚠️ `provisionBarbershop` não grava `trial` nem `schedule` — **P0-6** e **P2-5**.
+> ✅ **Gate A.** `provisionBarbershop` passou a gravar `trial` e `schedule`,
+> como o cadastro self-service. Sem a data de fim, o teste nunca vencia e a
+> barbearia ficava no plano de cima para sempre — era o caminho pelo qual o
+> piloto foi criado.
 
 ### 7.5 Conta — `account.ts`
 
@@ -679,6 +700,30 @@ provedor de pagamento, mas o fim dos 7 dias é apenas uma data passando.
 > log ao menos uma vez. E barbearia com `status: "trial"` sem `trial.endsAt` é
 > **pulada com warning** — ver P0-6.
 
+### 7.8.1 Mudança de plano — `subscription.ts` *(novo no Gate A)*
+
+**`definirPlano`** (callable, `platformAdmin`) fecha a transição que **não
+existia**: nada no repositório inteiro mudava `plan`, então não havia como sair
+de teste para pagante, subir ou descer de plano. A única forma era editar o
+documento à mão no console.
+
+```
+signUp/provision ──► trial ──┬─► ativo      (definirPlano)
+                             └─► suspenso   (revisarAssinaturas, trial vencido)
+             ativo ──────────┬─► ativo      (definirPlano, upgrade/downgrade)
+                             └─► suspenso   (revisarAssinaturas, inadimplência)
+          suspenso ─────────► ativo         (definirPlano, ao regularizar)
+            (dono) ─────────► encerrada     (encerrarConta)
+```
+
+`plan` e `features` são gravados **sempre juntos** (`mudancaDePlano`): enquanto
+só o plano mudasse, o `features` da criação continuaria valendo e o downgrade
+não teria efeito. Reativar limpa `suspendedAt`/`suspendedReason` e zera a régua
+de cobrança; conta `encerrada` é recusada, porque reabrir é ato do dono.
+
+Plano inválido **para** em vez de cair no mínimo: normalizar na escrita
+rebaixaria um cliente pagante por causa de um acento, em silêncio.
+
 ### 7.9 Encerramento — `data-deletion.ts`
 
 | Function | Tipo | O que faz |
@@ -726,14 +771,39 @@ Um horário é oferecido quando:
 5. respeita a antecedência mínima;
 6. está livre **para aquele barbeiro** — conflito é por cadeira, não por
    barbearia. Antes bastava `date + time`: três barbeiros às 15h viravam conflito
-   e dois terços da agenda sumiam.
+   e dois terços da agenda sumiam;
+7. **e a janela inteira está livre**, não só o minuto de início.
+
+### A unidade é a janela, não o instante *(Gate A)*
+
+`agenda.ts` é a conta única, usada por `availableSlots`, `createBooking` e
+`rescheduleBooking` — os três a implementavam de formas diferentes, e nenhuma
+olhava a duração:
+
+```ts
+janelaDaReserva({ time, durationMin }, duracaoPadrao)  // → { inicio, fim }
+seSobrepoem(a, b)        // a.inicio < b.fim && b.inicio < a.fim
+janelaLivre(candidata, ocupadas)
+```
+
+Meia-aberto nas duas pontas: 10:00–11:00 e 11:00–11:30 **encostam** e não
+colidem — tratá-las como conflito apagaria metade dos horários vendáveis.
+Reserva antiga sem `durationMin` assume a grade (erra para menos; errar para
+mais bloquearia horário vendável), e horário ilegível é descartado em vez de
+bloquear o dia.
+
+> **O que isso corrigiu.** Um *Corte + barba* de 60 min às 15:00 ocupava, para
+> efeito de conflito, apenas o instante "15:00" — então 15:30 seguia sendo
+> oferecido e a transação gravava. Dois clientes na mesma cadeira, pelo caminho
+> normal do produto e com o catálogo que toda barbearia recebe ao nascer.
 
 **Capacidade** = slots por dia × barbeiros ativos (`capacidadeDiaria` ×
 `barbeirosAtivos`). Sem multiplicar, quem tem 3 barbeiros lê "100% de ocupação"
 com dois terços da agenda vazia.
 
-`slotsForDate` do cliente ainda sabe marcar **encaixe** (`isFitIn`) sobre horário
-ocupado, e continua testada — mas a tela de agendar não a usa mais. Ver P1-3.
+`slotsForDate` do cliente ainda sabe marcar **encaixe** (`isFitIn`) sobre
+horário ocupado e continua testada, mas **nada a usa para isso**: o encaixe saiu
+da proposta no Gate A. Ela permanece por causa do seletor de dias e da grade.
 
 ---
 
@@ -874,11 +944,14 @@ volta a ter cinco números que discordam entre si.
 
 ### As regras implementadas
 
+> A regra 4.3 (`encaixesAguardando`) foi **removida no Gate A**, junto com o
+> fluxo de encaixe. Regra do Action Center que nunca dispara é pior que
+> ausência: ela sustenta a impressão de que o caminho existe.
+
 | # | Regra | Severidade | O que dispara |
 |---|---|---|---|
 | 4.1 | `fechamentosPendentes` | crítico, urgência 1 | `completed` sem `paymentMethod` — a taxa entra como zero e o lucro aparece maior |
 | 4.11 | `desfechosEsquecidos` | crítico, 1–2 | reserva de dia anterior ainda em aberto |
-| 4.3 | `encaixesAguardando` | crítico, 2 | `fit_in_requested` pendente |
 | 4.2 | `atendimentosAtrasados` | crítico, 2 | passou do horário + tolerância e segue em aberto |
 | 4.10 | `taxasNaoConfiguradas` | crítico, 3 | taxas zeradas **e** houve pagamento em cartão no período |
 | 4.4 | `semServicoCadastrado` | crítico, 1 | nenhum serviço ativo |
@@ -947,7 +1020,7 @@ Decisão em um lugar só, consumida por `useAcesso`:
 | `suspenso` | não | nenhuma | `suspensa` |
 | `trial` vencido | não | nenhuma | `trial_vencido` |
 | `trial` válido | sim | **todas** | — |
-| `ativo` | sim | do plano, com o documento sobrepondo | — |
+| `ativo` | sim | **do plano**, mais `featuresExtras` (só soma) | — |
 
 **Modo leitura, não corte seco.** Barbearia que perde a agenda no meio de um
 sábado não volta para negociar — cria caso. O dono continua vendo tudo, o cliente
@@ -958,9 +1031,20 @@ por um dia; foi removido.
 sexta não tem culpa da mensalidade, e derrubar a agenda pública transforma uma
 cobrança em prejuízo para terceiros.
 
-> 🔴 **O modo leitura não é aplicado por tela nenhuma** e há uma segunda fonte de
-> verdade (`useFeature`) que ignora status e trial — **P0-5**. E não existe
-> caminho de mudança de plano — **P0-6**.
+> ✅ **Gate A.** O modo leitura passou a existir de fato: `conferirEscrita()`
+> nos cinco pontos de escrita de `repository.ts`, ligada por `TenantLive` e
+> reagindo ao snapshot ao vivo — o trial que vence com o painel aberto trava
+> sem recarregar. `useFeature` deriva de `acessoDaBarbearia`, e a segunda fonte
+> de verdade deixou de existir.
+>
+> A liberação pontual saiu de `features` e virou **`featuresExtras`**, que só
+> **adiciona** sobre o plano. Enquanto era o mesmo campo, o retrato do trial no
+> plano de cima — gravado por `signUpBarbershop` — virava liberação permanente,
+> e o downgrade não tinha efeito nenhum.
+>
+> A trava é de INTERFACE: as regras do Firestore continuam autorizando por
+> `isOwnerOf` sem consultar `status`, por decisão explícita. O que ela garante é
+> que **o produto não contradiz o que promete ao dono**.
 
 ### Contato comercial
 
@@ -991,7 +1075,7 @@ e telefone.
 |---|---|---|
 | **1. Serviços** | seleção múltipla; soma duração e valor | precisa de ≥ 1 |
 | **2. Dia e horário** | barbeiro (só a partir do segundo) + dia + slot | horários vêm de `availableSlots` |
-| **3. Pagamento** | informa que o pagamento é no salão | com aviso de LGPD antes de gravar |
+| **3. Contato e pagamento** | **WhatsApp obrigatório** + informa que o pagamento é no salão | com aviso de LGPD antes de gravar |
 | **4. Confirmação** | resumo e atalho para as reservas | — |
 
 A tela **não envia preço**: o servidor calcula a partir dos `serviceIds`. A
@@ -1004,6 +1088,16 @@ ato que grava o dado do cliente final. No rodapé de outra tela, ninguém leria.
 
 > Antes havia três botões de pagamento e dois nasciam desabilitados. Oferecer uma
 > escolha que não existe é pior que não oferecer escolha.
+
+> ✅ **Gate A.** O passo 3 passou a coletar o **WhatsApp do cliente**, que o
+> produto inteiro pressupunha e nunca pedia: `clientWhatsapp` vinha de
+> `user.phoneNumber`, que só existe para quem entra por SMS — num projeto onde o
+> SMS não está habilitado. Toda reserva nascia sem número. O valor é
+> pré-preenchido do perfil, normalizado com DDI 55 e guardado para a próxima.
+>
+> A política de cancelamento exibida passou a vir de `policies.cancellation`; os
+> números estavam cravados no JSX, e a barbearia com janela própria prometia ao
+> cliente uma coisa enquanto o servidor aplicava outra.
 
 ### `/reservas` — Minhas reservas
 
@@ -1023,12 +1117,20 @@ lados.
 > ⚠️ O seletor de horário da remarcação continua local e só enxerga as reservas do
 > próprio cliente — **P1-4**. O limite de remarcações é `useState` — **P1-13**.
 
-### `/planos` — Mensalista
+### `/planos` — Mensalista *(vitrine, não checkout)*
 
-Lista `plans` da barbearia, com checkout em modal e cálculo de quantas visitas o
-plano compensa.
+Lista `plans` da barbearia com o cálculo de quantas visitas o plano compensa, e
+o botão abre a **conversa com a barbearia** no WhatsApp, com a mensagem pronta.
 
-> 🔴 **Não persiste, não cobra e afirma que fez as duas coisas** — **P0-1**.
+> ✅ **Gate A.** O checkout foi removido e `subscription-context.tsx`, apagado.
+> Ele mantinha a assinatura num `useState` em memória — não gravava, não cobrava
+> e sumia ao recarregar — enquanto a tela afirmava *"Primeira cobrança hoje"*,
+> *"Plano ativado"* e *"Enviamos a confirmação no seu WhatsApp"*. Era o defeito
+> mais grave do produto, porque a afirmação ia para um **terceiro**, que nunca
+> contratou nada com a plataforma.
+>
+> Enquanto não houver cobrança, a contratação passa por quem recebe o dinheiro —
+> que é como ela já acontece hoje.
 
 ### `/perfil` — Perfil
 
@@ -1036,7 +1138,14 @@ Identidade, menus em modal (dados, plano, notificações, política de cancelame
 ajuda), histórico de atendimentos e valor investido, link para o painel quando a
 conta é dona, e sair.
 
-> ⚠️ Dados e preferências **não persistem** — **P0-4**, **P1-16**.
+> ✅ **Gate A.** Nome e WhatsApp passam a ser gravados em `users/{uid}` — o
+> `saveProfile` fazia `setSaved(true)` e fechava com "Salvo!" sem tocar em banco
+> nenhum. As preferências de notificação, que viviam num `useState` sob a legenda
+> *"as mensagens chegam no WhatsApp cadastrado"*, saíram: preferência que não
+> persiste é pior que preferência ausente.
+>
+> O card de plano deixou de anunciar "a partir de R$ 149/mês", que era literal e
+> não vinha do catálogo.
 
 ### `/login` — Entrar
 
@@ -1075,8 +1184,6 @@ A tela mais usada do produto.
 - **Previsão × recebido**, com barra de progresso
 - **Caixa de hoje** por meio de pagamento
 - **"Precisa de você"** — o Action Center ([§10](#10-action-center))
-- **Encaixes pendentes** — aprovar/recusar, abrindo o WhatsApp **só depois** de
-  gravar
 - **Agenda do dia** — tabela ordenada por hora, com telefone clicável, e por
   reserva: **Concluir** (pergunta o método, em um toque), **Não veio** (só depois
   da tolerância), **Cancelar** (só em aberto, mostrando a devolução antes)
@@ -1098,7 +1205,12 @@ Detalhes de desenho que carregam decisão:
   depois da atualização — gravar em duas etapas materializaria o pagamento antes
   de o método existir.
 
-> ⚠️ A legenda do "Previsão × recebido" descreve a regra antiga — **P1-11**.
+> ✅ **Gate A.** A seção "Encaixes pendentes" saiu junto com o fluxo. Reserva
+> antiga em `fit_in_requested` **continua na tabela da agenda** — sem a seção que
+> a mostrava, ela ficaria invisível e sem lugar onde ser reencontrada.
+>
+> ⚠️ A legenda do "Previsão × recebido" ainda descreve a regra antiga — **P1-11**,
+> na frente financeira.
 
 ### `/painel/servicos`
 
@@ -1344,8 +1456,11 @@ Duas guardas no `aplicarBotao`:
 **verificação comercial na Meta** e um chip novo. Sem a verificação: 250
 destinatários únicos por 24h.
 
-> ⚠️ E, mesmo liberada, o cliente não receberia nada: `clientWhatsapp` nunca é
-> preenchido — **P0-4**.
+> ✅ **Gate A.** `clientWhatsapp` passou a ser coletado no agendamento, então a
+> confirmação tem destinatário assim que a Meta liberar. O ramo de
+> `encaixe_solicitacao` saiu do `notifyBookingCreated` junto com o fluxo; o
+> template continua no catálogo, porque removê-lo exigiria ressubmissão e ele
+> não custa nada parado.
 
 ---
 
@@ -1695,17 +1810,21 @@ Cinco proteções que valem nomear:
 
 ```bash
 # Verificação completa
-cd web && npm run check          # typecheck + lint + 177 testes
-cd functions && npm run typecheck && npm test   # 141 testes
+cd web && npm run check          # typecheck + lint + 204 testes
+cd functions && npm run typecheck && npm test   # 188 testes
 
-# Regras — exige emulador
-cd functions && npm run test:rules              # 66 testes de isolamento
+# Exigem emulador
+cd functions && npm run test:concorrencia       # 13 · agenda sob concorrência
+cd functions && npm run test:rules              # 66 · isolamento entre tenants
+cd functions && npm run test:tudo               # os três de uma vez
 ```
 
 | Suíte | Cobertura |
 |---|---|
 | `web/src/lib/__tests__` | analytics, action-center, business-rules, tenant, tenant-shape, slots, slug, format, so-avisa-se-gravou |
 | `functions/src/__tests__` | booking (devolução), financial-events, signup, provisioning, account, data-deletion, locale, índices |
+| `agenda`, `subscription`, `trava-de-escrita`, `whatsapp-numero` | as regras que o Gate A fechou |
+| **concorrência (emulador)** | a trava de horário sob 10 e 50 pedidos simultâneos |
 | regras (emulador) | isolamento A↔B no Firestore e no Storage |
 
 > **Teste verde não promove nada para "validado".** Suíte verde diz que o código
@@ -1746,28 +1865,39 @@ escopo; funcionalidade que mente é defeito.**
 | Nota fiscal | não existe |
 | Login por SMS | provider não habilitado |
 | Observabilidade e backup | não existem |
-| Expiração de encaixe | `fitInExpirationMinutes` é lido só para escrever texto na tela |
+| Encaixe | **removido da proposta** no Gate A: o servidor recusa e a interface saiu dos dois lados. É conversa de WhatsApp |
 | `client_occurrences`, `cash_entries`, `refunds`, `subscription_invoices`, `schedules` | coleções declaradas nas regras, sem escrita |
 
 ### Aparenta funcionar e não funciona (defeito)
 
 Referências completas em [`AUDITORIA-2026-08-17.md`](./AUDITORIA-2026-08-17.md).
 
+**Fechados no Gate A** — cada um com teste que falha sem a correção:
+
+| Item | O que a tela afirmava | Ref. |
+|---|---|---|
+| ✅ Assinatura de mensalista | "Plano ativado", "Primeira cobrança hoje" | P0-1 |
+| ✅ Reserva sobreposta | horário livre que não estava livre | P0-2 |
+| ✅ Cancelar concluído | apagava receita e comissão sem aviso | P0-3 |
+| ✅ WhatsApp do cliente | "o cliente é avisado" sem ter número | P0-4 |
+| ✅ Modo leitura | "você não consegue alterar", e conseguia | P0-5 |
+| ✅ Trial e plano | teste que nunca vence; downgrade sem efeito | P0-6 |
+| ✅ Encaixe | anunciado nos dois lados, inalcançável | P1-3 |
+| ✅ Política de cancelamento | 24h/6h fixos na tela do cliente | P1-5 |
+| ✅ Preço de plano | "a partir de R$ 149/mês" literal | P1-6 |
+| ✅ Preferências de notificação | "Salvo!" sem gravar nem enviar | P1-16 |
+
+**Abertos** — a frente financeira é a próxima:
+
 | Item | O que a tela afirma | Ref. |
 |---|---|---|
-| **Assinatura de mensalista** | "Plano ativado", "Primeira cobrança hoje", "Enviamos a confirmação no seu WhatsApp" | **P0-1** |
-| **Reserva sobreposta** | horário livre que não está livre | **P0-2** |
-| **Cancelar concluído** | apaga receita e comissão sem aviso | **P0-3** |
-| **WhatsApp do cliente** | "O cliente é avisado pelo WhatsApp em seguida" | **P0-4** |
-| **Modo leitura** | "Você continua vendo tudo, mas não consegue alterar" | **P0-5** |
-| **Trial e plano** | teste que nunca vence; downgrade sem efeito | **P0-6** |
 | **Despesas "no mês"** | total histórico rotulado como mensal, com "julho de 2026" fixo | **P1-1** |
 | **DRE** | filhos da receita não somam o cabeçalho | **P1-2** |
-| **Encaixe** | anunciado nos dois lados, inalcançável no app | **P1-3** |
 | **Remarcar** | oferece horário de outra pessoa | **P1-4** |
-| **Política de cancelamento** | 24h/6h fixos na tela do cliente | **P1-5** |
-| **Preço de plano** | "a partir de R$ 149/mês" fixo | **P1-6** |
-| **Perfil e notificações** | "Salvo!" sem gravar | **P0-4**, **P1-16** |
+| **Loja** | comissão e imposto da plataforma, não da barbearia | **P1-7** |
+| **Rótulos do Financeiro** | comissão total sob o faturamento da loja; ativos contados como novos | **P1-9**, **P1-10** |
+| **Legenda do caixa** | descreve a regra anterior de `isReceived` | **P1-11** |
+| **Projeção** | "acumulado nos 30 dias" em todos os horizontes | **P1-14** |
 | **Botão "Atualizar" do PWA** | observado sem funcionar | §21 |
 
 ### O que já foi validado em produção

@@ -1,6 +1,7 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { onDocumentUpdated } from "firebase-functions/v2/firestore";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
+import { decidirEfeito } from "./financial-events";
 
 /**
  * Fidelidade por transação, não por contagem.
@@ -36,10 +37,14 @@ export const creditLoyaltyOnCompletion = onDocumentUpdated(
       `barbershops/${barbershopId}/loyalty_transactions/credito_${bookingId}`
     );
 
-    const virouConcluido = antes.status !== "completed" && depois.status === "completed";
-    const deixouDeSerConcluido = antes.status === "completed" && depois.status !== "completed";
+    /* A MESMA regra do fato financeiro, e de propósito: o carimbo é a
+     * contrapartida de um atendimento, então ele nasce e morre com o mesmo
+     * critério. Duas regras diferentes para o mesmo fato divergem — e a
+     * divergência apareceria como cliente sem carimbo de um corte que ele
+     * fez, ou com carimbo de um que não fez. */
+    const efeito = decidirEfeito(antes.status, depois.status);
 
-    if (virouConcluido) {
+    if (efeito === "materializar") {
       await ref.set({
         clientId: depois.clientId,
         kind: "credito" satisfies LoyaltyKind,
@@ -50,10 +55,11 @@ export const creditLoyaltyOnCompletion = onDocumentUpdated(
       return;
     }
 
-    /* Reserva concluída que volta atrás (correção do dono, estorno) devolve o
-     * carimbo. Sem isso, marcar como concluído por engano dá fidelidade de
-     * graça e não há como desfazer. */
-    if (deixouDeSerConcluido) {
+    /* Conclusão desfeita por correção do dono devolve o carimbo. Sem isso,
+     * marcar como concluído por engano dá fidelidade de graça e não há como
+     * desfazer. Cancelamento de atendimento realizado NÃO chega aqui — ver
+     * `decidirEfeito`. */
+    if (efeito === "reverter") {
       await ref.delete().catch(() => undefined);
     }
   }

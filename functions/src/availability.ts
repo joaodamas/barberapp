@@ -1,6 +1,7 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
 import { diaDaSemanaNoFuso, instanteNoFuso, localeDoDocumento } from "./locale";
+import { janelaLivre, janelasOcupadas, paraHora, paraMinutos } from "./agenda";
 
 /**
  * Horários livres de um dia.
@@ -29,13 +30,6 @@ const OCUPAM_SLOT = [
   "completed",
   "no_show",
 ];
-
-const paraMinutos = (hhmm: string) => {
-  const [h, m] = String(hhmm).split(":").map(Number);
-  return h * 60 + m;
-};
-const paraHora = (min: number) =>
-  `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
 
 type Jornada = {
   weekdays?: number[];
@@ -92,12 +86,18 @@ export const availableSlots = onCall<{
 
   /* Ocupação DESTE barbeiro. A query traz o dia inteiro e o filtro por barbeiro
    * é em memória — três igualdades exigiriam índice composto, e índice faltando
-   * derruba a tela em produção. */
+   * derruba a tela em produção.
+   *
+   * A ocupação é por JANELA, não por instante. Enquanto era um `Set` de
+   * horários de início, um atendimento das 15:00 às 16:00 marcava só "15:00" e
+   * as 15:30 continuavam sendo oferecidas — dois clientes na mesma cadeira,
+   * pelo caminho normal do produto. Ver `agenda.ts`. */
   const reservas = await shopRef.collection("bookings").where("date", "==", date).get();
-  const ocupados = new Set(
+  const ocupadas = janelasOcupadas(
     reservas.docs
       .filter((d) => d.get("staffId") === barbeiro.id && OCUPAM_SLOT.includes(d.get("status")))
-      .map((d) => String(d.get("time")))
+      .map((d) => ({ time: String(d.get("time")), durationMin: d.get("durationMin") })),
+    jornada.slotMinutes
   );
 
   const abre = paraMinutos(jornada.opensAt);
@@ -107,7 +107,10 @@ export const availableSlots = onCall<{
   const livres: string[] = [];
   for (let t = abre; t + duracao <= fecha; t += jornada.slotMinutes) {
     const hora = paraHora(t);
-    if (ocupados.has(hora)) continue;
+    /* O atendimento INTEIRO precisa estar livre, e não só o minuto em que ele
+     * começa: um corte de 30 min às 15:30 não cabe se o combo das 15:00 vai
+     * até as 16:00. */
+    if (!janelaLivre({ inicio: t, fim: t + duracao }, ocupadas)) continue;
 
     /* O atendimento inteiro precisa caber: um combo de 60 min não pode começar
      * 30 min antes do almoço nem 30 min antes de fechar. */

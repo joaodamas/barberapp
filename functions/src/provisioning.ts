@@ -2,6 +2,7 @@ import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { getAuth } from "firebase-admin/auth";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { featuresFor, toPlanId } from "./plans";
+import { TRIAL_DAYS } from "./signup";
 
 /**
  * Provisionamento de uma nova barbearia.
@@ -27,6 +28,15 @@ const SEED_SERVICES = [
   { id: "corte-barba", name: "Corte + barba", durationMin: 60, price: 90 },
   { id: "corte-barba-sobrancelha", name: "Corte + barba + sobrancelha", durationMin: 60, price: 100 },
 ];
+
+/** A mesma jornada com que a barbearia self-service nasce. */
+const DEFAULT_SCHEDULE = {
+  weekdays: [1, 2, 3, 4, 5, 6],
+  opensAt: "09:00",
+  closesAt: "19:00",
+  breaks: [{ from: "12:00", to: "14:00" }],
+  slotMinutes: 30,
+};
 
 const SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]{1,28}[a-z0-9])$/;
 
@@ -96,6 +106,22 @@ export const provisionBarbershop = onCall<ProvisionInput>(async (request) => {
    * existe, e a barbearia abriria capada sem erro em lugar nenhum. */
   const plan = toPlanId(input.plan ?? "gestao");
 
+  /* O trial precisa ter DATA DE FIM, como no cadastro self-service.
+   *
+   * Gravar `status: "trial"` sem o campo `trial` criava um teste que nunca
+   * vence: `isTrialExpired` devolve falso quando não há data, e o acesso fica
+   * liberado no plano de cima para sempre. `revisarAssinaturas` também desiste
+   * dessa barbearia ("trial sem data de fim válida") — então nem a rotina
+   * diária a alcançava.
+   *
+   * Era o caminho pelo qual a barbearia piloto foi criada, e a razão de ela
+   * nunca ter vencido. */
+  const agora = Date.now();
+  const trial = {
+    startedAt: new Date(agora),
+    endsAt: new Date(agora + TRIAL_DAYS * 24 * 60 * 60 * 1000),
+  };
+
   await db.runTransaction(async (tx) => {
     // Leitura dentro da transação: garante que ninguém tomou o slug no meio.
     const existing = await tx.get(slugRef);
@@ -107,6 +133,13 @@ export const provisionBarbershop = onCall<ProvisionInput>(async (request) => {
       slug,
       status: "trial",
       plan,
+      trial,
+      /* A jornada padrão vai no documento, e não é deixada para o código
+       * adivinhar: sem ela, a barbearia assistida caía nos defaults de
+       * `availableSlots` (09:00–19:00, sem intervalo) enquanto a self-service
+       * nascia com a dela gravada — dois caminhos de criação com resultados
+       * diferentes para a mesma pergunta. */
+      schedule: DEFAULT_SCHEDULE,
       brand: {
         name,
         shortName: shortNameFrom(name),

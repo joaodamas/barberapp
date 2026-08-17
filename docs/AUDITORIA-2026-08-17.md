@@ -1,5 +1,27 @@
 # Auditoria da plataforma — 17/08/2026
 
+> ## Estado da correção — atualizado em 17/08, branch `hardening/p0-2026-08-17`
+>
+> | | Achado | Estado | Evidência |
+> |---|---|---|---|
+> | 🔴 | **P0-1** assinatura falsa | ✅ corrigido | checkout removido; a tela virou vitrine com contato da barbearia. `subscription-context.tsx` **apagado** |
+> | 🔴 | **P0-2** agenda duplicada | ✅ corrigido | `agenda.ts` + 28 testes puros + **13 de concorrência real** contra o emulador |
+> | 🔴 | **P0-3** cancelamento apaga receita | ✅ corrigido | guarda no `cancelBooking` + `decidirEfeito` no gatilho + 7 testes |
+> | 🔴 | **P0-4** telefone do cliente | ✅ corrigido | campo obrigatório no passo 3, perfil grava de verdade, 17 testes de formato |
+> | 🔴 | **P0-5** modo leitura decorativo | ✅ corrigido | `trava-de-escrita.ts` nos 5 pontos do repositório + `useFeature` unificado + 12 testes |
+> | 🔴 | **P0-6** trial e plano | ✅ corrigido | `trial` no provisionamento, `definirPlano`, `featuresExtras` + 13 testes |
+> | 🟠 | **P1-3** encaixe | ✅ removido da proposta | decisão de produto de 17/08; servidor recusa, interface limpa |
+> | 🟠 | **P1-5** política cravada | ✅ corrigido | agendar e perfil leem `policies.cancellation` |
+> | 🟠 | **P1-6** preço inventado | ✅ corrigido | "R$ 149" saiu das duas telas |
+> | 🟠 | **P1-16** notificações que não persistem | ✅ corrigido | as chaves falsas saíram; o texto diz o que acontece |
+>
+> **Suíte:** functions 141 → **188** · web 177 → **204** · concorrência **13** (nova) · build limpo.
+>
+> Os **P1 financeiros** (P1-1, P1-2, P1-7, P1-9, P1-10, P1-11, P1-14) são a
+> próxima frente, junto da reconciliação de ponta a ponta com massa conhecida.
+> Nada aqui foi promovido por leitura de código: cada linha ✅ tem teste que
+> falha sem a correção.
+
 Varredura completa do código no commit `659091a` (`main`, após o merge dos PRs
 #12 a #19). Cobre as 21 Cloud Functions, as regras do Firestore e do Storage, a
 camada de dados do web, o motor financeiro, o Action Center e as 25 telas.

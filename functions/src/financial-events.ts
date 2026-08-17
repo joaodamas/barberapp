@@ -124,6 +124,62 @@ export function calcularEventoFinanceiro(params: {
   };
 }
 
+/**
+ * Estados para os quais uma conclusão pode ser DESFEITA.
+ *
+ * A reversão existe para o erro de operação: o dono conclui a reserva errada e
+ * precisa voltar atrás, ou descobre que o cliente na verdade faltou. Nesses
+ * casos o atendimento não aconteceu, e a comissão e o pagamento precisam sumir.
+ *
+ * `cancelled_by_client`, `cancelled_by_shop` e `expired` ficam de FORA de
+ * propósito — ver `decidirEfeito`.
+ */
+const VOLTA_A_SER_OPERACIONAL = [
+  "pending_payment",
+  "confirmed",
+  "confirmed_by_client",
+  "no_show",
+];
+
+export type EfeitoFinanceiro = "materializar" | "reverter" | "nada";
+
+/**
+ * O que a mudança de status faz com o fato financeiro.
+ *
+ * Separada do gatilho porque é a regra que decide se dinheiro registrado
+ * continua existindo — e dentro do `onDocumentUpdated` ela só se exercia com
+ * emulador.
+ *
+ * A distinção que a função existe para fazer: **desfazer uma conclusão não é a
+ * mesma coisa que cancelar um atendimento que aconteceu.**
+ *
+ * - Voltar para um estado operacional (`confirmed`, `no_show`…) é correção: o
+ *   atendimento não ocorreu, e o fato financeiro tem de sumir junto.
+ * - Ir de `completed` para `cancelled_*` é outra coisa: alguém está dizendo que
+ *   um atendimento JÁ REALIZADO foi desmarcado, o que é uma contradição. O
+ *   dinheiro entrou na gaveta, a comissão foi combinada com o barbeiro, e
+ *   apagar os dois faz a receita sumir do DRE, do fluxo e do acerto — em
+ *   silêncio, sem tela onde reencontrá-la.
+ *
+ * Era por esse buraco que o `cancelBooking` sem guarda de status destruía
+ * receita consolidada. A guarda foi posta lá; esta é a segunda camada, porque
+ * a coleção `bookings` também aceita escrita direta do dono pelas regras.
+ *
+ * Devolver dinheiro de atendimento realizado é **estorno**, e estorno é evento
+ * novo (`refunds`), nunca a remoção do evento anterior. Histórico financeiro se
+ * corrige somando, não apagando.
+ */
+export function decidirEfeito(
+  statusAntes: string | undefined,
+  statusDepois: string | undefined
+): EfeitoFinanceiro {
+  if (statusAntes !== "completed" && statusDepois === "completed") return "materializar";
+  if (statusAntes === "completed" && statusDepois !== "completed") {
+    return VOLTA_A_SER_OPERACIONAL.includes(String(statusDepois)) ? "reverter" : "nada";
+  }
+  return "nada";
+}
+
 export const materializeFinancialsOnCompletion = onDocumentUpdated(
   "barbershops/{barbershopId}/bookings/{bookingId}",
   async (event) => {
@@ -145,12 +201,11 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
       `barbershops/${barbershopId}/payments/pagamento_${bookingId}`
     );
 
-    const virouConcluido = antes.status !== "completed" && depois.status === "completed";
-    const deixouDeSerConcluido = antes.status === "completed" && depois.status !== "completed";
+    const efeito = decidirEfeito(antes.status, depois.status);
 
-    if (deixouDeSerConcluido) {
-      /* Conclusão desfeita (correção do dono, estorno) remove os dois. Sem
-       * isso, marcar como concluído por engano deixa comissão a pagar e receita
+    if (efeito === "reverter") {
+      /* Conclusão desfeita por correção do dono remove os dois. Sem isso,
+       * marcar como concluído por engano deixa comissão a pagar e receita
        * fantasma no fechamento, sem caminho de volta pela interface. */
       await Promise.all([
         comissaoRef.delete().catch(() => undefined),
@@ -159,7 +214,20 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
       return;
     }
 
-    if (!virouConcluido) return;
+    if (efeito === "nada") {
+      /* Sair de `completed` para um estado de cancelamento é contradição, e o
+       * fato financeiro FICA. O aviso existe porque nenhum caminho do produto
+       * deveria produzir isso: se aparecer no log, é escrita direta no banco ou
+       * uma tela nova sem guarda. */
+      if (antes.status === "completed" && depois.status !== "completed") {
+        console.warn(
+          `[financeiro] ${bookingId}: "${antes.status}" → "${depois.status}" ` +
+            `não reverte o fato financeiro. O atendimento aconteceu; devolver ` +
+            `valor de atendimento realizado é estorno, não cancelamento.`
+        );
+      }
+      return;
+    }
 
     const valor = Number(depois.value) || 0;
     const metodo = (depois.paymentMethod ?? null) as PaymentMethod | null;

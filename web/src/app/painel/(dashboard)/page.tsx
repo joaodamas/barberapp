@@ -32,7 +32,7 @@ import { usePayments } from "@/lib/db/use-shop-data";
 import type { PaymentMethod } from "@/lib/types";
 import { labelDoPagamento, PAYMENT_METHODS, paymentMethodLabel } from "@/lib/payment-method";
 import { formatBRL, formatPhonePtBR, safePct } from "@/lib/format";
-import { bookingPolicy, refundAmountFor } from "@/lib/business-rules";
+import { refundAmountFor } from "@/lib/business-rules";
 import { useTenant } from "@/lib/tenant-context";
 import type { TenantPolicies } from "@/lib/tenant";
 import { useBookings, useServices, useStaff } from "@/lib/db/use-shop-data";
@@ -68,12 +68,13 @@ export default function PainelHojePage() {
   const barbeirosAtivos = Math.max(equipe.filter((b) => b.active !== false).length, 1);
   const totalSlots = capacidadeDiaria(tenant.schedule) * barbeirosAtivos;
 
-  const fitInRequests = bookings.filter((b) => b.status === "fit_in_requested");
-
   /* `localeCompare` em "HH:mm" ordena certo porque o formato é de largura fixa
    * e zero-padded — "09:00" < "10:00" < "12:00" como texto. */
+  /* Sem filtro por status: a seção "Encaixes pendentes" saiu junto com o
+   * encaixe, e um `fit_in_requested` antigo ficaria invisível — some da agenda
+   * e não tem mais onde ser encontrado. Ele aparece na tabela como qualquer
+   * outra reserva, com o rótulo que `bookingStatusMeta` já dá. */
   const bookingsDoDia = bookings
-    .filter((b) => b.status !== "fit_in_requested")
     .slice()
     .sort((a, b) => a.time.localeCompare(b.time));
   const agendados = bookings.filter((b) => OCCUPIES_SLOT.includes(b.status));
@@ -106,7 +107,7 @@ export default function PainelHojePage() {
   const { visiveis: acoesVisiveis, ocultos: acoesOcultas } =
     repartirParaExibicao(itensDeAcao);
 
-  const semColunaLateral = itensDeAcao.length === 0 && fitInRequests.length === 0;
+  const semColunaLateral = itensDeAcao.length === 0;
   const [aFechar, setAFechar] = useState<Doc<BookingDoc> | null>(null);
   const [faltaDe, setFaltaDe] = useState<Doc<BookingDoc> | null>(null);
   const [aCancelar, setACancelar] = useState<Doc<BookingDoc> | null>(null);
@@ -118,7 +119,6 @@ export default function PainelHojePage() {
   const [salvando, setSalvando] = useState(false);
   const [erroAoFechar, setErroAoFechar] = useState<string | null>(null);
   const [erroDaFalta, setErroDaFalta] = useState<string | null>(null);
-  const [erroDoEncaixe, setErroDoEncaixe] = useState<Record<string, string>>({});
 
   /* A conta que o dono vê antes de confirmar, com a política DESTA barbearia —
    * a mesma que `cancelBooking` vai aplicar do lado do servidor. Enquanto isto
@@ -246,45 +246,6 @@ export default function PainelHojePage() {
     if (!alvo) return;
     if (intent.kind === "fecharAtendimento") setAFechar(alvo);
     else setFaltaDe(alvo);
-  }
-
-  /**
-   * O caso mais grave dos três, e o motivo de `soAvisaSeGravou` existir.
-   *
-   * A mensagem ao cliente saía ANTES de a reserva ser gravada — `window.open`
-   * incondicional, logo depois de um `void patchDoc(...)`. Com a rede caindo, o
-   * dono confirmava a um TERCEIRO um encaixe que não existia, e o cliente
-   * aparecia para um horário sem reserva.
-   *
-   * Tela errada se resolve recarregando; mensagem enviada, não.
-   */
-  async function resolveFitIn(booking: Doc<BookingDoc>, approve: boolean) {
-    /* Limpa só o erro DESTE encaixe: com dois pendentes, apagar o mapa
-     * inteiro esconderia a falha do outro cartão. */
-    setErroDoEncaixe((atual) =>
-      Object.fromEntries(Object.entries(atual).filter(([id]) => id !== booking.id))
-    );
-
-    const firstName = booking.clientName.split(" ")[0];
-    const serviceNames = getServicesByIds(booking.serviceIds)
-      .map((s) => s.name)
-      .join(" + ");
-    const message = approve
-      ? `Olá ${firstName}! Seu encaixe de hoje às ${booking.time} (${serviceNames}) foi confirmado. Te esperamos! — ${brand.name}`
-      : `Olá ${firstName}, infelizmente não conseguimos encaixar o horário das ${booking.time} hoje. Posso te mandar as próximas vagas livres?`;
-
-    const r = await soAvisaSeGravou({
-      gravar: () =>
-        patchDoc(tenant.id, "bookings", booking.id, {
-          status: approve ? "confirmed" : "cancelled_by_shop",
-        }),
-      avisar: () =>
-        window.open(
-          `https://wa.me/${booking.clientWhatsapp}?text=${encodeURIComponent(message)}`,
-          "_blank"
-        ),
-    });
-    if (!r.ok) setErroDoEncaixe((atual) => ({ ...atual, [booking.id]: r.erro }));
   }
 
   return (
@@ -425,64 +386,11 @@ export default function PainelHojePage() {
         </section>
       )}
 
-      {fitInRequests.length > 0 && (
-        <section className="md:col-start-2 md:row-start-5">
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm">
-            Encaixes pendentes
-          </h2>
-          <div className="flex flex-col gap-2 md:gap-3">
-            {fitInRequests.map((booking) => (
-              <Card key={booking.id} className="flex flex-col gap-3 md:p-5">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-sm text-ivory">{booking.clientName}</p>
-                    <p className="text-xs text-ivory-muted">
-                      {getServicesByIds(booking.serviceIds)
-                        .map((s) => s.name)
-                        .join(" + ")}{" "}
-                      · {booking.time}
-                    </p>
-                  </div>
-                  <Pill tone="gold">
-                    expira em até {bookingPolicy.fitInExpirationMinutes} min
-                  </Pill>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    className="flex-1"
-                    onClick={() => resolveFitIn(booking, true)}
-                  >
-                    Aprovar
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    className="flex-1"
-                    onClick={() => resolveFitIn(booking, false)}
-                  >
-                    Recusar
-                  </Button>
-                </div>
-                {erroDoEncaixe[booking.id] && (
-                  <p role="alert" className="text-xs text-danger">
-                    {erroDoEncaixe[booking.id]} Nenhuma mensagem foi enviada ao
-                    cliente.
-                  </p>
-                )}
-                <p className="text-[11px] text-ivory-muted">
-                  Aprovar ou recusar abre o WhatsApp do cliente com a mensagem
-                  pronta — só depois de o encaixe ser gravado.
-                </p>
-              </Card>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* A coluna lateral de 360px só existe quando há algo nela — "precisa de
-          você" ou encaixe pendente. Vazia, ela deixava a agenda parando no meio
-          da tela com um vão à direita, enquanto os blocos de cima iam até a
-          borda. Sem nada ao lado, a agenda ocupa a largura inteira: é a tabela
-          com mais colunas do painel, e é onde a largura faz diferença. */}
+      {/* A coluna lateral de 360px só existe quando há algo nela — hoje, o
+          "precisa de você". Vazia, ela deixava a agenda parando no meio da tela
+          com um vão à direita, enquanto os blocos de cima iam até a borda. Sem
+          nada ao lado, a agenda ocupa a largura inteira: é a tabela com mais
+          colunas do painel, e é onde a largura faz diferença. */}
       <section
         className={
           semColunaLateral

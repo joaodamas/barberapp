@@ -18,10 +18,9 @@ import { SignOutButton } from "@/components/sign-out-button";
 import { ProfileIdentity } from "@/components/profile-identity";
 import { OwnerPanelLink } from "@/components/owner-panel-link";
 import { useAuth } from "@/lib/auth-context";
-import { formatBRL, formatDateShortPtBR } from "@/lib/format";
-import { useSubscription } from "@/lib/subscription-context";
-import { cancellationPolicy } from "@/lib/business-rules";
-import { useTenant } from "@/lib/tenant-context";
+import { formatBRL } from "@/lib/format";
+import { useTenant, usePolicies } from "@/lib/tenant-context";
+import { lerPerfil, mascararWhatsapp, salvarPerfil, whatsappValido } from "@/lib/db/perfil";
 import { useLoyalty, useMyBookings } from "@/lib/db/use-shop-data";
 
 type MenuKey = "dados" | "plano" | "notificacoes" | "politica" | "ajuda";
@@ -46,7 +45,7 @@ export default function PerfilPage() {
   const { user } = useAuth();
   const tenant = useTenant();
   const { items: minhas } = useMyBookings(user?.uid);
-  const { plan: activePlan, nextChargeISO } = useSubscription();
+  const politica = usePolicies().cancellation;
 
   const bookingHistory = minhas.filter((b) => b.status === "completed");
   const loyalty = useLoyalty(user?.uid);
@@ -61,13 +60,25 @@ export default function PerfilPage() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [saved, setSaved] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+  const [erroPerfil, setErroPerfil] = useState<string | null>(null);
 
-  const [notifications, setNotifications] = useState({
-    confirmacao: true,
-    lembrete: true,
-    promocoes: false,
-    fidelidade: true,
-  });
+  /* Carrega o que já está gravado, para o formulário mostrar o estado real em
+   * vez de campos vazios que sugerem "nada cadastrado". */
+  useEffect(() => {
+    if (!user?.uid) return;
+    let cancelado = false;
+    lerPerfil(user.uid)
+      .then((perfil) => {
+        if (cancelado || !perfil) return;
+        setName((atual) => atual || perfil.name);
+        setPhone((atual) => atual || mascararWhatsapp(perfil.whatsapp));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelado = true;
+    };
+  }, [user?.uid]);
 
   /* Só atendimento concluído conta — a reserva futura (possivelmente "a pagar
    * no salão") era somada como visita realizada e dinheiro gasto. */
@@ -79,12 +90,40 @@ export default function PerfilPage() {
     if (savedTimer.current) clearTimeout(savedTimer.current);
   }, []);
 
-  function saveProfile() {
-    setSaved(true);
-    savedTimer.current = setTimeout(() => {
-      setSaved(false);
-      setOpenMenu(null);
-    }, 900);
+  /**
+   * Grava de verdade.
+   *
+   * Isto fazia `setSaved(true)` e fechava o modal com "Salvo!" — sem tocar em
+   * banco nenhum. O cliente digitava nome e celular, lia a confirmação, e nada
+   * era persistido. E o campo perdido era justamente o WhatsApp: o dado de que
+   * o produto inteiro depende para confirmar horário, lembrar e avisar de
+   * cancelamento.
+   *
+   * O selo "Salvo!" só aparece DEPOIS de a escrita voltar, e o erro aparece
+   * onde a ação foi disparada — não no console.
+   */
+  async function saveProfile() {
+    if (!user?.uid) return;
+
+    if (phone.trim() && !whatsappValido(phone)) {
+      setErroPerfil("Informe um WhatsApp válido com DDD, ou deixe em branco.");
+      return;
+    }
+
+    setSalvando(true);
+    setErroPerfil(null);
+    try {
+      await salvarPerfil(user.uid, { name, whatsapp: phone });
+      setSaved(true);
+      savedTimer.current = setTimeout(() => {
+        setSaved(false);
+        setOpenMenu(null);
+      }, 900);
+    } catch {
+      setErroPerfil("Não foi possível salvar agora. Nada foi alterado — tente de novo.");
+    } finally {
+      setSalvando(false);
+    }
   }
 
   return (
@@ -147,20 +186,20 @@ export default function PerfilPage() {
               </div>
               <div>
                 <p className="text-sm font-medium text-ivory md:text-base">
-                  {activePlan ? `Plano ${activePlan.name} ativo` : "Você ainda não é mensalista"}
+                  Planos de mensalista
                 </p>
+                {/* O preço saiu daqui: era "a partir de R$ 149/mês" cravado no
+                    código, e a barbearia com plano de R$ 89 — ou sem plano
+                    nenhum — anunciava 149 ao cliente. Quem sabe o preço é a
+                    tela de Planos, que lê o catálogo. */}
                 <p className="text-xs text-ivory-muted md:text-sm">
-                  {activePlan
-                    ? `${formatBRL(activePlan.price)}/mês${
-                        nextChargeISO ? ` · próxima cobrança em ${formatDateShortPtBR(nextChargeISO)}` : ""
-                      }`
-                    : "Planos a partir de R$ 149/mês"}
+                  Corte quantas vezes quiser por um valor fixo no mês.
                 </p>
               </div>
             </div>
             <Link href="/planos">
               <Button variant="secondary" className="w-full">
-                {activePlan ? "Gerenciar plano" : "Ver planos"}
+                Ver planos
               </Button>
             </Link>
           </Card>
@@ -178,7 +217,9 @@ export default function PerfilPage() {
               <Button variant="ghost" onClick={() => setOpenMenu(null)}>
                 Cancelar
               </Button>
-              <Button onClick={saveProfile}>{saved ? "Salvo!" : "Salvar"}</Button>
+              <Button onClick={() => void saveProfile()} disabled={salvando}>
+                {salvando ? "Salvando…" : saved ? "Salvo!" : "Salvar"}
+              </Button>
             </>
           ) : openMenu === "plano" ? (
             <Link href="/planos">
@@ -203,8 +244,11 @@ export default function PerfilPage() {
             <label className="flex flex-col gap-1 text-xs text-ivory-muted">
               Celular com WhatsApp
               <input
+                type="tel"
+                inputMode="numeric"
+                autoComplete="tel"
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                onChange={(e) => setPhone(mascararWhatsapp(e.target.value))}
                 placeholder="(11) 99999-9999"
                 className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
               />
@@ -220,6 +264,11 @@ export default function PerfilPage() {
             <p className="text-xs text-ivory-muted">
               O e-mail é o identificador da sua conta e não pode ser alterado por aqui.
             </p>
+            {erroPerfil && (
+              <p role="alert" className="text-xs text-danger">
+                {erroPerfil}
+              </p>
+            )}
           </div>
         )}
 
@@ -228,13 +277,10 @@ export default function PerfilPage() {
             <div className="flex items-center gap-3 rounded-xl border border-border bg-surface-raised px-4 py-3">
               <Sparkles size={18} className="shrink-0 text-gold-light" />
               <div>
-                <p className="text-sm text-ivory">
-                  {activePlan ? `Plano ${activePlan.name}` : "Você ainda não é mensalista"}
-                </p>
+                <p className="text-sm text-ivory">Planos de mensalista</p>
                 <p className="text-xs text-ivory-muted">
-                  {activePlan
-                    ? `${formatBRL(activePlan.price)}/mês · ${activePlan.description}`
-                    : "Hoje você paga por atendimento avulso."}
+                  Hoje você paga por atendimento avulso. A assinatura é
+                  combinada direto com a barbearia.
                 </p>
               </div>
             </div>
@@ -258,35 +304,20 @@ export default function PerfilPage() {
         )}
 
         {openMenu === "notificacoes" && (
-          <div className="flex flex-col gap-1">
-            {(
-              [
-                ["confirmacao", "Confirmação de reserva", "Assim que o horário é marcado"],
-                ["lembrete", "Lembrete do atendimento", "No dia, algumas horas antes"],
-                ["fidelidade", "Fidelidade e recompensas", "Quando você ganha carimbos"],
-                ["promocoes", "Promoções e novidades", "Ofertas pontuais da barbearia"],
-              ] as const
-            ).map(([key, label, hint]) => (
-              <label
-                key={key}
-                className="flex cursor-pointer items-center gap-3 rounded-xl px-2 py-2.5 transition-colors hover:bg-surface-raised"
-              >
-                <input
-                  type="checkbox"
-                  checked={notifications[key]}
-                  onChange={(e) =>
-                    setNotifications((n) => ({ ...n, [key]: e.target.checked }))
-                  }
-                  className="h-4 w-4 rounded border-border accent-gold"
-                />
-                <div className="flex-1">
-                  <p className="text-sm text-ivory">{label}</p>
-                  <p className="text-xs text-ivory-muted">{hint}</p>
-                </div>
-              </label>
-            ))}
-            <p className="mt-2 text-xs text-ivory-muted">
-              As mensagens chegam no WhatsApp cadastrado na sua conta.
+          /* As quatro chaves viviam num `useState` que nada gravava, sob a
+             legenda "as mensagens chegam no WhatsApp cadastrado na sua conta"
+             — e não havia WhatsApp cadastrado nem envio. Preferência que não
+             persiste é pior que preferência ausente: a pessoa desliga
+             "promoções", continua recebendo, e deixa de confiar no resto. */
+          <div className="flex flex-col gap-3 text-sm text-ivory-muted">
+            <p>
+              Hoje a {barbershop.name} fala com você pelo WhatsApp que está no
+              seu cadastro — confirmação do horário e avisos sobre o
+              atendimento.
+            </p>
+            <p>
+              Para não receber mais, é só pedir a ela na conversa. Quando as
+              preferências entrarem aqui, elas aparecem nesta tela.
             </p>
           </div>
         )}
@@ -295,21 +326,21 @@ export default function PerfilPage() {
           <div className="flex flex-col gap-3 text-sm text-ivory-muted">
             <p>
               <strong className="text-ivory">
-                Até {cancellationPolicy.fullRefundHours}h antes:
+                Até {politica.fullRefundHours}h antes:
               </strong>{" "}
               cancelamento com 100% de devolução do valor pago.
             </p>
             <p>
               <strong className="text-ivory">
-                Entre {cancellationPolicy.fullRefundHours}h e{" "}
-                {cancellationPolicy.partialRefundHours}h antes:
+                Entre {politica.fullRefundHours}h e{" "}
+                {politica.partialRefundHours}h antes:
               </strong>{" "}
-              retemos {cancellationPolicy.cancellationFeePct}% de taxa de cancelamento e
+              retemos {politica.cancellationFeePct}% de taxa de cancelamento e
               devolvemos o restante.
             </p>
             <p>
               <strong className="text-ivory">
-                Menos de {cancellationPolicy.partialRefundHours}h antes:
+                Menos de {politica.partialRefundHours}h antes:
               </strong>{" "}
               não há devolução — o horário dificilmente é reocupado em cima da hora.
             </p>

@@ -1,6 +1,7 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { diaDaSemanaNoFuso, hojeNoFuso, instanteNoFuso, localeDoDocumento } from "./locale";
+import { horarioDisponivel, janelasOcupadas } from "./agenda";
 
 /**
  * Criação de reserva.
@@ -68,6 +69,27 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
     throw new HttpsError(
       "invalid-argument",
       "Pagamento antecipado ainda não está disponível."
+    );
+  }
+
+  /* Encaixe saiu da proposta em 17/08.
+   *
+   * Ele existia como pedido sobre um horário ocupado, e perdeu o caminho no dia
+   * em que a disponibilidade passou a vir de `availableSlots` — que devolve só
+   * os horários LIVRES. A tela seguiu anunciando "peça um encaixe nos horários
+   * em vermelho" para horários que nunca apareciam, o painel manteve uma seção
+   * que nunca receberia nada, e o template de WhatsApp ficou esperando um
+   * documento que ninguém criava.
+   *
+   * A decisão foi remover em vez de reativar: encaixe é conversa de WhatsApp,
+   * e o dono resolve pela agenda quando quiser. O servidor recusa
+   * explicitamente para que a ausência seja uma resposta, e não um silêncio —
+   * e para que uma tela antiga em cache não crie reserva num estado que o
+   * produto não sabe mais operar. */
+  if (isFitIn) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Encaixe não é mais feito pelo app. Fale com a barbearia pelo WhatsApp."
     );
   }
 
@@ -172,66 +194,32 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
     nomes.push(String(s.name ?? ""));
   }
 
-  const status = isFitIn ? "fit_in_requested" : "confirmed";
+  /* Grade da jornada: do barbeiro quando ele tem uma, senão da loja. É a
+   * duração assumida para reserva antiga, gravada antes de `durationMin`
+   * existir. */
+  const slotMinutes: number =
+    Number(jornadaDele?.slotMinutes) || Number(schedule.slotMinutes) || 30;
+
+  /* Serviço cadastrado sem duração ocuparia ZERO minuto e não bloquearia nada —
+   * a janela seria vazia e toda reserva seguinte caberia dentro dela. A grade é
+   * o mínimo defensável. */
+  const duracaoDaReserva = durationMin > 0 ? durationMin : slotMinutes;
+
+  const status = "confirmed";
 
   /* ---- Grava checando conflito na mesma transação ---- */
-  const bookingRef = shopRef.collection("bookings").doc();
-
-  await db.runTransaction(async (tx) => {
-    /* ---- Quantas este cliente já tem em aberto ----
-     *
-     * Sem teto, uma conta só ocupa a agenda inteira: são 60 dias de horizonte
-     * e nada impedia um laço de criar reserva em todos os horários. Não é
-     * roubo de dado, é sequestro de agenda — e para uma barbearia dá no mesmo,
-     * porque ninguém mais consegue marcar.
-     *
-     * O filtro de status e data é em memória, e não na query, de propósito:
-     * `where('clientId').where('date','>=')` exigiria índice composto, e um
-     * índice faltando derruba a criação de reserva em produção. A quantidade
-     * por cliente é pequena por natureza. */
-    const maxAtivas: number = policies.booking?.maxActivePerClient ?? 3;
-    const hoje = hojeNoFuso(locale.timeZone);
-    const minhas = await tx.get(shopRef.collection("bookings").where("clientId", "==", uid));
-    const ativas = minhas.docs.filter((d) => {
-      const b = d.data();
-      return EM_ABERTO.includes(b.status) && String(b.date) >= hoje;
-    }).length;
-
-    if (ativas >= maxAtivas) {
-      throw new HttpsError(
-        "resource-exhausted",
-        `Você já tem ${ativas} horário(s) marcado(s). Cancele um antes de marcar outro.`
-      );
-    }
-
-    /* Encaixe não disputa slot: ele existe justamente para pedir um horário
-     * já ocupado. Reserva normal, sim. */
-    if (!isFitIn) {
-      /* Conflito é por CADEIRA, não pela barbearia.
-       *
-       * Antes bastava `date + time`: três barbeiros às 15h viravam conflito e
-       * dois terços da agenda sumiam. O filtro por `staffId` é em memória e não
-       * na query de propósito — três cláusulas de igualdade exigiriam índice
-       * composto, e índice faltando derruba a criação de reserva em produção. */
-      const conflitos = await tx.get(
-        shopRef
-          .collection("bookings")
-          .where("date", "==", date)
-          .where("time", "==", time)
-      );
-
-      const ocupado = conflitos.docs.some(
-        (d) => d.data().staffId === staffId && OCUPAM_SLOT.includes(d.data().status)
-      );
-      if (ocupado) {
-        throw new HttpsError(
-          "already-exists",
-          "Esse horário acabou de ser reservado. Escolha outro, por favor."
-        );
-      }
-    }
-
-    tx.set(bookingRef, {
+  const bookingId = await gravarComTravaDeHorario({
+    db,
+    shopRef,
+    clientId: uid,
+    staffId,
+    date,
+    time,
+    duracaoDaReserva,
+    slotMinutes,
+    maxAtivas: policies.booking?.maxActivePerClient ?? 3,
+    hojeNaBarbearia: hojeNoFuso(locale.timeZone),
+    documento: {
       clientId: uid,
       staffId,
       staffName: String(barbeiro.get("name") ?? ""),
@@ -248,14 +236,113 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
        * ausência é ambígua entre "não pagou" e "campo antigo". */
       paymentMethod: null,
       status,
-      isFitIn: !!isFitIn,
       requestedAt: FieldValue.serverTimestamp(),
       createdAt: FieldValue.serverTimestamp(),
-    });
+    },
   });
 
-  return { bookingId: bookingRef.id, value, status, durationMin, staffId };
+  return { bookingId, value, status, durationMin, staffId };
 });
+
+/**
+ * A parte da criação que **precisa** de transação: contar as reservas ativas do
+ * cliente, travar o horário e gravar — as três na mesma leitura consistente.
+ *
+ * Extraída do `onCall` pelo motivo de sempre neste projeto: dentro dele, isto
+ * só se exercia com emulador, autenticação e reserva semeada, e por isso a
+ * trava que impede dois clientes na mesma cadeira nunca tinha sido exercida
+ * sob concorrência real. Aqui ela é uma função com `db` injetável, e
+ * `__tests__/booking-concorrencia.test.ts` dispara N chamadas simultâneas
+ * contra o emulador.
+ */
+export async function gravarComTravaDeHorario(params: {
+  db: FirebaseFirestore.Firestore;
+  shopRef: FirebaseFirestore.DocumentReference;
+  clientId: string;
+  staffId: string;
+  date: string;
+  time: string;
+  duracaoDaReserva: number;
+  slotMinutes: number;
+  maxAtivas: number;
+  /** Hoje no fuso da barbearia — decide o que ainda conta como reserva ativa. */
+  hojeNaBarbearia: string;
+  documento: Record<string, unknown>;
+}): Promise<string> {
+  const { db, shopRef, date, time, staffId } = params;
+  const bookingRef = shopRef.collection("bookings").doc();
+
+  await db.runTransaction(async (tx) => {
+    /* ---- Quantas este cliente já tem em aberto ----
+     *
+     * Sem teto, uma conta só ocupa a agenda inteira: são 60 dias de horizonte
+     * e nada impedia um laço de criar reserva em todos os horários. Não é
+     * roubo de dado, é sequestro de agenda — e para uma barbearia dá no mesmo,
+     * porque ninguém mais consegue marcar.
+     *
+     * O filtro de status e data é em memória, e não na query, de propósito:
+     * `where('clientId').where('date','>=')` exigiria índice composto, e um
+     * índice faltando derruba a criação de reserva em produção. A quantidade
+     * por cliente é pequena por natureza. */
+    const { maxAtivas, hojeNaBarbearia } = params;
+    const minhas = await tx.get(
+      shopRef.collection("bookings").where("clientId", "==", params.clientId)
+    );
+    const ativas = minhas.docs.filter((d) => {
+      const b = d.data();
+      return EM_ABERTO.includes(b.status) && String(b.date) >= hojeNaBarbearia;
+    }).length;
+
+    if (ativas >= maxAtivas) {
+      throw new HttpsError(
+        "resource-exhausted",
+        `Você já tem ${ativas} horário(s) marcado(s). Cancele um antes de marcar outro.`
+      );
+    }
+
+    {
+      /* Conflito é por CADEIRA e por JANELA.
+       *
+       * Por cadeira, porque antes bastava `date + time`: três barbeiros às 15h
+       * viravam conflito e dois terços da agenda sumiam. O filtro por `staffId`
+       * é em memória e não na query de propósito — três cláusulas de igualdade
+       * exigiriam índice composto, e índice faltando derruba a criação de
+       * reserva em produção.
+       *
+       * Por janela, porque `where("time","==",time)` só via o INSTANTE inicial:
+       * um atendimento das 15:00 às 16:00 não impedia outro às 15:30, e a
+       * transação que existe justamente para barrar isso não via conflito
+       * nenhum. A query passa a trazer o dia e a conta é a de `agenda.ts` — a
+       * mesma que o motor de horários usa, para as duas pontas não poderem
+       * discordar. */
+      const doDia = await tx.get(shopRef.collection("bookings").where("date", "==", date));
+
+      const ocupadas = janelasOcupadas(
+        doDia.docs
+          .filter((d) => d.data().staffId === staffId && OCUPAM_SLOT.includes(d.data().status))
+          .map((d) => ({ time: String(d.data().time), durationMin: d.data().durationMin })),
+        params.slotMinutes
+      );
+
+      if (
+        !horarioDisponivel({
+          time,
+          durationMin: params.duracaoDaReserva,
+          ocupadas,
+        })
+      ) {
+        throw new HttpsError(
+          "already-exists",
+          "Esse horário acabou de ser reservado. Escolha outro, por favor."
+        );
+      }
+    }
+
+    tx.set(bookingRef, params.documento);
+  });
+
+  return bookingRef.id;
+}
 
 /**
  * Reagendamento pelo cliente.
@@ -335,17 +422,30 @@ export const rescheduleBooking = onCall<{
     );
   }
 
+  /* Mesma conta de janela do `createBooking` — remarcar não pode ser a porta
+   * dos fundos para a sobreposição que a criação passou a barrar. */
+  const slotMinutes: number = Number(schedule.slotMinutes) || 30;
+  const duracaoDaReserva = Number(booking.durationMin) || slotMinutes;
+
   await db.runTransaction(async (tx) => {
-    const conflitos = await tx.get(
-      shopRef.collection("bookings").where("date", "==", date).where("time", "==", time)
+    const doDia = await tx.get(shopRef.collection("bookings").where("date", "==", date));
+
+    const ocupadas = janelasOcupadas(
+      doDia.docs
+        /* A própria reserva sai da conta: ela é quem está se movendo, e
+         * compará-la consigo mesma recusaria toda remarcação para um horário
+         * que se sobreponha ao atual — inclusive adiantar em 15 minutos. */
+        .filter(
+          (d) =>
+            d.id !== bookingId &&
+            d.data().staffId === booking.staffId &&
+            OCUPAM_SLOT.includes(d.data().status)
+        )
+        .map((d) => ({ time: String(d.data().time), durationMin: d.data().durationMin })),
+      slotMinutes
     );
-    const ocupado = conflitos.docs.some(
-      (d) =>
-        d.id !== bookingId &&
-        d.data().staffId === booking.staffId &&
-        OCUPAM_SLOT.includes(d.data().status)
-    );
-    if (ocupado) {
+
+    if (!horarioDisponivel({ time, durationMin: duracaoDaReserva, ocupadas })) {
       throw new HttpsError(
         "already-exists",
         "Esse horário acabou de ser reservado. Escolha outro, por favor."
@@ -441,6 +541,30 @@ export const cancelBooking = onCall<{ barbershopId: string; bookingId: string }>
 
     if (booking.clientId !== uid && !ehDono) {
       throw new HttpsError("permission-denied", "Essa reserva não é sua.");
+    }
+
+    /* Só cancela o que ainda está aberto.
+     *
+     * Esta guarda existia no `rescheduleBooking` e faltava aqui, e a diferença
+     * não era cosmética: cancelar uma reserva CONCLUÍDA a tira de `completed`,
+     * e o gatilho financeiro lê isso como conclusão desfeita — apagando
+     * `payments/pagamento_<id>` e `commissions/comissao_<id>`. O atendimento
+     * aconteceu, o dinheiro entrou na gaveta, e a receita sumia do DRE, do
+     * fluxo de caixa e do acerto do barbeiro. O carimbo de fidelidade ia junto.
+     *
+     * Quem podia disparar era o próprio cliente, com o id de uma reserva dele
+     * já atendida. A interface do painel só oferece o botão em reserva aberta —
+     * mas interface não é guarda.
+     *
+     * Desfazer uma conclusão é outro caminho (o dono reabre pelo painel), e
+     * devolver dinheiro de atendimento realizado é estorno, não cancelamento. */
+    if (!EM_ABERTO.includes(booking.status)) {
+      throw new HttpsError(
+        "failed-precondition",
+        booking.status === "completed"
+          ? "Esse atendimento já foi concluído e não pode ser cancelado. Fale com a barbearia."
+          : "Essa reserva não está mais aberta."
+      );
     }
 
     const { timeZone } = localeDoDocumento(shopSnap.data());

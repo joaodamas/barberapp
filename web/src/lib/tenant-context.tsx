@@ -33,9 +33,23 @@ export function usePolicies() {
   return useContext(TenantContext).policies;
 }
 
-/** Recurso liberado pelo plano contratado. */
+/**
+ * Recurso liberado — já considerando plano, trial e suspensão.
+ *
+ * Lia `tenant.features` **cru**, direto do documento, e por isso ignorava
+ * `status` e `trial`. O efeito: numa barbearia suspensa, `acessoDaBarbearia`
+ * devolvia "nenhum recurso", mas `features` gravado no documento continuava
+ * dizendo `store: true` — e Loja e Mensalistas seguiam abertas. Eram duas
+ * respostas para a mesma pergunta, divergindo exatamente no caso que importa.
+ *
+ * O DRE tinha os dois gates e só se salvava porque o segundo (`useAcesso`)
+ * pegava o que o primeiro deixava passar.
+ *
+ * Agora existe uma fonte só, como o `HANDOFF.md` §4 já dizia que deveria:
+ * "a decisão de acesso mora num lugar só (`acessoDaBarbearia`)".
+ */
 export function useFeature(feature: keyof Tenant["features"]) {
-  return useContext(TenantContext).features[feature];
+  return useAcesso().features[feature];
 }
 
 /**

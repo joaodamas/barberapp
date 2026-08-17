@@ -5,7 +5,8 @@ import { doc, onSnapshot } from "firebase/firestore";
 import { getDb } from "@/lib/firebase";
 import { TenantProvider } from "@/lib/tenant-context";
 import { toTenant } from "@/lib/tenant-shape";
-import type { Tenant } from "@/lib/tenant";
+import { acessoDaBarbearia, type Tenant } from "@/lib/tenant";
+import { definirTravaDeEscrita } from "@/lib/db/trava-de-escrita";
 
 /**
  * A ficha da barbearia em tempo real, **dentro do painel**.
@@ -38,6 +39,22 @@ export function TenantLive({
   children: React.ReactNode;
 }) {
   const [tenant, setTenant] = useState<Tenant>(inicial);
+
+  /* A trava de escrita acompanha a ficha, e não só o primeiro render.
+   *
+   * É aqui porque este componente envolve o painel inteiro — o único lugar do
+   * produto onde alguém edita — e porque a ficha chega ao vivo: o trial que
+   * vence com o painel aberto passa a travar sem exigir recarregar. O app do
+   * cliente não passa por aqui e continua livre, que é a decisão de produto
+   * registrada: quem marcou corte na sexta não tem culpa da mensalidade do dono.
+   *
+   * `motivo` é nulo quando a conta está em dia, e aí a trava é desligada — o
+   * caminho de volta importa tanto quanto o de ida: contratar um plano precisa
+   * devolver a edição na hora. */
+  useEffect(() => {
+    definirTravaDeEscrita(acessoDaBarbearia(tenant).motivo);
+    return () => definirTravaDeEscrita(null);
+  }, [tenant]);
 
   useEffect(() => {
     /* `getDb` é assíncrono — o Firestore entra por import dinâmico para não

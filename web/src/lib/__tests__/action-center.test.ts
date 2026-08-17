@@ -3,7 +3,6 @@ import {
   atendimentosAtrasados,
   avaliarOperacao,
   desfechosEsquecidos,
-  encaixesAguardando,
   estaAtrasado,
   fechamentosPendentes,
   LIMITE_CRITICOS,
@@ -132,24 +131,6 @@ describe("sem serviço cadastrado", () => {
         services: [sv({ id: "1", active: false })], statusConsulta: "pronto",
       })
     ).toHaveLength(1);
-  });
-});
-
-describe("encaixe aguardando", () => {
-  it("agrupa vários pedidos num item só", () => {
-    const itens = encaixesAguardando([
-      bk({ id: "1", status: "fit_in_requested" }),
-      bk({ id: "2", status: "fit_in_requested" }),
-    ]);
-    expect(itens).toHaveLength(1);
-    expect(itens[0].title).toContain("2");
-  });
-
-  it("nomeia o cliente quando é um só", () => {
-    const [item] = encaixesAguardando([
-      bk({ id: "1", status: "fit_in_requested", clientName: "Pedro" }),
-    ]);
-    expect(item.title).toContain("Pedro");
   });
 });
 
@@ -285,14 +266,13 @@ describe("motor", () => {
     const itens = avaliarOperacao(operacao({
       bookings: [
         bk({ id: "1", paymentMethod: null }),            // crítico, urgência 1
-        bk({ id: "2", status: "fit_in_requested" }),     // crítico, urgência 2
         bk({ id: "3", status: "confirmed", time: "09:00" }), // crítico, urgência 2
       ],
       services: [],                                      // crítico, urgência 1
       payments: [pg({ id: "p1" })], fees: SEM_TAXA,      // crítico, urgência 3
       agora: new Date("2026-08-11T10:20:00"),
     }));
-    expect(itens.map((i) => i.urgency)).toEqual([1, 1, 2, 2, 3]);
+    expect(itens.map((i) => i.urgency)).toEqual([1, 1, 2, 3]);
   });
 
   it("não repete o mesmo problema", () => {
@@ -327,14 +307,13 @@ describe("motor", () => {
     const itens = avaliarOperacao(operacao({
       bookings: [
         bk({ id: "1", paymentMethod: null }),
-        bk({ id: "2", status: "fit_in_requested" }),
         bk({ id: "3", status: "confirmed", paymentMethod: null }),
       ],
       services: [],
       payments: [pg({ id: "p1" })], fees: SEM_TAXA,
       agora: new Date("2026-08-11T10:20:00"),
     }));
-    expect(itens.length).toBeGreaterThan(3);
+    expect(itens.length).toBeGreaterThan(2);
     for (const i of itens) {
       expect(i.title.length, i.id).toBeGreaterThan(0);
       expect(i.reason.length, i.id).toBeGreaterThan(0);
@@ -359,7 +338,6 @@ describe("motor", () => {
     const itens = avaliarOperacao(operacao({
       bookings: [
         bk({ id: "1", paymentMethod: null }),
-        bk({ id: "2", status: "fit_in_requested" }),
         bk({ id: "3", status: "confirmed", paymentMethod: null }),
       ],
       services: [],

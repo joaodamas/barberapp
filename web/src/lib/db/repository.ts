@@ -21,6 +21,7 @@ import {
   shopPath,
   type ShopCollection,
 } from "@/lib/db/paths";
+import { conferirEscrita } from "@/lib/db/trava-de-escrita";
 
 /**
  * Acesso a uma subcoleção da barbearia.
@@ -160,6 +161,7 @@ export async function createDoc<T extends DocumentData>(
   collectionName: ShopCollection,
   data: T
 ) {
+  conferirEscrita();
   const db = await getDb();
   const ref = await addDoc(
     collection(db, shopCollectionPath(barbershopId, collectionName)),
@@ -175,6 +177,7 @@ export async function putDoc<T extends DocumentData>(
   docId: string,
   data: T
 ) {
+  conferirEscrita();
   const db = await getDb();
   await setDoc(
     doc(db, shopDocPath(barbershopId, collectionName, docId)),
@@ -189,6 +192,7 @@ export async function patchDoc(
   docId: string,
   data: DocumentData
 ) {
+  conferirEscrita();
   const db = await getDb();
   await updateDoc(doc(db, shopDocPath(barbershopId, collectionName, docId)), stripUndefined(data));
 }
@@ -205,6 +209,7 @@ export async function patchDoc(
  * qualquer tentativa de tocar em campo de contrato.
  */
 export async function patchTenant(barbershopId: string, data: DocumentData) {
+  conferirEscrita();
   const db = await getDb();
   await updateDoc(doc(db, shopPath(barbershopId)), stripUndefined(data));
 }
@@ -214,6 +219,7 @@ export async function removeDoc(
   collectionName: ShopCollection,
   docId: string
 ) {
+  conferirEscrita();
   const db = await getDb();
   await deleteDoc(doc(db, shopDocPath(barbershopId, collectionName, docId)));
 }

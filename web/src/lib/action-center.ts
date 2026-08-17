@@ -330,32 +330,16 @@ export function semServicoCadastrado(params: {
   ];
 }
 
-/**
- * 4.3 — Encaixe aguardando resposta.
+/* 4.3 — Encaixe aguardando resposta: REMOVIDA em 17/08.
  *
- * O cliente pediu horário fora da grade e está esperando. Urgência 2: acontece
- * agora, mas não corrompe dado.
- */
-export function encaixesAguardando(bookings: Doc<BookingDoc>[]): ActionItem[] {
-  const pendentes = bookings.filter((b) => b.status === "fit_in_requested");
-  if (pendentes.length === 0) return [];
-
-  return [
-    {
-      id: "encaixe-aguardando",
-      severity: "critical",
-      urgency: 2,
-      confidence: "real",
-      title:
-        pendentes.length === 1
-          ? `${pendentes[0].clientName} pediu um encaixe`
-          : `${pendentes.length} pedidos de encaixe aguardando`,
-      reason: "Quem pede encaixe está decidindo agora se procura outro lugar.",
-      actionLabel: "Responder",
-      intent: { kind: "navegar", href: "/painel" },
-    },
-  ];
-}
+ * O encaixe saiu da proposta. Ele perdeu o caminho de criação quando a
+ * disponibilidade passou a vir de `availableSlots`, que devolve só horários
+ * livres — e esta regra ficou esperando um `fit_in_requested` que nenhum
+ * caminho do produto produzia. Uma regra do Action Center que nunca dispara é
+ * pior que ausência: ela sustenta a impressão de que o fluxo existe.
+ *
+ * Reserva antiga nesse estado continua legível (o status segue no modelo e na
+ * agenda do painel); o que não existe mais é o pedido. */
 
 /* ------------------------------------------------------------------ */
 /* Motor                                                               */
@@ -402,7 +386,6 @@ export function avaliarOperacao(estado: EstadoOperacional): ActionItem[] {
     ...(estado.todasAsReservas && estado.hoje
       ? desfechosEsquecidos({ todas: estado.todasAsReservas, hoje: estado.hoje })
       : []),
-    ...encaixesAguardando(estado.bookings),
     ...atendimentosAtrasados({
       bookings: estado.bookings,
       agora: estado.agora,

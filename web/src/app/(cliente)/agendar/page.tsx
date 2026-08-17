@@ -10,15 +10,20 @@ import {
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Pill } from "@/components/ui/pill";
 import { useServices, useStaff } from "@/lib/db/use-shop-data";
 import { useTenant } from "@/lib/tenant-context";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { CalendarX2 } from "lucide-react";
 import { formatBRL } from "@/lib/format";
 import { bookableDays, firstBookableIndex } from "@/lib/slots";
-import { bookingPolicy } from "@/lib/business-rules";
 import { useAuth } from "@/lib/auth-context";
+import {
+  lerPerfil,
+  mascararWhatsapp,
+  normalizarWhatsapp,
+  salvarPerfil,
+  whatsappValido,
+} from "@/lib/db/perfil";
 import type { TimeSlot } from "@/lib/types";
 
 type Step = 1 | 2 | 3 | 4;
@@ -63,6 +68,38 @@ export default function AgendarPage() {
   const [confirmando, setConfirmando] = useState(false);
   const [erroReserva, setErroReserva] = useState<string | null>(null);
 
+  /* O WhatsApp do cliente, que o produto inteiro pressupõe e nunca coletava.
+   *
+   * Vinha de `user.phoneNumber`, que só existe para quem entrou por SMS — e o
+   * provider de SMS não está habilitado. Toda reserva nascia sem número: a
+   * agenda do dono mostrava "—" na coluna Telefone, o aviso de cancelamento não
+   * tinha para onde ir, e a confirmação automática não teria destinatário nem
+   * depois de a Meta liberar o envio. */
+  const [whatsapp, setWhatsapp] = useState("");
+
+  /* Pré-preenche com o que a pessoa já informou numa reserva anterior. O
+   * documento é dela e atravessa barbearias: quem corta em duas não digita o
+   * telefone duas vezes.
+   *
+   * O `setState` é funcional para não puxar o texto debaixo do dedo de quem
+   * começou a digitar antes de a leitura voltar — o que já digitou vence. */
+  useEffect(() => {
+    if (!user?.uid) return;
+    let cancelado = false;
+    lerPerfil(user.uid)
+      .then((perfil) => {
+        if (cancelado || !perfil?.whatsapp) return;
+        setWhatsapp((atual) => atual || mascararWhatsapp(perfil.whatsapp));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelado = true;
+    };
+  }, [user?.uid]);
+
+  const whatsappOk = whatsappValido(whatsapp);
+  const politicaCancelamento = tenant.policies.cancellation;
+
   /**
    * A reserva é criada no SERVIDOR.
    *
@@ -74,6 +111,10 @@ export default function AgendarPage() {
    */
   async function confirmarReserva() {
     if (!selectedDay || !selectedSlot) return;
+    if (!whatsappOk) {
+      setErroReserva("Informe um WhatsApp válido com DDD — é por ele que a barbearia fala com você.");
+      return;
+    }
     setConfirmando(true);
     setErroReserva(null);
     try {
@@ -85,10 +126,17 @@ export default function AgendarPage() {
         date: selectedDay.iso,
         time: selectedSlot.time,
         paymentOrigin: "in_person",
-        isFitIn,
         clientName: user?.displayName ?? undefined,
-        clientWhatsapp: user?.phoneNumber ?? undefined,
+        clientWhatsapp: normalizarWhatsapp(whatsapp),
       });
+
+      /* Guarda para a próxima reserva. Depois da reserva ter dado certo, e
+       * fora do caminho de erro: falhar em salvar o perfil não pode derrubar um
+       * agendamento que já está gravado. */
+      if (user?.uid) {
+        void salvarPerfil(user.uid, { whatsapp }).catch(() => undefined);
+      }
+
       setStep(4);
     } catch (err) {
       const msg = (err as { message?: string })?.message;
@@ -168,25 +216,26 @@ export default function AgendarPage() {
    * qualquer uma volta a lista para "carregando" sem precisar limpá-la. */
   const horariosLivres = resposta?.chave === chaveDaConsulta ? resposta.slots : null;
 
-  const slots = (horariosLivres ?? []).map((time) => ({
+  /* `availableSlots` devolve só o que está livre, então todo horário exibido é
+   * agendável. O encaixe saiu da proposta em 17/08: ele existia aqui como
+   * `isFitIn` sobre horário ocupado, e deixou de ter caminho no dia em que a
+   * disponibilidade passou a vir do servidor — a tela seguiu anunciando
+   * "peça um encaixe nos horários em vermelho" por semanas, para horários que
+   * nunca apareciam. Ver `AUDITORIA-2026-08-17.md` (P1-3). */
+  const slots: TimeSlot[] = (horariosLivres ?? []).map((time) => ({
     time,
     available: true,
-    isFitIn: false,
   }));
 
-  const isFitIn = Boolean(selectedSlot?.isFitIn);
-  const hasFreeSlot = slots.some((s) => s.available);
+  const hasFreeSlot = slots.length > 0;
 
   /* Rótulo e trava do CTA existiam duplicados na barra fixa do mobile e no
    * card sticky do desktop — o mesmo ternário de 3 níveis escrito duas vezes. */
   const ctaDisabled =
-    (step === 1 && selectedServiceIds.length === 0) || (step === 2 && !selectedSlot);
-  const ctaLabel =
-    step === 3
-      ? isFitIn
-        ? "Solicitar encaixe"
-        : "Confirmar reserva"
-      : "Continuar";
+    (step === 1 && selectedServiceIds.length === 0) ||
+    (step === 2 && !selectedSlot) ||
+    (step === 3 && !whatsappOk);
+  const ctaLabel = step === 3 ? "Confirmar reserva" : "Continuar";
 
   function toggleService(id: string) {
     setSelectedServiceIds((prev) =>
@@ -367,8 +416,8 @@ export default function AgendarPage() {
                 Nenhum horário livre comporta {totalDuration} min neste dia.
               </span>
               <span className="text-xs">
-                Tente outro dia, ou peça um encaixe nos horários marcados em
-                vermelho.
+                Escolha outro dia, ou fale com a barbearia pelo WhatsApp para
+                ver se dá para encaixar.
               </span>
             </Card>
           ) : null}
@@ -377,16 +426,6 @@ export default function AgendarPage() {
           <div className="grid grid-cols-3 gap-2 md:grid-cols-4 md:gap-3">
             {slots.map((slot) => {
               const active = selectedSlot?.time === slot.time;
-              if (!slot.available && !slot.isFitIn) {
-                return (
-                  <span
-                    key={slot.time}
-                    className="rounded-xl border border-border/50 bg-surface/40 py-3 text-center text-sm text-ivory-muted/40 line-through"
-                  >
-                    {slot.time}
-                  </span>
-                );
-              }
               return (
                 <button
                   key={slot.time}
@@ -396,15 +435,10 @@ export default function AgendarPage() {
                     "flex flex-col items-center rounded-xl border py-2.5 text-sm transition-colors " +
                     (active
                       ? "border-gold bg-gold text-ivory"
-                      : slot.isFitIn
-                        ? "border-danger/40 text-danger"
-                        : "border-border text-ivory")
+                      : "border-border text-ivory")
                   }
                 >
                   {slot.time}
-                  {slot.isFitIn && (
-                    <span className="text-[11px] font-medium">encaixe</span>
-                  )}
                 </button>
               );
             })}
@@ -435,42 +469,53 @@ export default function AgendarPage() {
             </div>
           </Card>
 
-          {isFitIn ? (
-            <Card className="flex flex-col gap-2 border-gold/30">
-              <Pill tone="gold" className="w-fit">
-                Solicitação de encaixe
-              </Pill>
-              <p className="text-sm text-ivory-muted">
-                Esse horário está ocupado. Seu pedido vai direto para o
-                WhatsApp do barbeiro — se aprovado, você paga e confirma na
-                hora. Sem resposta em até {bookingPolicy.fitInExpirationMinutes} min, o sistema
-                libera opções de horários livres automaticamente.
+          {/* O contato vem ANTES do pagamento, e é obrigatório: é por ele que a
+              barbearia confirma, lembra e avisa de qualquer mudança. Enquanto
+              não existia, toda reserva nascia sem número e o dono descobria o
+              cliente só quando ele aparecia — ou não aparecia. */}
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="cliente-whatsapp" className="text-xs uppercase tracking-wider text-ivory-muted">
+              Seu WhatsApp
+            </label>
+            <input
+              id="cliente-whatsapp"
+              name="tel"
+              type="tel"
+              inputMode="numeric"
+              autoComplete="tel"
+              placeholder="(11) 99999-9999"
+              value={whatsapp}
+              onChange={(e) => setWhatsapp(mascararWhatsapp(e.target.value))}
+              aria-invalid={whatsapp.length > 0 && !whatsappOk}
+              aria-describedby="ajuda-whatsapp"
+              className="min-h-12 rounded-xl border border-border bg-surface px-4 text-sm text-ivory outline-none focus-visible:ring-2 focus-visible:ring-gold"
+            />
+            <p id="ajuda-whatsapp" className="text-xs text-ivory-muted">
+              {whatsapp.length > 0 && !whatsappOk
+                ? "Faltam dígitos — informe DDD e número."
+                : `É por aqui que ${tenant.brand.name} confirma seu horário e avisa se algo mudar.`}
+            </p>
+          </div>
+
+          {/* Antes havia três botões de pagamento e dois nasciam desabilitados:
+              o servidor recusa qualquer pagamento antecipado enquanto não
+              houver gateway. Oferecer uma escolha que não existe é pior que não
+              oferecer escolha — agora a tela afirma o que de fato acontece, e
+              quem informa COMO o cliente pagou é o balcão, no fechamento. */}
+          <p className="text-xs uppercase tracking-wider text-ivory-muted">
+            Pagamento
+          </p>
+          <Card className="flex items-start gap-3 bg-surface-raised">
+            <Store size={16} className="mt-0.5 shrink-0 text-gold-light" />
+            <div>
+              <p className="text-sm text-ivory">Você paga no salão</p>
+              <p className="mt-0.5 text-xs text-ivory-muted">
+                Sua reserva é confirmada agora, sem cobrança. No dia, pague{" "}
+                {formatBRL(totalPrice)} como preferir — Pix, dinheiro ou
+                maquininha.
               </p>
-            </Card>
-          ) : (
-            <>
-              {/* Antes havia três botões e dois nasciam desabilitados: o
-                  servidor recusa qualquer pagamento antecipado enquanto não
-                  houver gateway. Oferecer uma escolha que não existe é pior que
-                  não oferecer escolha — agora a tela afirma o que de fato
-                  acontece, e quem informa COMO o cliente pagou é o balcão, no
-                  fechamento. */}
-              <p className="text-xs uppercase tracking-wider text-ivory-muted">
-                Pagamento
-              </p>
-              <Card className="flex items-start gap-3 bg-surface-raised">
-                <Store size={16} className="mt-0.5 shrink-0 text-gold-light" />
-                <div>
-                  <p className="text-sm text-ivory">Você paga no salão</p>
-                  <p className="mt-0.5 text-xs text-ivory-muted">
-                    Sua reserva é confirmada agora, sem cobrança. No dia, pague{" "}
-                    {formatBRL(totalPrice)} como preferir — Pix, dinheiro ou
-                    maquininha.
-                  </p>
-                </div>
-              </Card>
-            </>
-          )}
+            </div>
+          </Card>
 
           {erroReserva && (
             <p role="alert" className="text-sm text-danger">
@@ -478,12 +523,22 @@ export default function AgendarPage() {
             </p>
           )}
 
+          {/* A política é DESTA barbearia, não a da plataforma.
+            *
+            * Os números estavam cravados no JSX (24h/6h), e numa barbearia que
+            * configurou 48h/12h a tela prometia ao cliente uma janela que o
+            * servidor não aplicaria — `cancelBooking` decide por
+            * `policies.cancellation`. É o mesmo defeito que o painel do dono já
+            * tinha corrigido, e que aqui, do lado de quem paga, tinha ficado. */}
           <Card className="flex gap-2 bg-surface-raised text-xs text-ivory-muted">
             <Clock size={14} className="mt-0.5 shrink-0 text-gold-light" />
             <p>
-              Cancelamento até 24h antes: 100% de volta. Entre 24h e 6h: taxa
-              de cancelamento. Menos de 6h ou não comparecimento: sem
-              reembolso.
+              Cancelamento até {politicaCancelamento.fullRefundHours}h antes:
+              100% de volta. Entre {politicaCancelamento.fullRefundHours}h e{" "}
+              {politicaCancelamento.partialRefundHours}h: retemos{" "}
+              {politicaCancelamento.cancellationFeePct}% de taxa. Menos de{" "}
+              {politicaCancelamento.partialRefundHours}h ou não comparecimento:
+              sem reembolso.
             </p>
           </Card>
         </div>
@@ -494,13 +549,10 @@ export default function AgendarPage() {
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gold/15 text-gold-light">
             <Check size={30} />
           </div>
-          <h2 className="text-lg text-ivory">
-            {isFitIn ? "Pedido de encaixe enviado!" : "Reserva confirmada!"}
-          </h2>
+          <h2 className="text-lg text-ivory">Reserva confirmada!</h2>
           <p className="max-w-xs text-sm text-ivory-muted">
-            {isFitIn
-              ? "O barbeiro foi avisado no WhatsApp dele e vai aprovar ou recusar seu horário em breve. Você recebe a resposta por lá."
-              : `Você recebe a confirmação também no WhatsApp. Não esqueça: ${formatBRL(totalPrice)} no salão no dia do atendimento.`}
+            Seu horário está garantido. Não esqueça: {formatBRL(totalPrice)} no
+            salão no dia do atendimento.
           </p>
           <Link href="/reservas" className="w-full">
             <Button className="w-full">Ver minhas reservas</Button>
@@ -582,7 +634,7 @@ export default function AgendarPage() {
             </div>
           )}
 
-          {step === 3 && !isFitIn && (
+          {step === 3 && (
             <div className="flex items-center justify-between border-b border-border pb-4 text-sm">
               <span className="text-ivory-muted">Pagamento</span>
               <span className="text-ivory">No salão</span>

@@ -5,6 +5,7 @@ import {
   SEM_TAXA,
   taxaDoMetodo,
   type PaymentFees,
+  decidirEfeito,
 } from "../financial-events";
 
 /**
@@ -268,5 +269,62 @@ describe("o histórico não muda quando o cadastro muda", () => {
       padraoPct: 40, fees: TAXAS,
     };
     expect(calcularEventoFinanceiro(entrada)).toEqual(calcularEventoFinanceiro(entrada));
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* Gate A2 — o fato financeiro consolidado não pode ser destruído      */
+/* ------------------------------------------------------------------ */
+
+describe("o que uma mudança de status faz com o fato financeiro", () => {
+  it("concluir materializa", () => {
+    expect(decidirEfeito("confirmed", "completed")).toBe("materializar");
+    expect(decidirEfeito("confirmed_by_client", "completed")).toBe("materializar");
+    expect(decidirEfeito("no_show", "completed")).toBe("materializar");
+    expect(decidirEfeito("pending_payment", "completed")).toBe("materializar");
+  });
+
+  it("desfazer a conclusão para um estado operacional reverte", () => {
+    /* É a correção de quem concluiu a reserva errada: o atendimento não
+     * aconteceu, então comissão e pagamento têm de sumir junto. */
+    expect(decidirEfeito("completed", "confirmed")).toBe("reverter");
+    expect(decidirEfeito("completed", "confirmed_by_client")).toBe("reverter");
+    expect(decidirEfeito("completed", "pending_payment")).toBe("reverter");
+  });
+
+  it("marcar falta depois de concluir reverte — não houve receita", () => {
+    expect(decidirEfeito("completed", "no_show")).toBe("reverter");
+  });
+
+  it("CANCELAR um atendimento concluído NÃO destrói o fato", () => {
+    /* O defeito que isto fecha: `cancelBooking` não checava status, o cliente
+     * cancelava a própria reserva já atendida, e o gatilho apagava
+     * `payments` e `commissions`. O corte aconteceu, o dinheiro entrou na
+     * gaveta, e a receita sumia do DRE sem tela onde reencontrá-la.
+     *
+     * Devolver valor de atendimento realizado é ESTORNO — evento novo, não
+     * remoção do anterior. Histórico financeiro se corrige somando. */
+    expect(decidirEfeito("completed", "cancelled_by_client")).toBe("nada");
+    expect(decidirEfeito("completed", "cancelled_by_shop")).toBe("nada");
+    expect(decidirEfeito("completed", "expired")).toBe("nada");
+  });
+
+  it("mudança entre estados abertos não mexe em nada", () => {
+    expect(decidirEfeito("confirmed", "cancelled_by_client")).toBe("nada");
+    expect(decidirEfeito("fit_in_requested", "confirmed")).toBe("nada");
+    expect(decidirEfeito("confirmed", "no_show")).toBe("nada");
+  });
+
+  it("reprocessamento do gatilho com o mesmo status não faz nada", () => {
+    /* O Firestore reexecuta o gatilho em retry. `completed` → `completed` não
+     * pode reverter nem duplicar. */
+    expect(decidirEfeito("completed", "completed")).toBe("nada");
+    expect(decidirEfeito("confirmed", "confirmed")).toBe("nada");
+  });
+
+  it("status ausente não derruba a decisão", () => {
+    expect(decidirEfeito(undefined, "completed")).toBe("materializar");
+    expect(decidirEfeito("completed", undefined)).toBe("nada");
+    expect(decidirEfeito(undefined, undefined)).toBe("nada");
   });
 });

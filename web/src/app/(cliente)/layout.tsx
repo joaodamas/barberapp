@@ -4,7 +4,6 @@ import { AuthGuard } from "@/components/auth-guard";
 import { DemoBanner } from "@/components/demo-banner";
 import { redirect } from "next/navigation";
 import { getTenant, isPlatformRoot } from "@/lib/tenant-server";
-import { SubscriptionProvider } from "@/lib/subscription-context";
 import { ClienteBottomNav } from "@/components/cliente-bottom-nav";
 import { ClienteSidebarNav } from "@/components/cliente-sidebar-nav";
 
@@ -22,7 +21,6 @@ export default async function ClienteLayout({
 
   return (
     <AuthGuard>
-      <SubscriptionProvider>
         {/* Sem isto, quem navega por teclado passa por toda a sidebar
             antes de chegar ao conteúdo. */}
         <a
@@ -49,7 +47,6 @@ export default async function ClienteLayout({
           <ClienteBottomNav />
         </div>
       </div>
-      </SubscriptionProvider>
     </AuthGuard>
   );
 }
