@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { CalendarX2, Phone } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -15,7 +15,7 @@ import { useAuth } from "@/lib/auth-context";
 import { useLoyalty, useMyBookings, useServices } from "@/lib/db/use-shop-data";
 import { OCCUPIES_SLOT } from "@/lib/domain";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
-import { bookableDays, firstBookableIndex, slotsForDate } from "@/lib/slots";
+import { bookableDays, firstBookableIndex } from "@/lib/slots";
 import {
   cancellationPolicy,
   refundAmountFor,
@@ -81,7 +81,7 @@ export default function ReservasPage() {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [dayIndex, setDayIndex] = useState(() => firstBookableIndex(bookableDays(new Date(), tenant.schedule)));
   const [time, setTime] = useState<string | null>(null);
-  const [rescheduleCount, setRescheduleCount] = useState(0);
+  const [resposta, setResposta] = useState<{ chave: string; slots: string[] } | null>(null);
   const [resgatando, setResgatando] = useState(false);
   const [erroResgate, setErroResgate] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
@@ -108,14 +108,55 @@ export default function ReservasPage() {
   const days = useMemo(() => bookableDays(new Date(), tenant.schedule), [tenant.schedule]);
   const selectedDay = days[dayIndex];
 
-  const slots = selectedDay
-    ? slotsForDate(selectedDay.iso, {
-        durationMin: duracaoDaReserva,
-        allowFitIn: false,
-        schedule: tenant.schedule,
-        ocupados: minhas.filter((b) => b.date === selectedDay.iso).map((b) => b.time),
-      })
-    : [];
+  /* Os horários de remarcação vêm do SERVIDOR — P1-4.
+   *
+   * A tela calculava os slots com `slotsForDate`, passando como `ocupados`
+   * apenas AS RESERVAS DO PRÓPRIO CLIENTE. Ela não tinha como saber mais que
+   * isso: as regras proíbem o cliente de ler reserva alheia, e devem proibir.
+   *
+   * O resultado é o mesmo defeito que `availableSlots` corrigiu no agendar, e
+   * que passou meses aqui sem ser aplicado: a tela oferecia horários já
+   * ocupados por outras pessoas, o cliente escolhia, e só ao confirmar o
+   * servidor respondia "esse horário acabou de ser reservado". Do lado de quem
+   * usa, o produto sorteia um erro depois de você escolher.
+   *
+   * `staffId` da própria reserva: remarcar mantém o profissional. Perguntar a
+   * disponibilidade da loja inteira devolveria horário livre em outro barbeiro
+   * e o erro voltaria pela porta de trás. */
+  const idDoBarbeiro = booking?.staffId;
+  const duracaoParaSlots = booking?.durationMin || duracaoDaReserva;
+  const chaveDaConsulta = `${selectedDay?.iso ?? ""}|${idDoBarbeiro ?? ""}|${duracaoParaSlots}`;
+
+  useEffect(() => {
+    if (!rescheduleOpen || !selectedDay?.iso || !idDoBarbeiro) return;
+    let cancelado = false;
+    (async () => {
+      try {
+        const { callFunction } = await import("@/lib/firebase");
+        const r = await callFunction<
+          { barbershopId: string; date: string; staffId: string; durationMin: number },
+          { slots: string[] }
+        >("availableSlots", {
+          barbershopId: tenant.id,
+          date: selectedDay.iso,
+          staffId: idDoBarbeiro,
+          durationMin: duracaoParaSlots,
+        });
+        if (!cancelado) setResposta({ chave: chaveDaConsulta, slots: r.slots ?? [] });
+      } catch (err) {
+        console.error("[reservas] falha ao buscar horários", err);
+        if (!cancelado) setResposta({ chave: chaveDaConsulta, slots: [] });
+      }
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, [rescheduleOpen, selectedDay?.iso, idDoBarbeiro, duracaoParaSlots, tenant.id, chaveDaConsulta]);
+
+  /* Só vale a resposta desta combinação. Trocar o dia volta a lista para
+   * "carregando" sem precisar limpá-la — e nunca mostra o dia anterior. */
+  const horariosLivres = resposta?.chave === chaveDaConsulta ? resposta.slots : null;
+  const slots = (horariosLivres ?? []).map((time) => ({ time, available: true }));
 
   const active = !!booking;
   const refund = booking ? refundFor(booking) : null;
@@ -126,10 +167,20 @@ export default function ReservasPage() {
   /* Reagendar era grátis, ilimitado e sem prazo — dava para reagendar 10 min
    * antes e cancelar depois com 100% de volta, anulando a política inteira. */
   const horasAteReserva = booking ? hoursUntil(booking) : 0;
+  /* A contagem vem do DOCUMENTO — P1-13.
+   *
+   * Era um `useState(0)` que zerava com F5, e o servidor nunca soube da regra:
+   * `rescheduleBooking` validava só a janela de horas. A tela anunciava um
+   * limite de 2 que bastava recarregar a página para contornar.
+   *
+   * Agora quem barra é o servidor, dentro da transação que move o horário. Esta
+   * leitura existe para o botão dizer a verdade ANTES do toque — não é ela que
+   * aplica a regra. */
+  const remarcacoesFeitas = booking?.rescheduleCount ?? 0;
   const podeReagendar =
     active &&
     horasAteReserva >= reschedulePolicy.minHoursBefore &&
-    rescheduleCount < reschedulePolicy.maxPerBooking;
+    remarcacoesFeitas < reschedulePolicy.maxPerBooking;
   const motivoBloqueio =
     horasAteReserva < reschedulePolicy.minHoursBefore
       ? `Reagendamento só até ${reschedulePolicy.minHoursBefore}h antes — fale com a barbearia.`
@@ -162,7 +213,8 @@ export default function ReservasPage() {
         date: selectedDay.iso,
         time,
       });
-      setRescheduleCount((n) => n + 1);
+      /* Sem contador local: `rescheduleCount` é gravado pelo servidor e chega
+       * pelo listener do Firestore. Contar aqui foi exatamente o defeito. */
       setRescheduleOpen(false);
     } catch (err) {
       console.error("[reservas] falha ao reagendar", err);

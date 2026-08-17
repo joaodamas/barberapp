@@ -116,3 +116,41 @@ export function horarioDisponivel(params: {
   if (!candidata) return false;
   return janelaLivre(candidata, params.ocupadas);
 }
+
+/**
+ * Quantas remarcações a reserva ainda aceita.
+ *
+ * O limite existia só na tela do cliente, num `useState` que zerava com F5 — e
+ * o servidor nunca ouviu falar dele. A tela anunciava uma regra que não existia:
+ * bastava recarregar a página para remarcar de novo, indefinidamente, e o
+ * `rescheduleBooking` aceitava todas.
+ *
+ * Isso não é cosmético. Remarcar move o horário sem passar pela política de
+ * cancelamento; sem teto, a reserva vira uma opção de compra gratuita sobre a
+ * agenda, e a barbearia carrega o risco de um horário que nunca se realiza.
+ *
+ * `contagem` ausente vale zero: reserva anterior a este campo nunca remarcou
+ * pelo caminho que o conta. Cair em "já atingiu o limite" travaria remarcação
+ * legítima de quem não fez nada.
+ */
+export function remarcacoesRestantes(contagem: unknown, limite: number): number {
+  const feitas = Number.isFinite(Number(contagem)) ? Math.max(Number(contagem), 0) : 0;
+  return Math.max(limite - feitas, 0);
+}
+
+/**
+ * A reserva pode ser remarcada mais uma vez?
+ *
+ * O DONO não tem teto, pelo mesmo motivo que já o isenta da janela de horas: ele
+ * está movendo a própria agenda — um barbeiro que faltou, uma cadeira que
+ * quebrou — e limitar isso significaria recusar a operação real da loja. A
+ * exceção é do dono, não de quem chama pelo app.
+ */
+export function podeRemarcar(params: {
+  contagem: unknown;
+  limite: number;
+  ehDono: boolean;
+}): boolean {
+  if (params.ehDono) return true;
+  return remarcacoesRestantes(params.contagem, params.limite) > 0;
+}

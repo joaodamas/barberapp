@@ -23,6 +23,8 @@ export const SHOP_COLLECTIONS = {
   services: "services",
   plans: "plans",
   products: "products",
+  /** G3 — o cliente da barbearia. Escrito só pelo servidor. */
+  clients: "clients",
   bookings: "bookings",
   schedules: "schedules",
   expenses: "expenses",

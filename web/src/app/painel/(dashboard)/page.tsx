@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   AlertCircle,
   CalendarCheck,
+  CalendarPlus,
   CalendarX,
   Check,
   ChevronRight,
@@ -38,6 +39,7 @@ import type { TenantPolicies } from "@/lib/tenant";
 import { useBookings, useServices, useStaff } from "@/lib/db/use-shop-data";
 import { patchDoc } from "@/lib/db/repository";
 import { soAvisaSeGravou } from "@/lib/so-avisa-se-gravou";
+import { MarcarNoBalcao } from "@/components/marcar-no-balcao";
 import { capacidadeDiaria, caixaDoDia, mesPeriodo, previsaoDoDia } from "@/lib/analytics";
 import { monthOf, OCCUPIES_SLOT } from "@/lib/domain";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
@@ -111,6 +113,7 @@ export default function PainelHojePage() {
     repartirParaExibicao(itensDeAcao);
 
   const semColunaLateral = itensDeAcao.length === 0;
+  const [balcaoAberto, setBalcaoAberto] = useState(false);
   const [aFechar, setAFechar] = useState<Doc<BookingDoc> | null>(null);
   const [faltaDe, setFaltaDe] = useState<Doc<BookingDoc> | null>(null);
   const [aCancelar, setACancelar] = useState<Doc<BookingDoc> | null>(null);
@@ -406,17 +409,33 @@ export default function PainelHojePage() {
             : "md:col-start-1 md:row-start-4 md:row-span-2"
         }
       >
-        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm">
-          Agenda do dia
-        </h2>
+        {/* D13 · o botão de marcar mora AQUI, na agenda do dia.
+         *
+         * É onde o dono está quando alguém chega no balcão ou liga — e era
+         * exatamente o lugar onde ele procurou e não achou. Nenhuma das 8 telas
+         * do painel criava reserva: o produto tinha um caminho só, o app do
+         * cliente autenticado. */}
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm">
+            Agenda do dia
+          </h2>
+          <Button
+            variant="secondary"
+            onClick={() => setBalcaoAberto(true)}
+            className="min-h-9 px-3 text-xs"
+          >
+            <CalendarPlus size={14} />
+            Marcar atendimento
+          </Button>
+        </div>
         {status === "carregando" && <LoadingRows rows={3} />}
         {status === "pronto" && bookings.length === 0 && (
           <EmptyState
             icon={CalendarCheck}
             title="Nenhum horário marcado para hoje"
-            description="Compartilhe seu link com os clientes para começar a receber agendamentos."
-            actionLabel="Ver meu link"
-            actionHref="/comecar"
+            description="Marque quem chegou no balcão ou compartilhe seu link para receber agendamentos pelo app."
+            actionLabel="Marcar atendimento"
+            onAction={() => setBalcaoAberto(true)}
           />
         )}
         {/* Ordenado por HORA.
@@ -562,6 +581,12 @@ export default function PainelHojePage() {
           </Card>
         )}
       </section>
+
+      {/* D13 · o caminho que faltava.
+          A reserva criada aqui aparece na agenda acima assim que o servidor
+          confirma — o listener do Firestore é a mesma fonte da tabela, então não
+          há recarregar nem estado paralelo que possa divergir. */}
+      <MarcarNoBalcao open={balcaoAberto} onClose={() => setBalcaoAberto(false)} />
 
       {/* Uma pergunta, quatro opções, e cada opção JÁ conclui.
           Um botão "Confirmar" separado somaria um segundo clique ao gesto mais

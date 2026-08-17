@@ -55,6 +55,10 @@ const SUBCOLECOES = [
   "services",
   "plans",
   "products",
+  /* Entrou com G3. Uma coleção nova que não passa por este ataque nasce fora da
+   * prova — e `clients` é a que guarda nome e WhatsApp de todo mundo, ou seja,
+   * a lista de contatos comercial da barbearia. */
+  "clients",
   "bookings",
   "schedules",
   "expenses",
@@ -121,6 +125,23 @@ beforeEach(async () => {
         value: 90,
       });
       await setDoc(doc(db, `barbershops/${bid}/schedules`, "sch-1"), { weekdays: [1] });
+      /* G3 · dois cadastros por barbearia: o do cliente COM conta, cujo id é o
+       * uid, e o de balcão, com id gerado e `uid: null`. Os dois casos precisam
+       * ser atacados, porque a regra os trata de forma diferente. */
+      await setDoc(doc(db, `barbershops/${bid}/clients`, cliente), {
+        uid: cliente,
+        name: "Cliente com conta",
+        whatsapp: "11988887777",
+        origin: "app",
+        active: true,
+      });
+      await setDoc(doc(db, `barbershops/${bid}/clients`, "cli-1"), {
+        uid: null,
+        name: "Cliente de balcão",
+        whatsapp: "11977776666",
+        origin: "balcao",
+        active: true,
+      });
       await setDoc(doc(db, `barbershops/${bid}/expenses`, "exp-1"), { value: 1800 });
       await setDoc(doc(db, `barbershops/${bid}/cash_entries`, "cx-1"), { value: 300 });
       await setDoc(doc(db, `barbershops/${bid}/commissions`, "com-1"), {
@@ -189,6 +210,10 @@ describe("1 · o dono da Alfa NÃO lê nenhuma coleção da Beta", () => {
       client_occurrences: "oc-1",
       whatsapp_messages: "msg-1",
       audit_log: "log-1",
+      /* Id que NÃO é o uid de ninguém: o ataque precisa medir a regra do
+       * tenant, não esbarrar no casamento `clientId == request.auth.uid`. O
+       * caso do próprio cadastro tem bloco separado, mais abaixo. */
+      clients: "cli-1",
     };
 
     /* `services`, `staff`, `plans`, `products` e `schedules` são legíveis por
@@ -219,6 +244,22 @@ describe("1 · o dono da Alfa NÃO lê nenhuma coleção da Beta", () => {
     const db = as(DONO_ALFA);
     await assertFails(getDoc(doc(db, `barbershops/${BETA}/private`, "billing")));
     await assertFails(getDocs(collection(db, `barbershops/${BETA}/private`)));
+  });
+
+  it("🔒 a lista de CLIENTES da Beta é inalcançável — é a agenda comercial dela", async () => {
+    /* `clients` guarda nome e WhatsApp de todo mundo que já passou pela loja.
+     * Se vazasse entre barbearias, um concorrente baixaria a carteira inteira
+     * de outro numa chamada — é o dado com maior valor de mercado no banco. */
+    const db = as(DONO_ALFA);
+    await assertFails(getDocs(collection(db, `barbershops/${BETA}/clients`)));
+    await assertFails(
+      getDocs(
+        query(
+          collection(db, `barbershops/${BETA}/clients`),
+          where("whatsapp", "==", "11988887777")
+        )
+      )
+    );
   });
 
   it("🔒 nem com query filtrada por um cliente da Beta", async () => {
@@ -363,6 +404,54 @@ describe("5 · o cliente da Alfa não vira cliente da Beta", () => {
       })
     );
   });
+
+  /* ---- G3 · o cadastro do cliente ---- */
+
+  it("✅ lê o PRÓPRIO cadastro na Alfa — é o casamento clients/{uid}", async () => {
+    /* A decisão arquitetural de G3 depende deste caso: com o id do documento
+     * sendo o uid, a regra funciona sem campo extra e sem join. Se isto falhar,
+     * `clients/{uid}` não se sustenta. */
+    const db = as(CLIENTE_ALFA);
+    await assertSucceeds(getDoc(doc(db, `barbershops/${ALFA}/clients`, CLIENTE_ALFA.sub)));
+  });
+
+  it("🔒 não lê o cadastro de OUTRO cliente da mesma barbearia", async () => {
+    /* Nome e WhatsApp de outra pessoa, dentro da loja que os dois frequentam.
+     * O isolamento aqui não é entre barbearias, é entre clientes. */
+    const db = as(CLIENTE_ALFA);
+    await assertFails(getDoc(doc(db, `barbershops/${ALFA}/clients`, CLIENTE_BETA.sub)));
+  });
+
+  it("🔒 não lê cadastro de BALCÃO, nem o da própria barbearia", async () => {
+    /* O id gerado não iguala uid nenhum. É por isso que a reserva de balcão só
+     * é visível para quem toca a loja — consequência declarada em clients.ts. */
+    const db = as(CLIENTE_ALFA);
+    await assertFails(getDoc(doc(db, `barbershops/${ALFA}/clients`, "cli-1")));
+  });
+
+  it("🔒 não lista os clientes da barbearia que frequenta", async () => {
+    /* Ler o próprio é uma porta; listar a coleção é outra. Sem esta, qualquer
+     * cliente autenticado baixaria a carteira inteira da loja. */
+    const db = as(CLIENTE_ALFA);
+    await assertFails(getDocs(collection(db, `barbershops/${ALFA}/clients`)));
+  });
+
+  it("🔒 não escreve o próprio cadastro — nem o próprio", async () => {
+    /* `allow write: if false` para todos. O cadastro nasce dentro da transação
+     * da reserva; deixar o cliente gravar aqui permitiria criar cadastro
+     * fantasma e, pior, plantar o WhatsApp de outra pessoa para sequestrar a
+     * deduplicação dela. */
+    const db = as(CLIENTE_ALFA);
+    await assertFails(
+      setDoc(doc(db, `barbershops/${ALFA}/clients`, CLIENTE_ALFA.sub), {
+        uid: CLIENTE_ALFA.sub,
+        name: "Eu mesmo",
+        whatsapp: "11900000000",
+        origin: "app",
+        active: true,
+      })
+    );
+  });
 });
 
 /* ================================================================== */
@@ -442,6 +531,36 @@ describe("8 · a Alfa opera normalmente a própria casa", () => {
   it("o barbeiro da Alfa lê a agenda da Alfa", async () => {
     const db = as(BARBEIRO_ALFA);
     await assertSucceeds(getDocs(collection(db, `barbershops/${ALFA}/bookings`)));
+  });
+
+  it("o dono lê a carteira de clientes DELE — inclusive os de balcão", async () => {
+    /* A contraprova do bloco 5: fechar `clients` para o cliente não pode fechar
+     * para a barbearia, que precisa da lista para atender no balcão. Se este
+     * caso falhasse, G3 teria criado uma coleção que ninguém consegue usar. */
+    const db = as(DONO_ALFA);
+    await assertSucceeds(getDocs(collection(db, `barbershops/${ALFA}/clients`)));
+    await assertSucceeds(getDoc(doc(db, `barbershops/${ALFA}/clients`, "cli-1")));
+  });
+
+  it("o barbeiro também lê — é ele quem atende", async () => {
+    const db = as(BARBEIRO_ALFA);
+    await assertSucceeds(getDocs(collection(db, `barbershops/${ALFA}/clients`)));
+  });
+
+  it("mas nem o dono ESCREVE direto — o cadastro nasce pelo servidor", async () => {
+    /* Mesmo desenho de `bookings`: a tela nunca grava direto. Sem isso, o
+     * cadastro poderia nascer sem a reserva e a deduplicação por WhatsApp
+     * perderia o único lugar onde é garantida — a transação. */
+    const db = as(DONO_ALFA);
+    await assertFails(
+      setDoc(doc(db, `barbershops/${ALFA}/clients`, "novo"), {
+        uid: null,
+        name: "Direto na regra",
+        whatsapp: "11911112222",
+        origin: "balcao",
+        active: true,
+      })
+    );
   });
 
   it("o cliente lê a própria reserva na Alfa", async () => {

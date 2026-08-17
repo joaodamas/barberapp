@@ -4,7 +4,7 @@ import { useShopCollection } from "@/lib/db/use-collection";
 import { saldoDeFidelidade } from "@/lib/domain";
 import { useTenant } from "@/lib/tenant-context";
 import type {
-  BookingDoc, CommissionDoc, ExpenseDoc, InventoryMovementDoc,
+  BookingDoc, ClientDoc, CommissionDoc, ExpenseDoc, InventoryMovementDoc,
   LoyaltyTransactionDoc, PaymentDoc, PlanDoc, ProductDoc, ServiceDoc,
   StaffDoc, SubscriberDoc,
 } from "@/lib/domain";
@@ -42,6 +42,20 @@ export const useProducts = () =>
 
 export const useBookings = () =>
   useShopCollection<BookingDoc>("bookings", { orderByField: "date", direction: "desc" });
+
+/**
+ * A carteira de clientes da barbearia — G3.
+ *
+ * Só quem toca a loja lê a coleção inteira; o cliente lê apenas o próprio
+ * cadastro. As regras garantem isso, e a suíte de isolamento tenta violar as
+ * duas portas (ler o de outro, listar a coleção).
+ *
+ * Escrita é sempre do servidor: o cadastro nasce dentro da transação que grava
+ * a reserva, para não existir cliente sem atendimento nem reserva apontando
+ * para cadastro inexistente.
+ */
+export const useClients = () =>
+  useShopCollection<ClientDoc>("clients", { orderByField: "name" });
 
 export const useExpenses = () =>
   useShopCollection<ExpenseDoc>("expenses", { orderByField: "date", direction: "desc" });

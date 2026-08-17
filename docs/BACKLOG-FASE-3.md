@@ -22,7 +22,7 @@ tarefa, não uma sugestão.
 | Criação de reserva | agenda · concorrência · Day in the Life |
 | Motor financeiro | ledger · 6 visões · reconciliação |
 | Fluxo de operação | Day in the Life (trecho afetado) |
-| Regras e autorização | suíte de isolamento (182) |
+| Regras e autorização | suíte de isolamento (87 + 66 de regras) |
 | Refactor amplo | tudo que o arquivo tocado alimenta |
 
 ---
@@ -84,12 +84,12 @@ passar a fazer.**
 
 | # | O que é | Impacto comercial | Custo | Revalidar |
 |---|---|---|---|---|
-| **D13** | **O dono não consegue criar uma reserva.** Nenhuma das 8 telas do painel agenda | Boa parte dos horários chega por telefone e WhatsApp. O blueprint prevê `origin: "balcao"` e `uid: null` — e não descreve como a reserva desse cliente nasce | **alto** | agenda · concorrência · Day in the Life |
+| ~~**D13**~~ | ~~O dono não consegue criar uma reserva~~ | ✅ **fechado na Rodada 2.** `createBookingAtCounter` + `MarcarNoBalcao` no painel Hoje. Cliente de balcão nasce `origin: "balcao"`, `uid: null`. Verificado **na tela**, com reserva gravada | — | agenda · concorrência |
 | **G1** | **Não há tela de venda de produto.** `inventory_movements` não é escrita por ninguém | Receita de loja, CMV e comissão de produto são estruturalmente zero. A Loja é um cadastro com simulador | médio | ledger · 6 visões · DRE |
 | **G2** | **Não há cadastro de mensalista.** `subscriptions` não é escrita por ninguém | A tela Mensal nunca recebe dado, e a régua D-5→D+5 é campo morto. Mensalista está na matriz de planos como recurso vendido | médio | ledger · financeiro |
-| **G3** | **Não há ficha de cliente.** O blueprint especifica `clients/{id}` como ❌ criar | Sem ela não há reativação, aniversário, régua de faltas nem histórico por pessoa. É a base do Bloco 3 do blueprint | alto | — |
-| **P1-4** | Remarcar oferece horários **já ocupados por outros clientes** — a tela usa cálculo local que só enxerga as reservas do próprio cliente | O cliente tenta remarcar e leva erro. É o defeito que `availableSlots` corrigiu no agendar e não foi aplicado aqui | baixo | agenda |
-| **P1-13** | O limite de 2 remarcações vive num `useState` — zera com F5 | A tela anuncia uma regra que não existe | baixo | reservas |
+| **G3** | **Ficha de cliente — mínimo entregue na Rodada 2.** `clients/{uid}` para quem tem conta, id gerado para o balcão; WhatsApp único por barbearia; fusão preserva o histórico | ✅ identidade, deduplicação e vínculo existem. **Falta o resto do Bloco 3**: Customer 360, risco de perda, reativação, aniversário | médio (o que resta) | isolamento (87) |
+| ~~**P1-4**~~ | ~~Remarcar oferece horários já ocupados por outros clientes~~ | ✅ **fechado na Rodada 2.** A tela passou a usar `availableSlots` com o `staffId` da própria reserva | — | agenda |
+| ~~**P1-13**~~ | ~~O limite de 2 remarcações vive num `useState` — zera com F5~~ | ✅ **fechado na Rodada 2.** Era pior: `rescheduleBooking` **nunca soube do limite**. `rescheduleCount` virou campo, gravado com `increment` dentro da transação | — | reservas |
 | **P2-4** | Jornada por barbeiro é lida pelo servidor e **não tem interface** | Folga e horário próprio são funcionalidade inalcançável | médio | agenda |
 | **D17** | **Não existe avaliação de atendimento.** Nem nota, nem estrela, nem review — em nenhuma camada | A régua pós-atendimento perde o gatilho de reputação, e a barbearia não tem como saber o que o cliente achou. A promessa já saiu do template (Rodada 1); a capacidade continua ausente | médio | catálogo de templates · pós-atendimento |
 
@@ -164,12 +164,21 @@ Três coisas que a execução ensinou, e que valem para as próximas rodadas:
    números. Se a frase nova cabe no cartão e faz sentido para quem lê, isso
    continua sendo o Day in the Life.
 
-### Rodada 2 — a operação que falta
-`D13 · G1 · G2 · P1-4 · P1-13`
+### 🔄 Rodada 2 — a operação que falta
+`G3-mínimo · D13 · G1 · G2 · P1-4 · P1-13`
 
-O dono passa a poder agendar, vender produto e cadastrar mensalista. É a rodada
-que muda a resposta à pergunta *"isto é uma agenda ou uma plataforma de
-gestão?"*. Revalidação: agenda, concorrência e o Day in the Life.
+**Fechados:** G3-mínimo, D13, P1-4, P1-13. **Restam:** G1 e G2.
+
+G3 entrou na frente porque não estava no plano e é a chave dos três: o cliente de
+balcão que D13 cria não tem conta, o mensalista de G2 aponta para um `clientId`,
+e a venda de G1 também. Decisão arquitetural: **`clients/{uid}` para quem tem
+conta, id gerado para o balcão** — mantém `bookings.clientId` com o significado
+que já tinha (o uid) e as regras do Firestore valendo sem alteração.
+
+D13 foi verificado **na tela**, não só por teste: dois atendimentos criados no
+painel, cadastro reusado pelo WhatsApp, reserva aparecendo na agenda com
+"Concluir" e "Cancelar". Três defeitos apareceram só aí — estão em
+`RODADA-2.md`.
 
 ### Rodada 3 — o modelo financeiro
 `D3 · D8/D11 · D4 · D7 · P1-7 · D1/D5`

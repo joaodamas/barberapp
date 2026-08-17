@@ -194,6 +194,33 @@ service cloud.firestore {
         allow write: if isOwnerOf(barbershopId);
       }
 
+      /* -------- cliente da barbearia (G3) -------- */
+
+      match /clients/{clientId} {
+        /* Quem toca a barbearia lê a lista inteira — é a agenda de contatos
+         * dela. O cliente lê SÓ o próprio cadastro, e o casamento é pelo id do
+         * documento, porque `clients/{uid}` faz referência e identidade
+         * coincidirem para quem tem conta.
+         *
+         * Cadastro de balcão tem id gerado: nenhum `request.auth.uid` o iguala,
+         * então ele é visível apenas para a barbearia. É o desenho, não uma
+         * lacuna — e o limite (o walk-in que criar conta não vê o histórico
+         * antigo) está declarado em `functions/src/clients.ts`. */
+        allow read: if isStaffOf(barbershopId)
+                    || (isSignedIn() && clientId == request.auth.uid);
+
+        /* Escrita é SÓ do servidor.
+         *
+         * O cadastro nasce dentro da transação que grava a reserva — os dois
+         * juntos ou nenhum. Deixar o cliente criar aqui abriria dois buracos: um
+         * cadastro fantasma sem atendimento nenhum, e a chance de gravar
+         * `whatsapp` de outra pessoa e sequestrar a deduplicação dela.
+         *
+         * O dono edita pelo painel, que também passa por function — a tela nunca
+         * escreve direto, pelo mesmo motivo de `bookings`. */
+        allow write: if false;
+      }
+
       /* -------- agenda -------- */
 
       match /bookings/{bookingId} {

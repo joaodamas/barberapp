@@ -89,6 +89,33 @@ export type InventoryMovementDoc = {
   date: string;
 };
 
+/**
+ * O cliente da barbearia — G3.
+ *
+ * O id do documento **é o uid quando a pessoa tem conta no app**, e um id
+ * gerado quando não tem. Isso mantém `bookings.clientId` com o mesmo
+ * significado de sempre (o uid), e é o que permite as regras do Firestore
+ * continuarem comparando `clientId == request.auth.uid` sem alteração.
+ *
+ * Escrito só pelo servidor, dentro da transação que grava a reserva. Contrato e
+ * decisões em `functions/src/clients.ts`.
+ */
+export type ClientDoc = {
+  /** Conta no app. **Nulo para quem chega no balcão** — é o caso normal. */
+  uid: string | null;
+  name: string;
+  /** Só dígitos. Chave de deduplicação dentro da barbearia. */
+  whatsapp: string;
+  origin: "app" | "balcao" | "importacao";
+  active: boolean;
+  /**
+   * Para onde este cadastro foi fundido, quando a mesma pessoa voltou com conta
+   * no app. As reservas antigas continuam apontando para o cadastro antigo — o
+   * fato não se reescreve para arrumar o cadastro.
+   */
+  mergedInto?: string | null;
+};
+
 export type BookingDoc = {
   clientId: string;
   /**
@@ -132,6 +159,31 @@ export type BookingDoc = {
   isFitIn?: boolean;
   /** Quando o encaixe foi pedido — base para o prazo de expiração. */
   requestedAt?: string;
+  /**
+   * Quantas vezes esta reserva já foi remarcada.
+   *
+   * Escrito só pelo servidor, com `increment`, dentro da transação que move o
+   * horário. A tela lê para dizer a verdade antes do toque; **quem aplica o
+   * limite é `rescheduleBooking`**, e não este campo.
+   *
+   * Vivia num `useState` que zerava com F5 — a tela anunciava um teto de 2 que
+   * bastava recarregar a página para contornar (P1-13).
+   *
+   * Opcional porque reserva anterior ao campo não o tem, e ausência vale zero:
+   * quem nunca remarcou pelo caminho que conta não pode começar no limite.
+   */
+  rescheduleCount?: number;
+  /**
+   * De onde a reserva veio — D13.
+   *
+   * Fica na RESERVA, e não só no cliente, porque `bookings` é o registro
+   * histórico: saber que um atendimento nasceu no balcão precisa sobreviver a
+   * uma fusão de cadastro, que muda o cliente e não pode mudar o fato.
+   *
+   * Ausente nas reservas anteriores ao campo — todas do app, que era o único
+   * caminho que existia.
+   */
+  origin?: "app" | "balcao" | "importacao";
 };
 
 export type SubscriberDoc = {

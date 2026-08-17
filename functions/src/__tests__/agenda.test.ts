@@ -6,6 +6,8 @@ import {
   janelasOcupadas,
   paraHora,
   paraMinutos,
+  podeRemarcar,
+  remarcacoesRestantes,
   seSobrepoem,
   type Janela,
 } from "../agenda";
@@ -168,5 +170,62 @@ describe("o horário candidato também é medido pela própria duração", () =>
 
   it("não cabe quando o serviço avança por cima", () => {
     expect(horarioDisponivel({ time: "10:30", durationMin: 60, ocupadas })).toBe(false);
+  });
+});
+
+/* ================================================================== */
+/* P1-13 · o teto de remarcações passa a existir de verdade           */
+/* ================================================================== */
+
+describe("P1-13 · teto de remarcações", () => {
+  /* A tela do cliente anunciava "limite de 2 reagendamentos por reserva" a
+   * partir de um `useState(0)` que zerava com F5. O `rescheduleBooking` nunca
+   * ouviu falar do limite: validava só a janela de horas.
+   *
+   * O efeito não era teórico — bastava recarregar a página para remarcar de
+   * novo, indefinidamente. A tela anunciava uma regra que não existia. */
+
+  it("reserva nova tem o limite inteiro disponível", () => {
+    expect(remarcacoesRestantes(undefined, 2)).toBe(2);
+    expect(remarcacoesRestantes(0, 2)).toBe(2);
+  });
+
+  it("cada remarcação consome uma", () => {
+    expect(remarcacoesRestantes(1, 2)).toBe(1);
+    expect(remarcacoesRestantes(2, 2)).toBe(0);
+  });
+
+  it("no limite, recusa — o que o F5 contornava", () => {
+    expect(podeRemarcar({ contagem: 2, limite: 2, ehDono: false })).toBe(false);
+    expect(podeRemarcar({ contagem: 1, limite: 2, ehDono: false })).toBe(true);
+  });
+
+  it("contagem ausente vale zero, não 'já estourou'", () => {
+    /* Reserva anterior a este campo nunca remarcou pelo caminho que conta.
+     * Tratar `undefined` como estouro travaria remarcação legítima de quem não
+     * fez nada — a correção não pode punir o histórico. */
+    expect(podeRemarcar({ contagem: undefined, limite: 2, ehDono: false })).toBe(true);
+    expect(podeRemarcar({ contagem: null, limite: 2, ehDono: false })).toBe(true);
+    expect(podeRemarcar({ contagem: "lixo", limite: 2, ehDono: false })).toBe(true);
+  });
+
+  it("valor corrompido não vira crédito", () => {
+    /* O simétrico: um número negativo no documento não pode devolver mais
+     * remarcações do que a política concede. */
+    expect(remarcacoesRestantes(-5, 2)).toBe(2);
+    expect(remarcacoesRestantes(99, 2)).toBe(0);
+  });
+
+  it("o DONO não tem teto — é a agenda dele", () => {
+    /* Mesma isenção que ele já tem na janela de horas. Um barbeiro que faltou
+     * obriga a mover várias reservas, e limitar isso seria recusar a operação
+     * real da loja. */
+    expect(podeRemarcar({ contagem: 99, limite: 2, ehDono: true })).toBe(true);
+  });
+
+  it("limite zero proíbe remarcar, e não libera", () => {
+    /* Uma barbearia pode configurar `maxPerBooking: 0`. Um `|| 2` no lugar do
+     * `?? 2` transformaria essa escolha no padrão da casa. */
+    expect(podeRemarcar({ contagem: 0, limite: 0, ehDono: false })).toBe(false);
   });
 });

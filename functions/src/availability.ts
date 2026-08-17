@@ -44,6 +44,20 @@ export const availableSlots = onCall<{
   date: string;
   staffId?: string;
   durationMin?: number;
+  /**
+   * Quem pergunta é o balcão — D13.
+   *
+   * Encontrado abrindo a tela, não lendo o código: com 15:55 no relógio, o
+   * primeiro horário oferecido ao dono era 17:00. O `createBookingAtCounter`
+   * aceita "agora" de propósito, mas a tela pedia os horários pela mesma porta
+   * do app do cliente e recebia a lista já filtrada pela antecedência mínima —
+   * o caso mais comum do balcão, a pessoa sentada na cadeira, não aparecia.
+   *
+   * O pedido é só um pedido: quem decide é a guarda logo abaixo, que confere o
+   * vínculo de quem chamou. Um cliente mandando `paraOBalcao: true` continua
+   * recebendo a lista dele.
+   */
+  paraOBalcao?: boolean;
 }>(async (request) => {
   const { barbershopId, date } = request.data ?? {};
   if (!barbershopId) throw new HttpsError("invalid-argument", "Barbearia não informada.");
@@ -82,7 +96,15 @@ export const availableSlots = onCall<{
   }
 
   const duracao = Math.max(Number(request.data?.durationMin) || jornada.slotMinutes, 5);
-  const minutosMinimos: number = policies.booking?.minAdvanceMinutes ?? 60;
+  /* A antecedência mínima protege o CLIENTE de marcar um horário que o barbeiro
+   * não veria a tempo. Quem está no balcão é justamente quem vai atender, então
+   * ela não se aplica — e a guarda é o vínculo no claim, nunca o parâmetro. */
+  const papel = (request.auth?.token.barbershops as Record<string, string> | undefined)?.[
+    barbershopId
+  ];
+  const ehDaCasa = papel === "owner" || papel === "staff";
+  const minutosMinimos: number =
+    request.data?.paraOBalcao && ehDaCasa ? 0 : (policies.booking?.minAdvanceMinutes ?? 60);
 
   /* Ocupação DESTE barbeiro. A query traz o dia inteiro e o filtro por barbeiro
    * é em memória — três igualdades exigiriam índice composto, e índice faltando

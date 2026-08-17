@@ -29,7 +29,12 @@ export { materializeFinancialsOnCompletion } from "./financial-events";
 export { changeInitialPassword } from "./account";
 export { notifyBookingCreated } from "./whatsapp/notify";
 export { whatsappWebhook } from "./whatsapp/webhook";
-export { createBooking, cancelBooking, rescheduleBooking } from "./booking";
+export {
+  createBooking,
+  createBookingAtCounter,
+  cancelBooking,
+  rescheduleBooking,
+} from "./booking";
 export { availableSlots } from "./availability";
 export { revisarAssinaturas } from "./billing";
 export { definirPlano } from "./subscription";
