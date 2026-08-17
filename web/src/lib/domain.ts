@@ -107,6 +107,19 @@ export type BookingDoc = {
   date: string;
   /** `HH:mm`. */
   time: string;
+  /**
+   * Quanto o atendimento ocupa, em minutos — a soma dos serviços escolhidos.
+   *
+   * O servidor grava isto desde sempre (`functions/src/booking.ts`), e o tipo do
+   * front **não o declarava**. A ausência não era inofensiva: enquanto o campo
+   * não existe no contrato, nenhuma tela e nenhum cálculo do web podem
+   * considerá-lo — e foi assim que a duração ficou de fora da ocupação da agenda
+   * por tanto tempo, até o Gate A corrigi-la do lado do servidor.
+   *
+   * Opcional porque reserva anterior à introdução do campo não o tem; quem
+   * precisa da duração assume a grade da jornada, como faz `agenda.ts`.
+   */
+  durationMin?: number;
   status: BookingStatus;
   value: number;
   /** Onde o pagamento acontece. Decidido no agendamento. */
