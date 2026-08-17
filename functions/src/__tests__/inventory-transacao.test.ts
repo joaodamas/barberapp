@@ -1,7 +1,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { initializeApp, deleteApp, type App } from "firebase-admin/app";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
-import { gravarVendaComTravaDeEstoque } from "../inventory";
+import {
+  gravarCompraComEntradaDeEstoque,
+  gravarVendaComTravaDeEstoque,
+} from "../inventory";
 import type { PaymentMethod } from "../financial-events";
 
 /**
@@ -438,5 +441,146 @@ describe("G1 · carrinho", () => {
      * segundo item significa não ter vendido o primeiro. */
     expect(await estoqueDe("pomada")).toBe(9);
     expect(await movimentos()).toHaveLength(2);
+  });
+});
+
+/* ================================================================== */
+/* G1.5 · a entrada de estoque, contra o emulador                      */
+/* ================================================================== */
+
+function comprar(params: {
+  productId: string;
+  quantity: number;
+  unitCost: number;
+  paymentMethod?: PaymentMethod | null;
+  supplier?: string | null;
+  chave?: string;
+}) {
+  return gravarCompraComEntradaDeEstoque({
+    db,
+    shopRef: shopRef(),
+    productId: params.productId,
+    quantity: params.quantity,
+    unitCost: params.unitCost,
+    paymentMethod: params.paymentMethod ?? null,
+    supplier: params.supplier ?? null,
+    date: HOJE,
+    chave: params.chave,
+  });
+}
+
+async function custoDe(id: string) {
+  const s = await shopRef().collection("products").doc(id).get();
+  return Number(s.get("cost"));
+}
+
+describe("G1.5 · a entrada sobe o estoque e registra o fato", () => {
+  it("grava movimento de COMPRA e soma no estoque", async () => {
+    /* Era o fato que não existia: `kind: "compra"` aparecia em quatro lugares e
+     * os quatro eram leitura. O CMV somava sobre conjunto vazio. */
+    const r = await comprar({ productId: "pomada", quantity: 10, unitCost: 18 });
+
+    expect(r.value).toBe(180);
+    expect(await estoqueDe("pomada")).toBe(20);
+
+    const ms = await movimentos();
+    expect(ms).toHaveLength(1);
+    expect(ms[0].kind).toBe("compra");
+    expect(ms[0].unitCost).toBe(18);
+  });
+
+  it("o CMV deixa de ser conjunto vazio", async () => {
+    /* A verificação direta do achado D19: antes desta função, filtrar por
+     * `kind === "compra"` devolvia zero documentos em qualquer base real. */
+    await comprar({ productId: "pomada", quantity: 10, unitCost: 18 });
+    const compras = (await movimentos()).filter((m) => m.kind === "compra");
+    expect(compras.length).toBeGreaterThan(0);
+  });
+
+  it("atualiza o custo pelo MÉDIO PONDERADO", async () => {
+    /* Estoque nasce 10 a 18. Comprar 10 a 30 leva o médio a 24 — e não a 30,
+     * que é o que o último custo faria. */
+    await comprar({ productId: "pomada", quantity: 10, unitCost: 30 });
+    expect(await custoDe("pomada")).toBe(24);
+    expect(await estoqueDe("pomada")).toBe(20);
+  });
+
+  it("a venda seguinte congela o custo NOVO", async () => {
+    await comprar({ productId: "pomada", quantity: 10, unitCost: 30 });
+    await vender({ productId: "pomada", quantity: 1, paymentMethod: "pix" });
+
+    const venda = (await movimentos()).find((m) => m.kind === "venda")!;
+    expect(venda.unitCost).toBe(24);
+  });
+
+  it("a venda ANTERIOR não é reescrita pela compra", async () => {
+    /* É o ponto do congelamento. Comprar mais caro em outubro não pode alterar
+     * o custo da venda de setembro. */
+    await vender({ productId: "pomada", quantity: 1, paymentMethod: "pix" });
+    await comprar({ productId: "pomada", quantity: 10, unitCost: 30 });
+
+    const venda = (await movimentos()).find((m) => m.kind === "venda")!;
+    expect(venda.unitCost).toBe(18);
+  });
+
+  it("produto inexistente não grava nada", async () => {
+    await expect(comprar({ productId: "fantasma", quantity: 1, unitCost: 10 })).rejects.toThrow(
+      /não está mais cadastrado/
+    );
+    expect(await movimentos()).toHaveLength(0);
+  });
+
+  it("guarda fornecedor e meio de pagamento quando informados", async () => {
+    await comprar({
+      productId: "pomada",
+      quantity: 5,
+      unitCost: 20,
+      paymentMethod: "pix",
+      supplier: "Distribuidora X",
+    });
+    const [m] = await movimentos();
+    expect(m.supplier).toBe("Distribuidora X");
+    expect(m.paymentMethod).toBe("pix");
+  });
+
+  it("a mesma chave não dá entrada duas vezes", async () => {
+    const a = await comprar({ productId: "pomada", quantity: 10, unitCost: 18, chave: "nf-123" });
+    const b = await comprar({ productId: "pomada", quantity: 10, unitCost: 18, chave: "nf-123" });
+
+    expect(a.repetida).toBe(false);
+    expect(b.repetida).toBe(true);
+    expect(await estoqueDe("pomada")).toBe(20);
+    expect(await movimentos()).toHaveLength(1);
+  });
+
+  it("duas entradas SIMULTÂNEAS da mesma nota não dobram o estoque", async () => {
+    await Promise.allSettled([
+      comprar({ productId: "pomada", quantity: 10, unitCost: 18, chave: "nf-9" }),
+      comprar({ productId: "pomada", quantity: 10, unitCost: 18, chave: "nf-9" }),
+    ]);
+    expect(await estoqueDe("pomada")).toBe(20);
+    expect(await movimentos()).toHaveLength(1);
+  });
+
+  it("entradas concorrentes SEM chave somam todas, sem perder nenhuma", async () => {
+    /* Duas notas diferentes chegando junto. Fora da transação, as duas leriam
+     * o mesmo estoque e a segunda apagaria a primeira. */
+    await Promise.allSettled([
+      comprar({ productId: "pomada", quantity: 5, unitCost: 18 }),
+      comprar({ productId: "pomada", quantity: 3, unitCost: 18 }),
+    ]);
+    expect(await estoqueDe("pomada")).toBe(18);
+    expect(await movimentos()).toHaveLength(2);
+  });
+
+  it("comprar e vender em sequência mantém o estoque coerente", async () => {
+    await comprar({ productId: "pomada", quantity: 10, unitCost: 18 });
+    await vender({ productId: "pomada", quantity: 3, paymentMethod: "cash" });
+    expect(await estoqueDe("pomada")).toBe(17);
+
+    const ms = await movimentos();
+    const entrou = ms.filter((m) => m.kind === "compra").reduce((s, m) => s + Number(m.quantity), 0);
+    const saiu = ms.filter((m) => m.kind === "venda").reduce((s, m) => s + Number(m.quantity), 0);
+    expect(10 + entrou - saiu).toBe(17);
   });
 });

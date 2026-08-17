@@ -11,7 +11,10 @@ import { useProducts } from "@/lib/db/use-shop-data";
 import { useFeature, useTenant } from "@/lib/tenant-context";
 import { RecursoBloqueado } from "@/components/recurso-bloqueado";
 import { VenderProduto } from "@/components/vender-produto";
+import { EntradaDeEstoque } from "@/components/entrada-de-estoque";
 import { createDoc } from "@/lib/db/repository";
+import type { Doc } from "@/lib/db/repository";
+import type { ProductDoc } from "@/lib/domain";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { commissionSplit, splitSale, taxRatePct } from "@/lib/business-rules";
 
@@ -52,6 +55,7 @@ function LojaConteudo() {
   const [simPrice, setSimPrice] = useState(45);
   const [simCost, setSimCost] = useState(18);
   const [modalOpen, setModalOpen] = useState(false);
+  const [aReceber, setAReceber] = useState<Doc<ProductDoc> | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -121,6 +125,8 @@ function LojaConteudo() {
           o gesto do dia — e o que ele faz primeiro precisa estar em cima. */}
       <VenderProduto />
 
+      <EntradaDeEstoque produto={aReceber} aoFechar={() => setAReceber(null)} />
+
       {lowStock.length > 0 && (
         <Card className="flex items-start gap-3 border-danger/30 md:p-5">
           <AlertTriangle size={18} className="mt-0.5 shrink-0 text-danger" />
@@ -167,9 +173,21 @@ function LojaConteudo() {
                       margem {formatBRL(margin)}
                     </p>
                   </div>
-                  <Pill tone={belowMin ? "danger" : "neutral"}>
-                    {p.stock} un.
-                  </Pill>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Pill tone={belowMin ? "danger" : "neutral"}>
+                      {p.stock} un.
+                    </Pill>
+                    {/* G1.5 · a entrada mora AQUI, ao lado do estoque.
+                        É onde o dono olha quando a caixa chega — e onde ele
+                        antes editava o número na mão, sem custo nem data. */}
+                    <Button
+                      variant="secondary"
+                      onClick={() => setAReceber(p)}
+                      className="min-h-9 px-3 text-xs"
+                    >
+                      Dar entrada
+                    </Button>
+                  </div>
                 </div>
               );
             })}

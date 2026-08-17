@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  custoMedioPonderado,
   estoqueSuficiente,
+  movimentoDeCompra,
   metodoValido,
   movimentoDeVenda,
   quantidadeValida,
@@ -165,5 +167,111 @@ describe("G1 · o movimento congela o que precisa ser congelado", () => {
      * chamador deixaria registrar uma compra como venda e faturar estoque que
      * entrou. */
     expect(venda.kind).toBe("venda");
+  });
+});
+
+/* ================================================================== */
+/* G1.5 · a entrada de estoque — o fato que não existia (D19)          */
+/* ================================================================== */
+
+describe("G1.5 · custo médio ponderado", () => {
+  it("mistura o estoque antigo com a compra nova", () => {
+    /* 8 a R$ 18 + 2 a R$ 30 = (144 + 60) ÷ 10 = 20,40 */
+    expect(
+      custoMedioPonderado({ estoqueAtual: 8, custoAtual: 18, quantidade: 2, custoDaCompra: 30 })
+    ).toBe(20.4);
+  });
+
+  it("NÃO adota o último custo — é a decisão que este arquivo recusa", () => {
+    /* Com último custo, as 8 unidades antigas passariam a valer R$ 30 e o CMV
+     * do mês seguinte estouraria sem nada ter acontecido na loja. */
+    const medio = custoMedioPonderado({
+      estoqueAtual: 8,
+      custoAtual: 18,
+      quantidade: 2,
+      custoDaCompra: 30,
+    });
+    expect(medio).not.toBe(30);
+    expect(medio).toBeGreaterThan(18);
+    expect(medio).toBeLessThan(30);
+  });
+
+  it("estoque zerado adota o custo da compra", () => {
+    /* Não há média a fazer, e dividir por zero gravaria NaN no documento. */
+    expect(
+      custoMedioPonderado({ estoqueAtual: 0, custoAtual: 18, quantidade: 5, custoDaCompra: 25 })
+    ).toBe(25);
+  });
+
+  it("estoque negativo herdado não distorce a média", () => {
+    expect(
+      custoMedioPonderado({ estoqueAtual: -3, custoAtual: 18, quantidade: 5, custoDaCompra: 25 })
+    ).toBe(25);
+  });
+
+  it("comprar ao mesmo preço não move o custo", () => {
+    expect(
+      custoMedioPonderado({ estoqueAtual: 10, custoAtual: 18, quantidade: 10, custoDaCompra: 18 })
+    ).toBe(18);
+  });
+
+  it("arredonda ao centavo", () => {
+    /* (1 × 10 + 2 × 11) ÷ 3 = 10,666… → 10,67 */
+    expect(
+      custoMedioPonderado({ estoqueAtual: 1, custoAtual: 10, quantidade: 2, custoDaCompra: 11 })
+    ).toBe(10.67);
+  });
+});
+
+describe("G1.5 · o movimento de compra", () => {
+  const compra = movimentoDeCompra({
+    productId: "pomada",
+    quantidade: 10,
+    unitCost: 18,
+    paymentMethod: "pix",
+    supplier: "Distribuidora X",
+    date: "2026-09-01",
+  });
+
+  it("é do tipo COMPRA — é o que faltava para o CMV existir", () => {
+    /* `kind: "compra"` aparecia em quatro lugares do produto e os quatro eram
+     * LEITURA. O filtro do CMV somava sobre conjunto vazio. */
+    expect(compra.kind).toBe("compra");
+  });
+
+  it("o valor é custo × quantidade", () => {
+    expect(compra.value).toBe(180);
+  });
+
+  it("não tem preço de venda — o produto entrou, não saiu", () => {
+    expect(compra.unitPrice).toBe(0);
+  });
+
+  it("guarda o custo unitário da compra, não o do cadastro", () => {
+    expect(compra.unitCost).toBe(18);
+  });
+
+  it("carrega o meio de pagamento, mesmo sem ninguém lê-lo ainda", () => {
+    /* A saída de caixa é real e vai aparecer quando o Fluxo tiver saídas
+     * (D8/D11). Descobrir o meio depois é o que a premissa N12 recusa. */
+    expect(compra.paymentMethod).toBe("pix");
+  });
+
+  it("aceita compra sem meio e sem fornecedor", () => {
+    const simples = movimentoDeCompra({
+      productId: "pomada",
+      quantidade: 5,
+      unitCost: 20,
+      paymentMethod: null,
+      supplier: null,
+      date: "2026-09-01",
+    });
+    expect(simples.paymentMethod).toBeNull();
+    expect(simples.supplier).toBeNull();
+  });
+
+  it("não carrega cliente nem atendimento", () => {
+    expect(compra.clientId).toBeNull();
+    expect(compra.bookingId).toBeNull();
   });
 });

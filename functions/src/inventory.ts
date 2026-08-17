@@ -119,6 +119,81 @@ export function valorDaVenda(unitPrice: number, quantidade: number): number {
 }
 
 /**
+ * O custo unitário do estoque depois de uma entrada — **custo médio ponderado**.
+ *
+ * ## A decisão, e a alternativa que ela recusa
+ *
+ * A alternativa é o **último custo**: `cost = unitCost da última compra`. É mais
+ * simples e fica errada enquanto sobrar estoque antigo — comprar 2 unidades a
+ * R$ 30 com 8 a R$ 18 na prateleira faria as 8 antigas passarem a custar R$ 30
+ * na próxima venda, e o CMV do mês seguinte estouraria sem nada ter acontecido.
+ *
+ * O médio ponderado responde o que o CMV precisa: **quanto custou, em média, a
+ * unidade que está na prateleira agora**.
+ *
+ * ```
+ * (estoque × custoAtual + quantidade × custoDaCompra) ÷ (estoque + quantidade)
+ * ```
+ *
+ * Isto **não reescreve histórico**: as vendas já feitas carregam o `unitCost`
+ * que congelaram. O médio vale daqui para frente.
+ *
+ * Estoque zerado devolve o custo da compra — não há média a fazer, e dividir
+ * por zero gravaria `NaN` dentro do documento.
+ */
+export function custoMedioPonderado(params: {
+  estoqueAtual: number;
+  custoAtual: number;
+  quantidade: number;
+  custoDaCompra: number;
+}): number {
+  const estoque = Math.max(Number(params.estoqueAtual) || 0, 0);
+  const total = estoque + params.quantidade;
+  if (total <= 0) return params.custoDaCompra;
+
+  const valorAntigo = estoque * (Number(params.custoAtual) || 0);
+  const valorNovo = params.quantidade * params.custoDaCompra;
+  return Math.round(((valorAntigo + valorNovo) / total) * 100) / 100;
+}
+
+/**
+ * O documento da compra — G1.5.
+ *
+ * `kind: "compra"` existia no tipo e **nenhum caminho do produto o produzia**:
+ * era o achado D19. O estoque inicial vinha do formulário de cadastro, e a
+ * reposição era o dono editando o número — sem custo, sem data, sem registro.
+ *
+ * Consequência: `cmv = movimentos.filter(kind === "compra")` somava sobre um
+ * conjunto vazio, e o CMV do DRE era **zero estrutural**. D3 descrevia
+ * corretamente o código e incorretamente o produto — não havia compras a somar.
+ */
+export function movimentoDeCompra(params: {
+  productId: string;
+  quantidade: number;
+  unitCost: number;
+  paymentMethod: PaymentMethod | null;
+  supplier: string | null;
+  date: string;
+}): InventoryMovementDoc & { supplier: string | null } {
+  return {
+    productId: params.productId,
+    kind: "compra",
+    quantity: params.quantidade,
+    /* Compra não tem preço de venda: o produto entrou, não saiu. Zero explícito
+     * em vez de ausente, para o campo significar a mesma coisa nos dois tipos
+     * de movimento. */
+    unitPrice: 0,
+    unitCost: params.unitCost,
+    value: valorDaVenda(params.unitCost, params.quantidade),
+    paymentMethod: params.paymentMethod,
+    clientId: null,
+    bookingId: null,
+    supplier: params.supplier,
+    date: params.date,
+  };
+}
+
+/**
  * O documento da venda, montado a partir do produto e do pedido.
  *
  * Puro de propósito: é a decisão de o que fica congelado, e ela precisa ser
@@ -369,6 +444,180 @@ export const registrarVendaDeProduto = onCall<VendaInput>(async (request) => {
     paymentMethod,
     clientId: request.data?.clientId ? String(request.data.clientId) : null,
     bookingId: request.data?.bookingId ? String(request.data.bookingId) : null,
+    date: hoje,
+    chave: chave || undefined,
+    extras: { registradoPor: uid, createdAt: FieldValue.serverTimestamp() },
+  });
+});
+
+/* ================================================================== */
+/* G1.5 · a ENTRADA de estoque — o fato que não existia (D19)         */
+/* ================================================================== */
+
+/**
+ * A compra, dentro da transação que sobe o estoque.
+ *
+ * Mesma forma da venda, e pelos mesmos motivos: o movimento e o estoque nascem
+ * juntos ou não nascem, e a leitura acontece toda antes de qualquer escrita.
+ *
+ * ## O que ela faz com `products.cost`, e por que isso NÃO é "editar o custo"
+ *
+ * A compra **atualiza** o custo do produto para o médio ponderado. Isso não é o
+ * antipadrão que D19 denuncia — o antipadrão era usar a edição do custo **no
+ * lugar** do registro da compra, sem quantidade, sem data e sem fato.
+ *
+ * Aqui o fato é o movimento, e o custo do cadastro passa a ser o que ele
+ * sempre deveria ter sido: uma **derivada** dos movimentos, mantida atualizada
+ * para a próxima venda congelar o valor certo.
+ */
+export async function gravarCompraComEntradaDeEstoque(params: {
+  db: FirebaseFirestore.Firestore;
+  shopRef: FirebaseFirestore.DocumentReference;
+  productId: string;
+  quantity: number;
+  unitCost: number;
+  paymentMethod: PaymentMethod | null;
+  supplier: string | null;
+  date: string;
+  chave?: string;
+  extras?: Record<string, unknown>;
+}): Promise<{
+  movementId: string;
+  value: number;
+  estoqueDepois: number;
+  custoDepois: number;
+  repetida: boolean;
+}> {
+  const { db, shopRef, productId, quantity } = params;
+  const productRef = shopRef.collection("products").doc(productId);
+  const movementRef = params.chave
+    ? shopRef.collection("inventory_movements").doc(`compra_${params.chave}`)
+    : shopRef.collection("inventory_movements").doc();
+
+  return db.runTransaction(async (tx) => {
+    /* ---- LEITURAS ---- */
+    const [produtoSnap, jaExiste] = await Promise.all([
+      tx.get(productRef),
+      tx.get(movementRef),
+    ]);
+
+    if (jaExiste.exists) {
+      return {
+        movementId: movementRef.id,
+        value: Number(jaExiste.get("value")) || 0,
+        estoqueDepois: Number(produtoSnap.get("stock")) || 0,
+        custoDepois: Number(produtoSnap.get("cost")) || 0,
+        repetida: true,
+      };
+    }
+    if (!produtoSnap.exists) {
+      throw new HttpsError("not-found", "Esse produto não está mais cadastrado.");
+    }
+
+    const estoqueAntes = Number(produtoSnap.get("stock")) || 0;
+    const custoAntes = Number(produtoSnap.get("cost")) || 0;
+
+    const custoDepois = custoMedioPonderado({
+      estoqueAtual: estoqueAntes,
+      custoAtual: custoAntes,
+      quantidade: quantity,
+      custoDaCompra: params.unitCost,
+    });
+
+    const movimento = movimentoDeCompra({
+      productId,
+      quantidade: quantity,
+      unitCost: params.unitCost,
+      paymentMethod: params.paymentMethod,
+      supplier: params.supplier,
+      date: params.date,
+    });
+
+    /* ---- ESCRITAS ---- */
+    tx.update(productRef, { stock: estoqueAntes + quantity, cost: custoDepois });
+    tx.set(movementRef, { ...movimento, ...(params.extras ?? {}) });
+
+    return {
+      movementId: movementRef.id,
+      value: movimento.value,
+      estoqueDepois: estoqueAntes + quantity,
+      custoDepois,
+      repetida: false,
+    };
+  });
+}
+
+/**
+ * O dono registra a chegada da mercadoria.
+ *
+ * ## Por que não é uma despesa
+ *
+ * Comprar estoque é troca de caixa por mercadoria, não consumo: o dinheiro sai
+ * e o valor continua na prateleira. Gravar `expenses` aqui somaria o custo duas
+ * vezes no resultado — uma como despesa no mês da compra, outra como CMV no mês
+ * da venda.
+ *
+ * A saída de caixa é real e vai aparecer quando o Fluxo de Caixa passar a ter
+ * saídas (D8/D11). É por isso que `paymentMethod` já nasce aqui, mesmo sem
+ * ninguém lê-lo ainda: descobrir o meio depois é o que a premissa N12 recusa.
+ */
+export const registrarEntradaDeEstoque = onCall<{
+  barbershopId: string;
+  productId: string;
+  quantity: number;
+  unitCost: number;
+  paymentMethod?: PaymentMethod | null;
+  supplier?: string | null;
+  idempotencyKey?: string;
+}>(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Entre na sua conta.");
+
+  const { barbershopId, productId, quantity, unitCost } = request.data ?? {};
+  if (!barbershopId) throw new HttpsError("invalid-argument", "Barbearia não informada.");
+  if (!productId) throw new HttpsError("invalid-argument", "Produto não informado.");
+
+  const papel = (request.auth?.token.barbershops as Record<string, string> | undefined)?.[
+    barbershopId
+  ];
+  if (papel !== "owner" && papel !== "staff") {
+    throw new HttpsError("permission-denied", "Só quem trabalha na barbearia dá entrada.");
+  }
+
+  if (!quantidadeValida(quantity)) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Quantidade precisa ser um número inteiro maior que zero."
+    );
+  }
+  /* Custo pode ter centavos, então não exige inteiro — mas precisa ser número e
+   * não pode ser negativo, que seria uma compra que devolve dinheiro. Zero é
+   * aceito: brinde do fornecedor entra no estoque e custa nada. */
+  if (typeof unitCost !== "number" || !Number.isFinite(unitCost) || unitCost < 0) {
+    throw new HttpsError("invalid-argument", "Custo unitário inválido.");
+  }
+
+  const metodo = request.data?.paymentMethod ?? null;
+  if (metodo !== null && !metodoValido(metodo)) {
+    throw new HttpsError("invalid-argument", "Forma de pagamento inválida.");
+  }
+
+  const db = getFirestore();
+  const shopRef = db.doc(`barbershops/${barbershopId}`);
+  const shopSnap = await shopRef.get();
+  if (!shopSnap.exists) throw new HttpsError("not-found", "Barbearia não encontrada.");
+
+  const hoje = hojeNoFuso(localeDoDocumento(shopSnap.data()).timeZone);
+  const chave = String(request.data?.idempotencyKey ?? "").replace(/[^A-Za-z0-9_-]/g, "");
+
+  return gravarCompraComEntradaDeEstoque({
+    db,
+    shopRef,
+    productId: String(productId),
+    quantity,
+    unitCost,
+    paymentMethod: metodo,
+    supplier: request.data?.supplier ? String(request.data.supplier).trim() : null,
     date: hoje,
     chave: chave || undefined,
     extras: { registradoPor: uid, createdAt: FieldValue.serverTimestamp() },
