@@ -22,6 +22,7 @@ import { KpiTile, signTone } from "@/components/ui/kpi-tile";
 import { formatBRL, safePct } from "@/lib/format";
 import { useFinanceiro, mesAtual, rotuloDoMes } from "@/lib/db/use-financeiro";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
+import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
 import { paymentGateways } from "@/lib/business-rules";
 import { composicaoDaReceita } from "@/lib/analytics";
 
@@ -84,6 +85,7 @@ export default function FinanceiroPage() {
       </div>
 
       {status === "carregando" && <LoadingRows rows={4} />}
+      {status === "erro" && <ErroAoCarregar oQue="o resumo financeiro" />}
 
       {status === "pronto" && receita.bruta === 0 && raw.expenses.length === 0 && (
         <EmptyState

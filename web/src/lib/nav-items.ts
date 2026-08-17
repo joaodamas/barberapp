@@ -66,6 +66,10 @@ export const painelNavItems: NavItem[] = [
       { href: "/painel/financeiro/projecao", label: "Projeção" },
     ],
   },
+  /* D26 · Clientes é área de primeira classe, e fica logo depois de Hoje.
+     G3 criou a entidade e ela só existia dentro de modais — o dono não tinha
+     onde ver quem são seus clientes nem quem não volta há dois meses. */
+  { href: "/painel/clientes", label: "Clientes", icon: Users },
   { href: "/painel/numeros", label: "Números", icon: BarChart3 },
   { href: "/painel/servicos", label: "Serviços", icon: Scissors },
   { href: "/painel/mensal", label: "Mensal", icon: CalendarClock, feature: "subscriptions" },

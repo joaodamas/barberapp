@@ -150,12 +150,86 @@ movimentos de caixa sem outro fato por trás** — sangria, troco inicial, aport
 do dono, pagamento de comissão ao barbeiro. Nenhum deles é atendimento, venda,
 mensalidade ou despesa; nenhum é derivável.
 
-**Isso vira uma decisão da Rodada 3, não um resíduo a remover:** o Fluxo de
-Caixa é **derivado** dos fatos ou **materializado** em `cash_entries`? A
-resposta provável é *derivado para o que tem fato, `cash_entries` para o que não
-tem* — mas é decisão, e fica registrada como tal.
+**Nenhuma das duas é para apagar.** A pergunta que restava — derivado ou
+materializado — está respondida na decisão seguinte.
 
-**Nenhuma das duas é para apagar.**
+---
+
+## Fluxo de Caixa → **híbrido**
+
+Nem tudo derivado, nem tudo materializado.
+
+**Derivado**, porque tem lastro próprio: atendimento, venda, mensalidade,
+despesa, compra de estoque, estorno.
+
+**Materializado em `cash_entries`**, porque **não tem outro fato por trás**:
+sangria · troco inicial · aporte do dono · pagamento de comissão ao barbeiro ·
+ajuste manual de caixa.
+
+```
+Fluxo de Caixa = fatos financeiros derivados
+               + movimentos de caixa independentes
+```
+
+Preserva auditabilidade sem criar uma segunda cópia de tudo — materializar o
+que já é derivável abriria a possibilidade de as duas versões divergirem, que é
+o defeito que esta auditoria passou a fase inteira desfazendo.
+
+**`cash_entries` herda as mesmas exigências de G1/G2:** fato explícito, origem
+clara, valor congelado e idempotência quando aplicável.
+
+---
+
+## Fechamento de período → **distinção mínima, agora**
+
+Não vira módulo contábil. Precisa de duas situações:
+
+| | |
+|---|---|
+| **Aberto** | opera e corrige conforme as regras de cada fato |
+| **Fechado** | não se reescreve silenciosamente |
+
+> **Depois do fechamento, o passado não é editado. O presente corrige o passado
+> por meio de um novo fato.**
+
+Conversa diretamente com D22 e D23: a correção depois do fechamento **é** o
+estorno.
+
+---
+
+## Rastro de reversão → **nunca DELETE, nunca UPDATE disfarçado**
+
+Proibido:
+
+```
+venda            → DELETE
+pagamento        → DELETE
+despesa antiga   → UPDATE para fingir que nunca existiu
+```
+
+Obrigatório:
+
+```
+FATO ORIGINAL
+     └── REVERSÃO / ESTORNO
+              └── novo fato financeiro
+```
+
+Para venda:
+
+```
+Venda R$ 90  →  Estorno R$ 90  →  Ajuste de estoque +2
+```
+
+**O critério de aceitação:** o produto precisa conseguir responder *"por que o
+faturamento daquele dia caiu R$ 90?"* — e a resposta é um evento, não um buraco.
+
+### Consequência sobre o que existe hoje
+
+`decidirEfeito` **apaga** `comissao_{bookingId}` e `pagamento_{bookingId}` ao
+desfazer uma conclusão. Isso passa a ser **exceção documentada** — correção de
+digitação num fato que nunca existiu — e não o padrão. Tudo que já produziu
+efeito econômico se corrige somando.
 
 ---
 
@@ -163,9 +237,8 @@ tem* — mas é decisão, e fica registrada como tal.
 
 | # | Pergunta |
 |---|---|
-| — | Fluxo de Caixa: derivado, materializado, ou os dois? |
-| — | Existe "mês fechado"? Sem ele, nada distingue corrigir ontem de reescrever um trimestre |
-| — | Reversão de atendimento deixa rastro? Hoje apaga sem registro de quem desfez |
+| — | O que exatamente marca um período como fechado, e quem fecha |
+| — | Reversão de digitação deixa rastro de quem desfez? |
 
 ---
 

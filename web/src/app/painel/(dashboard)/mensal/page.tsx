@@ -12,6 +12,7 @@ import { GerirMensalistas } from "@/components/gerir-mensalistas";
 import { mesAtual } from "@/lib/db/use-financeiro";
 import { resumoDasFaturas } from "@/lib/mensalidade";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
+import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
 import { Users } from "lucide-react";
 import type { SubscriberDoc } from "@/lib/domain";
 
@@ -145,6 +146,7 @@ function MensalConteudo() {
       </div>
 
       {status === "carregando" && <LoadingRows rows={3} />}
+      {status === "erro" && <ErroAoCarregar oQue="os mensalistas" />}
 
       {status === "pronto" && subscribers.length === 0 && (
         <EmptyState

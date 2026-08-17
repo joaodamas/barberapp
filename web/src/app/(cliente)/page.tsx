@@ -14,6 +14,7 @@ import { useAuth } from "@/lib/auth-context";
 import { useLoyalty, useMyBookings, useServices } from "@/lib/db/use-shop-data";
 import { OCCUPIES_SLOT } from "@/lib/domain";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
+import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
 import { CalendarPlus } from "lucide-react";
 
 export default function InicioPage() {
@@ -70,6 +71,7 @@ export default function InicioPage() {
           Próximo agendamento
         </h2>
         {status === "carregando" && <LoadingRows rows={1} />}
+        {status === "erro" && <ErroAoCarregar oQue="suas reservas" />}
 
         {status === "pronto" && !nextBooking && (
           <EmptyState

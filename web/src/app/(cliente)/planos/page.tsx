@@ -7,6 +7,7 @@ import { Pill } from "@/components/ui/pill";
 import { formatBRL, safeDiv } from "@/lib/format";
 import { usePlans } from "@/lib/db/use-shop-data";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
+import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
 import { useTenant } from "@/lib/tenant-context";
 
 /**
@@ -51,6 +52,7 @@ export default function PlanosPage() {
       </div>
 
       {status === "carregando" && <LoadingRows rows={3} />}
+      {status === "erro" && <ErroAoCarregar oQue="os planos" />}
 
       {status === "pronto" && ativos.length === 0 && (
         <EmptyState

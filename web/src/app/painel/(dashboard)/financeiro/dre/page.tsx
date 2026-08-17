@@ -8,6 +8,7 @@ import { formatBRL } from "@/lib/format";
 import { useFinanceiro, mesAtual, rotuloDoMes } from "@/lib/db/use-financeiro";
 import { composicaoDaReceita } from "@/lib/analytics";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
+import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
 import { useFeature, useTenant } from "@/lib/tenant-context";
 import { RecursoBloqueado } from "@/components/recurso-bloqueado";
 import { Voltar } from "@/components/ui/voltar";
@@ -247,6 +248,7 @@ function DreConteudo() {
       </div>
 
       {status === "carregando" && <LoadingRows rows={5} />}
+      {status === "erro" && <ErroAoCarregar oQue="o resultado do mês" />}
 
       {status === "pronto" && grossRevenue === 0 && monthExpenses.length === 0 && (
         <EmptyState

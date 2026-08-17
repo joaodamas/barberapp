@@ -6,6 +6,7 @@ import { KpiTile } from "@/components/ui/kpi-tile";
 import { formatBRL, formatWeekdayAndDay, safeDiv, safePct } from "@/lib/format";
 import { useFinanceiro, mesAtual, rotuloDoMes } from "@/lib/db/use-financeiro";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
+import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
 import { BarChart } from "@/components/ui/chart";
 import { Voltar } from "@/components/ui/voltar";
 import { BloqueioPlano } from "@/components/ui/bloqueio-plano";
@@ -73,6 +74,7 @@ export default function FluxoCaixaPage() {
       </div>
 
       {status === "carregando" && <LoadingRows rows={4} />}
+      {status === "erro" && <ErroAoCarregar oQue="o caixa do período" />}
       {status === "pronto" && dailyCashHistory.length === 0 && (
         <EmptyState
           icon={Wallet}

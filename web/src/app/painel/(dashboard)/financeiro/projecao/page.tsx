@@ -17,6 +17,7 @@ import {
 import { agruparProjecaoPorMes } from "@/lib/analytics";
 import { Segmented } from "@/components/ui/segmented";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
+import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
 import { LineChart } from "@/components/ui/chart";
 import { Voltar } from "@/components/ui/voltar";
 import { BloqueioPlano } from "@/components/ui/bloqueio-plano";
@@ -146,6 +147,7 @@ function ProjecaoConteudo() {
       </div>
 
       {status === "carregando" && <LoadingRows rows={4} />}
+      {status === "erro" && <ErroAoCarregar oQue="a projeção" />}
       {status === "pronto" && semBase && (
         <EmptyState
           icon={AlertTriangle}

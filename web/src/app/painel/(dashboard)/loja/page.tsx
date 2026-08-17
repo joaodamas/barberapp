@@ -16,6 +16,7 @@ import { createDoc } from "@/lib/db/repository";
 import type { Doc } from "@/lib/db/repository";
 import type { ProductDoc } from "@/lib/domain";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
+import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
 import { commissionSplit, splitSale, taxRatePct } from "@/lib/business-rules";
 
 /* `profitPct` é margem sobre o PREÇO de venda (preço = custo ÷ (1 − m)), não
@@ -147,6 +148,7 @@ function LojaConteudo() {
             <Package size={12} /> Produtos
           </h2>
           {status === "carregando" && <LoadingRows rows={3} />}
+          {status === "erro" && <ErroAoCarregar oQue="seus produtos" />}
           {status === "pronto" && products.length === 0 && (
             <EmptyState
               icon={Package}

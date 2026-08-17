@@ -5,6 +5,7 @@ import { Plus, Trash2, UserPlus, Users } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
+import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
 import { useServices, useStaff } from "@/lib/db/use-shop-data";
 import { createDoc, patchDoc, removeDoc } from "@/lib/db/repository";
 import { useTenant } from "@/lib/tenant-context";
@@ -95,6 +96,7 @@ export default function EquipePage() {
       </div>
 
       {status === "carregando" && <LoadingRows rows={2} />}
+      {status === "erro" && <ErroAoCarregar oQue="sua equipe" />}
 
       {status === "pronto" && equipe.length === 0 && (
         <EmptyState

@@ -15,6 +15,7 @@ import { Pill } from "@/components/ui/pill";
 import { formatBRL } from "@/lib/format";
 import { useFinanceiro, mesAtual, rotuloDoMes } from "@/lib/db/use-financeiro";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
+import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
 import type { StatusRecorrencia as ClientRecurrenceStatus } from "@/lib/analytics";
 
 function heatColor(pct: number) {
@@ -128,6 +129,7 @@ export default function NumerosPage() {
       </div>
 
       {atual.status === "carregando" && <LoadingRows rows={5} />}
+      {atual.status === "erro" && <ErroAoCarregar oQue="seus números" />}
 
       {semDados && (
         <EmptyState

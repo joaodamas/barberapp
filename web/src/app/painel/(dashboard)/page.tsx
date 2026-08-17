@@ -43,6 +43,7 @@ import { MarcarNoBalcao } from "@/components/marcar-no-balcao";
 import { capacidadeDiaria, caixaDoDia, mesPeriodo, previsaoDoDia } from "@/lib/analytics";
 import { monthOf, OCCUPIES_SLOT } from "@/lib/domain";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
+import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
 import { toISODate } from "@/lib/format";
 import type { BookingDoc } from "@/lib/domain";
 import type { Doc } from "@/lib/db/repository";
@@ -429,6 +430,7 @@ export default function PainelHojePage() {
           </Button>
         </div>
         {status === "carregando" && <LoadingRows rows={3} />}
+        {status === "erro" && <ErroAoCarregar oQue="sua agenda" />}
         {status === "pronto" && bookings.length === 0 && (
           <EmptyState
             icon={CalendarCheck}
