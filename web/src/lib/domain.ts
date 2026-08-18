@@ -24,6 +24,20 @@ export type PlanDoc = {
   description: string;
   highlight?: boolean;
   unlimited?: boolean;
+  /**
+   * Quantos atendimentos o plano cobre por competência — D2.
+   *
+   * Ausente ou zero significa que o plano **não cobre atendimento nenhum**: é
+   * plano de DESCONTO, e a tela do cliente já o descrevia assim
+   * (*"~~R$ 50,00~~ no avulso · economize 20%"*) enquanto o `unlimited`
+   * descrevia o outro (*"a partir da 3ª visita o plano já compensa"*). O campo
+   * entra porque entre os dois não havia nada: um plano de 4 cortes/mês não era
+   * representável, e a cota que ele promete não tinha onde ser contada.
+   *
+   * ⚠️ Nenhuma tela do painel cria ou edita plano — `plans` só é lido. Enquanto
+   * isso não existir, este campo só chega ao documento por escrita direta.
+   */
+  servicesIncluded?: number | null;
   active: boolean;
 };
 
@@ -349,7 +363,67 @@ export type BookingDoc = {
    * caminho que existia.
    */
   origin?: "app" | "balcao" | "importacao";
+  /**
+   * Como o atendimento foi LIQUIDADO — D2.
+   *
+   * Escrito pelo servidor na conclusão, junto com a comissão e o pagamento, e
+   * congelado como eles. É o campo que faltava para o produto conseguir dizer
+   * "coberto pelo plano": antes, um mensalista do Ilimitado só tinha dois
+   * caminhos, e os dois corrompiam o resultado — **cobrar de novo** (o DRE de
+   * 18/08 mostrou `Serviços avulsos R$ 100,00` e `Mensalidades R$ 149,00` do
+   * mesmo cliente no mesmo dia) ou **não concluir o atendimento**, perdendo o
+   * registro operacional e deixando a agenda aberta para sempre.
+   *
+   * Fica na RESERVA, e não deduzido da existência de uma assinatura na hora da
+   * leitura, pela mesma razão de `origin` e de `commissionPct`: quem responde
+   * pelo passado é o fato, não o cadastro de hoje. Cancelar a assinatura em
+   * outubro não pode transformar em receita um corte que foi coberto em agosto.
+   *
+   * **Ausente = avulso**, e é o que todas as reservas anteriores ao campo são —
+   * o produto não tinha como cobrir nada. Mesma convenção de `origin` e
+   * `paymentOrigin`.
+   */
+  cobertura?: CoberturaDoAtendimento;
 };
+
+/**
+ * A liquidação do atendimento — D2.
+ *
+ * Responde, sem join, as cinco perguntas que o fato precisava responder e não
+ * respondia: foi pago normalmente, foi coberto pelo plano, qual plano, quanto
+ * virou receita e se sobrou cobrança.
+ *
+ * `valorCoberto` é o que o plano absorveu; a receita reconhecida do atendimento
+ * é `value − valorCoberto`. Guardar a PARCELA em vez de um booleano é a mesma
+ * decisão de `commissionBase` — o resultado sozinho não diz como se chegou
+ * nele, e o dia em que um plano cobrir parte do valor não exige campo novo.
+ */
+export type CoberturaDoAtendimento =
+  | {
+      tipo: "avulso";
+      /** Por que não foi coberto. É o que a tela precisa para explicar a cobrança. */
+      motivo: "sem_plano" | "plano_inativo" | "plano_nao_cobre" | "cota_esgotada";
+      valorCoberto: 0;
+    }
+  | {
+      tipo: "plano";
+      subscriptionId: string;
+      planId: string;
+      /** CONGELADO: renomear o plano não reescreve o atendimento passado. */
+      planName: string;
+      /** `YYYY-MM` — qual mensalidade pagou por este corte. */
+      competencia: string;
+      valorCoberto: number;
+      /** Posição dentro da cota do mês. 3 de 4 é o que a tela mostra. */
+      usoNaCompetencia: number;
+      /** Cota do plano. Nulo é plano ilimitado — não há teto a exibir. */
+      cota: number | null;
+    };
+
+/** Este atendimento foi coberto pelo plano? Ausência é avulso — D2. */
+export function cobertoPeloPlano(booking: Pick<BookingDoc, "cobertura">) {
+  return booking.cobertura?.tipo === "plano";
+}
 
 /**
  * O mensalista — G2.
@@ -369,6 +443,20 @@ export type SubscriberDoc = {
   planId: string;
   planName: string;
   price: number;
+  /**
+   * A REGRA DE COBERTURA contratada, copiada do plano — D2.
+   *
+   * Copiada pela mesma razão que `price` e `planName` já eram: o dono transforma
+   * o plano "Ilimitado" em "4 cortes" em novembro e nenhum contrato assinado em
+   * agosto pode mudar por causa disso. Ler o plano na hora de decidir a
+   * cobertura faria exatamente isso — e faria retroativamente, porque a decisão
+   * acontece a cada atendimento.
+   *
+   * Ausentes nas assinaturas anteriores ao D2: valem como plano que não cobre,
+   * que é o comportamento que elas tiveram a vida inteira.
+   */
+  unlimited?: boolean;
+  servicesIncluded?: number | null;
   status: "ativo" | "suspenso" | "cancelado";
   /** ISO `YYYY-MM-DD`, ou vazio quando cancelado. */
   nextCharge?: string;

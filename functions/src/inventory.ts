@@ -1,7 +1,13 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { hojeNoFuso, localeDoDocumento } from "./locale";
-import { SEM_TAXA, type PaymentFees, type PaymentMethod } from "./financial-events";
+import {
+  padraoDaCasa,
+  percentualDaComissao,
+  SEM_TAXA,
+  type PaymentFees,
+  type PaymentMethod,
+} from "./financial-events";
 import { documentoDePagamento, idDoPagamento } from "./payments";
 import { comissaoDaVenda, idDaComissao } from "./comissoes";
 
@@ -625,8 +631,17 @@ export const registrarVendaDeProduto = onCall<VendaInput>(async (request) => {
         staffId: staffId as string,
         uid: (vendedorSnap.get("uid") as string | null) ?? null,
         staffName: (vendedorSnap.get("name") as string | null) ?? null,
-        commissionPct:
-          Number(vendedorSnap.get("commissionPct") ?? politicas.commissionSplit?.barberPct) || 0,
+        /* Mesma fonte do serviço desde o D1.
+         *
+         * A expressão que estava aqui era `Number(staff ?? politicas…) || 0`, e
+         * o `|| 0` transformava "barbearia sem `policies`" em 0% — o vendedor
+         * no padrão da casa levava zero enquanto o simulador da Loja anunciava
+         * "40% do lucro". Não aparecia na verificação de 18/08 só porque a
+         * venda foi feita com um barbeiro que tem percentual próprio. */
+        commissionPct: percentualDaComissao({
+          doProfissional: vendedorSnap.get("commissionPct"),
+          padrao: padraoDaCasa(politicas),
+        }),
       }
     : undefined;
 

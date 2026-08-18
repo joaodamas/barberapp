@@ -57,17 +57,20 @@ export default function ConfiguracoesPage() {
    */
   const [rascunhoTaxas, setRascunhoTaxas] = useState<TenantPaymentFees | null>(null);
   const [rascunhoTolerancia, setRascunhoTolerancia] = useState<number | null>(null);
+  const [rascunhoComissao, setRascunhoComissao] = useState<number | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [salvo, setSalvo] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
   const taxas = rascunhoTaxas ?? tenant.policies.paymentFees;
   const tolerancia = rascunhoTolerancia ?? tenant.policies.booking.lateToleranceMinutes;
+  const comissao = rascunhoComissao ?? tenant.policies.commissionSplit.barberPct;
 
   const naoConfigurado = Object.values(taxas).every((v) => v === 0);
   const mudou =
     JSON.stringify(taxas) !== JSON.stringify(tenant.policies.paymentFees) ||
-    tolerancia !== tenant.policies.booking.lateToleranceMinutes;
+    tolerancia !== tenant.policies.booking.lateToleranceMinutes ||
+    comissao !== tenant.policies.commissionSplit.barberPct;
 
   function alterar(chave: keyof TenantPaymentFees, valor: string) {
     // Vírgula é como se digita percentual em português.
@@ -86,6 +89,20 @@ export default function ConfiguracoesPage() {
     setSalvo(false);
   }
 
+  /**
+   * O padrão da casa — D1.
+   *
+   * `shopPct` é gravado junto e derivado, nunca digitado: dois campos livres
+   * somando 100 é um convite a gravar 40/50 e ninguém saber qual manda. A
+   * barbearia fica com o que sobra da comissão, por definição.
+   */
+  function alterarComissao(valor: string) {
+    const n = Number(valor.replace(",", "."));
+    const limpo = Number.isFinite(n) ? Math.min(Math.max(Math.round(n), 0), 100) : comissao;
+    setRascunhoComissao(limpo);
+    setSalvo(false);
+  }
+
   async function salvar() {
     setSalvando(true);
     setErro(null);
@@ -98,6 +115,18 @@ export default function ConfiguracoesPage() {
       await patchTenant(tenant.id, {
         "policies.paymentFees": taxas,
         "policies.booking.lateToleranceMinutes": tolerancia,
+        /* O objeto INTEIRO, e não dois caminhos pontilhados separados.
+         *
+         * `toTenant` faz spread RASO em `policies`, e só `booking` e
+         * `paymentFees` têm merge próprio — o comentário de lá diz exatamente
+         * por quê: *"toda política que for objeto e virar editável precisa
+         * entrar aqui"*. Gravar `commissionSplit.barberPct` sozinho deixaria o
+         * documento com metade do objeto e faria `shopPct` sumir na leitura,
+         * que é o mesmo defeito que `policies.booking` produziu em produção em
+         * 11/08. Gravando os dois campos juntos, o objeto no banco está sempre
+         * completo e o spread raso continua correto — sem precisar mexer na
+         * normalização, que é de outra frente. */
+        "policies.commissionSplit": { barberPct: comissao, shopPct: 100 - comissao },
       });
       /* Rascunho descartado: o campo volta a seguir a fonte viva, que em
        * seguida chega pelo snapshot com exatamente o que acabou de ser gravado.
@@ -106,6 +135,7 @@ export default function ConfiguracoesPage() {
        * e o dono nunca via confirmação nenhuma. */
       setRascunhoTaxas(null);
       setRascunhoTolerancia(null);
+      setRascunhoComissao(null);
       setSalvo(true);
     } catch (e) {
       console.error("[configuracoes] falha ao salvar configurações", e);
@@ -255,6 +285,61 @@ export default function ConfiguracoesPage() {
           <p className="text-xs text-ivory-muted">
             Marcar falta é sempre uma decisão sua. O sistema aponta o que está em
             aberto e nunca fecha o dia decidindo sozinho quem faltou.
+          </p>
+        </Card>
+
+        {/* O padrão da casa — D1.
+            Três telas liam este percentual (Equipe, Loja, DRE) e NENHUMA o
+            escrevia: a de Equipe dizia "em branco usa o padrão da barbearia
+            (40%)" e o dono não tinha onde mudar os 40. */}
+        <Card className="flex flex-col gap-5 md:p-6">
+          <div>
+            <h2 className="flex items-center gap-1.5 text-sm font-semibold text-ivory md:text-base">
+              <Percent size={14} className="text-gold-light" />
+              Comissão padrão da barbearia
+            </h2>
+            <p className="mt-1 text-xs text-ivory-muted md:text-sm">
+              Vale para quem está no padrão da casa. Quem tem percentual próprio
+              cadastrado em Equipe continua com o dele.
+            </p>
+          </div>
+
+          <div className="grid gap-2 md:grid-cols-[1fr_120px_auto] md:items-center">
+            <div>
+              <label htmlFor="comissao" className="text-sm text-ivory">
+                Fica com o barbeiro
+              </label>
+              <p className="text-xs text-ivory-muted">
+                Sobre o valor do atendimento; na loja, sobre o lucro da venda.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                id="comissao"
+                type="number"
+                min={0}
+                max={100}
+                step={5}
+                value={comissao}
+                onChange={(e) => alterarComissao(e.target.value)}
+                className="min-h-11 w-full rounded-xl border border-border bg-surface-raised px-3 text-sm text-ivory"
+              />
+              <span className="text-sm text-ivory-muted">%</span>
+            </div>
+            <p className="text-xs text-ivory-muted md:text-right">
+              Num corte de {formatBRL(EXEMPLO)}:{" "}
+              <span className="text-ivory">
+                {formatBRL((EXEMPLO * comissao) / 100)}
+              </span>{" "}
+              para o barbeiro, {formatBRL((EXEMPLO * (100 - comissao)) / 100)} para
+              a barbearia
+            </p>
+          </div>
+
+          <p className="text-xs text-ivory-muted">
+            Vale dos próximos atendimentos em diante. O percentual do dia do
+            atendimento é o que fica no histórico — mudar aqui não reescreve
+            acerto que já foi fechado.
           </p>
         </Card>
       </section>

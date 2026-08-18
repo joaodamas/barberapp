@@ -7,7 +7,7 @@ import type {
   RefundDoc,
   SubscriptionInvoiceDoc,
 } from "@/lib/domain";
-import { isRevenue } from "@/lib/domain";
+import { cobertoPeloPlano, isRevenue } from "@/lib/domain";
 import { dentroDoPeriodo, type Periodo } from "@/lib/analytics-periodo";
 
 /**
@@ -135,6 +135,20 @@ export function estornosDoPeriodo(
  * O fallback cobre os atendimentos anteriores ao gatilho de materialização.
  * Sem ele, o histórico inteiro apareceria zerado no dia em que a fonte mudasse
  * — e o dono concluiria que o sistema perdeu a receita dele.
+ *
+ * ## O atendimento coberto pelo plano fica de fora — D2
+ *
+ * E é justamente o fallback que tornava isso perigoso: o corte coberto não tem
+ * pagamento, então cairia no `b.value` e viraria receita — o mensalista do
+ * Ilimitado seria cobrado de novo a cada corte, pela porta dos fundos da
+ * migração. Quem responde por ele é `mensalidade`, que tem lastro de fatura
+ * paga.
+ *
+ * `quantidade` também o exclui, e não é descuido: `avgTicket` divide esta
+ * receita por este contador, e contar um atendimento que não trouxe receita
+ * derrubaria o ticket médio sem nada ter mudado no preço. Numerador e
+ * denominador continuam sendo o mesmo universo — que é a correção que este
+ * arquivo já tinha feito uma vez.
  */
 export function receitaDeServico(params: {
   bookings: Doc<BookingDoc>[];
@@ -149,6 +163,7 @@ export function receitaDeServico(params: {
   const universo = params.bookings.filter(
     (b) =>
       isRevenue(b) &&
+      !cobertoPeloPlano(b) &&
       dentroDoPeriodo(b.date, params.periodo) &&
       (params.apenasEncaixes === undefined || Boolean(b.isFitIn) === params.apenasEncaixes)
   );

@@ -1,6 +1,7 @@
 import { onDocumentUpdated } from "firebase-functions/v2/firestore";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { valoresDoPagamento } from "./payments";
+import { competenciaDe, decidirCobertura, type Cobertura } from "./mensalistas";
 
 /**
  * Materialização do evento financeiro do atendimento.
@@ -54,6 +55,104 @@ export type PaymentFees = {
 export const SEM_TAXA: PaymentFees = { dinheiro: 0, pix: 0, debito: 0, credito: 0 };
 
 /**
+ * O padrão da casa para a comissão do barbeiro, em % — D1.
+ *
+ * ⚠️ PAR OBRIGATÓRIO com `commissionSplit.barberPct` em
+ * `web/src/lib/business-rules.ts`. Os dois lados descrevem a MESMA regra e
+ * precisam do mesmo número; `functions/` não importa de `web/`, então a
+ * duplicação é estrutural e cada lado tem teste que a fixa.
+ *
+ * Por que a constante entra agora: o web já caía neste 40 quando a barbearia
+ * não tinha `policies` (via `PLATFORM_DEFAULT_POLICIES`), e o servidor caía em
+ * ZERO. Duas leituras da mesma regra, discordando — e quem paga a diferença é
+ * o barbeiro. Dois atendimentos de R$ 50,00 concluídos pela interface em 18/08
+ * gravaram `commissionPct: 0` enquanto a tela de Equipe, no mesmo minuto,
+ * prometia "o padrão da barbearia (40%)".
+ */
+export const PADRAO_COMISSAO_BARBEIRO = 40;
+
+/**
+ * O percentual padrão desta barbearia, com AUSENTE separado de ZERO.
+ *
+ * A distinção é o defeito inteiro. O código anterior fazia
+ * `Number(policies.commissionSplit?.barberPct) || 0`, e o `||` funde três casos
+ * diferentes num só resultado:
+ *
+ * ```
+ * campo ausente      → NaN → 0    ERRADO: é barbearia sem `policies`, e a
+ *                                 tela dela promete o padrão da casa
+ * campo = 0          → 0   → 0    certo: 0% é escolha legítima do dono
+ * campo = 40         → 40  → 40   certo
+ * ```
+ *
+ * `business-rules.ts` já declarava a mesma regra do outro lado — *"`??` e não
+ * `||`: 0% de comissão é escolha legítima, não campo vazio"*. O servidor não a
+ * seguia.
+ *
+ * Valor fora de 0–100 cai no padrão em vez de ser usado: um `barberPct` de 150
+ * gravado por engano pagaria mais do que o atendimento custou, e o fato nasce
+ * CONGELADO — o erro viraria histórico imutável.
+ */
+export function padraoDaCasa(policies?: {
+  commissionSplit?: { barberPct?: unknown };
+}): number {
+  const bruto = policies?.commissionSplit?.barberPct;
+  if (bruto === undefined || bruto === null || bruto === "") return PADRAO_COMISSAO_BARBEIRO;
+  const n = Number(bruto);
+  if (!Number.isFinite(n) || n < 0 || n > 100) return PADRAO_COMISSAO_BARBEIRO;
+  return n;
+}
+
+/**
+ * As políticas com que uma barbearia NOVA nasce — D1.
+ *
+ * Gravadas explicitamente na criação, pela mesma razão que `features` já era:
+ * *"quando o campo falta, o leitor do servidor precisa adivinhar"*. A ironia do
+ * defeito era que `features` foi corrigido e `policies` ficou, três linhas
+ * abaixo, no mesmo `tx.set`.
+ *
+ * **Só `commissionSplit` entra, e a omissão do resto é deliberada.** O
+ * levantamento de 18/08 mediu campo a campo: `paymentFees` (zero dos dois
+ * lados, e zero é a decisão declarada — *"até o dono preencher, o sistema não
+ * inventa custo"*), `openWeekdays`, `booking.*` e `reschedule.*` têm fallback
+ * no servidor que coincide com o padrão do web. Copiá-los para cá criaria uma
+ * SEGUNDA fonte para regras que o servidor sequer lê, e a próxima divergência
+ * nasceria dessa cópia. `commissionSplit.barberPct` era o único que divergia.
+ */
+export function politicasIniciais() {
+  return {
+    commissionSplit: {
+      barberPct: PADRAO_COMISSAO_BARBEIRO,
+      shopPct: 100 - PADRAO_COMISSAO_BARBEIRO,
+    },
+  };
+}
+
+/**
+ * O percentual que vale para ESTE profissional — a fonte única do D1.
+ *
+ * A ordem é a mesma que a tela de Equipe promete: *"Em branco usa o padrão da
+ * barbearia"*. O percentual individual vence quando existe, inclusive quando é
+ * zero; ausente cai no padrão da casa.
+ *
+ * Existe como função, e não como expressão repetida, porque a regra estava
+ * escrita DUAS vezes — aqui e em `inventory.ts`, para a comissão de produto — e
+ * as duas cópias tinham o mesmo defeito. Serviço e produto passam a ler daqui,
+ * que é o que o D1 pede: uma fonte só.
+ */
+export function percentualDaComissao(params: {
+  /** `StaffDoc.commissionPct`. Nulo/ausente = "usa o padrão da casa". */
+  doProfissional?: unknown;
+  padrao: number;
+}): number {
+  const bruto = params.doProfissional;
+  if (bruto === undefined || bruto === null || bruto === "") return params.padrao;
+  const n = Number(bruto);
+  if (!Number.isFinite(n) || n < 0 || n > 100) return params.padrao;
+  return n;
+}
+
+/**
  * Taxa exata do instrumento usado.
  *
  * Antes o vocabulário era `pix | cartao | local`, e `cartao` não distinguia
@@ -99,7 +198,10 @@ export function calcularEventoFinanceiro(params: {
   fees: PaymentFees;
 }) {
   const valor = Number(params.valor) || 0;
-  const commissionPct = Number(params.commissionPctDoBarbeiro ?? params.padraoPct) || 0;
+  const commissionPct = percentualDaComissao({
+    doProfissional: params.commissionPctDoBarbeiro,
+    padrao: params.padraoPct,
+  });
 
   /* A conta da TAXA mora em `payments.ts` desde G1.6, e não aqui.
    *
@@ -182,6 +284,76 @@ export function decidirEfeito(
   return "nada";
 }
 
+/**
+ * Descobre, no momento da conclusão, se o atendimento está coberto — D2.
+ *
+ * O RETRATO é lido aqui e a DECISÃO é de `decidirCobertura`, que é pura. Esta
+ * função só busca os dois dados que ela não tem como inventar: a assinatura
+ * ativa do cliente e quantos cortes ela já cobriu na competência.
+ *
+ * Por que a contagem exclui a própria reserva: o gatilho reprocessa em retry, e
+ * na segunda passada a reserva atual já estaria marcada — ela consumiria a
+ * própria cota e o quarto corte de um plano de quatro viraria "cota esgotada".
+ *
+ * As duas consultas filtram em MEMÓRIA o que exigiria índice composto. É a
+ * mesma decisão de `gravarComTravaDeHorario`, e pela mesma razão: índice
+ * faltando derruba o caminho em produção, e a quantidade por cliente é pequena
+ * por natureza.
+ */
+async function resolverCobertura(params: {
+  db: FirebaseFirestore.Firestore;
+  barbershopId: string;
+  bookingId: string;
+  clientId: string;
+  date: string;
+  valor: number;
+}): Promise<Cobertura> {
+  const { db, barbershopId, clientId } = params;
+  if (!clientId) return { tipo: "avulso", motivo: "sem_plano", valorCoberto: 0 };
+
+  const shopRef = db.doc(`barbershops/${barbershopId}`);
+
+  /* Mesma consulta que `criarMensalista` usa para barrar a segunda assinatura
+   * — e é ela que garante que existe no máximo uma ativa por cliente. */
+  const assinaturas = await shopRef
+    .collection("subscriptions")
+    .where("clientId", "==", clientId)
+    .where("status", "==", "ativo")
+    .limit(1)
+    .get();
+
+  const snap = assinaturas.docs[0];
+  if (!snap) return { tipo: "avulso", motivo: "sem_plano", valorCoberto: 0 };
+
+  /* O `id` depois do espalhamento: quem manda é o id do documento, não um campo
+   * `id` que alguém tenha gravado dentro dele. A cobertura é casada por esse
+   * valor na contagem da cota, e um id de dentro do corpo desalinharia as duas
+   * pontas em silêncio. */
+  const assinatura = { ...(snap.data() as Record<string, unknown>), id: snap.id } as Parameters<
+    typeof decidirCobertura
+  >[0]["assinatura"];
+
+  const competencia = competenciaDe(params.date);
+  const doCliente = await shopRef.collection("bookings").where("clientId", "==", clientId).get();
+
+  const jaCobertosNaCompetencia = doCliente.docs.filter((d) => {
+    if (d.id === params.bookingId) return false;
+    const cobertura = d.get("cobertura") as Cobertura | undefined;
+    return (
+      cobertura?.tipo === "plano" &&
+      cobertura.subscriptionId === snap.id &&
+      cobertura.competencia === competencia
+    );
+  }).length;
+
+  return decidirCobertura({
+    valor: params.valor,
+    data: params.date,
+    assinatura,
+    jaCobertosNaCompetencia,
+  });
+}
+
 export const materializeFinancialsOnCompletion = onDocumentUpdated(
   "barbershops/{barbershopId}/bookings/{bookingId}",
   async (event) => {
@@ -202,6 +374,7 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
     const pagamentoRef = db.doc(
       `barbershops/${barbershopId}/payments/pagamento_${bookingId}`
     );
+    const reservaRef = db.doc(`barbershops/${barbershopId}/bookings/${bookingId}`);
 
     const efeito = decidirEfeito(antes.status, depois.status);
 
@@ -212,6 +385,13 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
       await Promise.all([
         comissaoRef.delete().catch(() => undefined),
         pagamentoRef.delete().catch(() => undefined),
+        /* A cobertura sai junto — D2. Ela consumiu uma vaga da cota do mês, e
+         * desfazer a conclusão precisa devolver essa vaga: senão o cliente de
+         * um plano de quatro cortes perde um deles para um atendimento que o
+         * dono já disse que não aconteceu. */
+        reservaRef
+          .update({ cobertura: FieldValue.delete() })
+          .catch(() => undefined),
       ]);
       return;
     }
@@ -251,7 +431,7 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
     };
 
     const fees: PaymentFees = { ...SEM_TAXA, ...(policies.paymentFees ?? {}) };
-    const padraoPct = Number(policies.commissionSplit?.barberPct) || 0;
+    const padraoPct = padraoDaCasa(policies);
 
     const { commission, payment } = calcularEventoFinanceiro({
       valor,
@@ -263,7 +443,32 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
       fees,
     });
 
+    /* A cobertura já decidida MANDA — D2.
+     *
+     * Reprocessamento não redecide: a cobertura é congelada como o percentual e
+     * a taxa. Redecidir a cada retry faria o mesmo atendimento sair coberto
+     * numa passada e cobrado na outra, conforme o estado da assinatura no
+     * instante do retry. */
+    const cobertura =
+      (depois.cobertura as Cobertura | undefined) ??
+      (await resolverCobertura({
+        db,
+        barbershopId,
+        bookingId,
+        clientId: String(depois.clientId ?? ""),
+        date,
+        valor,
+      }));
+
+    const coberto = cobertura.tipo === "plano";
+
     await Promise.all([
+      /* O fato do atendimento passa a dizer como foi liquidado.
+       *
+       * Vai para a RESERVA, e não só para o pagamento, porque no caso coberto
+       * não existe pagamento — e um fato que só se descreve pela ausência de
+       * outro documento não é descrição nenhuma. */
+      reservaRef.set({ cobertura }, { merge: true }),
       comissaoRef.set({
         bookingId,
         staffId,
@@ -273,25 +478,54 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
         staffName: depois.staffName ?? null,
         date,
         origin: "servico",
+        /* O acerto do barbeiro precisa saber que este corte não trouxe dinheiro
+         * novo — D2. Sem a marca, "comissão de agosto" e "receita de serviço de
+         * agosto" ficam sem como se explicar uma à outra no mês de um cliente
+         * Ilimitado.
+         *
+         * ⚠️ DECISÃO PENDENTE, e o produto está pagando comissão CHEIA sobre
+         * atendimento coberto. Preservar o fato é o comportamento reversível —
+         * o corte aconteceu e o barbeiro trabalhou —, mas dez cortes de R$ 50,00
+         * num plano de R$ 149,00 geram R$ 200,00 de comissão sobre R$ 149,00
+         * recebidos. Zerar em silêncio seria pior: recriaria, por outra porta,
+         * exatamente o F1 que este mesmo commit corrige — a tela prometendo 40%
+         * e o fato nascendo zero. Com a marca gravada, qualquer das três
+         * políticas (cheia, zero, ou rateio da mensalidade) é aplicável depois
+         * sem perder informação. */
+        cobertoPeloPlano: coberto,
         ...commission,
         createdAt: FieldValue.serverTimestamp(),
       }),
-      pagamentoRef.set({
-        /* G1.6 declarou `PaymentDoc.origin` e deu o campo às três origens —
-         * menos a esta, que já existia e passou despercebida. O serviço, que é
-         * a maior fonte de receita, nascia sem dizer de onde veio.
-         *
-         * Achado ao ler o documento gravado durante a verificação do estorno:
-         * `origin: undefined` num pagamento recém-materializado. Nenhum teste
-         * apontava para lá, porque nenhum ainda precisava separar receita por
-         * origem — e a Rodada 3.2 precisa. */
-        origin: "servico" as const,
-        bookingId,
-        clientId: depois.clientId ?? null,
-        date,
-        ...payment,
-        createdAt: FieldValue.serverTimestamp(),
-      }),
+      /* COBERTO PELO PLANO NÃO GERA PAGAMENTO — D2, e é o coração do achado.
+       *
+       * A mensalidade já é a receita do plano, e ela tem lastro próprio:
+       * `pagamento_fatura_{invoiceId}`, materializado quando a fatura é
+       * quitada. Criar um pagamento aqui também somaria o mesmo dinheiro duas
+       * vezes — foi assim que o DRE de 18/08 exibiu `Serviços avulsos
+       * R$ 100,00` e `Mensalidades recebidas R$ 149,00` do mesmo cliente no
+       * mesmo dia.
+       *
+       * O `delete` cobre a reconclusão: um atendimento concluído como avulso e
+       * depois reconhecido como coberto tem de perder o pagamento que já
+       * existe. Deixá-lo seria receita fantasma sem tela onde reencontrá-la. */
+      coberto
+        ? pagamentoRef.delete().catch(() => undefined)
+        : pagamentoRef.set({
+            /* G1.6 declarou `PaymentDoc.origin` e deu o campo às três origens —
+             * menos a esta, que já existia e passou despercebida. O serviço, que
+             * é a maior fonte de receita, nascia sem dizer de onde veio.
+             *
+             * Achado ao ler o documento gravado durante a verificação do
+             * estorno: `origin: undefined` num pagamento recém-materializado.
+             * Nenhum teste apontava para lá, porque nenhum ainda precisava
+             * separar receita por origem — e a Rodada 3.2 precisa. */
+            origin: "servico" as const,
+            bookingId,
+            clientId: depois.clientId ?? null,
+            date,
+            ...payment,
+            createdAt: FieldValue.serverTimestamp(),
+          }),
     ]);
   }
 );

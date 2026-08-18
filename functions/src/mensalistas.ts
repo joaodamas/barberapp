@@ -60,6 +60,16 @@ export type SubscriptionDoc = {
   /** Congelados na contratação: o plano pode ser renomeado ou reajustado. */
   planName: string;
   price: number;
+  /**
+   * A regra de cobertura contratada — D2. Copiada do plano, como `price`.
+   *
+   * Reler o plano na hora de decidir se um corte está coberto tornaria a
+   * decisão retroativa: virar o "Ilimitado" em "4 cortes" reescreveria o que
+   * agosto foi. Ausentes nas assinaturas anteriores ao D2 — e ausência é
+   * "não cobre", que é o que elas sempre fizeram.
+   */
+  unlimited?: boolean;
+  servicesIncluded?: number | null;
   /** Dia do mês em que vence. 31 cobra no último dia de fevereiro. */
   billingDay: number;
   status: StatusDaAssinatura;
@@ -183,6 +193,107 @@ export function faturaDaCompetencia(params: {
   };
 }
 
+/* ================================================================== */
+/* D2 · o atendimento coberto pelo plano                              */
+/* ================================================================== */
+
+/**
+ * Como o atendimento foi liquidado. Espelha `CoberturaDoAtendimento` no web.
+ */
+export type Cobertura =
+  | {
+      tipo: "avulso";
+      motivo: "sem_plano" | "plano_inativo" | "plano_nao_cobre" | "cota_esgotada";
+      valorCoberto: 0;
+    }
+  | {
+      tipo: "plano";
+      subscriptionId: string;
+      planId: string;
+      planName: string;
+      competencia: string;
+      valorCoberto: number;
+      usoNaCompetencia: number;
+      cota: number | null;
+    };
+
+/**
+ * Este atendimento está coberto pela assinatura? — D2.
+ *
+ * Pura de propósito, como `estagioDaRegua` e `valeNaCompetencia`: a decisão que
+ * define se um corte vira receita nova é a que menos pode depender de emulador
+ * para ser verificada. Recebe o retrato e devolve o que será CONGELADO na
+ * reserva.
+ *
+ * A regra que ela existe para sustentar: **um serviço coberto pelo plano não
+ * gera nova cobrança.** Sem ela, o plano Ilimitado de R$ 149,00 era cobrado de
+ * novo a cada corte — dez cortes no mês viravam R$ 500,00 de receita que
+ * ninguém recebeu, e a comissão saía por cima disso.
+ *
+ * O que NÃO é coberto, e cada caso tem um motivo próprio porque a tela precisa
+ * explicar a cobrança ao dono:
+ *
+ * - sem assinatura ativa → `sem_plano`
+ * - assinatura suspensa, cancelada antes da competência, ou o atendimento é
+ *   anterior ao início do contrato → `plano_inativo`
+ * - plano de DESCONTO, que baixa o preço do avulso e não inclui corte
+ *   nenhum → `plano_nao_cobre`
+ * - cota do mês já usada → `cota_esgotada`, e aí a cobrança adicional é
+ *   legítima: é exatamente o corte além do limite
+ */
+export function decidirCobertura(params: {
+  /** Valor do atendimento — o que o plano absorve quando cobre. */
+  valor: number;
+  /** `YYYY-MM-DD` do atendimento. A competência sai dele, não de "hoje". */
+  data: string;
+  assinatura:
+    | (Pick<
+        SubscriptionDoc,
+        "status" | "startedAt" | "canceledAt" | "planId" | "planName" | "unlimited" | "servicesIncluded"
+      > & { id: string })
+    | null;
+  /**
+   * Quantos atendimentos DESTA assinatura já foram cobertos na competência,
+   * sem contar o que está sendo decidido agora.
+   */
+  jaCobertosNaCompetencia: number;
+}): Cobertura {
+  const { assinatura } = params;
+  if (!assinatura) return { tipo: "avulso", motivo: "sem_plano", valorCoberto: 0 };
+
+  const competencia = competenciaDe(params.data);
+
+  if (assinatura.status !== "ativo") {
+    return { tipo: "avulso", motivo: "plano_inativo", valorCoberto: 0 };
+  }
+  /* Reaproveita a régua de faturamento em vez de reimplementar o recorte: a
+   * competência que gera fatura é a mesma que dá direito ao corte. Duas contas
+   * para a mesma pergunta seria o padrão que esta base mais corrigiu — o
+   * cliente pagaria o mês e o corte sairia como avulso. */
+  if (!valeNaCompetencia(assinatura, competencia)) {
+    return { tipo: "avulso", motivo: "plano_inativo", valorCoberto: 0 };
+  }
+
+  const cobre = {
+    subscriptionId: assinatura.id,
+    planId: assinatura.planId,
+    planName: assinatura.planName,
+    competencia,
+    valorCoberto: Number(params.valor) || 0,
+    usoNaCompetencia: params.jaCobertosNaCompetencia + 1,
+  } as const;
+
+  if (assinatura.unlimited) return { tipo: "plano", ...cobre, cota: null };
+
+  const cota = Number(assinatura.servicesIncluded) || 0;
+  if (cota <= 0) return { tipo: "avulso", motivo: "plano_nao_cobre", valorCoberto: 0 };
+  if (params.jaCobertosNaCompetencia >= cota) {
+    return { tipo: "avulso", motivo: "cota_esgotada", valorCoberto: 0 };
+  }
+
+  return { tipo: "plano", ...cobre, cota };
+}
+
 /**
  * A assinatura vale nesta competência?
  *
@@ -280,6 +391,11 @@ export const criarMensalista = onCall<{
     planId: String(planId),
     planName: String(planoSnap.get("name") ?? ""),
     price: Number(planoSnap.get("price")) || 0,
+    /* A regra de cobertura entra na cópia junto com o preço — D2. Ela decide
+     * se o corte de amanhã gera cobrança, e deixá-la fora faria o contrato
+     * mudar sozinho no dia em que o dono editasse o plano. */
+    unlimited: planoSnap.get("unlimited") === true,
+    servicesIncluded: Number(planoSnap.get("servicesIncluded")) || null,
     billingDay,
     status: "ativo",
     startedAt: hoje,
