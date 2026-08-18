@@ -3,6 +3,7 @@ import { getAuth } from "firebase-admin/auth";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { featuresFor, toPlanId } from "./plans";
 import { TRIAL_DAYS } from "./signup";
+import { politicasIniciais } from "./financial-events";
 
 /**
  * Provisionamento de uma nova barbearia.
@@ -155,6 +156,11 @@ export const provisionBarbershop = onCall<ProvisionInput>(async (request) => {
         whatsapp: onlyDigits(input.whatsapp ?? ""),
       },
       features: featuresFor(plan),
+      /* Mesma razão do `schedule` logo acima: o que o produto assume fica no
+       * documento, e não no palpite do leitor. Os dois caminhos de criação
+       * precisam produzir a mesma barbearia — foi a divergência entre eles que
+       * fez a jornada padrão existir num e faltar no outro. */
+      policies: politicasIniciais(),
       createdAt: FieldValue.serverTimestamp(),
       createdBy: request.auth?.uid ?? null,
     });

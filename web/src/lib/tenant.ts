@@ -111,12 +111,29 @@ export type TenantBookingPolicy = {
   [K in keyof typeof defaultBookingPolicy]: number;
 };
 
+/**
+ * O rateio desta barbearia — D1.
+ *
+ * Alargado do literal (`40`/`60`) para `number` porque o padrão da casa virou
+ * campo de tela, que é exatamente a condição que o comentário acima previa. Com
+ * o tipo literal, a barbearia que combinou 50/50 não conseguia sequer ser
+ * REPRESENTADA: o próprio teste de analytics precisava de um
+ * `as unknown as` para montar um split diferente de 40.
+ *
+ * O campo era lido por três telas e escrito por nenhuma. O dono lia "o padrão
+ * da barbearia (40%)" e não tinha onde mudar os 40.
+ */
+export type TenantCommissionSplit = {
+  barberPct: number;
+  shopPct: number;
+};
+
 export type TenantPolicies = {
   cancellation: typeof defaultCancellationPolicy;
   reschedule: typeof defaultReschedulePolicy;
   booking: TenantBookingPolicy;
   loyalty: typeof defaultLoyaltyPolicy;
-  commissionSplit: typeof defaultCommissionSplit;
+  commissionSplit: TenantCommissionSplit;
   /** Alíquota do Simples Nacional sobre a receita bruta, em %. */
   taxRatePct: number;
   /** Dias em que abre (0 = domingo). */

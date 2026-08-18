@@ -2,6 +2,7 @@ import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { getAuth } from "firebase-admin/auth";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { featuresFor, type PlanId } from "./plans";
+import { politicasIniciais } from "./financial-events";
 
 /**
  * Cadastro self-service de uma barbearia.
@@ -153,6 +154,12 @@ export const signUpBarbershop = onCall<SignUpInput>(async (request) => {
        * precisa adivinhar — e adivinhava liberando tudo, de graça e para
        * sempre, em toda barbearia criada por aqui. */
       features: featuresFor(TRIAL_PLAN),
+      /* Pela MESMA razão do `features` acima, e o D1 nasceu de a razão ter
+       * valido só para um dos dois: sem `policies`, o gatilho financeiro lia
+       * `commissionSplit` ausente como 0% e gravava a comissão zerada, enquanto
+       * a tela de Equipe prometia o padrão da casa. Toda barbearia que entrasse
+       * pela porta da frente nascia com o defeito. */
+      policies: politicasIniciais(),
       brand: {
         name,
         shortName: shortNameFrom(name),
