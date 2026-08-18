@@ -750,6 +750,63 @@ export function resultadoDoMes(params: {
   };
 }
 
+/**
+ * O cenário "e se o faturamento variar X%" — A6.
+ *
+ * ## Por que ele mora no motor
+ *
+ * A conta era feita dentro de `dre/page.tsx`, ao lado da tabela. Com o slider
+ * em **0%** — ou seja, simulando exatamente o mês que a tela acabara de
+ * apresentar — a linha "Resultado do Mês" mostrava:
+ *
+ * ```
+ * atual  −R$ 556,80      cenário  −R$ 536,00      DIFERENÇA  +R$ 20,80
+ * ```
+ *
+ * Variação zero, R$ 20,80 de diferença. Duas causas somavam o valor: o cenário
+ * **não descontava imposto**, embora a linha se chamasse "Resultado do Mês" e
+ * fosse comparada contra o resultado COM imposto; e `Math.round` arredondava
+ * em reais onde o motor arredonda em centavos.
+ *
+ * A causa de fundo é a de sempre neste repositório: **duas contas para o mesmo
+ * número, e só a do motor sob teste**. É o mesmo defeito do detalhamento do
+ * CMV, que divergiu do próprio cabeçalho duas vezes pela mesma razão. Com a
+ * fórmula aqui, "cenário a 0% é igual ao mês" deixa de ser disciplina de quem
+ * edita a tela e passa a ser um teste.
+ *
+ * ## O que escala e o que não
+ *
+ * Receita e custo variável escalam com o fator; o custo fixo, por definição,
+ * não. O imposto é recalculado sobre a receita simulada porque o Simples
+ * incide sobre faturamento — congelá-lo faria o cenário de +50% mostrar uma
+ * sobra que o dono não teria.
+ */
+export function cenarioDeCrescimento(params: {
+  grossRevenue: number;
+  variableCost: number;
+  fixedCost: number;
+  /** Alíquota do Simples desta barbearia, em pontos percentuais. */
+  taxRatePct: number;
+  /** Variação de faturamento, em pontos percentuais. `0` reproduz o mês. */
+  variacaoPct: number;
+}) {
+  const fator = 1 + params.variacaoPct / 100;
+  const grossRevenue = centavos(params.grossRevenue * fator);
+  const variableCost = centavos(params.variableCost * fator);
+  const contributionMargin = centavos(grossRevenue - variableCost);
+  const tax = centavos((grossRevenue * params.taxRatePct) / 100);
+
+  return {
+    grossRevenue,
+    variableCost,
+    contributionMargin,
+    fixedCost: params.fixedCost,
+    tax,
+    /* A MESMA escada de `resultadoDoMes`: margem − fixo − imposto. */
+    result: centavos(contributionMargin - params.fixedCost - tax),
+  };
+}
+
 function breakEvenDayFor(receita: number, custo: number, diasNoMes: number) {
   if (receita <= 0) return null;
   const dia = Math.ceil(safeDiv(custo, receita / diasNoMes));
@@ -805,7 +862,21 @@ export function indicadores(params: {
     avgTicketComProduto: Math.round(
       safeDiv(params.receita.bruta, params.receita.atendimentos)
     ),
-    occupancyPct: Math.min(Math.round(safeDiv(ocupados.length, params.capacidade) * 100), 100),
+    /* Uma casa decimal, como `noShowPct` logo abaixo — e pelo mesmo motivo.
+     *
+     * `Math.round` em ponto percentual devolvia `0` para o mês com UM
+     * atendimento: a capacidade de uma jornada mensal passa de 400 horários, e
+     * 1/464 arredonda para zero. A tela Números exibia `OCUPAÇÃO 0%` com o
+     * mapa de calor logo abaixo dizendo "100% de ocupação" naquele horário —
+     * dois números da mesma tela, sobre o mesmo atendimento, um deles negando
+     * que ele existiu.
+     *
+     * O zero é o problema, não a imprecisão: "0%" é a única leitura que
+     * autoriza o dono a concluir que a cadeira ficou vazia o mês inteiro.
+     * `formatPctPtBR` fecha a outra metade, para o caso em que nem a décima
+     * salva. */
+    occupancyPct:
+      Math.min(Math.round(safeDiv(ocupados.length, params.capacidade) * 1000) / 10, 100),
     noShowPct: Math.round(safeDiv(noShow.length, doPeriodo.length) * 1000) / 10,
     noShowCount: noShow.length,
     lateCancelCount: cancelados.length,

@@ -12,7 +12,8 @@ import {
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
-import { formatBRL } from "@/lib/format";
+import { formatBRL, formatPctPtBR } from "@/lib/format";
+import { apuracaoDe } from "@/lib/apuracao";
 import { contar } from "@/lib/plural";
 import { useFinanceiro, mesAtual, rotuloDoMes } from "@/lib/db/use-financeiro";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
@@ -76,6 +77,7 @@ export default function NumerosPage() {
   const mesAnterior = mesAtual(Math.abs(offset) + 1);
   const atual = useFinanceiro(mes);
   const anterior = useFinanceiro(mesAnterior);
+  const apuracao = apuracaoDe(atual.fontesIlegiveis);
 
   const kpis = atual.kpis;
   const prevKpis = anterior.kpis;
@@ -130,7 +132,7 @@ export default function NumerosPage() {
       </div>
 
       {atual.status === "carregando" && <LoadingRows rows={5} oQue="seus números" />}
-      {atual.status === "erro" && <ErroAoCarregar oQue="seus números" />}
+      {atual.status === "erro" && <ErroAoCarregar oQue="seus números" erro={atual.erro} />}
 
       {semDados && (
         <EmptyState
@@ -148,30 +150,42 @@ export default function NumerosPage() {
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-6">
           <p className="text-[11px] uppercase text-ivory-muted md:text-xs md:tracking-wide">Faturamento</p>
           <p className="font-display text-lg font-semibold text-gold-light md:text-2xl">
-            {formatBRL(kpis.revenue)}
+            {apuracao.valor("faturamento", formatBRL(kpis.revenue))}
           </p>
-          <Delta current={kpis.revenue} previous={prevKpis.revenue} />
+          {apuracao.ok("faturamento") && (
+            <Delta current={kpis.revenue} previous={prevKpis.revenue} />
+          )}
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-6">
           <p className="text-[11px] uppercase text-ivory-muted md:text-xs md:tracking-wide">Atendimentos</p>
           <p className="font-display text-lg font-semibold text-ivory md:text-2xl">
-            {kpis.appointments}
+            {apuracao.valor("atendimentos", String(kpis.appointments))}
           </p>
-          <Delta current={kpis.appointments} previous={prevKpis.appointments} />
+          {apuracao.ok("atendimentos") && (
+            <Delta current={kpis.appointments} previous={prevKpis.appointments} />
+          )}
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-6">
           <p className="text-[11px] uppercase text-ivory-muted md:text-xs md:tracking-wide">Ticket médio</p>
           <p className="font-display text-lg font-semibold text-ivory md:text-2xl">
-            {formatBRL(avgTicket)}
+            {apuracao.valor("ticketMedio", formatBRL(avgTicket))}
           </p>
-          <Delta current={avgTicket} previous={prevAvgTicket} />
+          {apuracao.ok("ticketMedio") && (
+            <Delta current={avgTicket} previous={prevAvgTicket} />
+          )}
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-6">
           <p className="text-[11px] uppercase text-ivory-muted md:text-xs md:tracking-wide">Ocupação</p>
+          {/* A17 · exibia `0%` no mês com UM atendimento, e o mapa de calor
+              logo abaixo dizia "100% de ocupação" naquele horário. O motor
+              passou a devolver uma casa decimal e `formatPctPtBR` garante que
+              um valor diferente de zero nunca saia como zero. */}
           <p className="font-display text-lg font-semibold text-ivory md:text-2xl">
-            {kpis.occupancyPct}%
+            {apuracao.valor("ocupacao", formatPctPtBR(kpis.occupancyPct))}
           </p>
-          <Delta current={kpis.occupancyPct} previous={prevKpis.occupancyPct} />
+          {apuracao.ok("ocupacao") && (
+            <Delta current={kpis.occupancyPct} previous={prevKpis.occupancyPct} />
+          )}
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-6">
           {/* "no-show" é a única palavra em inglês do painel, e o cartão logo
@@ -181,9 +195,11 @@ export default function NumerosPage() {
               Action Center ("Marcar falta"). */}
           <p className="text-[11px] uppercase text-ivory-muted md:text-xs md:tracking-wide">Taxa de falta</p>
           <p className="font-display text-lg font-semibold text-ivory md:text-2xl">
-            {kpis.noShowPct}%
+            {apuracao.valor("taxaDeFalta", formatPctPtBR(kpis.noShowPct))}
           </p>
-          <Delta current={kpis.noShowPct} previous={prevKpis.noShowPct} invert />
+          {apuracao.ok("taxaDeFalta") && (
+            <Delta current={kpis.noShowPct} previous={prevKpis.noShowPct} invert />
+          )}
         </Card>
       </div>
 

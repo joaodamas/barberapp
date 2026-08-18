@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
 import { KpiTile, signTone } from "@/components/ui/kpi-tile";
 import { formatBRL, formatDateShortPtBR, formatWeekdayAndDay } from "@/lib/format";
+import { apuracaoDe } from "@/lib/apuracao";
 import { contar } from "@/lib/plural";
 import {
   useFinanceiro,
@@ -44,7 +45,16 @@ export default function ProjecaoPage() {
 
 function ProjecaoConteudo() {
   const [horizonte, setHorizonte] = useState<Horizonte>("mensal");
-  const { projecao: cashProjection, status, raw } = useFinanceiro(mesAtual(), horizonte);
+  const { projecao: cashProjection, status, raw, fontesIlegiveis, erro } = useFinanceiro(
+    mesAtual(),
+    horizonte
+  );
+  /* A projeção cruza reservas, mensalistas e despesas recorrentes. Com
+   * `expenses` ilegível ela projetava despesa fixa ZERO e desenhava uma curva
+   * de saldo subindo — a versão mais cara do defeito, porque é a tela onde o
+   * dono decide se pode comprar o equipamento este mês. */
+  const apuracao = apuracaoDe(fontesIlegiveis);
+  const projecaoApurada = apuracao.ok("projecao");
   const porMes = HORIZONTES[horizonte].porMes;
   const meses = porMes ? agruparProjecaoPorMes(cashProjection) : [];
   /* Quanto do horizonte inteiro é estimativa. É o número que decide se a
@@ -124,33 +134,37 @@ function ProjecaoConteudo() {
           tone="neutral"
           icon={Wallet}
           label="Receita já confirmada"
-          value={formatBRL(receitaConfirmada)}
-          caption="marcações + mensalistas"
+          value={apuracao.valor("projecao", formatBRL(receitaConfirmada))}
+          caption={apuracao.legenda("projecao", "marcações + mensalistas")}
         />
         <KpiTile
-          tone="danger"
+          tone={apuracao.tom("projecao", "danger")}
           icon={TrendingDown}
           label="Despesas fixas previstas"
-          value={formatBRL(despesasFixas)}
+          value={apuracao.valor("projecao", formatBRL(despesasFixas))}
+          caption={apuracao.legenda("projecao")}
         />
         <KpiTile
-          tone={signTone(resultadoProjetado)}
+          tone={apuracao.tom("projecao", signTone(resultadoProjetado))}
           icon={TrendingUp}
           label="Resultado projetado"
-          value={formatBRL(resultadoProjetado)}
-          caption={`acumulado em ${HORIZONTES[horizonte].dias} dias`}
+          value={apuracao.valor("projecao", formatBRL(resultadoProjetado))}
+          caption={apuracao.legenda(
+            "projecao",
+            `acumulado em ${HORIZONTES[horizonte].dias} dias`
+          )}
         />
         <KpiTile
-          tone={signTone(tightestDay.cumulative)}
+          tone={apuracao.tom("projecao", signTone(tightestDay.cumulative))}
           icon={AlertTriangle}
           label="Ponto mais apertado"
-          value={formatBRL(tightestDay.cumulative)}
-          caption={formatDateShortPtBR(tightestDay.date)}
+          value={apuracao.valor("projecao", formatBRL(tightestDay.cumulative))}
+          caption={apuracao.legenda("projecao", formatDateShortPtBR(tightestDay.date))}
         />
       </div>
 
       {status === "carregando" && <LoadingRows rows={4} oQue="a projeção" />}
-      {status === "erro" && <ErroAoCarregar oQue="a projeção" />}
+      {status === "erro" && <ErroAoCarregar oQue="a projeção" erro={erro} />}
       {status === "pronto" && semBase && (
         <EmptyState
           icon={AlertTriangle}
@@ -163,7 +177,7 @@ function ProjecaoConteudo() {
       {/* O gráfico responde de relance a única pergunta que importa aqui: em
           que dia o caixa vira negativo. A tabela continua abaixo, com o
           detalhe — e é ela que o leitor de tela lê. */}
-      {!semBase && cashProjection.length > 1 && (
+      {projecaoApurada && !semBase && cashProjection.length > 1 && (
         <Card className="flex flex-col gap-3">
           <div className="flex items-baseline justify-between">
             <p className="text-sm font-medium text-ivory">Saldo acumulado</p>
@@ -192,7 +206,7 @@ function ProjecaoConteudo() {
       {/* Prazo longo vira tabela POR MÊS. 365 linhas ninguém lê, e a decisão
           nesse horizonte é mensal: "dezembro fecha no vermelho?", não "dia 14
           de dezembro fecha no vermelho?". */}
-      {!semBase && porMes && (
+      {projecaoApurada && !semBase && porMes && (
         <Card className="table-scroll overflow-x-auto p-0">
           <table className="w-full min-w-[560px] text-sm">
             <thead>
@@ -249,7 +263,7 @@ function ProjecaoConteudo() {
         </Card>
       )}
 
-      {!semBase && !porMes && (
+      {projecaoApurada && !semBase && !porMes && (
       <Card className="table-scroll overflow-x-auto p-0">
         <table className="w-full min-w-[640px] text-sm">
           <thead>

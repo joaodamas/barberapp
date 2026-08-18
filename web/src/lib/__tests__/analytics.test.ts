@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  caixaDiario, caixaDoDia, capacidadeDiaria, comissoesDeServico, folhaMensal,
+  caixaDiario, caixaDoDia, capacidadeDiaria, cenarioDeCrescimento,
+  comissoesDeServico, folhaMensal,
   taxasDePagamento,
   horariosDaJornada, indicadores,
   mesPeriodo, projecaoDeCaixa, receitaDoMes, recorrenciaDeClientes,
@@ -830,5 +831,133 @@ describe("caixa do dia", () => {
       bk({ id: "2", status: "cancelled_by_client", paymentMethod: "pix", value: 60 }),
     ]);
     expect(c.total).toBe(0);
+  });
+});
+
+describe("simulação de cenário de crescimento — A6", () => {
+  /**
+   * O defeito medido: com o slider em 0% — simulando exatamente o mês que a
+   * tela acabara de apresentar — a linha "Resultado do Mês" mostrava
+   * `atual −R$ 556,80 · cenário −R$ 536,00 · DIFERENÇA +R$ 20,80`.
+   *
+   * Duas causas somavam o valor: o cenário não descontava imposto embora a
+   * linha se chamasse "Resultado do Mês", e `Math.round` arredondava em reais
+   * onde o motor arredonda em centavos.
+   *
+   * A causa de fundo era DUAS contas para o mesmo número, só uma sob teste.
+   * Com a fórmula no motor, este teste é a prova que faltava.
+   */
+  const cenarioBase = () => {
+    const bookings = [bk({ id: "1", value: 1000, paymentMethod: "cash" })];
+    const movements = [mv({ id: "v", kind: "venda", value: 500 })];
+    const receita = receitaDoMes({ bookings, movements, subscribers: [], periodo: P });
+    return resultadoDoMes({
+      receita, bookings, movements, periodo: P,
+      policies: PLATFORM_DEFAULT_POLICIES, staff: [st({ id: "s1" })],
+      expenses: [ex({ id: "1", value: 1800, recurring: true })],
+    });
+  };
+
+  it("variação 0% reproduz o mês EXATAMENTE — inclusive o resultado", () => {
+    const r = cenarioBase();
+    const c = cenarioDeCrescimento({
+      grossRevenue: r.grossRevenue,
+      variableCost: r.variableCost,
+      fixedCost: r.fixedCost,
+      taxRatePct: PLATFORM_DEFAULT_POLICIES.taxRatePct,
+      variacaoPct: 0,
+    });
+
+    // A linha que divergia em R$ 20,80.
+    expect(c.result).toBe(r.result);
+    // E as outras, que divergiam em R$ 0,21 pelo arredondamento em reais.
+    expect(c.grossRevenue).toBe(r.grossRevenue);
+    expect(c.variableCost).toBe(r.variableCost);
+    expect(c.contributionMargin).toBe(r.contributionMargin);
+    expect(c.fixedCost).toBe(r.fixedCost);
+    expect(c.tax).toBe(r.tax);
+  });
+
+  it("o imposto entra no resultado do cenário", () => {
+    // A maior das duas causas: sem esta linha o cenário mostrava um resultado
+    // melhor que o real pelo valor exato do Simples.
+    const r = cenarioBase();
+    const c = cenarioDeCrescimento({
+      grossRevenue: r.grossRevenue,
+      variableCost: r.variableCost,
+      fixedCost: r.fixedCost,
+      taxRatePct: PLATFORM_DEFAULT_POLICIES.taxRatePct,
+      variacaoPct: 0,
+    });
+    expect(c.tax).toBeGreaterThan(0);
+    expect(c.result).toBe(c.contributionMargin - c.fixedCost - c.tax);
+  });
+
+  it("o imposto acompanha a receita simulada, não fica congelado", () => {
+    // Congelado, o cenário de +100% prometeria uma sobra que o dono não teria:
+    // o Simples incide sobre faturamento.
+    const comum = { grossRevenue: 1000, variableCost: 400, fixedCost: 300, taxRatePct: 6 };
+    const zero = cenarioDeCrescimento({ ...comum, variacaoPct: 0 });
+    const dobro = cenarioDeCrescimento({ ...comum, variacaoPct: 100 });
+
+    expect(zero.tax).toBe(60);
+    expect(dobro.tax).toBe(120);
+    expect(dobro.grossRevenue).toBe(2000);
+    expect(dobro.variableCost).toBe(800);
+    // O custo fixo NÃO escala — é a premissa que a simulação existe para mostrar.
+    expect(dobro.fixedCost).toBe(300);
+    expect(dobro.result).toBe(2000 - 800 - 300 - 120);
+  });
+
+  it("arredonda ao centavo, nunca ao real", () => {
+    // `Math.round` em reais era a segunda causa dos R$ 20,80, e some
+    // exatamente onde o dono conferiria.
+    const c = cenarioDeCrescimento({
+      grossRevenue: 1000.555,
+      variableCost: 333.333,
+      fixedCost: 100,
+      taxRatePct: 6,
+      variacaoPct: 0,
+    });
+    expect(c.grossRevenue).toBe(1000.56);
+    expect(c.variableCost).toBe(333.33);
+    // Arredondando em reais seria 1001 — inteiro.
+    expect(Number.isInteger(c.grossRevenue)).toBe(false);
+  });
+});
+
+describe("ocupação — A17", () => {
+  it("o mês com UM atendimento não é apresentado como 0%", () => {
+    /* Medido na tela: `OCUPAÇÃO 0%` no mês em que houve 1 atendimento, com o
+     * mapa de calor logo abaixo dizendo "100% de ocupação" naquele horário.
+     * A capacidade de uma jornada mensal passa de 400 horários, e
+     * `Math.round(1/464 * 100)` é zero.
+     *
+     * "0%" é a única leitura que autoriza o dono a concluir que a cadeira
+     * ficou vazia o mês inteiro — e ela é falsa. */
+    const bookings = [bk({ id: "1", value: 50 })];
+    const receita = receitaDoMes({ bookings, movements: [], subscribers: [], periodo: P });
+    const k = indicadores({ bookings, receita, periodo: P, capacidade: 464 });
+
+    expect(k.occupancyPct).toBeGreaterThan(0);
+  });
+
+  it("segue limitada a 100%, e só devolve 0 quando não houve atendimento", () => {
+    const receitaVazia = receitaDoMes({
+      bookings: [], movements: [], subscribers: [], periodo: P,
+    });
+    expect(
+      indicadores({ bookings: [], receita: receitaVazia, periodo: P, capacidade: 464 })
+        .occupancyPct
+    ).toBe(0);
+
+    const lotado = Array.from({ length: 20 }, (_, i) => bk({ id: `b${i}` }));
+    const receitaCheia = receitaDoMes({
+      bookings: lotado, movements: [], subscribers: [], periodo: P,
+    });
+    expect(
+      indicadores({ bookings: lotado, receita: receitaCheia, periodo: P, capacidade: 5 })
+        .occupancyPct
+    ).toBe(100);
   });
 });

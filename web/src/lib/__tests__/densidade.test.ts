@@ -92,7 +92,11 @@ describe("Financeiro — os KPIs não se repetem em prosa", () => {
   const uma_vez = [
     ["r.grossRevenue", "formatBRL(r.grossRevenue)"],
     ["totalExpenses", "formatBRL(totalExpenses)"],
-    ["marginPct", "{marginPct}%"],
+    /* Era `{marginPct}%` — a impressão crua, com ponto decimal (A10). A
+     * margem passou a sair por `formatPctPtBR`; o que este teste guarda é a
+     * repetição em prosa, não a forma de imprimir, então o alvo acompanha a
+     * chamada nova. */
+    ["marginPct", "formatPctPtBR(marginPct)"],
   ] as const;
 
   for (const [nome, expressao] of uma_vez) {

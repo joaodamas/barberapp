@@ -8,6 +8,8 @@ import { Pill } from "@/components/ui/pill";
 import { Modal } from "@/components/ui/modal";
 import { formatBRL, formatDateShortPtBR } from "@/lib/format";
 import { contar } from "@/lib/plural";
+import { NAO_APURADO } from "@/lib/apuracao";
+import { LinhaDeErro } from "@/components/ui/erro-ao-carregar";
 import { mesPeriodo, resumoDeDespesas } from "@/lib/analytics";
 import { mesAtual, rotuloDoMes } from "@/lib/db/use-financeiro";
 import {
@@ -44,10 +46,25 @@ export default function DespesasPage() {
 
   /* Tempo real: o painel costuma ficar aberto o expediente inteiro num tablet,
    * e um lançamento feito no celular precisa aparecer aqui sem recarregar. */
-  const { items: expenses, status } = useShopCollection<Omit<Expense, "id">>("expenses", {
+  const { items: expenses, status, error } = useShopCollection<Omit<Expense, "id">>("expenses", {
     orderByField: "date",
     direction: "desc",
   });
+
+  /* D3 · sem leitura não há agregado.
+   *
+   * A tela mostrava, AO REDOR da mensagem de erro: cabeçalho "0 lançamentos",
+   * KPIs `0`, `R$ 0,00`, `R$ 0,00`, `—` e rodapé `TOTAL DO MÊS R$ 0,00`. O
+   * teste decisivo é que o estado vazio e o estado de erro produziam os
+   * QUATRO números idênticos — nenhum deles distinguia "não há despesa" de
+   * "não consegui ler as despesas", que são as duas conclusões opostas que o
+   * dono pode tirar desta tela.
+   *
+   * O D27 tinha acrescentado a mensagem ao corpo da tabela e parado aí. Ela
+   * ficou cercada pelos agregados, que continuaram afirmando zero em corpo
+   * maior — foi a correção reforçando o defeito, porque quem lê "0 lançamentos"
+   * no cabeçalho não procura explicação dentro da tabela. */
+  const naoApurado = status === "erro";
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -168,7 +185,9 @@ export default function DespesasPage() {
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm text-ivory-muted md:text-base">
-            {contar(resumo.lancamentos, "lançamento", "lançamentos")} em {rotuloDoMes(mes)}
+            {naoApurado
+              ? `Lançamentos de ${rotuloDoMes(mes)} não apurados`
+              : `${contar(resumo.lancamentos, "lançamento", "lançamentos")} em ${rotuloDoMes(mes)}`}
           </p>
           <h1 className="text-xl text-ivory md:text-3xl md:tracking-tight">Despesas</h1>
         </div>
@@ -181,13 +200,23 @@ export default function DespesasPage() {
         </Button>
       </div>
 
+      {/* Com a leitura falhando, os quatro cartões dizem que não sabem — e a
+          legenda de cada um diz por quê. É a diferença que a tela não tinha:
+          "R$ 0,00 em agosto" e "não consegui ler agosto" ocupavam os mesmos
+          pixels. */}
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-4">
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-5">
           <div className="flex items-center gap-1.5">
             <CheckSquare size={12} className="text-gold-light" />
             <p className="text-[11px] uppercase tracking-wide text-ivory-muted md:text-xs">Lançamentos</p>
           </div>
-          <p className="font-display text-lg font-semibold text-ivory md:text-2xl">{resumo.lancamentos}</p>
+          <p className="font-display text-lg font-semibold text-ivory md:text-2xl">
+            {naoApurado ? NAO_APURADO : resumo.lancamentos}
+          </p>
+          {/* A legenda continua sendo o RECORTE — "em Agosto de 2026" é
+              verdade com ou sem leitura. O motivo aparece uma vez só, na linha
+              da tabela: repeti-lo nos quatro cartões transformaria a
+              explicação em ruído e empurraria a tabela para fora da tela. */}
           <p className="text-[11px] text-ivory-muted md:text-xs">em {rotuloDoMes(mes)}</p>
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-5">
@@ -195,7 +224,9 @@ export default function DespesasPage() {
             <DollarSign size={12} className="text-danger" />
             <p className="text-[11px] uppercase tracking-wide text-ivory-muted md:text-xs">Total no mês</p>
           </div>
-          <p className="font-display text-lg font-semibold text-ivory md:text-2xl">{formatBRL(total)}</p>
+          <p className="font-display text-lg font-semibold text-ivory md:text-2xl">
+            {naoApurado ? NAO_APURADO : formatBRL(total)}
+          </p>
           <p className="text-[11px] text-ivory-muted md:text-xs">{rotuloDoMes(mes)}</p>
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-5">
@@ -203,16 +234,29 @@ export default function DespesasPage() {
             <Repeat size={12} className="text-gold-light" />
             <p className="text-[11px] uppercase tracking-wide text-ivory-muted md:text-xs">Recorrentes</p>
           </div>
-          <p className="font-display text-lg font-semibold text-ivory md:text-2xl">{formatBRL(recurringTotal)}</p>
-          <p className="text-[11px] text-ivory-muted md:text-xs">por mês</p>
+          <p className="font-display text-lg font-semibold text-ivory md:text-2xl">
+            {naoApurado ? NAO_APURADO : formatBRL(recurringTotal)}
+          </p>
+          <p className="text-[11px] text-ivory-muted md:text-xs">
+            {naoApurado ? `em ${rotuloDoMes(mes)}` : "por mês"}
+          </p>
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-5">
           <div className="flex items-center gap-1.5">
             <Tag size={12} className="text-gold-light" />
             <p className="text-[11px] uppercase tracking-wide text-ivory-muted md:text-xs">Maior categoria</p>
           </div>
-          <p className="font-display text-lg font-semibold text-ivory md:text-xl">{topCategory.category}</p>
-          <p className="text-[11px] text-ivory-muted md:text-xs">{formatBRL(topCategory.value)} em {rotuloDoMes(mes)}</p>
+          {/* O `—` deste cartão era o mais enganoso dos quatro: ele já é o
+              placeholder de "não houve categoria", então erro e vazio ficavam
+              literalmente indistinguíveis, sem nem a diferença entre 0 e nada. */}
+          <p className="font-display text-lg font-semibold text-ivory md:text-xl">
+            {naoApurado ? NAO_APURADO : topCategory.category}
+          </p>
+          <p className="text-[11px] text-ivory-muted md:text-xs">
+            {naoApurado
+              ? `em ${rotuloDoMes(mes)}`
+              : `${formatBRL(topCategory.value)} em ${rotuloDoMes(mes)}`}
+          </p>
         </Card>
       </div>
 
@@ -237,19 +281,13 @@ export default function DespesasPage() {
                 </td>
               </tr>
             )}
-            {status === "erro" && (
-              <tr>
-                {/* Dizia só o fato. As outras doze telas usam `ErroAoCarregar`,
-                    que diz as TRÊS partes — o fato, a consequência ("nada foi
-                    perdido") e a saída. Sem a segunda, o dono que abre o mês e
-                    vê a tabela em branco não sabe se perdeu lançamento. */}
-                <td colSpan={7} className="px-4 py-10 text-center text-sm text-danger md:px-6">
-                  Não foi possível carregar os lançamentos. Pode ser a conexão ou
-                  uma permissão que mudou — nada foi perdido. Recarregue a página
-                  para tentar de novo.
-                </td>
-              </tr>
-            )}
+            {/* O texto estava escrito à mão aqui, com o "ou" que o
+                `erro-de-leitura.ts` existe para eliminar: permissão e conexão
+                pedem ações diferentes, e esta era a última tela do financeiro
+                ainda perguntando isso ao dono. `LinhaDeErro` recebe o erro cru
+                e resolve — inclusive escondendo "Tentar de novo" quando
+                recarregar não pode funcionar. */}
+            {naoApurado && <LinhaDeErro oQue="os lançamentos" erro={error} colSpan={7} />}
             {status === "pronto" && sorted.length === 0 && (
               <tr>
                 {/* "ainda" valia quando a lista era o histórico inteiro. Com o
@@ -314,8 +352,11 @@ export default function DespesasPage() {
               <td className="px-4 py-3 text-xs uppercase tracking-wide text-ivory-muted md:px-6" colSpan={5}>
                 Total do mês
               </td>
+              {/* O rodapé era o quinto zero da tela e o mais autoritário
+                  deles: "TOTAL DO MÊS R$ 0,00" fecha a tabela como se a soma
+                  tivesse sido conferida linha a linha. */}
               <td className="whitespace-nowrap px-4 py-3 text-right font-display font-semibold text-ivory">
-                {formatBRL(total)}
+                {naoApurado ? NAO_APURADO : formatBRL(total)}
               </td>
               <td className="md:px-6" />
             </tr>
