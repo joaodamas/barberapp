@@ -189,20 +189,88 @@ h1, h2, h3, h4, .font-display {
   }
 }
 
-/* Foco visível e acessível em todo controle navegável */
+/* Foco visível e acessível em todo controle navegável.
+ *
+ * Três defeitos medidos no anel anterior (`box-shadow` de 1px em
+ * `--color-gold`, mais um brilho de 20px, mais `border-radius: 4px`):
+ *
+ * 1. CONTRASTE. `--color-gold` sobre o cartão dá 2.96:1 e sobre a superfície
+ *    de realce 2.49:1 — abaixo dos 3:1 que a WCAG 1.4.11 exige de indicador de
+ *    foco. Passava só sobre a página branca (3.23:1). `--color-gold-light`
+ *    entrega 5.57 / 5.11 / 4.60 nas três superfícies. É o token que já existe
+ *    exatamente para isso: contraste sobre fundo claro.
+ *
+ * 2. WHITE-LABEL. `--color-gold` é o único token que a barbearia sobrescreve em
+ *    tempo de execução. O anel de foco é a única pista de onde o teclado está —
+ *    deixá-lo depender de uma escolha de marca significa que uma barbearia com
+ *    acento claro perde a navegação por teclado, e ninguém descobre no build.
+ *
+ * 3. FORMA. `border-radius: 4px` no `:focus-visible` reescrevia o raio do
+ *    próprio controle: um botão `rounded-xl` virava um retângulo quase reto no
+ *    instante em que recebia foco. `outline` acompanha o raio do elemento e não
+ *    precisa mexer nele.
+ *
+ * O brilho de 20px também sai: sombra colorida é anti-pattern declarado, e um
+ * halo difuso é justamente o tipo de indicador que some sobre fundo creme. */
 :where(button, a, input, select, textarea):focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 1px var(--color-gold), 0 0 20px -6px var(--color-gold);
-  border-radius: 4px;
+  outline: 2px solid var(--color-gold-light);
+  outline-offset: 2px;
 }
 
-/* Contorno de controle precisa de 3:1 (WCAG 1.4.11) — o `--color-border`
- * decorativo dá 1.42:1. Aplicado por seletor para não exigir uma classe extra
- * em cada input do projeto. */
+/* Alvo de toque de 44px sem engordar o desenho.
+ *
+ * O produto tem nove controles em `min-h-9` (36px) — "Dar entrada", "Concluir",
+ * "Não veio", "Cancelar", "Devolver". Todos são a ação de uma linha de lista, e
+ * todos erram o mínimo de 44px que a régua declara inegociável: o dono opera em
+ * pé, no balcão, com o celular na mão e a máquina de cortar na outra.
+ *
+ * Aumentar a altura visual resolveria o toque e estragaria a lista — cinco
+ * botões de 44px numa linha de agendamento viram a linha inteira. O
+ * pseudo-elemento separa as duas coisas: o botão continua com 36px de desenho e
+ * passa a ter 44px de área sensível, centrada nele.
+ *
+ * Não pinta nada: se aparecesse, seria decoração. */
+.alvo-toque {
+  position: relative;
+}
+
+.alvo-toque::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 100%;
+  min-width: 44px;
+  min-height: 44px;
+  transform: translate(-50%, -50%);
+}
+
+/* Contorno de controle precisa de 3:1 (WCAG 1.4.11). Aplicado por seletor para
+ * não exigir uma classe extra em cada input do projeto.
+ *
+ * `--color-border` decorativo dá 1.42:1, e por isso nunca serviu aqui. Mas
+ * `--color-border-strong`, que existe exatamente para este papel, também não
+ * entrega o que promete quando medido contra as superfícies onde o formulário
+ * de fato aparece:
+ *
+ *                        página     cartão     realce
+ *   border-strong        3,01:1     2,77:1     2,49:1
+ *   ivory-muted          5,93:1     5,45:1     4,90:1
+ *
+ * Passava só sobre a página branca — e campo de formulário no painel quase
+ * nunca está sobre a página: está dentro de um `Card` ou de um diálogo, que são
+ * cartão. Ou seja, o contorno reprovava justamente onde ele existe.
+ *
+ * A correção é estrutural e não mexe na paleta: aponta o papel para o token que
+ * já entrega o contraste. `--color-ivory-muted` é a tinta do texto secundário —
+ * mesma família, mesmo peso de presença, e nenhuma cor nova no produto.
+ * `--color-border-strong` segue onde 3:1 não é exigido, como a linha-guia que o
+ * gráfico desenha sob o cursor. */
 input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
 select,
 textarea {
-  border-color: var(--color-border-strong);
+  border-color: var(--color-ivory-muted);
 }
 
 /* Tabelas financeiras rolam na horizontal no celular (min-w de 480–720px).

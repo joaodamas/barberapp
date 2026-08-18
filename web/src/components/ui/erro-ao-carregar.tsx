@@ -64,10 +64,15 @@ export function ErroAoCarregar({
       <p className="text-xs text-ivory-muted">
         Pode ser a conexão ou uma permissão que mudou. Nada foi perdido.
       </p>
+      {/* `size="sm"` em vez de `min-h-9` na mão: o alvo continua com 36px de
+          desenho e volta a ter 44px de área. Escrito à mão, este era o botão
+          MAIS estreito do produto — `px-0` deixava a área do lado com a largura
+          exata das palavras. */}
       <Button
         variant="ghost"
+        size="sm"
         onClick={onTentarDeNovo ?? (() => window.location.reload())}
-        className="min-h-9 px-0 text-xs"
+        className="px-0"
       >
         Tentar de novo
       </Button>
@@ -80,16 +85,37 @@ export function ErroAoCarregar({
  *
  * Mesma mensagem, sem o cartão — um `<div>` dentro de `<tbody>` quebra a
  * estrutura e o navegador o move para fora da tabela silenciosamente.
+ *
+ * Dizia só a metade que o cartão diz. Quem lê "Não foi possível carregar as
+ * despesas" numa tabela e não recebe mais nada fica com a mesma dúvida que a
+ * versão em cartão foi escrita para resolver: perdi alguma coisa? o que eu
+ * faço? Fato, consequência e saída são as três partes, e valem igual nos dois
+ * formatos — a tabela não é um lugar onde o dono precisa de menos.
  */
-export function LinhaDeErro({ oQue, colSpan }: { oQue: string; colSpan: number }) {
+export function LinhaDeErro({
+  oQue,
+  colSpan,
+  onTentarDeNovo,
+}: {
+  oQue: string;
+  colSpan: number;
+  onTentarDeNovo?: () => void;
+}) {
   return (
     <tr>
-      <td
-        colSpan={colSpan}
-        role="alert"
-        className="px-4 py-10 text-center text-sm text-danger md:px-6"
-      >
-        Não foi possível carregar {oQue}.
+      <td colSpan={colSpan} role="alert" className="px-4 py-10 text-center md:px-6">
+        <p className="text-sm text-ivory">Não foi possível carregar {oQue}.</p>
+        <p className="mt-1 text-xs text-ivory-muted">
+          Pode ser a conexão ou uma permissão que mudou. Nada foi perdido.
+        </p>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onTentarDeNovo ?? (() => window.location.reload())}
+          className="mt-1"
+        >
+          Tentar de novo
+        </Button>
       </td>
     </tr>
   );

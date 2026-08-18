@@ -1,8 +1,8 @@
 "use client";
 
 import { Lock, TrendingUp } from "lucide-react";
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { EstadoCentral } from "@/components/ui/estado-central";
 import { hasPlatformContact, platformWhatsappUrl } from "@/lib/platform";
 import { useAcesso, useTenant } from "@/lib/tenant-context";
 
@@ -36,38 +36,36 @@ export function BloqueioPlano({
   const daConta = acesso.motivo !== null;
 
   return (
-    <Card className="flex flex-col items-center gap-3 py-14 text-center md:py-20">
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gold/10 text-gold-light">
-        {daConta ? <Lock size={22} aria-hidden /> : <TrendingUp size={22} aria-hidden />}
-      </div>
-      <div className="max-w-md">
-        <p className="text-base font-medium text-ivory">
-          {daConta
-            ? acesso.motivo === "trial_vencido"
-              ? "Seu teste terminou"
-              : "Sua conta está suspensa"
-            : titulo}
-        </p>
-        <p className="mt-1.5 text-sm leading-relaxed text-ivory-muted">
-          {daConta
-            ? "Nada foi apagado — sua agenda, seus clientes e seu financeiro continuam salvos, e seus clientes continuam agendando pelo link. Escolhendo um plano, tudo volta na hora."
-            : descricao}
-        </p>
-      </div>
-      {hasPlatformContact() && (
-        <a
-          href={platformWhatsappUrl(
-            daConta
-              ? `Olá! Sou dono da ${tenant.brand.name} e quero contratar um plano para voltar a editar.`
-              : `Olá! Sou dono da ${tenant.brand.name} e quero saber do plano que abre "${titulo}".`
-          )}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Button>{daConta ? "Escolher um plano" : "Ver planos"}</Button>
-        </a>
-      )}
-    </Card>
+    <EstadoCentral
+      icon={daConta ? Lock : TrendingUp}
+      titulo={
+        daConta
+          ? acesso.motivo === "trial_vencido"
+            ? "Seu teste terminou"
+            : "Sua conta está suspensa"
+          : titulo
+      }
+      descricao={
+        daConta
+          ? "Nada foi apagado — sua agenda, seus clientes e seu financeiro continuam salvos, e seus clientes continuam agendando pelo link. Escolhendo um plano, tudo volta na hora."
+          : descricao
+      }
+      acao={
+        hasPlatformContact() ? (
+          <a
+            href={platformWhatsappUrl(
+              daConta
+                ? `Olá! Sou dono da ${tenant.brand.name} e quero contratar um plano para voltar a editar.`
+                : `Olá! Sou dono da ${tenant.brand.name} e quero saber do plano que abre "${titulo}".`
+            )}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Button>{daConta ? "Escolher um plano" : "Ver planos"}</Button>
+          </a>
+        ) : undefined
+      }
+    />
   );
 }
 

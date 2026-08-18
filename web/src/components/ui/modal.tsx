@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 import { X } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
@@ -23,6 +23,7 @@ export function Modal({
   className?: string;
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
+  const id = useId();
 
   useEffect(() => {
     if (!open) return;
@@ -79,22 +80,36 @@ export function Modal({
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-label={title}
+        // `aria-labelledby` em vez de `aria-label`: aponta para o título que
+        // está VISÍVEL na tela. Com o rótulo duplicado numa string, mudar o
+        // `<h2>` e esquecer a prop faz o leitor de tela anunciar um nome que
+        // não está mais escrito em lugar nenhum — e ninguém percebe, porque a
+        // tela continua certa para quem enxerga.
+        aria-labelledby={`${id}-titulo`}
+        aria-describedby={description ? `${id}-descricao` : undefined}
         tabIndex={-1}
-        className={cn("max-h-[90vh] w-full max-w-lg overflow-y-auto md:p-6", className)}
+        padding="lg"
+        className={cn("max-h-[90vh] w-full max-w-lg overflow-y-auto", className)}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold text-ivory">{title}</h2>
+            <h2 id={`${id}-titulo`} className="text-lg font-semibold text-ivory">
+              {title}
+            </h2>
             {description && (
-              <p className="mt-0.5 text-sm text-ivory-muted">{description}</p>
+              <p id={`${id}-descricao`} className="mt-0.5 text-sm text-ivory-muted">
+                {description}
+              </p>
             )}
           </div>
+          {/* `alvo-toque`: no desktop o botão encolhe para 32px de desenho, e
+              num notebook com tela sensível ao toque isso é um alvo de 32px
+              real. O pseudo-elemento devolve os 44px sem alargar o cabeçalho. */}
           <button
-            aria-label="Fechar"
+            aria-label={`Fechar ${title}`}
             onClick={onClose}
-            className="flex h-11 w-11 shrink-0 items-center justify-center md:h-8 md:w-8 rounded-lg text-ivory-muted transition-colors hover:bg-surface-raised hover:text-ivory"
+            className="alvo-toque flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-lg text-ivory-muted transition-colors hover:bg-surface-raised hover:text-ivory md:h-8 md:w-8"
           >
             <X size={16} />
           </button>
