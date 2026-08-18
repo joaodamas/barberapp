@@ -415,3 +415,97 @@ seria coletado). Sobre a fonte de `agendar/page.tsx`:
   Afeta o invariante T6. **[NV]**
 - **`docs/MAPA-DE-FONTES.md`** não foi lido; pode completar a lista de leitores.
 - **Aparência** — §19 inteira permanece aberta.
+
+---
+
+# 8 · A natureza real do R1 — descoberto ao preparar A–D
+
+Fui atrás de "quem cria um atendimento concluído sem forma de pagamento",
+para saber se produto e mensalidade tinham o mesmo problema (decisão D). A
+resposta mudou o entendimento do R1 inteiro.
+
+## 8.1 Existe **um** escritor de `status: "completed"` no produto
+
+```
+web/src/app/painel/(dashboard)/page.tsx:222   patchDoc(bookings, { status:"completed", paymentMethod: metodo })
+```
+
+E a função é `concluirCom(metodo: PaymentMethod | null)` — aceita `null`. Quem
+passa `null`:
+
+```
+page.tsx:803-806   <button onClick={() => void concluirCom(null)}>   ← "Coberto pelo plano"
+```
+
+Esse botão **só existe quando `assinaturaDoFechamento` existe**, isto é, quando o
+cliente tem plano ativo. Todos os outros caminhos passam um método
+(`page.tsx:828-839`). **[Ó]**
+
+## 8.2 Logo: `completed` + `paymentMethod: null` nasce de **um** lugar
+
+O dono concluir um mensalista como coberto pelo plano. Depois disso, o servidor
+decide, e há dois desfechos:
+
+```
+cobertura = "plano"   → PaymentDoc é DELETADO   financial-events.ts:512
+                        card não aparece (action-center.ts:117 filtra !cobertoPeloPlano)
+
+cobertura = "avulso"  → PaymentDoc é CRIADO com paymentMethod null, taxa zero
+   (cota esgotada,     card crítico "Registrar pagamento" APARECE — e está certo:
+    plano inativo,     o cliente saiu sem pagar e sem cobertura
+    plano_nao_cobre)
+```
+
+**O card crítico não é sobre esquecimento. É sobre o dono ter dito que o plano
+cobria, e o plano não ter coberto.** [J] — e é exatamente o cenário que a §2.3
+torna comum: o plano "2 cortes" **nunca** cobre, então todo mensalista desse
+plano cai aqui.
+
+## 8.3 O R1 tem **dois** casos, e só um tem porta
+
+| | Caso | Card aparece? | Caminho hoje |
+|---|---|---|---|
+| **1** | **Vazio** — mensalista concluído como coberto, plano não cobriu | ✅ sim (`!b.paymentMethod`) | existe, e **vaza** |
+| **2** | **Errado** — dono escolheu Pix e o cliente pagou em dinheiro | ❌ não — o filtro é `!b.paymentMethod`, e ele está preenchido | **nenhum** |
+
+O caso 2 é invisível ao produto: nenhuma tela o detecta, nenhum alerta o
+levanta, e não há caminho de correção. O R1 precisa cobrir os dois.
+
+## 8.4 O que isso faz com as decisões
+
+**D · Escopo — respondido por fato, não por preferência.**
+
+```
+functions/src/inventory.ts:586     if (!metodoValido(paymentMethod)) throw "Informe como o cliente pagou."
+functions/src/mensalistas.ts:543   if (!metodoValido(paymentMethod)) throw "Informe como o cliente pagou."
+```
+
+Venda de produto e pagamento de mensalidade **exigem** o método na origem. Não
+existe pagamento sem forma nessas duas. **O caso 1 é exclusivo do serviço.**
+
+O caso 2 (método errado) pode acontecer nas três — mas ali é digitação, não
+lacuna estrutural. **[J]** Recomendação: escopo **serviço**, com produto e
+mensalidade registrados como frente futura de menor prioridade.
+
+**B · Não é preferência: os dois documentos precisam mudar.**
+
+No caso 1 o `PaymentDoc` já existe com `paymentMethod: null`. Corrigir só
+`bookings` é literalmente o vazamento de hoje. Corrigir só `payments` deixa o
+card crítico na tela para sempre. **Fechar o ciclo exige os dois.**
+
+A pergunta que sobra não é "qual dos dois", e sim **"quem manda quando
+divergirem"** — e aí a divisão é limpa: `payments` é o fato econômico (seis
+leituras de dinheiro), `bookings.paymentMethod` é o estado do atendimento (seis
+leituras de exibição, nenhuma calcula valor).
+
+Leitores de `bookings.paymentMethod`, verificados **[Ó]**:
+
+```
+(cliente)/page.tsx:104        "Valor pago" × "A pagar no salão"
+(cliente)/reservas:42,320,374  idem + rótulo
+painel/page.tsx:955            passa adiante
+action-center.ts:117           o filtro do card
+booking-status.ts:158          liquidacaoDoAtendimento
+```
+
+Nenhum deles soma dinheiro.
