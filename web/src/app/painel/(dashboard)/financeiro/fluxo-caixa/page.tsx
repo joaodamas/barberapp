@@ -1,6 +1,6 @@
 "use client";
 
-import { Calendar, TrendingUp, Wallet } from "lucide-react";
+import { Calendar, TrendingDown, TrendingUp, Wallet } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { KpiTile } from "@/components/ui/kpi-tile";
 import { formatBRL, formatWeekdayAndDay, safeDiv, safePct } from "@/lib/format";
@@ -13,15 +13,35 @@ import { BloqueioPlano } from "@/components/ui/bloqueio-plano";
 import { useAcesso } from "@/lib/tenant-context";
 import { LivroCaixa } from "@/components/livro-caixa";
 
+/**
+ * As saídas, com o nome que o dono usa e a explicação do que são.
+ *
+ * "Compra de estoque" precisa da frase: é a única saída que NÃO é custo do mês,
+ * e sem dizer isso o dono soma tudo e conclui que gastou mais do que gastou.
+ */
+const SAIDAS_DO_FLUXO = [
+  { chave: "despesa" as const, label: "Despesas", explicacao: "Aluguel, contas, fornecedores" },
+  {
+    chave: "compra" as const,
+    label: "Compra de estoque",
+    explicacao: "Sai do caixa hoje; vira custo quando a mercadoria for vendida",
+  },
+  { chave: "estorno" as const, label: "Devoluções", explicacao: "Dinheiro devolvido ao cliente" },
+  {
+    chave: "caixa" as const,
+    label: "Retiradas e acertos",
+    explicacao: "Sangria, pagamento de comissão e ajustes de contagem",
+  },
+];
+
 export default function FluxoCaixaPage() {
   const mes = mesAtual();
-  const { caixa: dailyCashHistory, status } = useFinanceiro(mes);
+  const { caixa: dailyCashHistory, fluxo, status } = useFinanceiro(mes);
   const total = dailyCashHistory.reduce((s, d) => s + d.total, 0);
-  const avgPerDay = safeDiv(total, dailyCashHistory.length);
-  const bestDay = dailyCashHistory.reduce(
-    (best, d) => (d.total > best.total ? d : best),
-    dailyCashHistory[0]
-  );
+  /* `avgPerDay` e `bestDay` saíram com os KPIs de entrada. Eram recortes de
+   * "quanto entrou" — a pergunta que a tela já respondia quatro vezes — e o que
+   * faltava era "quanto sobrou". Mantê-los calculados sem uso deixaria duas
+   * derivações vivas esperando alguém reintroduzi-las sem pensar. */
   const totalAppointments = dailyCashHistory.reduce((s, d) => s + d.appointments, 0);
   const maxTotal = Math.max(...dailyCashHistory.map((d) => d.total), 1);
   const totals = dailyCashHistory.reduce(
@@ -51,28 +71,60 @@ export default function FluxoCaixaPage() {
           Histórico diário · {rotuloDoMes(mes)}
         </p>
         <h1 className="text-xl text-ivory md:text-3xl md:tracking-tight">Fluxo de Caixa</h1>
+        {/* A legenda anterior dizia "só o que entra pelo balcão — mensalidades
+            aparecem no Financeiro". Virou falsa na Rodada 3.2: a mensalidade
+            paga gera pagamento e ENTRA aqui, e o fluxo passou a ter saídas.
+            Deixar a frase seria afirmar o que não é. */}
         <p className="mt-1 text-xs text-ivory-muted md:text-sm">
-          Só o que entra pelo balcão. Mensalidades são cobradas por assinatura e
-          aparecem no Financeiro.
+          O dinheiro que entrou e saiu da conta, pelo valor líquido — a taxa da
+          maquininha já vem descontada, como no extrato. Não é o mesmo que o
+          resultado do mês: comprar estoque tira dinheiro hoje e vira custo só
+          quando a mercadoria for vendida.
         </p>
       </div>
 
+      {/* D8/D11 · o número que não existia em lugar nenhum do produto.
+          A tela mostrava quatro recortes de ENTRADA e chamava isso de fluxo de
+          caixa. "Quanto sobrou" era impossível de responder. */}
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-4">
-        <KpiTile icon={Wallet} label="Total no mês" value={formatBRL(total)} />
-        <KpiTile icon={TrendingUp} label="Média diária" value={formatBRL(avgPerDay)} />
+        <KpiTile icon={TrendingUp} label="Entrou" value={formatBRL(fluxo.entradas)} />
+        <KpiTile icon={TrendingDown} label="Saiu" value={formatBRL(fluxo.saidas)} />
         <KpiTile
-          icon={Calendar}
-          label="Melhor dia"
-          value={formatBRL(bestDay?.total ?? 0)}
-          caption={bestDay ? formatWeekdayAndDay(bestDay.date) : undefined}
+          icon={Wallet}
+          label="Sobrou no caixa"
+          value={formatBRL(fluxo.saldo)}
+          caption={fluxo.saldo < 0 ? "saiu mais do que entrou" : undefined}
         />
         <KpiTile
           icon={Calendar}
           label="Atendimentos"
           value={String(totalAppointments)}
-          caption={`${dailyCashHistory.length} dias trabalhados`}
+          caption={`${dailyCashHistory.length} dias com movimento`}
         />
       </div>
+
+      {/* Para onde o dinheiro foi. Sem isto, "saiu R$ 730" é um número que o
+          dono não consegue conferir nem questionar. */}
+      {fluxo.saidas > 0 && (
+        <div>
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm">
+            Para onde o dinheiro foi
+          </h2>
+          <Card className="flex flex-col divide-y divide-border p-0">
+            {SAIDAS_DO_FLUXO.filter((o) => fluxo.porOrigem[o.chave] < 0).map((o) => (
+              <div key={o.chave} className="flex items-center justify-between px-3 py-2.5 md:px-4">
+                <div className="min-w-0">
+                  <p className="text-sm text-ivory">{o.label}</p>
+                  <p className="text-[11px] text-ivory-muted">{o.explicacao}</p>
+                </div>
+                <span className="shrink-0 font-display text-sm font-semibold text-danger">
+                  − {formatBRL(-fluxo.porOrigem[o.chave])}
+                </span>
+              </div>
+            ))}
+          </Card>
+        </div>
+      )}
 
       {status === "carregando" && <LoadingRows rows={4} />}
       {status === "erro" && <ErroAoCarregar oQue="o caixa do período" />}

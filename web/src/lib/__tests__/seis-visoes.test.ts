@@ -69,7 +69,7 @@ const dre = resultadoDoMes({
   gatewayFeesTotal: taxasDePagamento([...PAYMENTS, ...PAYMENTS_PRODUTO], periodo),
 });
 
-const fluxo = caixaDiario({ bookings: BOOKINGS, movements: MOVEMENTS, periodo });
+const fluxo = caixaDiario({ payments: [...PAYMENTS, ...PAYMENTS_PRODUTO], periodo });
 const somaFluxo = fluxo.reduce(
   (a, d) => ({
     pix: a.pix + d.pix,
@@ -270,12 +270,20 @@ describe("visão 3 · DRE", () => {
 /* VISÃO 4 · Fluxo de caixa                                            */
 /* ------------------------------------------------------------------ */
 
+/** Taxa total do mês na massa: 4,14 de serviço + 3,71 de produto. */
+const LEDGER_TAXAS = 7.85;
+
 describe("visão 4 · Fluxo de caixa", () => {
-  it("I1 · o total do fluxo é igual à receita realizada do DRE", () => {
-    /* Vale nesta massa porque não há recebível nem venda a prazo: tudo que
-     * virou receita entrou no mesmo mês. */
-    expect(somaFluxo.total).toBe(dre.grossRevenue);
-    expect(somaFluxo.total).toBe(680);
+  it("I1 · o fluxo é a receita do DRE MENOS as taxas", () => {
+    /* A invariante mudou na Rodada 3.2, e a mudança é o ponto.
+     *
+     * Os dois eram iguais porque ambos somavam o bruto. Agora o caixa entra
+     * pelo LÍQUIDO — a maquininha deposita já descontada, e o bruto nunca passa
+     * pela conta. A diferença entre DRE e Fluxo é exatamente a taxa, e é
+     * verdadeira: é dinheiro que o mês produziu e não chegou. */
+    expect(dre.grossRevenue).toBe(680);
+    expect(somaFluxo.total).toBeCloseTo(680 - LEDGER_TAXAS, 2);
+    expect(dre.grossRevenue - somaFluxo.total).toBeCloseTo(LEDGER_TAXAS, 2);
   });
 
   it("CONCEITO · é relatório de ENTRADA — não conhece saída", () => {
@@ -286,10 +294,18 @@ describe("visão 4 · Fluxo de caixa", () => {
     // Não existe no produto um número que responda "sobrou quanto no caixa".
   });
 
-  it("ERRO · o produto entra todo como dinheiro", () => {
-    expect(somaFluxo.dinheiro).toBe(340); // 50 de serviço + 290 de produto
-    expect(somaFluxo.pix).toBe(200);
-    expect(somaFluxo.cartao).toBe(140);
+  it("CORRIGIDO · cada venda cai na coluna do instrumento que a pagou", () => {
+    /* Era o D4: 340 em dinheiro, somando 50 de serviço com os 290 de produto
+     * inteiros, mesmo com o meio gravado no movimento desde G1.
+     *
+     * Agora o caixa lê `payments`, e a venda em Pix vai para Pix. Os valores
+     * são líquidos, então cartão fica abaixo do bruto — pela taxa. */
+    expect(somaFluxo.dinheiro).toBe(95);
+    expect(somaFluxo.pix).toBe(300);
+    expect(somaFluxo.dinheiro + somaFluxo.pix + somaFluxo.cartao).toBeCloseTo(
+      somaFluxo.total,
+      2
+    );
   });
 
   it("os atendimentos do fluxo batem com os do DRE", () => {
@@ -407,14 +423,18 @@ describe("matriz fato × visão", () => {
   it("receita de produto · 290,00 — nasce em 5 movimentos de venda", () => {
     expect(receita.produtos).toBe(290);
     // Dashboard: ausente (não conhece produto).
-    // Fluxo: presente, mas todo em dinheiro (ERRO D4).
-    expect(somaFluxo.dinheiro - 50).toBe(290);
+    /* Fluxo: presente e DISTRIBUÍDO pelo instrumento desde a 3.2 — o D4 caiu.
+     * A soma das três colunas é o líquido, não os 290 brutos. */
+    expect(somaFluxo.dinheiro + somaFluxo.pix + somaFluxo.cartao).toBeCloseTo(
+      somaFluxo.total,
+      2
+    );
   });
 
   it("mensalistas · 248,00 — contratado, nunca realizado", () => {
     expect(receita.mensalistas).toBe(248);
     expect(receita.bruta).toBe(680); // fora
-    expect(somaFluxo.total).toBe(680); // fora do fluxo realizado
+    expect(somaFluxo.total).toBeCloseTo(680 - LEDGER_TAXAS, 2); // fora do fluxo realizado
     // Projeção: presente, e corretamente (competência futura).
     expect(projecao.reduce((s, d) => s + d.subscriptionCharge, 0)).toBeGreaterThan(0);
   });
@@ -423,7 +443,7 @@ describe("matriz fato × visão", () => {
     const noShow = BOOKINGS.find((b) => b.status === "no_show")!;
     expect(noShow.value).toBe(50);
     expect(receita.bruta).toBe(680); // fora
-    expect(somaFluxo.total).toBe(680); // fora
+    expect(somaFluxo.total).toBeCloseTo(680 - LEDGER_TAXAS, 2); // fora
     expect(comissoes.porBarbeiro.reduce((s, b) => s + b.atendimentos, 0)).toBe(8); // fora
     expect(dashboardDe("2026-09-18").previsto).toBe(50); // ← só o Dashboard o mantém
   });

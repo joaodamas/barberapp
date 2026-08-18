@@ -4,8 +4,9 @@ import { useTenant } from "@/lib/tenant-context";
 import {
   useBookings, useExpenses, useInventoryMovements,
   useCommissions, usePayments, useProducts, useServices, useStaff,
-  useSubscribers, useRefunds, useSubscriptionInvoices, combineStatus,
+  useSubscribers, useRefunds, useSubscriptionInvoices, useCashEntries, combineStatus,
 } from "@/lib/db/use-shop-data";
+import { fluxoDiario, movimentosDeCaixa, resumoDoFluxo } from "@/lib/fluxo-de-caixa";
 import {
   caixaDiario, capacidadeDiaria, folhaMensal, horariosDaJornada, indicadores,
   taxasDePagamento, HORIZONTES,
@@ -46,12 +47,13 @@ export function useFinanceiro(mes: string, horizonte: Horizonte = "mensal") {
   const payments = usePayments();
   const refunds = useRefunds();
   const invoices = useSubscriptionInvoices();
+  const cashEntries = useCashEntries();
   const products = useProducts();
 
   const periodo = mesPeriodo(mes);
   const status = combineStatus(
     bookings, expenses, movements, subscribers, services, products, staff,
-    commissions, payments, refunds, invoices
+    commissions, payments, refunds, invoices, cashEntries
   );
 
   const receita = receitaDoMes({
@@ -93,11 +95,26 @@ export function useFinanceiro(mes: string, horizonte: Horizonte = "mensal") {
     gatewayFeesTotal: taxasDePagamento(payments.items, periodo),
   });
 
-  const caixa = caixaDiario({
-    bookings: bookings.items,
+  const caixa = caixaDiario({ payments: payments.items, periodo });
+
+  /* Rodada 3.2 · o FLUXO, com saídas — D8/D11.
+   *
+   * `caixa` acima responde "quanto entrou, por instrumento". Isto responde
+   * "quanto SOBROU", que não existia em lugar nenhum do produto: o antigo
+   * `caixaDiario` era relatório de entrada com nome de fluxo de caixa.
+   *
+   * São duas perguntas, e por isso duas estruturas. Forçar as saídas dentro de
+   * `DiaDeCaixa` misturaria as duas. */
+  const movimentos = movimentosDeCaixa({
+    payments: payments.items,
+    refunds: refunds.items,
+    expenses: expenses.items,
     movements: movements.items,
+    cashEntries: cashEntries.items,
     periodo,
   });
+  const fluxo = resumoDoFluxo(movimentos);
+  const fluxoPorDia = fluxoDiario(movimentos);
 
   const diasAbertos = tenant.schedule.weekdays.length;
   /* Capacidade do mês × barbeiros ativos. Sem isso, a ocupação de uma equipe
@@ -124,6 +141,11 @@ export function useFinanceiro(mes: string, horizonte: Horizonte = "mensal") {
     receita,
     dre,
     caixa,
+    /** O que sobrou — entradas, saídas e saldo por origem (D8/D11). */
+    fluxo,
+    /** Dia a dia, com o acumulado que responde em que dia o caixa virou. */
+    fluxoPorDia,
+    movimentosDeCaixa: movimentos,
     kpis,
     tops,
     recorrencia: recorrenciaDeClientes({ bookings: bookings.items, hoje: new Date() }),

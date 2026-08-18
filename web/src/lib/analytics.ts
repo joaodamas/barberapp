@@ -293,13 +293,39 @@ export type DiaDeCaixa = {
   pix: number;
   cartao: number;
   dinheiro: number;
+  /**
+   * Recebido sem meio informado.
+   *
+   * Existe para o nulo não virar dinheiro. O servidor grava `paymentMethod:
+   * null` quando o atendimento é concluído sem dizer como o cliente pagou — e
+   * somar isso em espécie faz a coluna que o dono confere contra a gaveta
+   * afirmar algo que ninguém registrou.
+   */
+  naoInformado: number;
   total: number;
   appointments: number;
 };
 
+/**
+ * O caixa diário — agora a partir dos PAGAMENTOS.
+ *
+ * Lia `bookings.value` e `movements.value`, e jogava **toda venda de produto na
+ * coluna dinheiro** (D4) mesmo com o meio gravado no movimento desde G1.
+ *
+ * Passa a somar `payments`, pelo valor LÍQUIDO: é o que cai na conta, e é
+ * contra o extrato que o dono confere. Uma venda no crédito some da coluna
+ * dinheiro e aparece em cartão, com a taxa já descontada.
+ *
+ * `appointments` conta só a origem `servico` — é quantas cadeiras giraram, não
+ * quantos recebimentos houve. Somar venda e mensalidade ali inflaria o
+ * denominador do ticket médio, que é o defeito D2 entrando por outra porta.
+ *
+ * Mantém o formato `DiaDeCaixa` porque o gráfico e a tabela já o consomem. As
+ * SAÍDAS vivem em `fluxo-de-caixa.ts`, com estrutura própria: elas não cabem
+ * neste tipo, e forçá-las aqui misturaria duas perguntas diferentes.
+ */
 export function caixaDiario(params: {
-  bookings: Doc<BookingDoc>[];
-  movements: Doc<InventoryMovementDoc>[];
+  payments: Doc<PaymentDoc>[];
   periodo: Periodo;
 }): DiaDeCaixa[] {
   const porDia = new Map<string, DiaDeCaixa>();
@@ -307,32 +333,49 @@ export function caixaDiario(params: {
   const dia = (date: string) => {
     let d = porDia.get(date);
     if (!d) {
-      d = { date, pix: 0, cartao: 0, dinheiro: 0, total: 0, appointments: 0 };
+      d = { date, pix: 0, cartao: 0, dinheiro: 0, naoInformado: 0, total: 0, appointments: 0 };
       porDia.set(date, d);
     }
     return d;
   };
 
-  for (const b of params.bookings) {
-    if (!isRevenue(b) || !dentroDoPeriodo(b.date, params.periodo)) continue;
-    const d = dia(b.date);
-    /* Débito e crédito somam na coluna "cartão": o caixa diário responde por
-     * onde o dinheiro entrou no balcão, e as duas maquininhas são a mesma fila.
-     * A distinção existe onde importa — em `payments`, que congela a taxa de
-     * cada uma e alimenta o custo de adquirência no DRE. */
-    if (b.paymentMethod === "pix") d.pix += b.value;
-    else if (b.paymentMethod === "debit" || b.paymentMethod === "credit") d.cartao += b.value;
-    else d.dinheiro += b.value;
-    d.total += b.value;
-    d.appointments += 1;
+  for (const p of params.payments) {
+    if (!dentroDoPeriodo(p.date, params.periodo)) continue;
+
+    const d = dia(p.date);
+    const valor = Number(p.netAmount ?? p.grossAmount) || 0;
+
+    /* Débito e crédito somam em "cartão": o dono concilia com o extrato da
+     * maquininha, que é uma fila só. A distinção por instrumento vive em
+     * `payments`, onde a taxa de cada um está congelada.
+     *
+     * Método NULO vai para `naoInformado`, não para dinheiro.
+     *
+     * O `else` engolia o nulo e afirmava espécie. O servidor grava `null` DE
+     * PROPÓSITO quando o atendimento foi concluído sem informar como o cliente
+     * pagou — é "não sabemos", e a coluna dinheiro é justamente a que o dono
+     * confere contra a gaveta. Chamar de dinheiro o que não se sabe ser dinheiro
+     * é a primeira metade da régua sendo violada.
+     *
+     * `resumoDoFluxo` já classificava isso como "outros"; as duas leituras
+     * discordavam do mesmo pagamento, e o total fechava nas duas — que é o que
+     * escondia. */
+    if (p.paymentMethod === "pix") d.pix += valor;
+    else if (p.paymentMethod === "debit" || p.paymentMethod === "credit") d.cartao += valor;
+    else if (p.paymentMethod === "cash") d.dinheiro += valor;
+    else d.naoInformado += valor;
+
+    d.total = centavos(d.total + valor);
+
+    const origem = p.origin ?? (p.bookingId ? "servico" : undefined);
+    if (origem === "servico") d.appointments += 1;
   }
 
-  // Venda de produto entra no caixa do dia, sem contar como atendimento.
-  for (const m of params.movements) {
-    if (m.kind !== "venda" || !dentroDoPeriodo(m.date, params.periodo)) continue;
-    const d = dia(m.date);
-    d.dinheiro += m.value;
-    d.total += m.value;
+  for (const d of porDia.values()) {
+    d.pix = centavos(d.pix);
+    d.cartao = centavos(d.cartao);
+    d.dinheiro = centavos(d.dinheiro);
+    d.naoInformado = centavos(d.naoInformado);
   }
 
   return [...porDia.values()].sort((a, b) => a.date.localeCompare(b.date));
@@ -396,11 +439,30 @@ export function comissoesDeServico(params: {
   const acc = new Map<string, ComissaoDeBarbeiro>();
 
   /* Só as de serviço: a comissão de produto tem outra base — o lucro da venda,
-   * não o faturamento — e é somada separadamente. Sem este filtro, uma comissão
-   * de produto que compartilhasse `bookingId` entraria com a base errada. */
+   * não o faturamento — e é somada separadamente. Sem esse recorte, uma comissão
+   * de produto que compartilhasse `bookingId` entraria com a base errada.
+   *
+   * `origin` AUSENTE conta como serviço, e a tolerância não é cosmética.
+   *
+   * O campo só passou a ser gravado depois; todo `CommissionDoc` anterior a ele
+   * é de serviço, porque produto só virou fato na Rodada 3.1 — e produto aponta
+   * `movementId`, nunca `bookingId`. Exigir `origin` descartava esses
+   * documentos do mapa de congeladas, e o valor caía no fallback: derivado do
+   * `commissionPct` de HOJE.
+   *
+   * Ou seja, **o P1-7 continuava vivo em todo o histórico anterior à 3.1** —
+   * mudar o percentual de um barbeiro reescrevia o acerto de meses fechados.
+   * Achado pela bateria de regressão: mesmo documento, comissão congelada de
+   * R$ 30; com `origin` devolve 30, sem `origin` devolvia 60.
+   *
+   * `indexarPagamentos` já tratava exatamente este buraco em `payments`. A
+   * assimetria entre as duas camadas era o defeito. */
   const congelada = new Map(
     (params.commissions ?? [])
-      .filter((c) => c.origin === "servico" && dentroDoPeriodo(c.date, periodo))
+      .filter((c) => {
+        const origem = c.origin ?? (c.bookingId ? "servico" : undefined);
+        return origem === "servico" && dentroDoPeriodo(c.date, periodo);
+      })
       .map((c) => [c.bookingId, c])
   );
 

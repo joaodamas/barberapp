@@ -153,46 +153,88 @@ describe("receita", () => {
 });
 
 describe("caixa diário", () => {
+  /* Rodada 3.2 · o caixa passou a sair de `payments`, pelo LÍQUIDO.
+   *
+   * Lia `bookings.value` e jogava toda venda de produto na coluna dinheiro
+   * (D4). Agora soma o que caiu na conta — que é contra o extrato da
+   * maquininha que o dono confere. */
+  const pgc = (o: Partial<PaymentDoc> & { id: string }): Doc<PaymentDoc> =>
+    ({
+      origin: "servico", bookingId: o.id, clientId: "c1", date: "2026-07-10",
+      paymentOrigin: "in_person", paymentMethod: "pix",
+      grossAmount: 90, feePct: 0, feeAmount: 0, netAmount: 90, ...o,
+    }) as Doc<PaymentDoc>;
+
   it("agrupa por dia e separa meio de pagamento", () => {
     const dias = caixaDiario({
-      bookings: [
-        bk({ id: "1", date: "2026-07-10", paymentMethod: "pix", value: 90 }),
-        bk({ id: "2", date: "2026-07-10", paymentMethod: "credit", value: 60 }),
-        bk({ id: "3", date: "2026-07-11", paymentMethod: "cash", value: 35 }),
+      payments: [
+        pgc({ id: "1", date: "2026-07-10", paymentMethod: "pix", netAmount: 90 }),
+        pgc({ id: "2", date: "2026-07-10", paymentMethod: "credit", netAmount: 60 }),
+        pgc({ id: "3", date: "2026-07-11", paymentMethod: "cash", netAmount: 35 }),
       ],
-      movements: [], periodo: P,
+      periodo: P,
     });
     expect(dias).toHaveLength(2);
     expect(dias[0]).toMatchObject({ date: "2026-07-10", pix: 90, cartao: 60, total: 150, appointments: 2 });
     expect(dias[1]).toMatchObject({ date: "2026-07-11", dinheiro: 35 });
   });
 
-  it("débito e crédito somam na mesma coluna do caixa diário", () => {
-    /* O caixa responde por onde o dinheiro entrou no balcão, e as duas
-     * maquininhas são a mesma fila. A distinção vive em `payments`, que congela
-     * a taxa de cada uma. */
+  it("entra o LÍQUIDO, não o bruto", () => {
+    /* A maquininha deposita já descontada. Somar o bruto mostraria no caixa um
+     * dinheiro que não chegou. */
     const dias = caixaDiario({
-      bookings: [
-        bk({ id: "1", date: "2026-07-10", paymentMethod: "debit", value: 40 }),
-        bk({ id: "2", date: "2026-07-10", paymentMethod: "credit", value: 60 }),
+      payments: [pgc({ id: "1", paymentMethod: "credit", grossAmount: 100, feeAmount: 3.49, netAmount: 96.51 })],
+      periodo: P,
+    });
+    expect(dias[0].cartao).toBe(96.51);
+    expect(dias[0].total).toBe(96.51);
+  });
+
+  it("D4 · venda de produto NÃO cai toda em dinheiro", () => {
+    const dias = caixaDiario({
+      payments: [
+        pgc({ id: "v1", origin: "produto", movementId: "mv1", bookingId: undefined, paymentMethod: "credit", netAmount: 87 }),
+        pgc({ id: "v2", origin: "produto", movementId: "mv2", bookingId: undefined, paymentMethod: "pix", netAmount: 45 }),
       ],
-      movements: [], periodo: P,
+      periodo: P,
+    });
+    expect(dias[0].cartao).toBe(87);
+    expect(dias[0].pix).toBe(45);
+    expect(dias[0].dinheiro).toBe(0);
+  });
+
+  it("`appointments` conta só ATENDIMENTO — não venda nem mensalidade", () => {
+    /* Somar os três ali inflaria o denominador do ticket médio, que é o D2
+     * entrando por outra porta. */
+    const dias = caixaDiario({
+      payments: [
+        pgc({ id: "1", origin: "servico", netAmount: 50 }),
+        pgc({ id: "v1", origin: "produto", movementId: "mv1", bookingId: undefined, netAmount: 90 }),
+        pgc({ id: "f1", origin: "mensalidade", invoiceId: "f1", bookingId: undefined, netAmount: 99 }),
+      ],
+      periodo: P,
+    });
+    expect(dias[0].appointments).toBe(1);
+    expect(dias[0].total).toBe(239);
+  });
+
+  it("débito e crédito somam na mesma coluna do caixa diário", () => {
+    /* O dono concilia com o extrato da maquininha, que é uma fila só. A
+     * distinção vive em `payments`, que congela a taxa de cada uma. */
+    const dias = caixaDiario({
+      payments: [
+        pgc({ id: "1", paymentMethod: "debit", netAmount: 40 }),
+        pgc({ id: "2", paymentMethod: "credit", netAmount: 60 }),
+      ],
+      periodo: P,
     });
     expect(dias[0].cartao).toBe(100);
   });
 
-  it("a soma dos dias é a receita de balcão", () => {
-    const bookings = [bk({ id: "1", value: 90 }), bk({ id: "2", date: "2026-07-12", value: 60 })];
-    const movements = [mv({ id: "m", value: 45 })];
-    const receita = receitaDoMes({ bookings, movements, subscribers: [], periodo: P });
-    const total = caixaDiario({ bookings, movements, periodo: P }).reduce((s, d) => s + d.total, 0);
-    expect(total).toBe(receita.caixa);
-  });
-
   it("sai ordenado por data", () => {
     const dias = caixaDiario({
-      bookings: [bk({ id: "1", date: "2026-07-20" }), bk({ id: "2", date: "2026-07-05" })],
-      movements: [], periodo: P,
+      payments: [pgc({ id: "1", date: "2026-07-20" }), pgc({ id: "2", date: "2026-07-05" })],
+      periodo: P,
     });
     expect(dias.map((d) => d.date)).toEqual(["2026-07-05", "2026-07-20"]);
   });
@@ -520,7 +562,7 @@ describe("projeção", () => {
   it("não projeta receita em dia fechado", () => {
     const p = projecaoDeCaixa({
       bookings: [], expenses: [], subscribers: [],
-      historico: [{ date: "2026-07-05", pix: 100, cartao: 0, dinheiro: 0, total: 100, appointments: 1 }],
+      historico: [{ date: "2026-07-05", pix: 100, cartao: 0, dinheiro: 0, naoInformado: 0, total: 100, appointments: 1 }],
       openWeekdays: [1, 2, 3, 4, 5, 6],
       inicio: new Date("2026-08-02T00:00:00"), // domingo
       dias: 2,

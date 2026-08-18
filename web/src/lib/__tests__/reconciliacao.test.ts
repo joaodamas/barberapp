@@ -8,11 +8,11 @@ import {
   resultadoDoMes,
   taxasDePagamento,
 } from "@/lib/analytics";
+import { movimentosDeCaixa, resumoDoFluxo } from "@/lib/fluxo-de-caixa";
 import {
   BOOKINGS,
   COMMISSIONS,
   COMMISSIONS_PRODUTO,
-  ESTOQUE_INICIAL,
   EXPENSES,
   MEIO_DA_VENDA,
   MES,
@@ -114,7 +114,7 @@ const dre = resultadoDoMes({
   gatewayFeesTotal,
 });
 
-const caixa = caixaDiario({ bookings: BOOKINGS, movements: MOVEMENTS, periodo });
+const caixa = caixaDiario({ payments: [...PAYMENTS, ...PAYMENTS_PRODUTO], periodo });
 const totalCaixa = caixa.reduce(
   (acc, d) => ({
     pix: acc.pix + d.pix,
@@ -344,55 +344,79 @@ describe("CONVERGE · D2 · o ticket médio mede o atendimento", () => {
   });
 });
 
-describe("DIVERGE · D4 · o caixa não preserva o meio de pagamento da venda", () => {
-  it("joga os R$ 290 de produto todo em dinheiro", () => {
-    /* Premissa N12. O ledger espera pix 300 · cartão 285 · dinheiro 95. */
-    expect(totalCaixa.pix).toBe(200);
-    expect(totalCaixa.cartao).toBe(140);
-    expect(totalCaixa.dinheiro).toBe(340);
-
-    expect(LEDGER.caixa.pix).toBe(300);
-    expect(LEDGER.caixa.cartao).toBe(285);
-    expect(LEDGER.caixa.dinheiro).toBe(95);
+describe("CONVERGE · D4 · o caixa preserva o meio de pagamento da venda", () => {
+  it("cada venda cai na coluna do instrumento que a pagou", () => {
+    /* Premissa N12. Jogava os R$ 290 de produto todo em dinheiro, mesmo com o
+     * meio gravado no movimento desde G1: pix 200 · cartão 140 · dinheiro 340.
+     *
+     * Os valores agora são LÍQUIDOS — a maquininha deposita já descontada, e é
+     * contra o extrato que o dono confere. Por isso a coluna cartão fica abaixo
+     * do bruto do ledger, e exatamente pela taxa. */
+    expect(totalCaixa.pix).toBe(LEDGER.caixa.pix);
+    expect(totalCaixa.dinheiro).toBe(LEDGER.caixa.dinheiro);
+    expect(LEDGER.caixa.cartao - totalCaixa.cartao).toBeCloseTo(LEDGER.taxas.total, 2);
   });
 
-  it("o total ainda fecha — o erro está na distribuição, não na soma", () => {
-    expect(totalCaixa.total).toBe(LEDGER.caixa.recebido);
+  it("o total é o bruto do ledger menos as taxas", () => {
+    expect(totalCaixa.total).toBeCloseTo(LEDGER.caixa.recebido - LEDGER.taxas.total, 2);
   });
 
-  it("o modelo de estoque não tem onde guardar o meio", () => {
-    /* A prova da lacuna: o meio de cada venda vive fora do documento, porque
-     * `InventoryMovementDoc` não tem o campo. */
-    const venda = MOVEMENTS.find((m) => m.id === "V03")!;
-    expect(venda).not.toHaveProperty("paymentMethod");
-    expect(MEIO_DA_VENDA.V03).toBe("credit");
+  it("o modelo de estoque JÁ guarda o meio", () => {
+    /* Era a prova da lacuna: o meio de cada venda vivia fora do documento
+     * porque `InventoryMovementDoc` não tinha o campo. G1 o criou, e G1.6 fez a
+     * venda gerar `PaymentDoc` — que é de onde o caixa lê agora. */
+    const pagamento = PAYMENTS_PRODUTO.find((p) => p.movementId === "V03")!;
+    expect(pagamento.paymentMethod).toBe("credit");
+    expect(pagamento.paymentMethod).toBe(MEIO_DA_VENDA.V03);
   });
 });
 
-describe("DIVERGE · D8 · não existe bloco de caixa separado do resultado", () => {
-  it("o sistema não distingue saída de estoque de custo do vendido", () => {
-    /* O ledger separa:
-     *   resultado  −2.282,75   (econômico, com CMV de 116)
-     *   caixa      −2.346,75   (financeiro, com saída de 180)
-     *   diferença      64,00   = o estoque que ficou na prateleira
-     *
-     * O sistema tem uma visão só. `caixaDiario` é relatório de ENTRADA — não
-     * subtrai compra, despesa, comissão nem imposto —, então não há como
-     * responder "quanto sobrou no caixa". */
-    const entradasDoSistema = totalCaixa.total;
-    expect(entradasDoSistema).toBe(680);
+describe("CONVERGE · D8/D11 · existe caixa separado do resultado", () => {
+  const fluxo = resumoDoFluxo(
+    movimentosDeCaixa({
+      payments: [...PAYMENTS, ...PAYMENTS_PRODUTO],
+      refunds: [],
+      expenses: EXPENSES,
+      movements: MOVEMENTS,
+      cashEntries: [],
+      periodo,
+    })
+  );
 
-    // O fluxo de caixa do ledger não tem correspondente no produto.
-    expect(LEDGER.caixa.fluxo).toBe(-2346.75);
-    expect(LEDGER.dre.resultado).toBe(-2282.75);
-    expect(LEDGER.dre.resultado - LEDGER.caixa.fluxo).toBe(LEDGER.estoqueQueFicou);
+  it("o fluxo tem SAÍDAS — deixou de ser faturamento com outro nome", () => {
+    /* Era o D8/D11: `caixaDiario` só somava entradas, e não existia em lugar
+     * nenhum um número que respondesse "quanto sobrou no caixa". */
+    expect(fluxo.saidas).toBeGreaterThan(0);
+    expect(fluxo.porOrigem.despesa).toBe(-2550);
+    expect(fluxo.porOrigem.compra).toBe(-180);
   });
 
-  it("o estoque que ficou é rastreável na massa", () => {
-    const compras = MOVEMENTS.filter((m) => m.kind === "compra").reduce((s, m) => s + m.value, 0);
-    expect(compras - LEDGER.cmv).toBe(LEDGER.estoqueQueFicou);
-    // inicial 110 + compras 180 − CMV 116 = 174
-    expect(ESTOQUE_INICIAL + compras - LEDGER.cmv).toBe(174);
+  it("CAIXA ≠ RESULTADO, e a diferença é o estoque que ficou", () => {
+    /* A distinção que o D8 pedia. O DRE debita 116 de CMV; o caixa desembolsou
+     * 180 na compra. Os 64 de diferença são mercadoria na prateleira — dinheiro
+     * que saiu e ainda não virou custo. */
+    expect(dre.cmv).toBe(116);
+    expect(-fluxo.porOrigem.compra - dre.cmv).toBe(LEDGER.estoqueQueFicou);
+  });
+
+  it("a diferença para o ledger é EXPLICÁVEL, item a item", () => {
+    /* O ledger humano assumiu que comissão e imposto saíram do caixa no mês. O
+     * modelo não assume: comissão DEVIDA não é comissão PAGA — ela só vira
+     * saída quando o dono registra o acerto em `cash_entries` (D25). O mesmo
+     * vale para a guia do Simples, que é uma despesa quando lançada.
+     *
+     * Não é divergência a corrigir: é a diferença entre um ledger de papel, que
+     * projeta o desembolso, e um sistema que só afirma o que aconteceu. A massa
+     * não tem nenhum dos dois registros, então nenhum dos dois sai. */
+    const diferenca = fluxo.saldo - LEDGER.caixa.fluxo;
+    expect(diferenca).toBeCloseTo(LEDGER.comissao.total + LEDGER.dre.imposto, 2);
+    expect(diferenca).toBeCloseTo(288.9, 2);
+  });
+
+  it("a taxa não é saída — ela nunca entrou", () => {
+    /* O ledger soma 680 de entrada e 7,85 de saída; o modelo entra com 672,15.
+     * Mesmo saldo, e o segundo é o que o extrato mostra. */
+    expect(fluxo.entradas).toBeCloseTo(LEDGER.caixa.recebido - LEDGER.taxas.total, 2);
   });
 });
 
