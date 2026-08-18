@@ -442,3 +442,60 @@ verificação de `comm -12` deu vazia nas duas ondas.
 O risco que sobra é **semântico**: duas frentes mudando o significado do mesmo
 conceito por caminhos diferentes. Território separado não protege disso. Só o
 gate de integração protege.
+
+---
+
+# 26 · Toda mudança de fato financeiro define seu próprio rastro
+
+> **Regra estabelecida por João em 18/08/2026, no fechamento das cinco decisões.**
+
+> Toda decisão que altere um fato financeiro deve definir **também** como o fato
+> será auditado e como sua alteração aparecerá no histórico.
+
+Não é uma boa prática recomendada. É **parte da definição de pronto**: uma
+decisão financeira sem resposta para "como isso fica registrado" está
+**incompleta**, não apenas desacompanhada.
+
+## O achado que produziu a regra
+
+Ao instruir o R1, medi o que existe hoje:
+
+```
+audit_log — escritores atuais
+  functions/src/provisioning.ts:193   barbershop.provisioned
+  functions/src/signup.ts:214         (criação da barbearia)
+  functions/src/subscription.ts:156   barbershop.plano_definido
+```
+
+Três escritores, e **os três são de cadastro**. Nenhum evento financeiro escreve
+`audit_log`. A conclusão de um atendimento — que cria `PaymentDoc`, `CommissionDoc`
+e movimenta caixa, DRE e comissão de uma vez — **não deixa rastro nenhum**.
+
+O evento que materializa dinheiro é o único do produto sem histórico. Isso não
+foi decidido; passou.
+
+## Por que passou
+
+Porque a pergunta nunca foi feita no momento certo. Cada frente financeira
+respondeu *"o número está certo?"* — e todas respondiam bem, com teste. Nenhuma
+respondeu *"e quando este número mudar, alguém vai conseguir saber por quê?"*.
+
+É a mesma família da §25: não um erro dentro de uma frente, mas uma pergunta que
+não pertencia a frente nenhuma.
+
+## O que a regra obriga, na prática
+
+Ao fechar qualquer decisão que crie, altere ou anule um fato financeiro:
+
+1. **O que fica registrado** — de/para dos campos que mudaram, quem, quando.
+2. **Onde** — `audit_log` é imutável (`allow write: if false`), então **quem
+   escreve é o servidor**. Se a mudança nasce numa tela, ou ela vira callable, ou
+   ela não é auditável. Não existe terceira saída.
+3. **Como o dono enxerga** — um log que só a plataforma lê não responde à
+   pergunta do dono. Se a alteração for visível ao dono, o histórico dela também
+   precisa ser.
+
+## O que a regra NÃO permite
+
+Fechar uma decisão financeira com *"a auditoria fica para depois"*. "Depois" é
+onde os três escritores de cadastro moram sozinhos há todo esse tempo.

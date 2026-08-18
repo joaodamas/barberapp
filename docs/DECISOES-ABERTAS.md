@@ -1,12 +1,21 @@
-# As cinco decisões abertas
+# As cinco decisões — **fechadas**
 
-> 18/08/2026 · `hardening/p0-2026-08-17` em `867b070`
-> Nenhuma delas é técnica. Todas mudam **o que o produto afirma**, e por isso
-> nenhuma pode ser tomada por um agent.
+> Abertas em 18/08/2026 · `hardening/p0-2026-08-17` em `867b070`
+> **Fechadas por João em 18/08/2026.** As diretrizes estão em blocos
+> `## ✅ DECIDIDO` dentro de cada seção, e consolidadas no fim do documento.
 
-Este documento existe para tornar a decisão barata: cada uma traz o que foi
-medido no código, as opções com o custo real de construir, e o que quebra se
-errarmos. As recomendações são recomendações — o dono decide.
+Nenhuma delas era técnica. Todas mudam **o que o produto afirma**, e por isso
+nenhuma podia ser tomada por um agent.
+
+O corpo analítico abaixo — o que foi medido, as opções e o custo de construir —
+fica preservado como está: é o que justifica a diretriz, e é o que vai ser
+consultado quando alguém perguntar *"por que foi assim?"*. As recomendações eram
+recomendações; o que vale agora é o bloco `✅ DECIDIDO`.
+
+**Depois da decisão eu medi mais quatro coisas**, porque três das cinco
+diretrizes tocam mecanismos que precisavam ser verificados antes de virar
+tarefa. Duas mudam o desenho da implementação e estão em
+[Consequências medidas](#consequências-medidas-depois-da-decisão), no fim.
 
 ---
 
@@ -76,6 +85,25 @@ Mas A só é honesta se a tela parar de prometer versionamento. **Se você prefe
 B, ela é a única que honra o texto que já está lá** — e aí o versionamento entra
 como frente própria, não como parte do R1.
 
+## ✅ DECIDIDO — **A · taxa vigente no momento da correção**
+
+> *"Não implementar versionamento agora. Usar a taxa vigente no momento da
+> correção, deixando explícito que correções retroativas podem alterar apenas a
+> taxa daquele pagamento. Não vale abrir uma frente inteira de versionamento de
+> gateway agora."* — João, 18/08/2026
+
+Duas obrigações que a diretriz cria, e que não são opcionais:
+
+1. **A tela do Financeiro para de prometer versionamento.** `financeiro/page.tsx:308`
+   diz *"taxas versionadas por data de vigência"* e o mecanismo não existe
+   (`GatewayFeeDoc` com `validFrom` é tipo órfão, zero consumidores). Enquanto A
+   valer, esse texto é uma afirmação falsa — cai junto com o R1, não depois.
+2. **"Deixando explícito" é entregável, não intenção.** A confirmação da correção
+   precisa dizer qual taxa está sendo aplicada e que ela é a de hoje. Sem isso, A
+   vira B mal-feita: o dono acha que preservou o histórico.
+
+O versionamento fica registrado como frente futura — não como dívida silenciosa.
+
 ---
 
 ## R1.2 · Até quando o dono pode corrigir
@@ -114,6 +142,34 @@ fora dela é uma operação que nenhuma tela mostra.
 
 E é reversível: começar restritivo e afrouxar é fácil; o contrário exige explicar
 ao dono por que ele perdeu uma capacidade.
+
+## ✅ DECIDIDO — **B · até o fechamento do mês**
+
+> *"Permitir correção até o fechamento do mês. Depois do fechamento, o pagamento
+> fica congelado. Se houver necessidade excepcional, vira um ajuste
+> administrativo futuro. Isso preserva o princípio que já construímos: mês
+> fechado não muda silenciosamente."* — João, 18/08/2026
+
+**⚠️ Verificado depois da decisão: fechamento de mês não existe no produto.**
+
+Varri `web/src` e `functions/src` procurando o evento — `mesFechado`, `closedAt`,
+trava temporal, qualquer coisa. Não há nada. `competencia` existe, mas é a régua
+de faturamento do mensalista (`mensalistas.ts:102`), não um fechamento da
+barbearia. Nenhuma tela fecha mês, nenhum documento registra que um mês foi
+fechado, nada congela.
+
+Então a diretriz se implementa hoje na sua forma disponível:
+
+> **corrigível enquanto `payments.date` pertencer ao mês corrente.**
+
+É a mesma janela que você descreveu, com a única diferença de que a fronteira é
+a virada do calendário em vez de um ato do dono. O princípio — *mês fechado não
+muda silenciosamente* — fica preservado, porque nada fora do mês corrente muda.
+
+**O fechamento explícito vira frente própria**, e é onde o "ajuste administrativo
+futuro" ganha lugar. Registrado aqui para não virar dívida invisível: enquanto
+ele não existir, não há como um mês ser reaberto — nem por engano, nem de
+propósito.
 
 ---
 
@@ -170,6 +226,57 @@ Com três travas que tornam a exceção segura:
 
 Se você preferir B por princípio, é defensável — mas então ela precisa ser uma
 frente própria, com as seis leituras no escopo, e não um item dentro do R1.
+
+## ✅ DECIDIDO — **A · `update` do `PaymentDoc` + `audit_log` obrigatório**
+
+> *"Não aconteceu um novo pagamento; aconteceu uma correção da informação do
+> pagamento. Criar um novo fato econômico complicaria caixa, DRE e reconciliação
+> desnecessariamente. Mas deve existir `audit_log` da alteração."* — João, 18/08/2026
+
+Campos exigidos no registro:
+
+| Campo | Origem |
+|---|---|
+| pagamento | id do `PaymentDoc` |
+| valor anterior | `grossAmount` — não muda, e é o que ancora a leitura |
+| meio anterior | `paymentMethod` antes |
+| novo meio | `paymentMethod` depois |
+| taxa anterior | `feePct` + `feeAmount` antes |
+| nova taxa | `feePct` + `feeAmount` depois |
+| usuário | quem corrigiu |
+| data/hora | quando |
+
+**⚠️ Verificado depois da decisão: `audit_log` é imutável por Security Rule.**
+
+```
+firestore.rules:341   match /audit_log/{entryId} {
+                        // Log de auditoria é imutável, inclusive para o dono.
+                        allow read:  if isOwnerOf(barbershopId) || isPlatformAdmin();
+                        allow write: if false;
+```
+
+`allow write: if false` vale para **todo cliente autenticado**, dono incluído. Os
+três escritores existentes (`provisioning.ts:193`, `signup.ts:214`,
+`subscription.ts:156`) são todos Admin SDK, que passa por cima das rules.
+
+**Consequência direta:** a correção **não pode ser um `updateDoc` da tela.** Ou o
+`audit_log` não acontece, ou a regra é afrouxada — e afrouxar a imutabilidade do
+log de auditoria para poder escrever nele é destruir a propriedade que o torna
+útil.
+
+Então o R1 é uma **Cloud Function callable**, não uma edição de tela. Isso está
+na direção que a base já segue — todo fato financeiro nasce no servidor
+(`createBooking`, `materializeFinancialsOnCompletion`, `refunds`) — e é o que
+torna as três travas verificáveis do lado de quem grava, em vez de confiadas ao
+cliente.
+
+O formato do documento segue o que já existe:
+
+```ts
+{ action: "payment.meio_corrigido", by: uid, at: serverTimestamp(), detail: {…} }
+```
+
+`action` no padrão `dominio.verbo_no_particípio`, como `barbershop.plano_definido`.
 
 ---
 
@@ -233,6 +340,100 @@ Com duas condições, pela armadilha acima:
 E o resumo lateral precisa acompanhar: `Pagamento: No salão` vira algo como
 `Coberto pelo plano`.
 
+## ✅ DECIDIDO — **B · preço condicionado à cobertura real**
+
+> *"Quando o atendimento estiver coberto pelo plano, mostrar R$ 0,00; quando não
+> estiver coberto, mostrar o valor normal. Mas a UI não pode simplesmente assumir
+> que todo atendimento de mensalista é grátis. A regra deve vir do mesmo cálculo
+> que determina `cobertoPeloPlano`. Assim a tela não inventa a regra."*
+> — João, 18/08/2026
+
+```
+Coberto:        Corte R$ 50,00 · Coberto pelo plano −R$ 50,00 · Total R$ 0,00
+Fora da cota:   Corte R$ 50,00 · Total R$ 50,00
+```
+
+**⚠️ Verificado depois da decisão: no momento do agendamento a cobertura ainda
+não é decidível — e não por falta de código.**
+
+Três medições, nesta ordem:
+
+**1 · `cobertoPeloPlano` lê um campo, não calcula nada.**
+
+```ts
+web/src/lib/domain.ts:424
+export function cobertoPeloPlano(booking: Pick<BookingDoc, "cobertura">) {
+  return booking.cobertura?.tipo === "plano";
+}
+```
+
+`cobertura` é gravada pelo servidor **na conclusão** (`financial-events.ts:495`).
+No `/agendar` a reserva ainda não existe, e o campo não existe. Não há como
+chamar essa função — o argumento não nasceu.
+
+**2 · Quem decide é `decidirCobertura`, e ela conta o passado, não o futuro.**
+
+```ts
+functions/src/financial-events.ts:339
+const jaCobertosNaCompetencia = doCliente.docs.filter((d) => {
+  const cobertura = d.get("cobertura") as Cobertura | undefined;
+  return cobertura?.tipo === "plano" && …
+}).length;
+```
+
+A contagem só enxerga reservas **que já foram concluídas e cobertas**. Reservas
+futuras não contam — e não podem contar, porque podem ser canceladas.
+
+Daí o fato incontornável: um cliente com cota 4, três cortes já usados e **duas
+reservas futuras no mesmo mês** tem duas reservas disputando **uma** vaga. Qual
+delas será coberta depende de qual for concluída primeiro. **A resposta não
+existe no momento do agendamento** — não está faltando cálculo, está faltando o
+evento que a determina.
+
+**3 · O produto já proibiu, por teste, a saída barata.**
+
+```ts
+web/src/lib/__tests__/situacao-da-reserva.test.ts:402
+it("o web não tem uma `decidirCobertura` própria", () => {
+  expect(semComentarios(modulo)).not.toContain("decidirCobertura");
+  expect(semComentarios(modulo)).not.toContain("competenciaDe");
+});
+```
+
+E um segundo guard, sobre as telas Hoje e Agendar: `expect(codigo).not.toMatch(/cobertura\s*:/)`.
+O motivo está escrito em `booking-status.ts:176` — reimplementar a decisão no web
+*"recriaria o D1 — o web dizendo 40% e o servidor gravando 0% — só que com
+cobertura no lugar da comissão, e num campo que ninguém confere."*
+
+### O que isso faz com a diretriz
+
+Ela é **honrada, não contornada**. *"A tela não inventa a regra"* continua sendo
+o critério; o que a medição acrescenta é que, no `/agendar`, a regra ainda **não
+tem resposta** — e afirmar uma seria justamente inventá-la.
+
+Então a apresentação se divide por aquilo que é verificável **antes** da
+conclusão:
+
+| Situação | O que a tela pode afirmar |
+|---|---|
+| **Sem plano ativo** | valor cheio. Sem condicional |
+| **Plano ilimitado** | a dedução. `unlimited` não depende de cota nem de ordem — a resposta é sim, sempre |
+| **Plano com cota** | a **posição** (*"seu plano cobre 4 cortes por mês"*) e a expectativa, **nunca `Total R$ 0,00`** como fato |
+
+O 5º corte de um plano de 4 **é cobrado**. Uma tela que dissesse `Total R$ 0,00`
+ali repetiria o D1 com outro nome — e desta vez para o cliente, que é quem menos
+tem como conferir.
+
+**A posição na cota tem que vir do servidor.** Contá-la no cliente é exatamente o
+que o teste acima proíbe, e por bom motivo: seriam duas contas para a mesma
+pergunta. Ou o `/agendar` recebe do servidor um retrato da cota, ou não exibe
+posição — mas não a calcula sozinho.
+
+**Ponto que ainda depende de você**, e que aparece só na tela: para o plano com
+cota, a linha de expectativa é *"se este corte ainda estiver na sua cota, você
+não paga"* ou é melhor mostrar só a posição e o valor cheio? Não decido isso no
+escuro — vai como duas variantes na verificação visual do ciclo.
+
 ---
 
 ## N7.2 · Reembolso quando não houve pagamento
@@ -258,22 +459,98 @@ comprou uma pomada tem **dois** fatos: o corte sem pagamento e a venda com
 pagamento. Cancelar a visita não pode arrastar a venda — ela tem estorno próprio,
 que já funciona e está verificado.
 
+## ✅ DECIDIDO — **regra por fato econômico**
+
+> *"Cancelar o agendamento/atendimento não cancela automaticamente uma venda
+> associada. Se houver venda de pomada, ela possui seu próprio ciclo. Se houver
+> pagamento, possui seu próprio ciclo. Se houver atendimento coberto, possui seu
+> próprio fato de cobertura."* — João, 18/08/2026
+
+A diretriz é mais forte do que o caso que a originou: ela vale para os três
+fatos, não só para a venda. E responde a pergunta que o R1 vai encostar — o que
+acontece com a cota quando um atendimento coberto é cancelado — pela mesma
+lógica: a cobertura é um fato próprio, e desfazê-la é um ato explícito, não um
+efeito colateral do cancelamento da visita.
+
+**Nada disso está implementado.** A diretriz descreve o comportamento correto;
+verificar se o produto já o tem é item da auditoria de implementação, não uma
+suposição a carregar.
+
 ---
 
-# Resumo para decidir
+# As cinco decisões, fechadas
 
-| # | Decisão | Recomendação | Custo se adiar |
-|---|---|---|---|
-| **R1.1** | taxa na correção | **A** (tabela de hoje) + corrigir o texto da tela | o vazimento continua rodando |
-| **R1.2** | janela | **B** (mês corrente) | idem |
-| **R1.3** | alterar × somar | **A** (`update` + `audit_log`) | idem |
-| **N7.1** | preço do mensalista | **B** (valor − dedução = total), condicional ao tipo de plano | contradição visível ao cliente no piloto |
-| **N7.2** | reembolso de cobertura | sua formulação, por fato e não por visita | idem |
+| # | Decisão | **Diretriz** |
+|---|---|---|
+| **R1.1** | taxa na correção | Sem versionamento agora; **taxa vigente na correção**, dita explicitamente na confirmação. A tela do Financeiro para de prometer versionamento |
+| **R1.2** | janela | Correção permitida **até o fechamento do mês**. Hoje isso se implementa como *mês corrente*, porque fechamento não existe ainda |
+| **R1.3** | alterar × somar | **`update` do `PaymentDoc`** + `audit_log` com de/para, quem e quando |
+| **N7.1** | preço do mensalista | **Preço condicionado à cobertura real do plano** — a regra vem do servidor, a tela não a reproduz |
+| **N7.2** | cancelamento | **Cancelamento afeta apenas o fato correspondente** |
 
-**Três achados que saíram desta análise e não estavam em lista nenhuma:**
+---
 
-1. O caminho de correção **já existe e vaza** — não decidir mantém o defeito.
+# Consequências medidas depois da decisão
+
+Três diretrizes tocam mecanismos que precisavam ser verificados antes de virar
+tarefa. **Duas mudam o desenho.**
+
+### 🔴 R1 deixa de ser edição de tela e vira Cloud Function
+
+`audit_log` é `allow write: if false` — imutável para todo cliente, dono
+incluído. Um `updateDoc` da tela não consegue registrar a correção, e afrouxar a
+rule destruiria a propriedade que torna o log útil. Os três escritores atuais são
+Admin SDK.
+
+Isso não é desvio: é o padrão da base. Todo fato financeiro já nasce no servidor.
+E é o que permite verificar as três travas do R1.3 — só quatro campos tocados,
+`update` e nunca `delete`+`create` — de dentro de quem grava.
+
+### 🔴 N7.1 não pode afirmar cobertura no `/agendar`
+
+No momento do agendamento a cobertura **não é decidível**: a contagem da cota
+enxerga só atendimentos já concluídos, e duas reservas futuras do mesmo mês podem
+disputar a mesma vaga. Plano ilimitado pode afirmar; plano com cota mostra
+posição e expectativa, nunca `Total R$ 0,00` como fato. E a posição vem do
+servidor — o teste `situacao-da-reserva.test.ts:402` proíbe recalculá-la no web.
+
+### 🟡 R1.2 se apoia num fechamento que não existe
+
+Nenhum mecanismo de fechamento de mês em `web/src` ou `functions/src`. A janela
+implementável é o mês corrente pelo `date`. O fechamento explícito — e o "ajuste
+administrativo" que ele habilita — fica registrado como frente futura.
+
+### 🟢 O formato do `audit_log` já existe e é seguido
+
+`{ action, by, at, detail }`, `action` em `dominio.verbo_no_particípio`.
+Nada a inventar.
+
+---
+
+# Quatro achados que saíram desta análise e não estavam em lista nenhuma
+
+1. O caminho de correção **já existe e vaza** — não decidir mantinha o defeito.
 2. A tela do Financeiro promete **versionamento de taxa que não existe**;
-   `GatewayFeeDoc` é tipo órfão.
+   `GatewayFeeDoc` é tipo órfão. Cai junto com o R1.1.
 3. **A conclusão de um atendimento não escreve `audit_log`.** O evento que
-   materializa dinheiro é o único sem rastro.
+   materializa dinheiro é o único do produto sem rastro.
+4. **A cobertura do plano é indecidível antes da conclusão** — propriedade do
+   domínio, não lacuna de implementação. Nenhuma quantidade de código no
+   `/agendar` resolve.
+
+---
+
+# Ordem de execução
+
+Definida por João no fechamento:
+
+1. ✅ **Registrar as cinco decisões** — este documento
+2. **Auditoria curta da implementação proposta** — só leitura, sem commit de código
+3. **R1** — correção do meio de pagamento
+4. **N7.1** — preço condicional do mensalista
+5. **Verificação integrada na tela** — §19, com os dois lados abertos
+6. **Onda 3 / QA-02**
+
+Os passos 3 e 4 vão no **mesmo ciclo**: `/agendar` e o domínio de mensalista têm
+relação semântica, e separá-los repetiria o padrão que produziu a quinta coisa
+errada duas vezes (§25).
