@@ -267,3 +267,94 @@ e só então leia os documentos. Se não for fast-forward possível, PARE e repo
 ```
 
 E o orquestrador confere `git worktree list` **antes** de disparar, não depois.
+
+---
+
+# 21 · As dez regras de execução de um agent
+
+Definidas pelo dono do produto em 18/08/2026. Valem para **toda** leva futura e
+entram no brief de qualquer agent, sem exceção.
+
+1. Trabalhar **exclusivamente** no seu worktree.
+2. Não alterar arquivo do escopo de outro agent.
+3. **Antes de implementar, auditar o estado atual da base e registrar o que
+   encontrou.**
+4. Não refazer trabalho já concluído.
+5. Não alterar motor financeiro nem `analytics.ts`, salvo se o escopo exigir
+   explicitamente.
+6. Não alterar regra visual, token ou componente compartilhado sem declarar
+   impacto e obter aprovação.
+7. Achado fora do escopo se **registra**, não se corrige.
+8. Decisão de julgamento se **propõe**, não se implementa.
+9. Correção de comportamento verificável vem com teste.
+10. Ao terminar: testes, typecheck, lint e build, com **evidência objetiva**.
+
+E, depois dos quatro: integrar sem sobrescrever, rodar a suíte completa, fazer a
+verificação transversal sobre a nova baseline — e **só então** abrir o QA-02.
+
+## Por que a regra 3 é a que mais importa
+
+A leva de 17–18/08 provou as duas metades disso ao mesmo tempo. Quatro de quatro
+worktrees nasceram 30 commits atrás (§20) — e os quatro só perceberam porque
+auditaram a base antes de escrever. Sem a regra 3, o FIN-02 teria auditado um
+defeito que ainda não existia e reportado "está tudo certo" com confiança.
+
+## E a regra 10 não é o fim da história
+
+Três das quatro equipes daquela leva passaram na regra 10 e ainda assim
+entregaram menos do que relataram: o D30 foi corrigido no painel e não no login,
+o D31 ficou num stash fora da branch, e o `plural.ts` foi criado e ignorado por
+dois lugares escritos depois dele. **Build verde prova que compila, não que
+chegou onde precisava chegar.** É a §19 outra vez.
+
+---
+
+# 22 · A regra de ouro
+
+> **Na dúvida entre "corrigir" e "registrar" — registrar.**
+> **Não tomar decisão de produto em silêncio.**
+
+Ela resolve o caso que as regras 7 e 8 não cobrem: quando o próprio agent não
+sabe se o que encontrou é defeito ou é desenho.
+
+O exemplo canônico é o "Caixa de hoje" mostrando `Cartão R$ 0,00` num dia com
+R$ 130,29 no cartão. `caixaDoDia` recebe só reservas, e isso está **documentado
+como desenho** num teste. Um agent que "corrigisse" teria alterado o significado
+de um bloco financeiro por conta própria. Um agent que ignorasse teria deixado o
+dono conferir a gaveta contra um número incompleto. O certo é o terceiro
+caminho: registrar, com evidência, e devolver a decisão.
+
+---
+
+# 23 · Gate de identidade visual
+
+O contrato está em `docs/UI-UX-GUIDELINES.md`. O que este parágrafo acrescenta é
+**quando parar**:
+
+> Qualquer mudança que altere significativamente a **personalidade visual** do
+> produto é apresentada como **proposta**, antes de qualquer implementação.
+
+Não se inventa identidade nova — evolui-se a existente. A diferenciação vem de
+composição, hierarquia, proporção, tipografia, espaçamento e tratamento da
+informação. **Não de efeito visual.**
+
+Proibido, sem margem: neon, gradiente decorativo, glassmorphism, cor berrante,
+dark mode, estética "startup genérica", cópia de concorrente.
+
+---
+
+# 24 · Mobile
+
+**Nunca considerar mobile validado sem device emulation real ou aparelho.**
+
+Quando o ambiente não permitir, registrar **NÃO VERIFICADO** — e registrar a
+medição que prova a incapacidade, não a afirmação de que ela existe. O padrão:
+
+```
+resize_window(390, 844)   →  "Successfully resized window"
+window.innerWidth         →  1920
+matchMedia('(min-width: 768px)').matches  →  true
+```
+
+A ferramenta relatou sucesso e o viewport não mudou. É a diferença entre "não
+consegui verificar" e "verifiquei e passou" — e é a §19 aplicada ao ambiente.
