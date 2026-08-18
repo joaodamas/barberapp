@@ -303,10 +303,18 @@ export default function FinanceiroPage() {
                 <span className="font-medium text-ivory">{formatPctPtBR(f.pct, 2)}</span>
               </div>
             ))}
+            {/* R1.1 · a promessa de versionamento caiu, e este texto era um dos
+                três lugares que a faziam.
+                Ela contradizia o próprio modal de conclusão, que já dizia a
+                verdade: "A taxa da maquininha é registrada com o valor de hoje
+                e não muda depois." A taxa é CONGELADA no fato quando ele nasce,
+                e a correção de pagamento aplica a tabela vigente hoje — não há
+                vigência por data em lugar nenhum do produto. */}
             <p className="border-t border-border pt-2 text-xs text-ivory-muted">
-              Cada barbearia pode operar com mais de um gateway — as taxas são
-              versionadas por data de vigência e não afetam transações já
-              registradas.
+              Referência de mercado, não o que você paga. A taxa que entra nos
+              seus números é a que você cadastra em Configurações: ela é
+              registrada no atendimento no momento em que ele é concluído e não
+              muda depois.
             </p>
           </Card>
         </div>

@@ -97,8 +97,19 @@ describe("fechamento pendente", () => {
   });
 
   it("a ação acontece na própria tela, e o motor só declara a intenção", () => {
+    /* R1 · a intenção mudou de `fecharAtendimento` para `corrigirPagamento`, e
+     * a troca é o conserto do vazamento — não uma renomeação.
+     *
+     * O card aponta para um atendimento JÁ CONCLUÍDO. Mandar reabrir o modal de
+     * conclusão fazia a tela gravar `bookings.paymentMethod` e mais nada: o card
+     * sumia porque `!b.paymentMethod` virava falso, e o `PaymentDoc` — de onde
+     * saem as seis leituras de dinheiro — ficava com método nulo e taxa zero
+     * para sempre.
+     *
+     * Este teste afirmava a intenção que produzia o vazamento. Ele estava verde
+     * e a operação estava errada. */
     const [item] = fechamentosPendentes([bk({ id: "abc", paymentMethod: null })]);
-    expect(item.intent).toEqual({ kind: "fecharAtendimento", bookingId: "abc" });
+    expect(item.intent).toEqual({ kind: "corrigirPagamento", bookingId: "abc" });
   });
 });
 

@@ -50,6 +50,7 @@ import { patchDoc } from "@/lib/db/repository";
 import { soAvisaSeGravou } from "@/lib/so-avisa-se-gravou";
 import { MarcarNoBalcao } from "@/components/marcar-no-balcao";
 import { EstornarValor } from "@/components/estornar-valor";
+import { CorrigirPagamento } from "@/components/corrigir-pagamento";
 import { capacidadeDiaria, caixaDoDia, mesPeriodo, previsaoDoDia } from "@/lib/analytics";
 import { monthOf, OCCUPIES_SLOT } from "@/lib/domain";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
@@ -136,6 +137,10 @@ export default function PainelHojePage() {
   const [faltaDe, setFaltaDe] = useState<Doc<BookingDoc> | null>(null);
   const [aCancelar, setACancelar] = useState<Doc<BookingDoc> | null>(null);
   const [aEstornar, setAEstornar] = useState<Doc<BookingDoc> | null>(null);
+  /* R1 · a correção de pagamento tem estado PRÓPRIO, separado de `aFechar`.
+   * Compartilhar o estado com a conclusão era compartilhar o caminho, e é
+   * exatamente o que a decisão de 18/08 recusa. */
+  const [aCorrigir, setACorrigir] = useState<Doc<BookingDoc> | null>(null);
   const [cancelando, setCancelando] = useState(false);
   const [erroCancelar, setErroCancelar] = useState<string | null>(null);
   /* Uma falha de gravação precisa aparecer ONDE a ação foi disparada. Antes ela
@@ -313,8 +318,29 @@ export default function PainelHojePage() {
      * clique não fazer nada — silenciosamente. */
     const alvo = todas.find((b) => b.id === intent.bookingId);
     if (!alvo) return;
-    if (intent.kind === "fecharAtendimento") setAFechar(alvo);
-    else setFaltaDe(alvo);
+
+    if (intent.kind === "corrigirPagamento") return setACorrigir(alvo);
+    if (intent.kind === "marcarFalta") return setFaltaDe(alvo);
+
+    /* 🔒 R1 · o modal de conclusão NUNCA reabre sobre um atendimento concluído.
+     *
+     * Era aqui o vazamento, e este `if` é o elo que o fecha. O card crítico
+     * apontava para cá, o modal de conclusão gravava `bookings.paymentMethod`,
+     * o card sumia porque `!b.paymentMethod` virava falso — e o `PaymentDoc`,
+     * de onde sai todo o dinheiro das telas, ficava com método nulo e taxa zero
+     * para sempre.
+     *
+     * A razão de manter a guarda mesmo depois de o card passar a declarar
+     * `corrigirPagamento` é mais forte que o vazamento: reabrir `completed` é a
+     * MESMA superfície por onde o "Veio depois" opera (`no_show` → `completed`
+     * rematerializa o pagamento com `set` sem merge e relê policies e staff de
+     * hoje). As duas operações não podem compartilhar caminho, e um avaliador
+     * novo que declare `fecharAtendimento` sobre um concluído não deve
+     * conseguir reabrir aquela porta por engano.
+     *
+     * Concluído vai para a correção, que é a porta certa para os dois casos. */
+    if (alvo.status === "completed") return setACorrigir(alvo);
+    setAFechar(alvo);
   }
 
   return (
@@ -719,6 +745,29 @@ export default function PainelHojePage() {
                               <CalendarX size={14} /> Cancelar
                             </button>
                           )}
+                          {/* R1 · A PORTA da correção de pagamento.
+                              Ela fica na linha do atendimento concluído, e não
+                              atrás do card crítico, porque o card só enxerga o
+                              caso 1 — o atendimento que terminou sem método.
+                              O caso 2 (o dono marcou Pix e o cliente pagou em
+                              dinheiro) não aciona alerta nenhum: com o método
+                              preenchido, `!b.paymentMethod` é falso e nenhuma
+                              tela do produto o detecta. Sem esta linha, metade
+                              da matriz não teria por onde ser alcançada.
+
+                              Não aparece no coberto pelo plano: ali não existe
+                              `PaymentDoc` — a mensalidade já é a receita
+                              daquele corte —, e o servidor recusa. Oferecer o
+                              botão para depois recusar seria a interface
+                              prometendo o que o sistema não faz. */}
+                          {booking.status === "completed" && !liquidacao.coberto && (
+                            <button
+                              onClick={() => setACorrigir(booking)}
+                              className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ivory-muted transition-colors hover:border-gold hover:text-gold-light"
+                            >
+                              <CreditCard size={14} /> Corrigir pagamento
+                            </button>
+                          )}
                           {/* D22 · e este é o "outro caminho" que o comentário
                               acima mencionava e que não existia.
                               Devolver dinheiro de atendimento REALIZADO é
@@ -758,6 +807,22 @@ export default function PainelHojePage() {
           refId={aEstornar.id}
           descricao={`${aEstornar.clientName} · ${formatBRL(aEstornar.value)} · ${aEstornar.time}`}
           valorPago={aEstornar.value}
+        />
+      )}
+
+      {/* R1 · corrigir como o atendimento concluído foi pago.
+          Modal PRÓPRIO, montado condicionalmente: cada abertura ganha uma chave
+          de idempotência nova — reaproveitá-la faria a segunda correção cair no
+          caminho de retry do servidor e a tela diria "pronto" sem nada ter
+          acontecido. */}
+      {aCorrigir && (
+        <CorrigirPagamento
+          aberto
+          aoFechar={() => setACorrigir(null)}
+          bookingId={aCorrigir.id}
+          descricao={`${aCorrigir.clientName} · ${formatBRL(aCorrigir.value)} · ${aCorrigir.time}`}
+          valor={aCorrigir.value}
+          metodoAtual={aCorrigir.paymentMethod ?? null}
         />
       )}
 

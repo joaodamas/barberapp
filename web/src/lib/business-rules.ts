@@ -206,9 +206,16 @@ export const expensePaymentMethods: ExpensePaymentMethod[] = [
 
 /**
  * Taxas de mercado por gateway, para comparação na tela de Financeiro.
- * Não é o que a barbearia paga — é referência. As taxas efetivas dela vão
- * viver em `/barbershops/{id}` quando o gateway entrar, versionadas por
- * vigência (PRD §5).
+ *
+ * Não é o que a barbearia paga — é referência, e nenhum cálculo a lê. As taxas
+ * efetivas dela vivem em `policies.paymentFees`.
+ *
+ * ⚠️ R1.1 · **não são versionadas por vigência.** A taxa é congelada no fato no
+ * momento em que ele nasce (`payments.ts` · `valoresDoPagamento`), e a correção
+ * de pagamento aplica a tabela vigente HOJE. Versionamento é frente futura, e a
+ * promessa dele foi retirada dos três lugares que a faziam — este comentário era
+ * um deles, e a tela de Financeiro afirmava a mesma coisa contradizendo o modal
+ * de conclusão, que já dizia a verdade.
  */
 export const paymentGateways = [
   {

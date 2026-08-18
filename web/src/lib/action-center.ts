@@ -37,14 +37,29 @@ export type ActionUrgency = 1 | 2 | 3;
 /**
  * O que o item faz quando acionado.
  *
- * `navegar` cobre o que se resolve em outra tela. `fecharAtendimento` e
- * `marcarFalta` existem porque a ação acontece na própria tela, num modal, e o
- * motor não pode conhecer React — ele declara a intenção e a tela sabe
- * executá-la.
+ * `navegar` cobre o que se resolve em outra tela. `fecharAtendimento`,
+ * `corrigirPagamento` e `marcarFalta` existem porque a ação acontece na própria
+ * tela, num modal, e o motor não pode conhecer React — ele declara a intenção e
+ * a tela sabe executá-la.
+ *
+ * ## Por que `corrigirPagamento` é uma intenção PRÓPRIA — R1
+ *
+ * Ela existia embutida em `fecharAtendimento`, e era o vazamento: o card do
+ * atendimento já concluído reabria o modal de CONCLUSÃO, que grava
+ * `bookings.paymentMethod` e mais nada. O card sumia porque `!b.paymentMethod`
+ * virava falso, e o `PaymentDoc` ficava com método nulo e taxa zero para
+ * sempre.
+ *
+ * Separar as duas não é organização: **concluir e corrigir são operações
+ * diferentes**. Concluir materializa um fato novo; corrigir altera um fato já
+ * materializado, e por isso passa pelo servidor, numa transação, com rastro.
+ * Reabrir `completed` é ainda a mesma superfície por onde o "Veio depois"
+ * opera, e as duas operações não podem compartilhar caminho.
  */
 export type ActionIntent =
   | { kind: "navegar"; href: string }
   | { kind: "fecharAtendimento"; bookingId: string }
+  | { kind: "corrigirPagamento"; bookingId: string }
   | { kind: "marcarFalta"; bookingId: string };
 
 export type ActionItem = {
@@ -124,7 +139,15 @@ export function fechamentosPendentes(bookings: Doc<BookingDoc>[]): ActionItem[] 
       reason:
         "Sem a forma de pagamento, a taxa da maquininha entra como zero e o lucro do mês fica maior do que é.",
       actionLabel: "Registrar pagamento",
-      intent: { kind: "fecharAtendimento" as const, bookingId: b.id },
+      /* R1 · o card continua sendo o ALERTA do caso 1 — o atendimento que
+       * terminou sem método —, e passa a apontar para a porta de CORREÇÃO, que
+       * é a mesma que a linha do atendimento oferece.
+       *
+       * Antes ele apontava para `fecharAtendimento`, e ali estava o vazamento:
+       * o modal de conclusão gravava só `bookings.paymentMethod`, o card sumia
+       * por isso, e o `PaymentDoc` continuava nulo. O alerta some agora porque
+       * o PAGAMENTO existe, não porque a reserva foi preenchida. */
+      intent: { kind: "corrigirPagamento" as const, bookingId: b.id },
     }));
 }
 
