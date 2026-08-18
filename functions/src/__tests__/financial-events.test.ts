@@ -1,3 +1,5 @@
+import { readFileSync, readdirSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   calcularEventoFinanceiro,
@@ -326,5 +328,67 @@ describe("o que uma mudança de status faz com o fato financeiro", () => {
     expect(decidirEfeito(undefined, "completed")).toBe("materializar");
     expect(decidirEfeito("completed", undefined)).toBe("nada");
     expect(decidirEfeito(undefined, undefined)).toBe("nada");
+  });
+});
+
+/**
+ * Toda escrita em `payments` diz de onde o dinheiro veio.
+ *
+ * Estrutural de propósito, e pelo mesmo motivo de `autorizacao-functions`: o
+ * campo faltando não quebra nenhum teste de valor, não aparece na suíte, e só
+ * é descoberto quando alguém abre o documento gravado — que foi exatamente
+ * como este defeito apareceu, durante a verificação em tela do estorno.
+ *
+ * `PaymentDoc.origin` existe desde G1.6 e é opcional só por causa dos
+ * documentos anteriores a ela. O gatilho de conclusão de atendimento nunca o
+ * gravou: o serviço, maior fonte de receita do produto, nascia sem origem. A
+ * Rodada 3.2 precisa separar receita por origem, e teria contado errado.
+ */
+describe("todo pagamento nasce dizendo de onde veio", () => {
+  const SRC = resolve(__dirname, "..");
+
+  /**
+   * Quem ESCREVE na coleção `payments`.
+   *
+   * A distinção entre ler e escrever importa: `refunds.ts` abre o pagamento
+   * original para conferir o saldo e nunca o altera. Uma primeira versão deste
+   * teste procurava só pela coleção e acusou esse arquivo — o teste estava
+   * errado, não o código.
+   */
+  function arquivosQueEscrevemPagamento(): string[] {
+    return readdirSync(SRC)
+      .filter((f) => f.endsWith(".ts"))
+      .filter((f) => {
+        const t = readFileSync(resolve(SRC, f), "utf8");
+        /* A referência aparece DENTRO de um `set(...)`, ou é uma ref nomeada
+         * que recebe `.set(`. Os dois padrões que o repositório usa hoje. */
+        return (
+          /set\([\s\S]{0,160}collection\("payments"\)/.test(t) ||
+          /pagamentoRef\.set\(/.test(t)
+        );
+      });
+  }
+
+  it("encontra os arquivos que gravam pagamento", () => {
+    /* Se a busca parar de achar, o teste abaixo passaria sobre conjunto vazio. */
+    expect(arquivosQueEscrevemPagamento().length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("cada um grava `origin`, direta ou indiretamente", () => {
+    for (const arquivo of arquivosQueEscrevemPagamento()) {
+      const texto = readFileSync(resolve(SRC, arquivo), "utf8");
+      /* Ou monta o documento pelo helper — que já grava `origin` —, ou escreve
+       * o campo à mão. Qualquer terceira forma é a que este teste recusa. */
+      const pelaFuncao = /documentoDePagamento\(/.test(texto);
+      const naMao = /origin:\s*"(servico|produto|mensalidade)"/.test(texto);
+      expect(pelaFuncao || naMao, `${arquivo} grava payments sem definir origin`).toBe(true);
+    }
+  });
+
+  it("a conclusão de atendimento grava `origin: \"servico\"`", () => {
+    /* O caso concreto que estava errado. Apontado pelo nome para não depender
+     * da varredura acima continuar encontrando o arquivo. */
+    const texto = readFileSync(resolve(SRC, "financial-events.ts"), "utf8");
+    expect(texto).toMatch(/origin:\s*"servico"/);
   });
 });

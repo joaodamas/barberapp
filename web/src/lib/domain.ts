@@ -168,6 +168,54 @@ export type InventoryMovementDoc = {
    * sem vendedor indicado não gera comissão.
    */
   staffId?: string | null;
+  /**
+   * A venda que este ajuste desfaz — D23.
+   *
+   * Presente só em `kind: "ajuste"` gerado por estorno. Sem ele, uma devolução
+   * é indistinguível de recontagem, quebra ou vencimento — e as duas mexem no
+   * resultado em direções opostas.
+   */
+  refundOf?: string;
+};
+
+/**
+ * O dinheiro que voltou — D22 / D23.
+ *
+ * Escrito só pelo servidor. A coleção existia em `paths.ts` e nas regras desde
+ * sempre, sem uma única escrita, leitura ou tipo.
+ *
+ * **O estorno não substitui o fato original: ele soma.** O `PaymentDoc` fica
+ * intacto, o movimento de venda fica intacto e a fatura paga continua paga.
+ * Corrigir histórico financeiro é acrescentar fatos, nunca apagá-los — senão o
+ * mês fechado passa a contar uma história que não explica a diferença.
+ *
+ * A taxa da maquininha **não volta**: o estorno devolve o bruto e grava
+ * `feeAmount: 0`. A perda aparece sozinha ao somar o pagamento com o estorno,
+ * sem que nenhuma leitura precise saber que houve devolução.
+ *
+ * Contrato e decisões em `functions/src/refunds.ts`.
+ */
+export type RefundDoc = {
+  origin: "servico" | "produto" | "mensalidade";
+  bookingId?: string;
+  movementId?: string;
+  invoiceId?: string;
+  /** O pagamento revertido. Explícito, para quem lê não reimplementar o id. */
+  paymentId: string;
+  clientId: string | null;
+  /** Quando o dinheiro voltou. */
+  date: string;
+  /** Quando o fato original aconteceu — competência usa esta, caixa usa `date`. */
+  originalDate: string;
+  reason: string;
+  paymentMethod: PaymentMethod | null;
+  grossAmount: number;
+  /** Sempre 0 — ver a nota sobre a taxa acima. */
+  feeAmount: number;
+  netAmount: number;
+  parcial: boolean;
+  /** Unidades devolvidas ao estoque. Só em produto. */
+  quantity?: number;
 };
 
 /**

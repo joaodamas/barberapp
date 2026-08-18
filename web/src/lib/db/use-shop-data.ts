@@ -5,7 +5,7 @@ import { saldoDeFidelidade } from "@/lib/domain";
 import { useTenant } from "@/lib/tenant-context";
 import type {
   BookingDoc, ClientDoc, CommissionDoc, ExpenseDoc, InventoryMovementDoc,
-  LoyaltyTransactionDoc, PaymentDoc, PlanDoc, ProductDoc, ServiceDoc,
+  LoyaltyTransactionDoc, PaymentDoc, PlanDoc, ProductDoc, RefundDoc, ServiceDoc,
   SubscriptionInvoiceDoc,
   StaffDoc, SubscriberDoc,
 } from "@/lib/domain";
@@ -32,6 +32,19 @@ export const useCommissions = () =>
 /** Pagamentos recebidos — escritos pelo servidor na conclusão do atendimento. */
 export const usePayments = () =>
   useShopCollection<PaymentDoc>("payments", {
+    orderByField: "date",
+    direction: "desc",
+  });
+
+/**
+ * Estornos — D22 / D23. Escritos só pelo servidor.
+ *
+ * Coleção separada de propósito: o estorno **não** é um pagamento negativo em
+ * `payments`. Se fosse, toda leitura que soma pagamentos teria de aprender a
+ * filtrar, e a que esquecesse contaria devolução como receita.
+ */
+export const useRefunds = () =>
+  useShopCollection<RefundDoc>("refunds", {
     orderByField: "date",
     direction: "desc",
   });

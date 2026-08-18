@@ -104,6 +104,67 @@ maquininha cobrou.
 
 ---
 
+## O que a implementação de D22/D23 decidiu além do desenho
+
+Quatro perguntas que só apareceram ao escrever o código. Ficam aqui porque
+mudam o que o produto afirma, não só como ele funciona.
+
+### N13 · A taxa da maquininha **não volta**
+
+O estorno grava `feeAmount: 0` e devolve o **bruto**. A adquirente reteve a
+taxa quando o dinheiro entrou; devolvê-lo ao cliente não a traz de volta.
+
+O efeito é que o par se resolve sem campo especial:
+
+```
+pagamento   +43,43 líquido   (bruto 45,00 − taxa 1,57)
+estorno     −45,00
+──────────────────────────
+saldo        −1,57           = exatamente a taxa perdida
+```
+
+**Nenhuma fórmula da Rodada 3.2 precisa saber que houve estorno para chegar
+nesse número.** É o teste de um fato bem posto: a perda emerge da soma.
+
+### O estorno **não substitui** o `delete` que já existe
+
+`decidirEfeito` apaga `payments` e `commissions` quando uma reserva sai de
+`completed` para um estado operacional. Isso continua certo e **precisa
+continuar existindo**: ali o dono marcou como concluído por engano, o
+atendimento **não aconteceu**, e o fato nunca deveria ter nascido.
+
+```
+marcação errada   →  o fato não existiu   →  delete é correção
+atendimento real  →  o fato existiu       →  estorno, e o original fica
+```
+
+Apagar o que não ocorreu é correção; apagar o que ocorreu é perda de
+histórico. São três casos, não dois, e o estorno é o terceiro.
+
+### Comissão: **produto reverte, serviço não**
+
+| origem | comissão | por quê |
+|---|---|---|
+| **produto** | reverte (linha negativa) | a mercadoria voltou para a prateleira — não houve venda |
+| **serviço** | **não muda** | o atendimento aconteceu e o barbeiro trabalhou |
+| mensalidade | não existe | — |
+
+Descontar o barbeiro por um estorno de serviço transformaria uma decisão
+comercial da barbearia em desconto no acerto de outra pessoa. Quem quiser
+descontar faz isso no acerto, conscientemente. **A tela diz isso antes de
+confirmar**, em vez de deixar o dono descobrir no fim do mês.
+
+A reversão de produto **recalcula** com a quantidade devolvida e o percentual
+congelado no documento original — nunca nega o valor cheio (quebraria o
+parcial) nem relê o cadastro do barbeiro (recriaria o P1-7 na porta de saída).
+
+### A fatura de mensalidade continua **paga**
+
+Ela FOI paga. Reabri-la apagaria a informação de que houve pagamento — a mesma
+correção-por-apagamento que esta rodada recusa. O estorno é o segundo fato.
+
+---
+
 ## D24 · Despesa → **dívida consciente, registrada**
 
 **Não** haverá versionamento de despesa nesta rodada.

@@ -118,3 +118,77 @@ export function idDaComissao(ref: { origem: OrigemDaComissao; refId: string }): 
     ? `comissao_${ref.refId}`
     : `comissao_venda_${ref.refId}`;
 }
+
+/**
+ * A comissão devolvida quando a venda é estornada — D23.
+ *
+ * ## Por que é um documento novo, e não um `delete`
+ *
+ * A mercadoria voltou para a prateleira: não houve venda, e comissão sobre lucro
+ * de venda desfeita não é devida. O caminho óbvio seria apagar o documento
+ * original — e é justamente o que a régua da rodada proíbe. Apagar deixa o
+ * acerto do mês certo e o histórico mudo: ninguém consegue mais responder "por
+ * que o Léo recebeu R$ 16,50 a menos do que a lista de vendas dele mostra".
+ *
+ * Somando, as duas linhas coexistem e o acerto fecha em zero sozinho:
+ *
+ * ```
+ * comissao_venda_{mv}            +16,50
+ * comissao_estorno_venda_{mv}_x  −16,50
+ * ```
+ *
+ * ## Por que recalcula em vez de negar o valor original
+ *
+ * O estorno pode ser parcial. Negar `commissionAmount` devolveria a comissão
+ * inteira por uma unidade de três. Recalcular com a quantidade devolvida, o
+ * mesmo `unitPrice`/`unitCost` congelados e o **mesmo percentual do documento
+ * original**, reverte exatamente a parte correspondente.
+ *
+ * O percentual vem do documento original de propósito: reler o cadastro do
+ * barbeiro aqui recriaria o P1-7 na porta de saída — quem mudou de 50% para 30%
+ * teria o estorno calculado a 30% sobre uma venda comissionada a 50%, e sobraria
+ * saldo a pagar de uma venda que não existe.
+ */
+export function estornoDaComissao(params: {
+  /** Movimento de venda ORIGINAL — o estorno aponta para ele, não para o ajuste. */
+  movementId: string;
+  /** Chave do estorno, para dois estornos parciais não colidirem. */
+  chave: string;
+  staffId: string;
+  uid: string | null;
+  staffName: string | null;
+  unitPrice: number;
+  unitCost: number;
+  /** Quantas unidades voltaram. */
+  quantidade: number;
+  /** CONGELADO do documento original, nunca relido do cadastro. */
+  commissionPct: number;
+  /** Data do estorno. */
+  date: string;
+}): CommissionDoc {
+  const base = lucroDaVenda({
+    unitPrice: params.unitPrice,
+    unitCost: params.unitCost,
+    quantidade: params.quantidade,
+  });
+
+  return {
+    origin: "produto",
+    movementId: params.movementId,
+    staffId: params.staffId,
+    uid: params.uid,
+    staffName: params.staffName,
+    date: params.date,
+    commissionPct: params.commissionPct,
+    /* Base e valor NEGATIVOS. Somáveis com a linha original sem que nenhuma
+     * leitura precise saber que houve estorno — mesmo princípio da taxa em
+     * `refunds.ts`: o fato bem posto dispensa a fórmula especial. */
+    commissionBase: -base,
+    commissionAmount: -centavos((base * params.commissionPct) / 100),
+  };
+}
+
+/** O id da comissão devolvida. Deriva da venda original E da chave do estorno. */
+export function idDoEstornoDaComissao(movementId: string, chave: string): string {
+  return `comissao_estorno_venda_${movementId}_${chave}`;
+}

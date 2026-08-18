@@ -277,6 +277,15 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
         createdAt: FieldValue.serverTimestamp(),
       }),
       pagamentoRef.set({
+        /* G1.6 declarou `PaymentDoc.origin` e deu o campo às três origens —
+         * menos a esta, que já existia e passou despercebida. O serviço, que é
+         * a maior fonte de receita, nascia sem dizer de onde veio.
+         *
+         * Achado ao ler o documento gravado durante a verificação do estorno:
+         * `origin: undefined` num pagamento recém-materializado. Nenhum teste
+         * apontava para lá, porque nenhum ainda precisava separar receita por
+         * origem — e a Rodada 3.2 precisa. */
+        origin: "servico" as const,
         bookingId,
         clientId: depois.clientId ?? null,
         date,

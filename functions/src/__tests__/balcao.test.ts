@@ -27,15 +27,38 @@ let app: App;
 let db: Firestore;
 
 /** Um dia futuro que cai em dia de semana aberto (seg–sáb). */
+/**
+ * `YYYY-MM-DD` no fuso LOCAL, nunca em UTC.
+ *
+ * `toISOString().slice(0,10)` parecia equivalente e não é: ele devolve a data
+ * em UTC enquanto `getDay()` e `getHours()` respondem em local. Rodando às
+ * 21h45 de Brasília, "hoje" virava 18/08 e a hora continuava 21:45 do dia 17 —
+ * o teste de antecedência montava um horário de AMANHÃ e parava de rejeitar. E
+ * `diaPassadoAberto` recuava até sábado no relógio local e devolvia o domingo
+ * seguinte em UTC, caindo na checagem de jornada.
+ *
+ * Os dois ficavam verdes o dia inteiro e vermelhos depois das 21h — o teste
+ * media o relógio, não o código. A barbearia semeada roda em
+ * `America/Sao_Paulo`, o mesmo fuso da máquina, então a data local é a que o
+ * servidor vai comparar.
+ */
+function dataLocal(d: Date): string {
+  return [
+    d.getFullYear(),
+    String(d.getMonth() + 1).padStart(2, "0"),
+    String(d.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
 function proximoDiaUtil(): string {
   const d = new Date();
   d.setDate(d.getDate() + 7);
   while (d.getDay() === 0) d.setDate(d.getDate() + 1);
-  return d.toISOString().slice(0, 10);
+  return dataLocal(d);
 }
 
 function hoje(): string {
-  return new Date().toISOString().slice(0, 10);
+  return dataLocal(new Date());
 }
 
 /**
@@ -49,7 +72,7 @@ function diaPassadoAberto(): string {
   const d = new Date();
   d.setDate(d.getDate() - 1);
   while (d.getDay() === 0) d.setDate(d.getDate() - 1);
-  return d.toISOString().slice(0, 10);
+  return dataLocal(d);
 }
 
 const shopRef = () => db.doc(`barbershops/${SHOP}`);

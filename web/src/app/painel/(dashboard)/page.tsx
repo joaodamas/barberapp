@@ -12,6 +12,7 @@ import {
   CreditCard,
   Landmark,
   Percent,
+  RotateCcw,
   Scissors,
   UserX,
   Wallet,
@@ -40,6 +41,7 @@ import { useBookings, useServices, useStaff } from "@/lib/db/use-shop-data";
 import { patchDoc } from "@/lib/db/repository";
 import { soAvisaSeGravou } from "@/lib/so-avisa-se-gravou";
 import { MarcarNoBalcao } from "@/components/marcar-no-balcao";
+import { EstornarValor } from "@/components/estornar-valor";
 import { capacidadeDiaria, caixaDoDia, mesPeriodo, previsaoDoDia } from "@/lib/analytics";
 import { monthOf, OCCUPIES_SLOT } from "@/lib/domain";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
@@ -118,6 +120,7 @@ export default function PainelHojePage() {
   const [aFechar, setAFechar] = useState<Doc<BookingDoc> | null>(null);
   const [faltaDe, setFaltaDe] = useState<Doc<BookingDoc> | null>(null);
   const [aCancelar, setACancelar] = useState<Doc<BookingDoc> | null>(null);
+  const [aEstornar, setAEstornar] = useState<Doc<BookingDoc> | null>(null);
   const [cancelando, setCancelando] = useState(false);
   const [erroCancelar, setErroCancelar] = useState<string | null>(null);
   /* Uma falha de gravação precisa aparecer ONDE a ação foi disparada. Antes ela
@@ -573,6 +576,19 @@ export default function PainelHojePage() {
                               <CalendarX size={14} /> Cancelar
                             </button>
                           )}
+                          {/* D22 · e este é o "outro caminho" que o comentário
+                              acima mencionava e que não existia.
+                              Devolver dinheiro de atendimento REALIZADO é
+                              estorno, não cancelamento: o serviço aconteceu, e
+                              o registro dele fica. */}
+                          {booking.status === "completed" && (
+                            <button
+                              onClick={() => setAEstornar(booking)}
+                              className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ivory-muted transition-colors hover:border-gold hover:text-gold-light"
+                            >
+                              <RotateCcw size={14} /> Devolver
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -589,6 +605,18 @@ export default function PainelHojePage() {
           confirma — o listener do Firestore é a mesma fonte da tabela, então não
           há recarregar nem estado paralelo que possa divergir. */}
       <MarcarNoBalcao open={balcaoAberto} onClose={() => setBalcaoAberto(false)} />
+
+      {/* D22 · devolver valor de atendimento concluído. */}
+      {aEstornar && (
+        <EstornarValor
+          aberto
+          aoFechar={() => setAEstornar(null)}
+          origem="servico"
+          refId={aEstornar.id}
+          descricao={`${aEstornar.clientName} · ${formatBRL(aEstornar.value)} · ${aEstornar.time}`}
+          valorPago={aEstornar.value}
+        />
+      )}
 
       {/* Uma pergunta, quatro opções, e cada opção JÁ conclui.
           Um botão "Confirmar" separado somaria um segundo clique ao gesto mais

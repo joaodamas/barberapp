@@ -241,6 +241,56 @@ export function movimentoDeVenda(params: {
 }
 
 /**
+ * A mercadoria voltando para a prateleira — D23.
+ *
+ * `kind: "ajuste"` existia em `TipoDeMovimento` desde sempre e **nenhum caminho
+ * do produto o produzia**, exatamente como `"compra"` antes de G1.5.
+ *
+ * O `unitCost` vem CONGELADO do movimento original, não de `products.cost`: a
+ * unidade que volta é a mesma que saiu, e relê-la do cadastro faria uma
+ * reposição mais cara inflar o custo do que está sendo devolvido — o CMV
+ * subtrairia mais do que somou.
+ *
+ * `value` guarda o valor de VENDA desfeito, não o custo, porque é ele que a
+ * leitura de receita precisa descontar. O custo continua no campo próprio, e os
+ * dois juntos permitem à Rodada 3.2 corrigir receita e CMV sem inferir nada.
+ *
+ * `refundOf` aponta o movimento original: sem ele, um ajuste de devolução é
+ * indistinguível de um ajuste de inventário — quebra, vencimento, recontagem —
+ * e as duas coisas mexem no resultado de formas opostas.
+ */
+export function movimentoDeDevolucao(params: {
+  productId: string;
+  quantidade: number;
+  unitPrice: number;
+  unitCost: number;
+  paymentMethod: PaymentMethod | null;
+  clientId: string | null;
+  bookingId: string | null;
+  staffId: string | null;
+  movementIdOriginal: string;
+  date: string;
+}): InventoryMovementDoc & { refundOf: string } {
+  return {
+    productId: params.productId,
+    kind: "ajuste",
+    /* Positiva: o estoque SOBE. A direção mora no sinal, não no tipo, porque
+     * `"ajuste"` também serve para perda e recontagem. */
+    quantity: params.quantidade,
+    unitPrice: params.unitPrice,
+    unitCost: params.unitCost,
+    value: valorDaVenda(params.unitPrice, params.quantidade),
+    paymentMethod: params.paymentMethod,
+    clientId: params.clientId,
+    bookingId: params.bookingId,
+    /* Preservado do original: é o barbeiro cuja comissão está sendo revertida. */
+    staffId: params.staffId,
+    refundOf: params.movementIdOriginal,
+    date: params.date,
+  };
+}
+
+/**
  * A venda, dentro da transação que protege o estoque.
  *
  * Separada do `onCall` pelo mesmo motivo de `gravarComTravaDeHorario`: dentro

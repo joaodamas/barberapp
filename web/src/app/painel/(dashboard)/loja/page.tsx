@@ -12,6 +12,7 @@ import { useFeature, useTenant } from "@/lib/tenant-context";
 import { RecursoBloqueado } from "@/components/recurso-bloqueado";
 import { VenderProduto } from "@/components/vender-produto";
 import { EntradaDeEstoque } from "@/components/entrada-de-estoque";
+import { DesfazerVenda } from "@/components/desfazer-venda";
 import { createDoc } from "@/lib/db/repository";
 import type { Doc } from "@/lib/db/repository";
 import type { ProductDoc } from "@/lib/domain";
@@ -133,6 +134,11 @@ function LojaConteudo() {
           margem. Cadastrar produto é tarefa de quando a caixa chega; vender é
           o gesto do dia — e o que ele faz primeiro precisa estar em cima. */}
       <VenderProduto />
+
+      {/* D23 · logo abaixo de vender, porque é onde o erro é percebido.
+          Quem registrou a venda errada descobre segundos depois, ainda com o
+          cliente na frente — e não no fechamento do mês. */}
+      <DesfazerVenda />
 
       <EntradaDeEstoque produto={aReceber} aoFechar={() => setAReceber(null)} />
 

@@ -13,6 +13,7 @@ import { useClients, usePlans, useSubscriptionInvoices } from "@/lib/db/use-shop
 import { filtrarClientes } from "@/lib/clientes-busca";
 import { mascararWhatsapp } from "@/lib/whatsapp-numero";
 import { estagioDaFatura, resumoDasFaturas } from "@/lib/mensalidade";
+import { EstornarValor } from "@/components/estornar-valor";
 import { PAYMENT_METHODS, paymentMethodLabel } from "@/lib/payment-method";
 import type { PaymentMethod } from "@/lib/types";
 import type { Doc } from "@/lib/db/repository";
@@ -58,6 +59,7 @@ export function GerirMensalistas({ competencia }: { competencia: string }) {
   const [aReceber, setAReceber] = useState<Doc<SubscriptionInvoiceDoc> | null>(null);
   const [recebendo, setRecebendo] = useState(false);
   const [erroDoRecebimento, setErroDoRecebimento] = useState<string | null>(null);
+  const [aEstornar, setAEstornar] = useState<Doc<SubscriptionInvoiceDoc> | null>(null);
 
   const planosAtivos = useMemo(() => planos.filter((p) => p.active !== false), [planos]);
   const encontrados = useMemo(() => filtrarClientes(clientes, busca, 6), [clientes, busca]);
@@ -247,6 +249,18 @@ export function GerirMensalistas({ competencia }: { competencia: string }) {
                             Registrar pagamento
                           </Button>
                         )}
+                        {/* D22 · mensalidade paga por engano, ou cliente que
+                            cancelou no meio do mês. Antes o único caminho era
+                            editar o banco à mão. */}
+                        {f.status === "paga" && (
+                          <Button
+                            variant="ghost"
+                            className="min-h-9 px-3 text-xs"
+                            onClick={() => setAEstornar(f)}
+                          >
+                            Devolver
+                          </Button>
+                        )}
                       </td>
                     </tr>
                   );
@@ -412,6 +426,20 @@ export function GerirMensalistas({ competencia }: { competencia: string }) {
           </p>
         </div>
       </Modal>
+
+      {/* ---- Devolver — D22 ---- */}
+      {aEstornar && (
+        <EstornarValor
+          aberto
+          aoFechar={() => setAEstornar(null)}
+          origem="mensalidade"
+          refId={aEstornar.id}
+          descricao={`${formatBRL(aEstornar.amount)} · ${aEstornar.planName} · paga em ${
+            aEstornar.paidAt ? formatDatePtBR(aEstornar.paidAt) : "—"
+          }`}
+          valorPago={aEstornar.amount}
+        />
+      )}
     </div>
   );
 }
