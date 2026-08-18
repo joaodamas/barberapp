@@ -4,6 +4,7 @@ import { Calendar, TrendingDown, TrendingUp, Wallet } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { KpiTile } from "@/components/ui/kpi-tile";
 import { formatBRL, formatWeekdayAndDay, safeDiv, safePct } from "@/lib/format";
+import { apuracaoDe } from "@/lib/apuracao";
 import { contar } from "@/lib/plural";
 import { useFinanceiro, mesAtual, rotuloDoMes } from "@/lib/db/use-financeiro";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
@@ -37,7 +38,8 @@ const SAIDAS_DO_FLUXO = [
 
 export default function FluxoCaixaPage() {
   const mes = mesAtual();
-  const { caixa: dailyCashHistory, fluxo, status } = useFinanceiro(mes);
+  const { caixa: dailyCashHistory, fluxo, status, fontesIlegiveis, erro } = useFinanceiro(mes);
+  const apuracao = apuracaoDe(fontesIlegiveis);
   const total = dailyCashHistory.reduce((s, d) => s + d.total, 0);
   /* `avgPerDay` e `bestDay` saíram com os KPIs de entrada. Eram recortes de
    * "quanto entrou" — a pergunta que a tela já respondia quatro vezes — e o que
@@ -92,29 +94,48 @@ export default function FluxoCaixaPage() {
           A tela mostrava quatro recortes de ENTRADA e chamava isso de fluxo de
           caixa. "Quanto sobrou" era impossível de responder. */}
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-4">
-        <KpiTile icon={TrendingUp} label="Entrou" value={formatBRL(fluxo.entradas)} />
-        <KpiTile icon={TrendingDown} label="Saiu" value={formatBRL(fluxo.saidas)} />
+        <KpiTile
+          icon={TrendingUp}
+          label="Entrou"
+          value={apuracao.valor("caixaDoMes", formatBRL(fluxo.entradas))}
+          caption={apuracao.legenda("caixaDoMes")}
+        />
+        <KpiTile
+          icon={TrendingDown}
+          label="Saiu"
+          value={apuracao.valor("caixaDoMes", formatBRL(fluxo.saidas))}
+          caption={apuracao.legenda("caixaDoMes")}
+        />
         <KpiTile
           icon={Wallet}
           label="Sobrou no caixa"
-          value={formatBRL(fluxo.saldo)}
-          caption={fluxo.saldo < 0 ? "saiu mais do que entrou" : undefined}
+          value={apuracao.valor("caixaDoMes", formatBRL(fluxo.saldo))}
+          caption={apuracao.legenda(
+            "caixaDoMes",
+            fluxo.saldo < 0 ? "saiu mais do que entrou" : undefined
+          )}
         />
         <KpiTile
           icon={Calendar}
           label="Atendimentos"
-          value={String(totalAppointments)}
+          value={apuracao.valor("atendimentos", String(totalAppointments))}
           /* Era "1 dias com movimento". A correção pontual de 17/08 resolveu
              com um ternário aqui; a regra agora mora em `lib/plural.ts`, com
              teste, porque o mesmo ternário estava escrito à mão em outras
              quatro telas e ausente em onze. */
-          caption={`${contar(dailyCashHistory.length, "dia", "dias")} com movimento`}
+          caption={apuracao.legenda(
+            "atendimentos",
+            `${contar(dailyCashHistory.length, "dia", "dias")} com movimento`
+          )}
         />
       </div>
 
       {/* Para onde o dinheiro foi. Sem isto, "saiu R$ 730" é um número que o
-          dono não consegue conferir nem questionar. */}
-      {fluxo.saidas > 0 && (
+          dono não consegue conferir nem questionar.
+          Com uma das cinco portas de saída ilegível o detalhamento sai da tela:
+          ele é a conferência do total, e conferir contra uma lista incompleta é
+          pior que não conferir — as parcelas visíveis não somariam o "Saiu". */}
+      {apuracao.ok("caixaDoMes") && fluxo.saidas > 0 && (
         <div>
           <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm">
             Para onde o dinheiro foi
@@ -138,7 +159,7 @@ export default function FluxoCaixaPage() {
       {status === "carregando" && <LoadingRows rows={4} oQue="o caixa do mês" />}
       {/* "do período" onde a tela inteira fala em MÊS — o cabeçalho diz
           "Histórico diário · agosto" e o vazio diz "neste mês". */}
-      {status === "erro" && <ErroAoCarregar oQue="o caixa do mês" />}
+      {status === "erro" && <ErroAoCarregar oQue="o caixa do mês" erro={erro} />}
       {status === "pronto" && dailyCashHistory.length === 0 && (
         <EmptyState
           icon={Wallet}

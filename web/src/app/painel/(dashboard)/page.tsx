@@ -10,6 +10,7 @@ import {
   Check,
   ChevronRight,
   CreditCard,
+  HelpCircle,
   Landmark,
   Percent,
   RotateCcw,
@@ -33,7 +34,8 @@ import {
 import { usePayments } from "@/lib/db/use-shop-data";
 import type { PaymentMethod } from "@/lib/types";
 import { labelDoPagamento, PAYMENT_METHODS, paymentMethodLabel } from "@/lib/payment-method";
-import { formatBRL, formatPhonePtBR, safePct } from "@/lib/format";
+import { formatBRL, formatPctPtBR, formatPhonePtBR, safePct } from "@/lib/format";
+import { NAO_APURADO } from "@/lib/apuracao";
 import { contar } from "@/lib/plural";
 import { refundAmountFor } from "@/lib/business-rules";
 import { useTenant } from "@/lib/tenant-context";
@@ -54,7 +56,7 @@ import type { Doc } from "@/lib/db/repository";
 export default function PainelHojePage() {
   const tenant = useTenant();
   const { brand } = tenant;
-  const { items: todas, status } = useBookings();
+  const { items: todas, status, error: erroDaAgenda } = useBookings();
   const { items: services, status: statusServicos } = useServices();
   const payments = usePayments();
   const { items: equipe } = useStaff();
@@ -141,6 +143,14 @@ export default function PainelHojePage() {
 
   const caixaHoje = caixaDoDia(agendados);
   const recebidoReal = caixaHoje.total;
+
+  /* D3 · sem a agenda, todo número desta tela é zero por falta de leitura.
+   *
+   * `agendados` sai de `bookings`; com a coleção ilegível ela vira `[]` e a
+   * tela afirma "0 atendimentos", "0% de ocupação" e um caixa do dia zerado —
+   * exatamente o que o dono veria num dia em que ninguém apareceu. O banner de
+   * erro fica na seção da agenda, abaixo destes números. */
+  const agendaIlegivel = status === "erro";
 
   /**
    * Concluir passa a perguntar COMO o cliente pagou.
@@ -293,7 +303,7 @@ export default function PainelHojePage() {
           <Scissors size={16} className="mx-auto text-gold-light md:mx-0 md:h-9 md:w-9 md:shrink-0 md:rounded-xl md:bg-gold/10 md:p-2" />
           <div className="md:text-left">
             <p className="font-display text-sm font-semibold text-ivory md:text-2xl">
-              {confirmedCount}
+              {agendaIlegivel ? NAO_APURADO : confirmedCount}
             </p>
             <p className="text-[11px] text-ivory-muted md:text-xs md:uppercase md:tracking-wide">
               atendimentos
@@ -304,7 +314,7 @@ export default function PainelHojePage() {
           <Percent size={16} className="mx-auto text-gold-light md:mx-0 md:h-9 md:w-9 md:shrink-0 md:rounded-xl md:bg-gold/10 md:p-2" />
           <div className="md:text-left">
             <p className="font-display text-sm font-semibold text-ivory md:text-2xl">
-              {ocupacaoPct}%
+              {agendaIlegivel ? NAO_APURADO : formatPctPtBR(ocupacaoPct, 0)}
             </p>
             <p className="text-[11px] text-ivory-muted md:text-xs md:uppercase md:tracking-wide">
               ocupação
@@ -315,7 +325,7 @@ export default function PainelHojePage() {
           <CalendarCheck size={16} className="mx-auto text-gold-light md:mx-0 md:h-9 md:w-9 md:shrink-0 md:rounded-xl md:bg-gold/10 md:p-2" />
           <div className="md:text-left">
             <p className="font-display text-sm font-semibold text-ivory md:text-2xl">
-              {horariosLivres}
+              {agendaIlegivel ? NAO_APURADO : horariosLivres}
             </p>
             <p className="text-[11px] text-ivory-muted md:text-xs md:uppercase md:tracking-wide">
               horários livres
@@ -324,6 +334,12 @@ export default function PainelHojePage() {
         </Card>
       </div>
 
+      {/* Os dois blocos de dinheiro saem inteiros de `bookings`. Sem a leitura
+          eles mostrariam "R$ 0,00 previsto, R$ 0,00 recebido" e um caixa do dia
+          zerado — o retrato exato de um dia sem movimento, que é a conclusão
+          que o dono NÃO pode tirar de uma falha de leitura. Suprimir os dois é
+          diferente de mostrá-los vazios: some o cartão, não o número. */}
+      {!agendaIlegivel && (
       <section className="md:col-span-2">
         <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm">
           Previsão × recebido
@@ -358,7 +374,9 @@ export default function PainelHojePage() {
           </p>
         </Card>
       </section>
+      )}
 
+      {!agendaIlegivel && (
       <section className="md:col-span-2">
         <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm">
           Caixa de hoje
@@ -385,8 +403,39 @@ export default function PainelHojePage() {
               {formatBRL(caixaHoje.dinheiro)}
             </span>
           </div>
+          {/* D31 · a quarta coluna, que existia no motor e em tela nenhuma.
+           *
+           * `caixaDoDia` devolve `naoInformado` desde `843b84c`, e nenhuma tela
+           * o consumia: o bloco continuava com três colunas enquanto o TOTAL
+           * conta todas as reservas recebidas. Um atendimento concluído sem
+           * meio de pagamento informado — estado que o servidor grava de
+           * propósito, com `paymentMethod: null` — entrava na conta e em coluna
+           * nenhuma. O dono somava as três na mão, não chegava no total, e a
+           * diferença não tinha onde ser explicada.
+           *
+           * Só aparece quando existe: uma coluna eternamente em R$ 0,00
+           * ensinaria que falta informar meio de pagamento em todo atendimento,
+           * que é o oposto do caso normal. */}
+          {caixaHoje.naoInformado > 0 && (
+            <div className="flex items-center gap-3 px-4 py-3 md:flex-1 md:p-5">
+              <HelpCircle size={16} className="shrink-0 text-ivory-muted" />
+              <span className="flex-1 text-sm text-ivory-muted">
+                Sem forma informada
+              </span>
+              <span className="font-display font-semibold text-ivory">
+                {formatBRL(caixaHoje.naoInformado)}
+              </span>
+            </div>
+          )}
         </Card>
+        {caixaHoje.naoInformado > 0 && (
+          <p className="mt-1.5 text-xs text-ivory-muted">
+            Entrou no total, mas não dá para conferir contra a gaveta enquanto
+            não souber como foi pago.
+          </p>
+        )}
       </section>
+      )}
 
       {acoesVisiveis.length > 0 && (
         <section className="md:col-start-2 md:row-start-4">
@@ -442,7 +491,7 @@ export default function PainelHojePage() {
           </Button>
         </div>
         {status === "carregando" && <LoadingRows rows={3} oQue="sua agenda" />}
-        {status === "erro" && <ErroAoCarregar oQue="sua agenda" />}
+        {status === "erro" && <ErroAoCarregar oQue="sua agenda" erro={erroDaAgenda} />}
         {status === "pronto" && bookings.length === 0 && (
           <EmptyState
             icon={CalendarCheck}

@@ -4,9 +4,10 @@ import { useState } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, SlidersHorizontal, TrendingDown, TrendingUp, Wallet } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { KpiTile } from "@/components/ui/kpi-tile";
-import { formatBRL } from "@/lib/format";
+import { formatBRL, formatPctPtBR } from "@/lib/format";
+import { apuracaoDe, NAO_APURADO, porQueNaoApurou, type FonteFinanceira } from "@/lib/apuracao";
 import { useFinanceiro, mesAtual, rotuloDoMes } from "@/lib/db/use-financeiro";
-import { composicaoDaReceita } from "@/lib/analytics";
+import { cenarioDeCrescimento, composicaoDaReceita } from "@/lib/analytics";
 import { detalheDoCustoDoVendido } from "@/lib/fontes-financeiras";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
@@ -66,8 +67,21 @@ function DreConteudo() {
    * MESMO recorte que o motor usa para o cabeçalho. Dois filtros de período
    * escritos em lugares diferentes divergem na borda do mês, e a divergência
    * aparece como um filho a mais ou a menos sob um total que não mudou. */
-  const { dre: r, receita, raw, status, periodo } = useFinanceiro(mes);
+  const { dre: r, receita, raw, status, periodo, fontesIlegiveis, erro } = useFinanceiro(mes);
   const dreTaxRatePct = tenant.policies.taxRatePct;
+
+  /* D3 · o número só existe se as fontes dele puderam ser lidas.
+   *
+   * Com `expenses` ilegível esta tela mostrava `CUSTO FIXO TOTAL R$ 0,00` sob
+   * a legenda "aluguel, contas e o que não varia com o movimento" e
+   * `RESULTADO DO MÊS + R$ 30,39` onde o mês fechou em −R$ 769,61 — os
+   * R$ 800,00 do aluguel que ninguém conseguiu ler. O banner de erro já estava
+   * no topo; ele é uma tarja, e o número é o maior elemento da tela.
+   *
+   * A supressão é POR GRANDEZA e não pela tela inteira: a receita, o CMV e a
+   * comissão não dependem de `expenses` e continuam sendo verdade. Apagar tudo
+   * trocaria um número falso por nenhuma informação. Ver `lib/apuracao.ts`. */
+  const apuracao = apuracaoDe(fontesIlegiveis);
 
   const monthExpenses = raw.expenses.filter((e) => e.date.startsWith(mes));
   const products = raw.products;
@@ -93,15 +107,19 @@ function DreConteudo() {
   } = r;
 
   /* Simulação: escala receita e custo variável, mantém o fixo. É o que revela
-   * o impacto real na margem antes de investir em crescimento. */
-  const fator = 1 + scenarioPct / 100;
-  const scenario = {
-    grossRevenue: Math.round(grossRevenue * fator),
-    variableCost: Math.round(custoVariavelTotal * fator),
-    contributionMargin: Math.round(grossRevenue * fator - custoVariavelTotal * fator),
+   * o impacto real na margem antes de investir em crescimento.
+   *
+   * A fórmula saiu daqui e foi para `cenarioDeCrescimento` no motor: escrita na
+   * tela, ela divergia do resultado que estava 200px acima — R$ 20,80 de
+   * diferença com o slider em 0%, por não descontar imposto e arredondar em
+   * reais. Ver o comentário da função. */
+  const scenario = cenarioDeCrescimento({
+    grossRevenue,
+    variableCost: custoVariavelTotal,
     fixedCost: custoFixoTotal,
-    result: Math.round(grossRevenue * fator - custoVariavelTotal * fator - custoFixoTotal),
-  };
+    taxRatePct: dreTaxRatePct,
+    variacaoPct: scenarioPct,
+  });
 
 
   const servicosAvulsos = receita.servicos;
@@ -322,7 +340,7 @@ function DreConteudo() {
       </div>
 
       {status === "carregando" && <LoadingRows rows={5} />}
-      {status === "erro" && <ErroAoCarregar oQue="o resultado do mês" />}
+      {status === "erro" && <ErroAoCarregar oQue="o resultado do mês" erro={erro} />}
 
       {status === "pronto" && grossRevenue === 0 && monthExpenses.length === 0 && (
         <EmptyState
@@ -336,40 +354,54 @@ function DreConteudo() {
 
       {(grossRevenue > 0 || monthExpenses.length > 0) && (
       <>
+      {/* Cada indicador consulta as PRÓPRIAS fontes. Numa falha de `expenses`,
+          custo fixo e resultado deixam de ser afirmados e receita, custo
+          variável e margem de contribuição continuam — eles não dependem da
+          coleção que caiu, e suprimi-los seria esconder fato verdadeiro. */}
       <div className="grid grid-cols-2 gap-2 md:grid-cols-5 md:gap-4">
         <KpiTile
           tone="neutral"
           icon={Wallet}
           label="Receita realizada"
-          value={formatBRL(grossRevenue)}
-          caption="o que teve desfecho registrado"
+          value={apuracao.valor("receitaRealizada", formatBRL(grossRevenue))}
+          caption={apuracao.legenda("receitaRealizada", "o que teve desfecho registrado")}
         />
         <KpiTile
-          tone="danger"
+          tone={apuracao.tom("custoVariavel", "danger")}
           icon={TrendingDown}
           label="Custo variável total"
-          value={formatBRL(custoVariavelTotal)}
-          caption="CMV + gateway + comissão"
+          value={apuracao.valor("custoVariavel", formatBRL(custoVariavelTotal))}
+          caption={apuracao.legenda("custoVariavel", "CMV + gateway + comissão")}
         />
         <KpiTile
-          tone={signTone(margemContribuicao)}
+          tone={apuracao.tom("margemDeContribuicao", signTone(margemContribuicao))}
           icon={TrendingUp}
           label="Margem de contribuição"
-          value={formatBRL(margemContribuicao)}
-          caption={`${margemContribuicaoPct.toFixed(1)}%`}
+          value={apuracao.valor("margemDeContribuicao", formatBRL(margemContribuicao))}
+          caption={apuracao.legenda(
+            "margemDeContribuicao",
+            formatPctPtBR(margemContribuicaoPct)
+          )}
         />
         <KpiTile
-          tone="danger"
+          tone={apuracao.tom("custoFixo", "danger")}
           icon={TrendingDown}
           label="Custo fixo total"
-          value={formatBRL(custoFixoTotal)}
-          caption="aluguel, contas e o que não varia com o movimento"
+          value={apuracao.valor("custoFixo", formatBRL(custoFixoTotal))}
+          /* A legenda antiga — "aluguel, contas e o que não varia com o
+             movimento" — NOMEAVA o fato que não pôde ser lido, embaixo de um
+             R$ 0,00. Era a parte mais convincente do número falso. */
+          caption={apuracao.legenda(
+            "custoFixo",
+            "aluguel, contas e o que não varia com o movimento"
+          )}
         />
         <KpiTile
-          tone={signTone(resultadoDoMes)}
+          tone={apuracao.tom("resultado", signTone(resultadoDoMes))}
           icon={TrendingUp}
           label="Resultado do mês"
-          value={formatBRL(resultadoDoMes)}
+          value={apuracao.valor("resultado", formatBRL(resultadoDoMes))}
+          caption={apuracao.legenda("resultado")}
         />
       </div>
 
@@ -430,13 +462,18 @@ function DreConteudo() {
         </div>
         <div className="flex items-center justify-between border-t border-border pt-2 font-semibold">
           <span className="text-ivory">(=) Margem de Contribuição</span>
-          <span className={signTone(margemContribuicao) === "success" ? "text-success" : "text-danger"}>
-            {margemContribuicaoPct.toFixed(1)}% · {formatBRL(margemContribuicao)}
-          </span>
+          {apuracao.ok("margemDeContribuicao") ? (
+            <span className={signTone(margemContribuicao) === "success" ? "text-success" : "text-danger"}>
+              {formatPctPtBR(margemContribuicaoPct)} · {formatBRL(margemContribuicao)}
+            </span>
+          ) : (
+            <NaoApurado faltando={apuracao.faltando("margemDeContribuicao")} />
+          )}
         </div>
         <ExpandableGroup
           label="(−) Despesas Fixas (recorrentes)"
           value={r.fixedExpenses}
+          faltando={apuracao.faltando("despesasFixas")}
           items={fixasTree}
           open={open}
           toggle={toggle}
@@ -446,6 +483,7 @@ function DreConteudo() {
         <ExpandableGroup
           label="(−) Despesas Operacionais Eventuais"
           value={r.variableOperatingExpenses}
+          faltando={apuracao.faltando("despesasEventuais")}
           items={eventuaisTree}
           open={open}
           toggle={toggle}
@@ -466,11 +504,19 @@ function DreConteudo() {
         )}
         <div className="mt-1 flex items-center justify-between border-t border-border pt-2">
           <span className="text-ivory">(=) Custo Fixo Total</span>
-          <span className="text-ivory">{formatBRL(custoFixoTotal)}</span>
+          {apuracao.ok("custoFixo") ? (
+            <span className="text-ivory">{formatBRL(custoFixoTotal)}</span>
+          ) : (
+            <NaoApurado faltando={apuracao.faltando("custoFixo")} />
+          )}
         </div>
         <div className="mt-1 flex items-center justify-between border-t border-border pt-2">
           <span className="text-ivory">(=) Resultado antes de impostos</span>
-          <span className="text-ivory">{formatBRL(r.resultBeforeTax)}</span>
+          {apuracao.ok("resultado") ? (
+            <span className="text-ivory">{formatBRL(r.resultBeforeTax)}</span>
+          ) : (
+            <NaoApurado faltando={apuracao.faltando("resultado")} />
+          )}
         </div>
         <div className="flex items-center justify-between py-1.5 pl-5">
           <span className="text-ivory-muted">
@@ -481,16 +527,25 @@ function DreConteudo() {
         </div>
         <div className="flex items-center justify-between border-t border-border pt-3">
           <span className="font-semibold text-ivory">Resultado do Mês</span>
-          <span
-            className={`font-display font-semibold md:text-lg ${
-              signTone(resultadoDoMes) === "success" ? "text-success" : "text-danger"
-            }`}
-          >
-            {formatBRL(resultadoDoMes)}
-          </span>
+          {apuracao.ok("resultado") ? (
+            <span
+              className={`font-display font-semibold md:text-lg ${
+                signTone(resultadoDoMes) === "success" ? "text-success" : "text-danger"
+              }`}
+            >
+              {formatBRL(resultadoDoMes)}
+            </span>
+          ) : (
+            <NaoApurado faltando={apuracao.faltando("resultado")} />
+          )}
         </div>
       </Card>
 
+      {/* O simulador projeta A PARTIR do custo fixo. Com `expenses` ilegível
+          ele partia de zero e desenhava uma tabela inteira de cenários sobre um
+          número que não existe — quatro linhas de dinheiro derivadas da mesma
+          falha, embaixo do resultado que já tinha sido suprimido. */}
+      {apuracao.ok("resultado") && (
       <Card className="flex flex-col gap-4 md:p-6">
         <div>
           <h4 className="flex items-center gap-1.5 text-sm font-semibold text-ivory md:text-base">
@@ -558,15 +613,34 @@ function DreConteudo() {
           </table>
         </div>
       </Card>
+      )}
       </>
       )}
     </div>
   );
 }
 
+/**
+ * O lugar do número que não pôde ser determinado — D3.
+ *
+ * Ocupa a mesma posição do valor, no tom neutro. Não é "—": o travessão é o
+ * que a tela de Despesas mostrava na maior categoria com a coleção ilegível, e
+ * ele se lê como "nada", que é a conclusão errada. Aqui o texto diz que o
+ * número não existe, e a linha abaixo diz por quê.
+ */
+function NaoApurado({ faltando }: { faltando: readonly FonteFinanceira[] }) {
+  return (
+    <span className="text-right">
+      <span className="font-medium text-ivory-muted">{NAO_APURADO}</span>
+      <span className="block text-xs text-ivory-muted">{porQueNaoApurou(faltando)}</span>
+    </span>
+  );
+}
+
 function ExpandableGroup({
   label,
   value,
+  faltando,
   items,
   open,
   toggle,
@@ -576,6 +650,14 @@ function ExpandableGroup({
 }: {
   label: string;
   value: number;
+  /**
+   * As fontes que não puderam ser lidas. Vazio quando o número é apurável.
+   *
+   * Com fonte faltando o grupo perde o valor E a seta: expandir mostraria uma
+   * lista vazia, e lista vazia embaixo de um cabeçalho é exatamente como o
+   * dono conclui "não houve lançamento nenhum".
+   */
+  faltando?: readonly FonteFinanceira[];
   items: DreItem[];
   open: Set<string>;
   toggle: (k: string) => void;
@@ -583,23 +665,33 @@ function ExpandableGroup({
   tone: "success" | "danger";
   strong?: boolean;
 }) {
-  const isOpen = open.has(groupKey);
+  const naoApurado = !!faltando?.length;
+  const isOpen = open.has(groupKey) && !naoApurado;
   const valueClass = tone === "success" ? "text-success" : "text-danger";
   return (
     <div>
       <button
         type="button"
-        onClick={() => toggle(groupKey)}
-        className="flex w-full items-center justify-between py-1.5 text-left transition-colors hover:text-ivory"
+        onClick={() => !naoApurado && toggle(groupKey)}
+        disabled={naoApurado}
+        className="flex w-full items-center justify-between py-1.5 text-left transition-colors hover:text-ivory disabled:cursor-default"
       >
         <span className={`flex items-center gap-1.5 ${strong ? "font-semibold text-ivory" : "text-ivory"}`}>
-          <ChevronDown
-            size={14}
-            className={`text-ivory-muted transition-transform ${isOpen ? "" : "-rotate-90"}`}
-          />
+          {naoApurado ? (
+            <span className="inline-block w-3.5 shrink-0" />
+          ) : (
+            <ChevronDown
+              size={14}
+              className={`text-ivory-muted transition-transform ${isOpen ? "" : "-rotate-90"}`}
+            />
+          )}
           {label}
         </span>
-        <span className={`font-semibold ${valueClass}`}>{formatBRL(value)}</span>
+        {naoApurado ? (
+          <NaoApurado faltando={faltando!} />
+        ) : (
+          <span className={`font-semibold ${valueClass}`}>{formatBRL(value)}</span>
+        )}
       </button>
       {isOpen && (
         <div className="pb-1">
@@ -678,7 +770,14 @@ function ScenarioRow({
   strong?: boolean;
 }) {
   const diff = simulado - atual;
-  const isZero = Math.abs(diff) < 0.5;
+  /* Meio CENTAVO, não meio real.
+   *
+   * Com `< 0.5` a coluna DIFERENÇA escrevia "—" nas linhas de Custo Variável e
+   * Margem que divergiam em R$ 0,21 — omitindo diferença real de dinheiro
+   * exatamente onde ela seria conferida, e ao mesmo tempo dando ao dono a
+   * impressão de que o cenário batia. Os dois lados agora vêm arredondados ao
+   * centavo pelo motor; a régua tem de ser da mesma ordem. */
+  const isZero = Math.abs(diff) < 0.005;
   const isGood = invert ? diff <= 0 : diff >= 0;
   return (
     <tr className="border-b border-border/60 last:border-0">

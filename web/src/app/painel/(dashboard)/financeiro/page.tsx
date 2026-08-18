@@ -19,7 +19,8 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
 import { KpiTile, signTone } from "@/components/ui/kpi-tile";
-import { formatBRL, safePct } from "@/lib/format";
+import { formatBRL, formatPctPtBR, safePct } from "@/lib/format";
+import { apuracaoDe } from "@/lib/apuracao";
 import { contar, plural } from "@/lib/plural";
 import { useFinanceiro, mesAtual, rotuloDoMes } from "@/lib/db/use-financeiro";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
@@ -34,7 +35,11 @@ export default function FinanceiroPage() {
   const gateway = paymentGateways.find((g) => g.id === gatewayId) ?? paymentGateways[0];
 
   const mes = mesAtual();
-  const { dre: r, receita, caixa, projecao, raw, status } = useFinanceiro(mes);
+  /* `caixa` saiu da desestruturação junto com o `cashFlowMonthTotal`: ele era
+   * a soma das ENTRADAS, e o atalho que o usava passou a mostrar o saldo. */
+  const { dre: r, receita, fluxo, projecao, raw, status, fontesIlegiveis, erro } =
+    useFinanceiro(mes);
+  const apuracao = apuracaoDe(fontesIlegiveis);
 
   /* Sem mensalistas: esta é a composição da receita REALIZADA, e mensalidade
    * não tem lastro de recebimento enquanto não houver cobrança. Ela aparece
@@ -59,13 +64,35 @@ export default function FinanceiroPage() {
   };
 
   const operatingResult = r.result;
-  const marginPct = Math.round(r.marginPct);
+  const marginPct = r.marginPct;
   const totalExpenses = r.totalCost;
-  const breakEvenPct = r.breakEvenDay ? Math.round(safePct(r.breakEvenDay, r.diasNoMes)) : 100;
+
+  /* A9 · a barra media a coisa errada e por isso ficava VERDE E CHEIA embaixo
+   * de "Ponto de equilíbrio não atingido no mês", ao lado da pílula "no
+   * vermelho". O `: 100` era literal: não atingir o equilíbrio pintava 100% da
+   * barra. O texto dizia uma coisa, a cor dizia o contrário, e a cor ganha.
+   *
+   * Agora a barra mede sempre a MESMA grandeza — quanto do custo do mês a
+   * receita já cobriu. Atingido o equilíbrio ela fecha em 100% no tom de
+   * sucesso; não atingido, ela para onde parou, em vermelho. E o percentual
+   * vai escrito ao lado, porque a `UI-UX-GUIDELINES` §3 proíbe elemento que
+   * dependa só de cor. */
+  const coberturaDoCustoPct = safePct(r.grossRevenue, r.totalCost);
+  const equilibrioAtingido = r.breakEvenDay !== null;
 
   const netGrowth = commercialStats.newSubscribers - commercialStats.cancellations;
-  const cashFlowMonthTotal = caixa.reduce((s, d) => s + d.total, 0);
-  const expensesTotal = raw.expenses.reduce((s, e) => s + e.value, 0);
+  /* A19/Q24 · o atalho mostrava `caixa.total` — só a perna de ENTRADA — com a
+   * legenda "histórico diário completo", e levava a uma tela cujo indicador de
+   * topo diz "SOBROU NO CAIXA −R$ 664,71". R$ 180,29 prometendo o oposto do
+   * destino. Os outros três cartões desta grade já mostram o número-título da
+   * tela para onde apontam; este era o único que mostrava outro. */
+  const cashFlowSaldo = fluxo.saldo;
+  /* O cartão de Despesas somava o HISTÓRICO INTEIRO embaixo de um cabeçalho
+   * que diz "Fechamento de {mês}" — e levava a uma tela cujo rodapé mostra o
+   * total DO MÊS. É o mesmo defeito que os KPIs da tela de Despesas já tinham
+   * corrigido internamente; o atalho ficou para trás com a versão antiga. */
+  const expensesDoMes = raw.expenses.filter((e) => e.date.startsWith(mes));
+  const expensesTotalDoMes = expensesDoMes.reduce((s, e) => s + e.value, 0);
   const projectedResult = projecao.at(-1)?.cumulative ?? 0;
   const activeSubscriberCount = commercialStats.activeSubscribers;
 
@@ -88,7 +115,7 @@ export default function FinanceiroPage() {
       </div>
 
       {status === "carregando" && <LoadingRows rows={4} oQue="o resumo financeiro" />}
-      {status === "erro" && <ErroAoCarregar oQue="o resumo financeiro" />}
+      {status === "erro" && <ErroAoCarregar oQue="o resumo financeiro" erro={erro} />}
 
       {status === "pronto" && receita.bruta === 0 && raw.expenses.length === 0 && (
         <EmptyState
@@ -115,12 +142,13 @@ export default function FinanceiroPage() {
             tone="neutral"
             icon={Wallet}
             label="Receita realizada"
-            value={formatBRL(r.grossRevenue)}
-            caption={
+            value={apuracao.valor("receitaRealizada", formatBRL(r.grossRevenue))}
+            caption={apuracao.legenda(
+              "receitaRealizada",
               mrr.billed > 0
                 ? `${formatBRL(mrr.billed)} de mensalidade contratada não entram aqui`
                 : "atendimentos e vendas com desfecho registrado"
-            }
+            )}
           />
           {/* "Despesas" descrevia outra coisa: o valor é o CUSTO TOTAL — CMV,
               taxas, comissões, folha e imposto incluídos. O dono pensa em
@@ -131,25 +159,36 @@ export default function FinanceiroPage() {
               lê. Uma enumeração incompleta seria o mesmo defeito num tamanho
               menor. `rodada-1.test.ts` prova que as seis fecham o total. */}
           <KpiTile
-            tone="danger"
+            tone={apuracao.tom("custoTotal", "danger")}
             icon={TrendingDown}
             label="Custo total"
-            value={formatBRL(totalExpenses)}
-            caption="comissões, folha, taxas, produto, despesas e imposto"
+            value={apuracao.valor("custoTotal", formatBRL(totalExpenses))}
+            caption={apuracao.legenda(
+              "custoTotal",
+              "comissões, folha, taxas, produto, despesas e imposto"
+            )}
           />
           <KpiTile
-            tone={signTone(operatingResult)}
+            tone={apuracao.tom("resultado", signTone(operatingResult))}
             icon={TrendingUp}
             label="Resultado"
-            value={formatBRL(operatingResult)}
+            value={apuracao.valor("resultado", formatBRL(operatingResult))}
+            caption={apuracao.legenda("resultado")}
           />
-          <KpiTile tone={signTone(marginPct)} icon={TrendingUp} label="Margem" value={`${marginPct}%`} />
+          <KpiTile
+            tone={apuracao.tom("margem", signTone(marginPct))}
+            icon={TrendingUp}
+            label="Margem"
+            value={apuracao.valor("margem", formatPctPtBR(marginPct))}
+            caption={apuracao.legenda("margem")}
+          />
         </div>
 
+        {apuracao.ok("pontoDeEquilibrio") && (
         <Card className="flex flex-col gap-2 md:p-6">
           <div className="flex items-center justify-between text-sm md:text-base">
             <span className="text-ivory-muted">
-              {r.breakEvenDay
+              {equilibrioAtingido
                 ? `Ponto de equilíbrio no dia ${r.breakEvenDay} de ${r.diasNoMes}`
                 : "Ponto de equilíbrio não atingido no mês"}
             </span>
@@ -165,11 +204,21 @@ export default function FinanceiroPage() {
               )}
             </Pill>
           </div>
-          <div className="h-2 w-full overflow-hidden rounded-full bg-surface-raised">
-            <div
-              className="h-full rounded-full bg-success transition-[width] duration-300"
-              style={{ width: `${breakEvenPct}%` }}
-            />
+          <div className="flex items-center gap-2">
+            <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-raised">
+              <div
+                className={`h-full rounded-full transition-[width] duration-300 ${
+                  equilibrioAtingido ? "bg-success" : "bg-danger"
+                }`}
+                style={{ width: `${coberturaDoCustoPct}%` }}
+              />
+            </div>
+            {/* O número ao lado da barra não é enfeite: sem ele, "quanto do
+                custo já foi coberto" existe só como comprimento — e comprimento
+                é exatamente o que a versão anterior errava. */}
+            <span className="shrink-0 text-xs text-ivory-muted">
+              {formatPctPtBR(coberturaDoCustoPct, 0)} do custo coberto
+            </span>
           </div>
           {/* A frase de fechamento saiu daqui.
            *
@@ -186,6 +235,7 @@ export default function FinanceiroPage() {
            * O que este cartão responde e nenhum outro elemento responde
            * continua aqui: em que DIA do mês o faturamento cobriu o custo. */}
         </Card>
+        )}
 
         <div>
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm">
@@ -205,7 +255,7 @@ export default function FinanceiroPage() {
                   <span
                     className={`font-medium ${item.deducao ? "text-danger" : "text-ivory"}`}
                   >
-                    {formatBRL(item.value)} · {item.pct}%
+                    {formatBRL(item.value)} · {formatPctPtBR(item.pct, 0)}
                   </span>
                 </div>
                 <div className="h-2 w-full overflow-hidden rounded-full bg-surface-raised">
@@ -246,7 +296,11 @@ export default function FinanceiroPage() {
             {gateway.fees.map((f) => (
               <div key={f.method} className="flex items-center justify-between text-sm">
                 <span className="text-ivory-muted">{f.method}</span>
-                <span className="font-medium text-ivory">{f.pct}%</span>
+                {/* `0.99% · 1.99% · 3.15% · 8.5%` — ponto decimal em quatro
+                    linhas empilhadas, e a última com uma casa entre vizinhas de
+                    duas, o que desalinhava a coluna. Duas casas fixas porque é
+                    tabela de taxa: elas se comparam entre si. */}
+                <span className="font-medium text-ivory">{formatPctPtBR(f.pct, 2)}</span>
               </div>
             ))}
             <p className="border-t border-border pt-2 text-xs text-ivory-muted">
@@ -272,29 +326,34 @@ export default function FinanceiroPage() {
               href="/painel/financeiro/dre"
               icon={TrendingUp}
               label="Quanto sobrou"
-              value={formatBRL(operatingResult)}
-              caption="resultado do mês, item a item"
+              value={apuracao.valor("resultado", formatBRL(operatingResult))}
+              caption={apuracao.legenda("resultado", "resultado do mês, item a item") ?? ""}
             />
             <QuickLinkCard
               href="/painel/financeiro/fluxo-caixa"
               icon={Wallet}
               label="Fluxo de caixa"
-              value={formatBRL(cashFlowMonthTotal)}
-              caption="histórico diário completo"
+              value={apuracao.valor("caixaDoMes", formatBRL(cashFlowSaldo))}
+              caption={apuracao.legenda("caixaDoMes", "o que entrou menos o que saiu") ?? ""}
             />
             <QuickLinkCard
               href="/painel/financeiro/despesas"
               icon={Receipt}
               label="Despesas"
-              value={formatBRL(expensesTotal)}
-              caption={contar(raw.expenses.length, "lançamento", "lançamentos")}
+              value={apuracao.valor("despesasDoMes", formatBRL(expensesTotalDoMes))}
+              caption={
+                apuracao.legenda(
+                  "despesasDoMes",
+                  contar(expensesDoMes.length, "lançamento", "lançamentos")
+                ) ?? ""
+              }
             />
             <QuickLinkCard
               href="/painel/financeiro/projecao"
               icon={CalendarClock}
               label="Projeção de caixa"
-              value={formatBRL(projectedResult)}
-              caption="próximos 30 dias"
+              value={apuracao.valor("projecao", formatBRL(projectedResult))}
+              caption={apuracao.legenda("projecao", "próximos 30 dias") ?? ""}
             />
           </div>
         </div>
@@ -331,7 +390,7 @@ export default function FinanceiroPage() {
             icon={AlertCircle}
             label="Inadimplência"
             value={formatBRL(commercialStats.defaultAmount)}
-            caption={`${Math.round(safePct(commercialStats.defaultAmount, mrr.contracted))}% do contratado`}
+            caption={`${formatPctPtBR(safePct(commercialStats.defaultAmount, mrr.contracted), 0)} do contratado`}
           />
           <KpiTile
             tone="neutral"

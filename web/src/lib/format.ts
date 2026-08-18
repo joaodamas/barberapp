@@ -5,6 +5,47 @@ export function formatBRL(value: number) {
   });
 }
 
+/**
+ * "27,7%" — percentual em português, e nunca um zero falso.
+ *
+ * ## As duas coisas que ele conserta
+ *
+ * **O separador.** `toFixed(1)` devolve `27.7`, e o ponto é separador de
+ * MILHAR em português: "27.7%" lê-se como vinte e sete mil e sete por cento
+ * antes de o leitor perceber o engano. O DRE mostrava `27.7%` e `77.7%`, e o
+ * Financeiro, `0.99% · 1.99% · 3.15% · 8.5%` — o último com uma casa entre
+ * vizinhos de duas, o que faz a coluna deixar de alinhar. `formatBRL` já
+ * resolvia isso para dinheiro há muito tempo; percentual nunca teve o par.
+ *
+ * **O arredondamento que apaga o fato.** `Math.round(1 / 464 * 100)` é `0`, e
+ * foi assim que a tela Números exibiu `OCUPAÇÃO 0%` no mês em que houve um
+ * atendimento — com o mapa de calor logo abaixo dizendo "100% de ocupação"
+ * naquele horário. O número não estava errado por pouco: ele afirmava que nada
+ * aconteceu. É a mesma classe de D3 — o produto transformando "quase nada" em
+ * "nada", que é a única leitura que o dono não pode fazer.
+ *
+ * Por isso um valor diferente de zero nunca sai como zero: ele sai como
+ * `< 0,1%`. O sinal é preservado (`> −0,1%`), porque uma margem levemente
+ * negativa apresentada como levemente positiva é o defeito de novo, menor.
+ */
+export function formatPctPtBR(value: number, casas = 1) {
+  const n = safeNumber(value);
+  const limite = 1 / 10 ** casas;
+
+  if (n !== 0 && Math.abs(n) < limite / 2) {
+    const borda = limite.toLocaleString("pt-BR", {
+      minimumFractionDigits: casas,
+      maximumFractionDigits: casas,
+    });
+    return n > 0 ? `< ${borda}%` : `> −${borda}%`;
+  }
+
+  return `${n.toLocaleString("pt-BR", {
+    minimumFractionDigits: casas,
+    maximumFractionDigits: casas,
+  })}%`;
+}
+
 /** "domingo, 05 de julho" — data por extenso, com dia da semana. */
 export function formatDatePtBR(iso: string) {
   return parseISODate(iso).toLocaleDateString("pt-BR", {

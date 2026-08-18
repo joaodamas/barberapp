@@ -14,6 +14,7 @@ import {
   recorrenciaDeClientes, resultadoDoMes, topServicos,
 } from "@/lib/analytics";
 import type { Horizonte } from "@/lib/analytics";
+import type { FonteFinanceira } from "@/lib/apuracao";
 
 /**
  * Tudo que o financeiro precisa, calculado a partir do dado bruto.
@@ -55,6 +56,39 @@ export function useFinanceiro(mes: string, horizonte: Horizonte = "mensal") {
     bookings, expenses, movements, subscribers, services, products, staff,
     commissions, payments, refunds, invoices, cashEntries
   );
+
+  /* Quais coleções NÃO puderam ser lidas — D3/D4.
+   *
+   * `status` acima colapsa doze leituras num estado só, e é ele que as telas
+   * usavam para decidir se mostravam o banner de erro. Com um estado só, a
+   * única escolha possível era binária: ou a tela inteira some, ou ela mostra
+   * TUDO — inclusive `R$ 0,00` no custo fixo que ninguém conseguiu ler.
+   *
+   * O produto sabia qual tinha caído: cada hook guarda o próprio estado, e a
+   * informação morria dentro do `combineStatus`. Mesma forma do defeito que
+   * `erro-de-leitura.ts` corrigiu um nível acima — lá era o `FirebaseError`
+   * que morria a um parâmetro de distância do componente.
+   *
+   * Com a lista, cada NÚMERO decide por si (ver `lib/apuracao.ts`): a receita
+   * continua na tela quando o que falhou foi a despesa. */
+  const porFonte: Array<[FonteFinanceira, { status: string; error: Error | null }]> = [
+    ["bookings", bookings],
+    ["expenses", expenses],
+    ["movements", movements],
+    ["payments", payments],
+    ["refunds", refunds],
+    ["invoices", invoices],
+    ["subscribers", subscribers],
+    ["staff", staff],
+    ["commissions", commissions],
+    ["cashEntries", cashEntries],
+  ];
+  const ilegiveis = porFonte.filter(([, e]) => e.status === "erro");
+  const fontesIlegiveis = ilegiveis.map(([nome]) => nome);
+  /* O erro CRU da primeira falha, para `ErroAoCarregar` distinguir permissão de
+   * conexão. Uma regra que muda derruba várias coleções ao mesmo tempo e todas
+   * pelo mesmo motivo — mostrar o primeiro é mostrar a causa. */
+  const erro = ilegiveis.find(([, e]) => e.error)?.[1].error ?? null;
 
   const receita = receitaDoMes({
     bookings: bookings.items,
@@ -137,6 +171,10 @@ export function useFinanceiro(mes: string, horizonte: Horizonte = "mensal") {
 
   return {
     status,
+    /** As coleções que falharam. Vazio quando tudo pôde ser lido. */
+    fontesIlegiveis,
+    /** O erro cru da primeira falha — permissão e conexão pedem ações diferentes. */
+    erro,
     periodo,
     receita,
     dre,
