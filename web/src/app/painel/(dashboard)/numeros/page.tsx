@@ -264,10 +264,32 @@ export default function NumerosPage() {
               </Fragment>
             ))}
           </div>
-          <p className="mt-3 border-t border-border pt-3 text-xs text-ivory-muted">
-            Mais dourado = horário mais cheio. Os claros são as brechas pra
-            promover.
-          </p>
+          {/* A leitura do mapa passou a morar NO mapa.
+           *
+           * Estas duas últimas frases eram um cartão à parte, na seção
+           * "Insights automáticos" logo abaixo — e imprimiam `peak.pct`, que é
+           * literalmente a maior célula da grade acima, já desenhada. O mesmo
+           * número, duas vezes, na mesma tela; e o rodapé daqui já dizia a
+           * versão genérica da mesma frase ("os claros são as brechas").
+           *
+           * Nenhuma palavra foi perdida na mudança: o dia, a hora e os dois
+           * percentuais continuam escritos. O que sumiu foi um cartão que
+           * repetia a grade em prosa em vez de explicá-la. */}
+          <div className="mt-3 flex flex-col gap-1 border-t border-border pt-3 text-xs text-ivory-muted">
+            <p>
+              Mais dourado = horário mais cheio. Os claros são as brechas pra
+              promover.
+            </p>
+            <p className="text-ivory">
+              {peak.day} às {peak.hour} é o horário mais cheio do período —{" "}
+              {peak.pct}% de ocupação.
+            </p>
+            <p>
+              {idle.pct < 30
+                ? `${idle.day} às ${idle.hour} é a maior brecha (${idle.pct}%) — bom alvo para promoção.`
+                : "A agenda está distribuída: não há brecha evidente para promover."}
+            </p>
+          </div>
         </Card>
       </section>
 
@@ -275,18 +297,11 @@ export default function NumerosPage() {
         <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:mb-3 md:text-sm">
           Insights automáticos
         </h2>
-        <div className="flex flex-col gap-2 md:grid md:grid-cols-2 md:gap-4">
-          <Card className="flex flex-col gap-1 md:gap-2 md:p-6">
-            <p className="text-sm text-ivory md:text-base">
-              {peak.day} às {peak.hour} é o horário mais cheio do período —{" "}
-              {peak.pct}% de ocupação.
-            </p>
-            <p className="text-xs text-ivory-muted md:text-sm">
-              {idle.pct < 30
-                ? `${idle.day} às ${idle.hour} é a maior brecha (${idle.pct}%) — bom alvo para promoção.`
-                : "A agenda está distribuída: não há brecha evidente para promover."}
-            </p>
-          </Card>
+        {/* Uma coluna, e não duas: o insight de pico/brecha foi para o rodapé
+            do mapa de calor, que é o bloco dono daquele dado. Manter
+            `md:grid-cols-2` deixaria o cartão restante ocupando meia tela com
+            um vão do lado — que lê como bloco faltando, não como espaço. */}
+        <div className="flex flex-col gap-2 md:gap-4">
           <Card className="flex flex-col gap-1 md:gap-2 md:p-6">
             <p className="text-sm text-ivory md:text-base">
               No-show {kpis.noShowPct <= prevKpis.noShowPct ? "caiu" : "subiu"} de{" "}
