@@ -198,12 +198,25 @@ describe("D23 · a frase da situação", () => {
     expect(situacaoDaVenda(v)).toBe("");
   });
 
-  it("conta o parcial com o total", () => {
+  /**
+   * ⚠️ Este teste AFIRMAVA o defeito.
+   *
+   * Ele esperava `"1 de 3 devolvida"` e passava — verde, por meses, guardando
+   * a frase errada. É a razão pela qual o Q20 sobreviveu ao `plural.ts`: não
+   * foi esquecimento, foi um teste dizendo que estava certo. `plural.ts`
+   * documenta a regra oposta em `contarDeTotal` — *"o substantivo concorda com
+   * o TOTAL, não com a parte"* — e o `plural.test.ts` já provava
+   * `contarDeTotal(1, 3, ...) === "1 de 3 serviços"`. Os dois testes se
+   * contradiziam e ninguém leu os dois no mesmo dia.
+   *
+   * É a §16 do protocolo, item *"teste que contradiz o contrato"*.
+   */
+  it("com a parte no singular, quem manda é o total — era 1 de 3 devolvida", () => {
     const [v] = vendasEstornaveis({
       movimentos: [venda("mv1", { quantity: 3 })],
       refunds: [estorno("mv1", 1)],
     });
-    expect(situacaoDaVenda(v)).toBe("1 de 3 devolvida");
+    expect(situacaoDaVenda(v)).toBe("1 de 3 devolvidas");
   });
 
   it("concorda em número no plural", () => {
@@ -212,6 +225,21 @@ describe("D23 · a frase da situação", () => {
       refunds: [estorno("mv1", 2)],
     });
     expect(situacaoDaVenda(v)).toBe("2 de 3 devolvidas");
+  });
+
+  /**
+   * O total é que decide, e o total pode ser 1. Uma venda de 2 unidades com 1
+   * devolvida não chega aqui — `resta` é 1, não zero. Este caso cobre a ponta
+   * oposta da mesma regra: se alguém "consertar" o Q20 pluralizando pela parte
+   * outra vez, o outro extremo denuncia.
+   */
+  it("nunca escreve a parte concordando sozinha", () => {
+    const [v] = vendasEstornaveis({
+      movimentos: [venda("mv1", { quantity: 4 })],
+      refunds: [estorno("mv1", 1)],
+    });
+    expect(situacaoDaVenda(v)).toBe("1 de 4 devolvidas");
+    expect(situacaoDaVenda(v)).not.toBe("1 de 4 devolvida");
   });
 
   it("diz por inteiro quando acabou", () => {

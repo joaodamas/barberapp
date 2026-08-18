@@ -8,6 +8,7 @@ import { useTenant } from "@/lib/tenant-context";
 import { useRefunds } from "@/lib/db/use-shop-data";
 import { chaveDeIdempotencia } from "@/lib/chave-de-idempotencia";
 import { estornadoDe } from "@/lib/estornos";
+import { plural } from "@/lib/plural";
 import type { RefundDoc } from "@/lib/domain";
 
 /**
@@ -120,8 +121,17 @@ export function EstornarValor(params: {
     >
       <div className="flex flex-col gap-3">
         {jaEstornado > 0 && (
+          /* Mesma frase de `desfazer-venda.tsx`, mesmo defeito latente: os dois
+             verbos estavam fixos no plural. Aqui o sujeito é dinheiro, e a
+             regra de `plural` vale sem ressalva — só o valor exatamente 1 é
+             singular. "R$ 1,50 foram devolvidos" está certo (lê-se "um real e
+             cinquenta centavos"), e "R$ 1,00 foram devolvidos" está errado.
+             Raro não é o mesmo que impossível: um estorno parcial de R$ 1,00
+             chega lá. */
           <p className="text-xs text-gold-light">
-            {formatBRL(jaEstornado)} já foram devolvidos. Restam {formatBRL(resta)}.
+            {formatBRL(jaEstornado)} já{" "}
+            {plural(jaEstornado, "foi devolvido", "foram devolvidos")}.{" "}
+            {plural(resta, "Resta", "Restam")} {formatBRL(resta)}.
           </p>
         )}
 
