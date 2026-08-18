@@ -1,5 +1,6 @@
 import type { Doc } from "@/lib/db/repository";
 import type { InventoryMovementDoc, RefundDoc } from "@/lib/domain";
+import { contarDeTotal } from "@/lib/plural";
 
 /**
  * O que a tela precisa saber para oferecer um estorno — D22 / D23.
@@ -130,5 +131,15 @@ export function estornadoDe(
 export function situacaoDaVenda(v: VendaEstornavel): string {
   if (v.devolvida === 0) return "";
   if (v.encerrada) return "Devolvida por inteiro";
-  return `${v.devolvida} de ${v.quantidade} devolvida${v.devolvida > 1 ? "s" : ""}`;
+  /* Na forma "X de Y", quem manda na concordância é o TOTAL, não a parte — e
+   * era a parte que mandava aqui, num ternário `devolvida > 1 ? "s" : ""`. Com
+   * 1 devolvida de 3 a Loja escrevia "1 de 3 devolvida", concordando com o 1 e
+   * ignorando as 3 unidades de que ele fala.
+   *
+   * `contarDeTotal` foi escrita para exatamente este caso e já existia quando
+   * esta linha foi escrita. O ternário inline é o anti-padrão que o
+   * `plural.ts` existe para eliminar, e ele reapareceu dentro do arquivo da
+   * mesma equipe que escreveu a regra — por isso a trava agora é de FONTE
+   * (`concordancia.test.ts`), e não só de valor. */
+  return contarDeTotal(v.devolvida, v.quantidade, "devolvida", "devolvidas");
 }

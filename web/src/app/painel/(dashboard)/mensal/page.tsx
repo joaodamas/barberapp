@@ -7,7 +7,7 @@ import { CalendarClock } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
 import { formatBRL, formatDatePtBR, safePct, toISODate } from "@/lib/format";
-import { useSubscribers, useSubscriptionInvoices } from "@/lib/db/use-shop-data";
+import { usePlans, useSubscribers, useSubscriptionInvoices } from "@/lib/db/use-shop-data";
 import { GerirMensalistas } from "@/components/gerir-mensalistas";
 import { mesAtual } from "@/lib/db/use-financeiro";
 import { resumoDasFaturas } from "@/lib/mensalidade";
@@ -60,6 +60,12 @@ function MensalConteudo() {
   const [filter, setFilter] = useState<Filter>("todos");
   const { items: subscribers, status, error } = useSubscribers();
   const { items: faturas } = useSubscriptionInvoices();
+  /* O vazio AFIRMAVA que não havia planos sem nunca ter lido `plans`. Ler é a
+   * condição para poder afirmar — a mesma régua do `ErroAoCarregar`: só se diz
+   * "não há" depois de ter lido. Mesmo filtro de `GerirMensalistas`, que é
+   * quem oferece os planos no modal logo acima. */
+  const { items: planos, status: statusDosPlanos } = usePlans();
+  const planosAtivos = planos.filter((p) => p.active !== false);
 
   /* MRR derivado da lista: cobrável = ativos; contratado inclui suspensos, que
    * voltam a pagar ao regularizar. */
@@ -162,19 +168,36 @@ function MensalConteudo() {
       {status === "erro" && <ErroAoCarregar oQue="os mensalistas" erro={error} />}
 
       {status === "pronto" && subscribers.length === 0 && (
-        /* O botão dizia "Criar plano" e levava para /painel/loja, que cadastra
-           PRODUTO e não tem editor de plano nenhum. Não foi só o destino
-           errado: não existe tela no painel que crie plano — `plans` só é
-           escrita pelo script de semeadura, e `GerirMensalistas` manda
-           "cadastrar em Serviços", onde também não há.
-           Uma porta que não abre é pior que porta nenhuma: o dono clica, chega
-           na Loja, não acha, e conclui que não entendeu o produto. Enquanto a
-           tela de planos não existir, o vazio diz a verdade e não oferece
-           saída falsa. Registrado como STOP em `docs/VOCABULARIO.md`. */
+        /* Continua valendo o que motivou o texto anterior: NENHUMA tela do
+           painel cria plano — `plans` só é escrita pelo script de semeadura —,
+           e o botão "Criar plano" que existia aqui levava para /painel/loja,
+           que cadastra produto. Uma porta que não abre é pior que porta
+           nenhuma. Ver o STOP em `docs/VOCABULARIO.md`.
+
+           O que a correção anterior errou foi o ALCANCE: ela trocou a porta
+           falsa por uma AFIRMAÇÃO falsa, dita a todo mundo. Numa barbearia com
+           dois planos ativos — que é o estado normal de quem já foi
+           provisionado — a tela dizia "seus planos precisam estar cadastrados"
+           enquanto o botão "Novo mensalista", quinze centímetros acima, abria
+           os dois planos e concluía a contratação. A tela negava o que a
+           própria tela faz.
+
+           São duas ausências diferentes e o vazio agora as distingue: "não há
+           PLANO" é um pedido de provisionamento; "não há MENSALISTA" é um
+           convite a usar o botão que já está ali.
+
+           A afirmação de ausência só é feita depois de LER: com `plans` ainda
+           carregando ou em erro, a tela aponta o botão, e é o próprio modal —
+           que já guarda por `planosAtivos.length === 0` — quem diz a verdade
+           sobre o que ele encontrou. */
         <EmptyState
           icon={Users}
           title="Nenhum mensalista ainda"
-          description="Mensalista é o cliente que paga todo mês e volta sem você precisar chamar — é a receita que entra na semana em que a barbearia esvazia. Para contratar o primeiro, seus planos precisam estar cadastrados; fale com quem cuida da sua conta na plataforma."
+          description={
+            statusDosPlanos === "pronto" && planosAtivos.length === 0
+              ? "Mensalista é o cliente que paga todo mês e volta sem você precisar chamar — é a receita que entra na semana em que a barbearia esvazia. Para contratar o primeiro, seus planos precisam estar cadastrados; fale com quem cuida da sua conta na plataforma."
+              : "Mensalista é o cliente que paga todo mês e volta sem você precisar chamar — é a receita que entra na semana em que a barbearia esvazia. Use “Novo mensalista”, aqui em cima, para contratar o primeiro."
+          }
         />
       )}
 

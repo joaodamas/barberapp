@@ -11,6 +11,7 @@ import { useInventoryMovements, useProducts, useRefunds, useStaff } from "@/lib/
 import { chaveDeIdempotencia } from "@/lib/chave-de-idempotencia";
 import { paymentMethodLabel } from "@/lib/payment-method";
 import { situacaoDaVenda, vendasEstornaveis, type VendaEstornavel } from "@/lib/estornos";
+import { plural } from "@/lib/plural";
 import type { PaymentMethod } from "@/lib/types";
 
 /**
@@ -117,11 +118,14 @@ export function DesfazerVenda() {
       {feito && (
         <Card className="mb-2 flex items-center gap-2 border-gold/40 py-2.5 text-sm">
           <RotateCcw size={16} className="shrink-0 text-gold-light" />
-          {/* Concorda em número: "1 un. voltou", "2 un. voltaram". Visto na
-              tela — nenhum teste de valor pegaria uma frase errada. */}
+          {/* Concorda em número: "1 un. voltou", "2 un. voltaram". A frase já
+              saía certa — o que estava errado era a FORMA: um ternário inline,
+              o mesmo anti-padrão que produziu o defeito 15 linhas abaixo, no
+              aviso de quanto já voltou. Enquanto a regra mora na linha, cada
+              nova frase é uma chance de errar de novo. */}
           <span>
             Devolvido {formatBRL(feito.valor)} · {feito.unidades} un.{" "}
-            {feito.unidades === 1 ? "voltou" : "voltaram"} para o estoque.
+            {plural(feito.unidades, "voltou", "voltaram")} para o estoque.
           </span>
         </Card>
       )}
@@ -176,14 +180,30 @@ export function DesfazerVenda() {
       >
         {aDesfazer && (
           <div className="flex flex-col gap-3">
+            {/* A frase era "{qtd}× {produto} vendida em ...", e "vendida"
+                concordava com um nome que o produto não controla: o dono
+                cadastra "Shampoo", e a tela escrevia "Shampoo ... vendida".
+                Gênero de nome próprio de produto não é dedutível — nem por
+                regra, nem por dicionário —, então a saída não é escolher a
+                forma certa, é escrever uma frase que não dependa dela.
+                "Venda" é o substantivo da AÇÃO, invariável aqui, e o produto
+                passa a ser dado da linha em vez de sujeito de um adjetivo. */}
             <p className="text-sm text-ivory-muted">
-              {aDesfazer.quantidade}× {nomeDoProduto(aDesfazer.productId)} vendida em{" "}
-              {aDesfazer.date} por {formatBRL(aDesfazer.valor)}.
+              Venda de {aDesfazer.date} · {aDesfazer.quantidade}×{" "}
+              {nomeDoProduto(aDesfazer.productId)} · {formatBRL(aDesfazer.valor)}
             </p>
 
             {aDesfazer.devolvida > 0 && (
+              /* Duas concordâncias, e as duas estavam fixas no plural.
+               * "1 un. já voltaram" é o par que as UI-UX-GUIDELINES §9 usam
+               * como EXEMPLO — o produto escrevia o lado errado do próprio
+               * exemplo do próprio guia. E o "Restam" errava sozinho no
+               * extremo oposto: com 2 de 3 devolvidas, a tela dizia
+               * "Restam 1". */
               <p className="text-xs text-gold-light">
-                {aDesfazer.devolvida} un. já voltaram. Restam {aDesfazer.resta}.
+                {aDesfazer.devolvida} un. já{" "}
+                {plural(aDesfazer.devolvida, "voltou", "voltaram")}.{" "}
+                {plural(aDesfazer.resta, "Resta", "Restam")} {aDesfazer.resta}.
               </p>
             )}
 
