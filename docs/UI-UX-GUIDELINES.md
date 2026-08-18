@@ -178,6 +178,61 @@ nomes diferentes é defeito, não conveniência.
 
 ---
 
+## 10.5 · UI/UX É PARTE DO PRODUTO
+
+Não existe "backend bom + tela bonita". Existe:
+
+```
+produto bom = motor confiável + experiência confiável
+```
+
+Achado de tela é **defeito de produto**, não pedido de melhoria. O CMV provou:
+o cálculo estava certo, o dono via R$ 18,00 no cabeçalho e R$ 180,00 no filho, e
+o produto estava errado.
+
+---
+
+## 10.6 · A identidade se REFORÇA, não se inventa
+
+Ninguém — pessoa ou agente — cria identidade visual nova. A assinatura do JP
+Barber vai aparecer quando o Design System existente for aplicado com
+consistência, a densidade cair e a hierarquia melhorar. Não quando alguém
+escolher uma cor que ninguém usa.
+
+### PROIBIDO
+
+- dark mode · `prefers-color-scheme: dark` · versão alternativa da interface
+- neon · gradiente decorativo · glassmorphism gratuito
+- estética "AI SaaS"
+- copiar Linear, Stripe, Notion, Nubank ou qualquer concorrente
+- trocar a paleta porque "parece mais moderna"
+- cor fora dos tokens
+- cor como decoração, sem função
+
+### DESEJADO
+
+- tipografia mais forte
+- hierarquia mais clara
+- melhor uso de espaço · proporções próprias
+- componentes mais refinados · melhor densidade
+- microinterações discretas
+- estados mais bem construídos · ícones consistentes
+- composição visual reconhecível
+
+**A diferença mora no sistema, não no efeito visual.**
+
+### E o que NÃO dá para travar por teste
+
+Light-only, contraste AA, alvo de toque e `prefers-reduced-motion` já reprovam o
+build. Esses são o **negativo** — o que não pode existir.
+
+O **positivo** — *"isso é reconhecivelmente JP Barber"* — nenhuma regra
+automatizada verifica. Nenhum teste distingue um cartão sóbrio de um cartão
+genérico. Isso é a regra 19 aplicada à identidade: um agente implementa e testa;
+**quem decide se ficou com cara de JP Barber é o dono, olhando a tela.**
+
+---
+
 ## 11 · Anti-patterns — proibidos
 
 - ❌ **Dark mode**, `prefers-color-scheme: dark`, ou qualquer versão alternativa
