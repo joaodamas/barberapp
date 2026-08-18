@@ -198,6 +198,23 @@ describe("caixa diário", () => {
   });
 });
 
+/** Comissão de produto materializada — a fonte da linha desde a Rodada 3.2. */
+const comissaoDeVenda = (
+  o: Partial<CommissionDoc> & { id: string }
+): Doc<CommissionDoc> =>
+  ({
+    origin: "produto",
+    movementId: "mv1",
+    staffId: "leo",
+    uid: null,
+    staffName: "Léo",
+    date: "2026-07-10",
+    commissionPct: 40,
+    commissionBase: 300,
+    commissionAmount: 120,
+    ...o,
+  }) as Doc<CommissionDoc>;
+
 describe("resultado do mês", () => {
   const base = () => {
     const bookings = [bk({ id: "1", value: 1000, paymentMethod: "cash" })];
@@ -241,15 +258,52 @@ describe("resultado do mês", () => {
   /* O teste que existia aqui afirmava que a comissão saía APENAS do lucro da
    * loja — ou seja, ele passava porque codificava o defeito. Com R$ 1.000 de
    * serviço, o custo de mão de obra lançado era R$ 120 (40% sobre R$ 300 de
-   * lucro de produto) em vez de R$ 520. */
-  it("serviço paga comissão sobre o FATURAMENTO, produto sobre o lucro", () => {
+   * lucro de produto) em vez de R$ 520.
+   *
+   * Na Rodada 3.2 ele mudou de novo: a comissão de produto deixou de ser
+   * `lucroLoja × política de hoje` e passa a sair do FATO materializado. O
+   * teste antigo afirmava a derivação — que é o P1-7 — e por isso precisou ser
+   * reescrito com a comissão gravada. */
+  it("serviço paga comissão sobre o FATURAMENTO, produto sai do FATO", () => {
     const b = base();
-    const r = resultadoDoMes({ ...b, expenses: [], periodo: P, policies: PLATFORM_DEFAULT_POLICIES });
     const pct = PLATFORM_DEFAULT_POLICIES.commissionSplit.barberPct;
+    const r = resultadoDoMes({
+      ...b,
+      expenses: [],
+      periodo: P,
+      policies: PLATFORM_DEFAULT_POLICIES,
+      commissions: [comissaoDeVenda({ id: "cv1", commissionAmount: 120 })],
+    });
 
     expect(r.commissionsServico).toBe((1000 * pct) / 100);
-    expect(r.commissionsLoja).toBe(((500 - 200) * pct) / 100);
+    expect(r.commissionsLoja).toBe(120);
     expect(r.commissions).toBe(r.commissionsServico + r.commissionsLoja);
+  });
+
+  it("SEM o fato, a comissão de produto é ZERO — não deriva da política", () => {
+    /* P1-7 na porta de saída. Derivar aqui faria meses fechados se reescrever
+     * quando o split mudasse; zero é a verdade — não havia comissão gravada. */
+    const b = base();
+    const r = resultadoDoMes({ ...b, expenses: [], periodo: P, policies: PLATFORM_DEFAULT_POLICIES });
+    expect(r.commissionsLoja).toBe(0);
+  });
+
+  it("mudar o split NÃO reescreve a comissão de produto já gravada", () => {
+    const b = base();
+    const gravada = [comissaoDeVenda({ id: "cv1", commissionPct: 50, commissionAmount: 150 })];
+    const a40 = resultadoDoMes({
+      ...b, expenses: [], periodo: P, commissions: gravada,
+      policies: PLATFORM_DEFAULT_POLICIES,
+    });
+    const a60 = resultadoDoMes({
+      ...b, expenses: [], periodo: P, commissions: gravada,
+      policies: {
+        ...PLATFORM_DEFAULT_POLICIES,
+        commissionSplit: { barberPct: 60, shopPct: 40 } as unknown as typeof PLATFORM_DEFAULT_POLICIES.commissionSplit,
+      },
+    });
+    expect(a40.commissionsLoja).toBe(150);
+    expect(a60.commissionsLoja).toBe(150);
   });
 
   it("cada barbeiro paga o percentual DELE, não a média", () => {
@@ -346,12 +400,17 @@ describe("resultado do mês", () => {
   it("comissão tem como base o serviço, não só o lucro de produto", () => {
     // O serviço é o negócio da barbearia. Comissionar só a revenda deixava o
     // maior custo variável da operação em R$ 0,00 no DRE.
+    //
+    // A parcela de produto agora vem do fato (3.2); a de serviço continua
+    // derivando sobre o faturamento quando não há comissão gravada.
     const { receita, movements } = base();
-    const r = resultadoDoMes({ receita, expenses: [], movements, periodo: P, policies: PLATFORM_DEFAULT_POLICIES });
-    const baseDaComissao = 1000 + (500 - 200); // serviço cheio + lucro da revenda
-    expect(r.commissions).toBe(
-      Math.round((baseDaComissao * PLATFORM_DEFAULT_POLICIES.commissionSplit.barberPct) / 100)
-    );
+    const r = resultadoDoMes({
+      receita, expenses: [], movements, periodo: P,
+      policies: PLATFORM_DEFAULT_POLICIES,
+      commissions: [comissaoDeVenda({ id: "cv1", commissionAmount: 120 })],
+    });
+    const servico = Math.round((1000 * PLATFORM_DEFAULT_POLICIES.commissionSplit.barberPct) / 100);
+    expect(r.commissions).toBe(servico + 120);
   });
 
   it("despesa recorrente segue valendo no mês seguinte ao lançamento", () => {
@@ -649,11 +708,15 @@ describe("taxa de maquininha", () => {
     grossAmount: 100, feePct: 3.49, feeAmount: 3.49, netAmount: 96.51, ...o,
   });
 
-  it("soma o que foi de fato cobrado no período", () => {
+  it("soma o que foi de fato cobrado no período, AO CENTAVO", () => {
     // Era um parâmetro que nenhum chamador preenchia: o DRE debitava zero.
+    //
+    // E depois passou a somar arredondando ao real — 5,49 virava 5,00 (D1/D5).
+    // O número precisa bater com o extrato da maquininha, que é onde o dono
+    // confere; ali não existe real inteiro.
     expect(
       taxasDePagamento([pg({ id: "1", feeAmount: 3.49 }), pg({ id: "2", feeAmount: 2 })], P7)
-    ).toBe(5);
+    ).toBe(5.49);
   });
 
   it("ignora pagamento de outro mês", () => {

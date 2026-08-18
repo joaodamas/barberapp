@@ -15,10 +15,12 @@ import { OCCUPIES_SLOT } from "@/lib/domain";
 import {
   BOOKINGS,
   COMMISSIONS,
+  COMMISSIONS_PRODUTO,
   EXPENSES,
   MES,
   MOVEMENTS,
   PAYMENTS,
+  PAYMENTS_PRODUTO,
   POLICIES,
   STAFF,
   SUBSCRIBERS,
@@ -63,8 +65,8 @@ const dre = resultadoDoMes({
   policies,
   staff: STAFF,
   bookings: BOOKINGS,
-  commissions: COMMISSIONS,
-  gatewayFeesTotal: taxasDePagamento(PAYMENTS, periodo),
+  commissions: [...COMMISSIONS, ...COMMISSIONS_PRODUTO],
+  gatewayFeesTotal: taxasDePagamento([...PAYMENTS, ...PAYMENTS_PRODUTO], periodo),
 });
 
 const fluxo = caixaDiario({ bookings: BOOKINGS, movements: MOVEMENTS, periodo });
@@ -84,7 +86,7 @@ const comissoes = comissoesDeServico({
   staff: STAFF,
   periodo,
   policies,
-  commissions: COMMISSIONS,
+  commissions: [...COMMISSIONS, ...COMMISSIONS_PRODUTO],
 });
 
 /* ------------------------------------------------------------------ */
@@ -190,7 +192,10 @@ describe("visão 2 · Financeiro", () => {
      * sentido em que o dono usa a palavra (ele pensa em aluguel e conta de luz,
      * que somam 2.550). Não é erro de cálculo: é rótulo que descreve outra
      * coisa. */
-    expect(financeiro.despesas).toBeCloseTo(2997.5, 2);
+    /* O valor caiu de 2.997,50 para 2.962,75 com as correções da 3.2 — mas o
+     * ACHADO não é o número, é o rótulo: continua chamando de "despesas" um
+     * total que inclui CMV, taxas, comissões e imposto. */
+    expect(financeiro.despesas).toBeCloseTo(2962.75, 2);
     expect(dre.fixedCost).toBe(2550);
     expect(financeiro.despesas).not.toBe(dre.fixedCost);
   });
@@ -199,9 +204,12 @@ describe("visão 2 · Financeiro", () => {
     /* Sob um cartão de R$ 290 de loja, lê-se "comissão do profissional:
      * R$ 222,50" — que é a comissão do mês inteiro, serviço incluído. O número
      * da loja existe ao lado e é R$ 44,00. */
+    /* Com a 3.2 os dois números mudaram — total 248,10 e loja 69,60 — e o
+     * defeito segue igual: sob o cartão da LOJA aparece a comissão do mês
+     * inteiro. É rótulo, não cálculo. */
     expect(financeiro.legendaComissao).toBe(dre.commissions);
-    expect(financeiro.legendaComissao).toBeCloseTo(222.5, 2);
-    expect(dre.commissionsLoja).toBe(44);
+    expect(financeiro.legendaComissao).toBeCloseTo(248.1, 2);
+    expect(dre.commissionsLoja).toBe(69.6);
   });
 });
 
@@ -253,7 +261,7 @@ describe("visão 3 · DRE", () => {
   });
 
   it("o imposto incide sobre a receita realizada, não sobre o contratado", () => {
-    expect(dre.tax).toBe(41); // 6% de 680, arredondado — D5
+    expect(dre.tax).toBe(40.8); // 6% de 680, ao centavo — D5 fechado na 3.2
     expect(dre.tax).toBeLessThan(((680 + 248) * 6) / 100);
   });
 });
@@ -425,27 +433,28 @@ describe("matriz fato × visão", () => {
     expect(dashboardDe("2026-09-20").previsto).toBe(0);
   });
 
-  it("CMV · o sistema diz 180, o ledger diz 116", () => {
-    expect(dre.cmv).toBe(180);
+  it("CMV · sistema e ledger dizem 116", () => {
+    expect(dre.cmv).toBe(116);
     // Só o DRE mostra CMV. Nenhuma outra visão o expõe.
   });
 
-  it("comissão · 222,50 no sistema (178,50 serviço + 44 loja)", () => {
-    expect(dre.commissions).toBeCloseTo(222.5, 2);
+  it("comissão · 248,10 (178,50 serviço + 69,60 loja), igual ao ledger", () => {
+    expect(dre.commissions).toBeCloseTo(248.1, 2);
     expect(dre.commissionsServico).toBe(178.5);
-    expect(dre.commissionsLoja).toBe(44);
+    expect(dre.commissionsLoja).toBe(69.6);
   });
 
-  it("taxas · 4 no sistema, 7,85 no ledger", () => {
-    expect(dre.gatewayFees).toBe(4);
+  it("taxas · 7,85 nos dois — serviço 4,14 + produto 3,71", () => {
+    expect(dre.gatewayFees).toBe(7.85);
   });
 
-  it("imposto · 41 no sistema, 40,80 no ledger", () => {
-    expect(dre.tax).toBe(41);
+  it("imposto · 40,80 nos dois", () => {
+    expect(dre.tax).toBe(40.8);
   });
 
-  it("despesas · 2.550 de custo fixo, exibido como 2.997,50 no Financeiro", () => {
+  it("despesas · 2.550 de custo fixo, exibido como 2.962,75 no Financeiro", () => {
+    /* O rótulo continua sendo o achado — ver a visão 2. */
     expect(dre.fixedCost).toBe(2550);
-    expect(financeiro.despesas).toBeCloseTo(2997.5, 2);
+    expect(financeiro.despesas).toBeCloseTo(2962.75, 2);
   });
 });

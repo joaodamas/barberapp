@@ -142,19 +142,53 @@ export const PAYMENTS: Doc<PaymentDoc>[] = CONCLUIDOS.map((a) => {
 /**
  * Movimentos de estoque.
  *
- * `InventoryMovementDoc` **não tem campo de meio de pagamento** — e é
- * exatamente a lacuna que a premissa N12 expõe. O meio real de cada venda vive
- * em `MEIO_DA_VENDA`, fora do documento, porque o modelo atual não sabe
- * guardá-lo. Quando souber, esta constante desaparece.
+ * `unitCost` e `unitPrice` CONGELADOS desde a Rodada 3.2.
+ *
+ * A massa foi escrita antes de G1, quando o movimento não sabia guardar o
+ * custo — e por isso o CMV só podia ser calculado somando as compras do
+ * período, que é o D3. Com o custo no fato, o CMV do sistema passa a ser
+ * `4 pomadas × 18 + 2 shampoos × 22 = 116`, exatamente o número que o ledger
+ * humano sempre disse.
+ *
+ * O meio de pagamento ainda vive em `MEIO_DA_VENDA`, fora do documento — G1 já
+ * criou o campo, mas ligá-lo ao caixa por instrumento é a Rodada 3.3.
  */
 export const MOVEMENTS: Doc<InventoryMovementDoc>[] = [
-  { id: "C01", productId: "pomada", kind: "compra", quantity: 10, value: 180, date: "2026-09-01" },
-  { id: "V01", productId: "pomada", kind: "venda", quantity: 1, value: 45, date: "2026-09-04" },
-  { id: "V02", productId: "pomada", kind: "venda", quantity: 1, value: 45, date: "2026-09-07" },
-  { id: "V03", productId: "shampoo", kind: "venda", quantity: 1, value: 55, date: "2026-09-11" },
-  { id: "V04", productId: "pomada", kind: "venda", quantity: 2, value: 90, date: "2026-09-14" },
-  { id: "V05", productId: "shampoo", kind: "venda", quantity: 1, value: 55, date: "2026-09-19" },
+  { id: "C01", productId: "pomada", kind: "compra", quantity: 10, unitCost: 18, unitPrice: 0, value: 180, date: "2026-09-01" },
+  { id: "V01", productId: "pomada", kind: "venda", quantity: 1, unitPrice: 45, unitCost: 18, value: 45, staffId: "b-rafael", date: "2026-09-04" },
+  { id: "V02", productId: "pomada", kind: "venda", quantity: 1, unitPrice: 45, unitCost: 18, value: 45, staffId: "b-rafael", date: "2026-09-07" },
+  { id: "V03", productId: "shampoo", kind: "venda", quantity: 1, unitPrice: 55, unitCost: 22, value: 55, staffId: "b-rafael", date: "2026-09-11" },
+  { id: "V04", productId: "pomada", kind: "venda", quantity: 2, unitPrice: 45, unitCost: 18, value: 90, staffId: "b-rafael", date: "2026-09-14" },
+  { id: "V05", productId: "shampoo", kind: "venda", quantity: 1, unitPrice: 55, unitCost: 22, value: 55, staffId: "b-rafael", date: "2026-09-19" },
 ];
+
+/**
+ * Comissão de PRODUTO materializada — Rodada 3.1.
+ *
+ * Antes ela era um agregado do mês (`lucroLoja × política de hoje`), e por isso
+ * não existia na massa. Desde a 3.1 cada venda carrega a própria, com o
+ * percentual congelado — e é dela que o DRE tira a linha.
+ *
+ * A base é o LUCRO da venda, não o faturamento: 40% sobre (45−18) e (55−22).
+ * Somadas dão R$ 69,60, exatamente o que o ledger humano calculou.
+ */
+export const COMMISSIONS_PRODUTO: Doc<CommissionDoc>[] = MOVEMENTS.filter(
+  (m) => m.kind === "venda" && m.staffId
+).map((m) => {
+  const lucro = Math.max((m.unitPrice ?? 0) - (m.unitCost ?? 0), 0) * m.quantity;
+  return {
+    id: `comissao_venda_${m.id}`,
+    movementId: m.id,
+    staffId: m.staffId!,
+    uid: null,
+    staffName: NOME_DO_BARBEIRO[m.staffId!],
+    date: m.date,
+    origin: "produto" as const,
+    commissionPct: 40,
+    commissionBase: centavos(lucro),
+    commissionAmount: centavos((lucro * 40) / 100),
+  };
+});
 
 /** O meio de pagamento que o modelo de estoque não guarda — premissa N12. */
 export const MEIO_DA_VENDA: Record<string, "pix" | "cash" | "debit" | "credit"> = {
@@ -164,6 +198,40 @@ export const MEIO_DA_VENDA: Record<string, "pix" | "cash" | "debit" | "credit"> 
   V04: "debit",
   V05: "pix",
 };
+
+/**
+ * Pagamentos de PRODUTO — G1.6.
+ *
+ * A venda passou a gerar `PaymentDoc` com a taxa congelada. Antes disso
+ * `gatewayFeesTotal` só via os pagamentos de serviço, e a maquininha não
+ * cobrava nada sobre produto no DRE — era o D7, com causa localizada em D21.
+ *
+ * Somadas dão R$ 3,71 de taxa, exatamente o que o ledger humano calculou:
+ * só o crédito (55) e o débito (90) pagam; Pix e dinheiro são zero.
+ */
+export const PAYMENTS_PRODUTO: Doc<PaymentDoc>[] = MOVEMENTS.filter(
+  (m) => m.kind === "venda"
+).map((m) => {
+  const metodo = MEIO_DA_VENDA[m.id];
+  /* Literais em vez de `POLICIES.paymentFees`: aquela constante é declarada
+   * mais abaixo no arquivo, e referenciá-la aqui estoura no import. Os valores
+   * são os mesmos, e o teste de coerência logo abaixo prova que continuam. */
+  const feePct = { pix: 0, cash: 0, debit: 1.99, credit: 3.49 }[metodo];
+  const feeAmount = centavos((m.value * feePct) / 100);
+  return {
+    id: `pagamento_venda_${m.id}`,
+    origin: "produto" as const,
+    movementId: m.id,
+    clientId: null,
+    date: m.date,
+    paymentOrigin: "in_person" as const,
+    paymentMethod: metodo,
+    grossAmount: m.value,
+    feePct,
+    feeAmount,
+    netAmount: centavos(m.value - feeAmount),
+  };
+});
 
 /** Estoque de abertura, em valor. O shampoo veio de período anterior. */
 export const ESTOQUE_INICIAL = 5 * 22;

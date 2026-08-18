@@ -4,7 +4,7 @@ import { useTenant } from "@/lib/tenant-context";
 import {
   useBookings, useExpenses, useInventoryMovements,
   useCommissions, usePayments, useProducts, useServices, useStaff,
-  useSubscribers, combineStatus,
+  useSubscribers, useRefunds, useSubscriptionInvoices, combineStatus,
 } from "@/lib/db/use-shop-data";
 import {
   caixaDiario, capacidadeDiaria, folhaMensal, horariosDaJornada, indicadores,
@@ -44,12 +44,14 @@ export function useFinanceiro(mes: string, horizonte: Horizonte = "mensal") {
   const staff = useStaff();
   const commissions = useCommissions();
   const payments = usePayments();
+  const refunds = useRefunds();
+  const invoices = useSubscriptionInvoices();
   const products = useProducts();
 
   const periodo = mesPeriodo(mes);
   const status = combineStatus(
     bookings, expenses, movements, subscribers, services, products, staff,
-    commissions, payments
+    commissions, payments, refunds, invoices
   );
 
   const receita = receitaDoMes({
@@ -58,6 +60,14 @@ export function useFinanceiro(mes: string, horizonte: Horizonte = "mensal") {
     subscribers: subscribers.items,
     periodo,
     hoje: new Date(),
+    /* Rodada 3.2 · a receita passa a sair dos FATOS.
+     *
+     * Pagamento congelado quando existe; documento original como fallback
+     * histórico. A fatura PAGA vira receita de mensalista (D20), e o estorno
+     * é deduzido sem apagar o pagamento (D22). */
+    payments: payments.items,
+    refunds: refunds.items,
+    invoices: invoices.items,
   });
 
   const dre = resultadoDoMes({

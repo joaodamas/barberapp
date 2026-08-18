@@ -11,12 +11,14 @@ import {
 import {
   BOOKINGS,
   COMMISSIONS,
+  COMMISSIONS_PRODUTO,
   ESTOQUE_INICIAL,
   EXPENSES,
   MEIO_DA_VENDA,
   MES,
   MOVEMENTS,
   PAYMENTS,
+  PAYMENTS_PRODUTO,
   POLICIES,
   STAFF,
   SUBSCRIBERS,
@@ -98,7 +100,7 @@ const receita = receitaDoMes({
   hoje: new Date("2026-09-30T12:00:00"),
 });
 
-const gatewayFeesTotal = taxasDePagamento(PAYMENTS, periodo);
+const gatewayFeesTotal = taxasDePagamento([...PAYMENTS, ...PAYMENTS_PRODUTO], periodo);
 
 const dre = resultadoDoMes({
   receita,
@@ -108,7 +110,7 @@ const dre = resultadoDoMes({
   policies,
   staff: STAFF,
   bookings: BOOKINGS,
-  commissions: COMMISSIONS,
+  commissions: [...COMMISSIONS, ...COMMISSIONS_PRODUTO],
   gatewayFeesTotal,
 });
 
@@ -135,7 +137,7 @@ const comissoes = comissoesDeServico({
   staff: STAFF,
   periodo,
   policies,
-  commissions: COMMISSIONS,
+  commissions: [...COMMISSIONS, ...COMMISSIONS_PRODUTO],
 });
 
 /* ================================================================== */
@@ -261,45 +263,57 @@ describe("bloco 2 · resultado", () => {
 /* DIVERGÊNCIAS — achados confirmados                                 */
 /* ================================================================== */
 
-describe("DIVERGE · D3 · CMV soma as compras, não o custo do vendido", () => {
-  it("o sistema debita 180 onde o ledger diz 116", () => {
-    /* Premissa N11: compra de estoque não é automaticamente CMV.
-     * Foram vendidas 4 pomadas (72) e 2 shampoos (44) = 116. O sistema soma a
-     * compra do período — 10 pomadas, 180 — e o lucro da loja aparece 64 menor
-     * num mês de reposição. */
-    expect(dre.cmv).toBe(180);
-    expect(LEDGER.cmv).toBe(116);
-    expect(dre.cmv - LEDGER.cmv).toBe(LEDGER.estoqueQueFicou);
+describe("CONVERGE · D3 · CMV é o custo do VENDIDO", () => {
+  it("o sistema debita 116, exatamente o ledger", () => {
+    /* Divergência fechada na Rodada 3.2.
+     *
+     * Somava a compra do período — 10 pomadas, 180 — e o lucro da loja aparecia
+     * 64 menor num mês de reposição. Agora sai do `unitCost` congelado em cada
+     * venda: 4 pomadas (72) + 2 shampoos (44) = 116.
+     *
+     * Premissa N11 satisfeita: compra de estoque não é automaticamente CMV. Ela
+     * vira saída de CAIXA, na 3.3. */
+    expect(dre.cmv).toBe(116);
+    expect(dre.cmv).toBe(LEDGER.cmv);
   });
 
-  it("e a comissão de produto herda o erro", () => {
-    // lucro do sistema: 290 − 180 = 110 → 44. Ledger: 290 − 116 = 174 → 69,60.
-    expect(dre.commissionsLoja).toBe(44);
-    expect(LEDGER.comissao.loja).toBe(69.6);
+  it("o estoque que ficou é a diferença entre o comprado e o vendido", () => {
+    const compras = MOVEMENTS.filter((m) => m.kind === "compra").reduce((s, m) => s + m.value, 0);
+    expect(compras - dre.cmv).toBe(LEDGER.estoqueQueFicou);
+  });
+
+  it("e a comissão de produto para de herdar o erro", () => {
+    /* Era 40% sobre o lucro CALCULADO com o CMV errado — 44 em vez de 69,60. E
+     * mesmo com o CMV certo continuaria errada por outro motivo: relia a
+     * política de hoje (P1-7). Agora sai do fato materializado por venda. */
+    expect(dre.commissionsLoja).toBe(69.6);
+    expect(dre.commissionsLoja).toBe(LEDGER.comissao.loja);
   });
 });
 
-describe("DIVERGE · D7 · venda de produto não gera taxa de maquininha", () => {
-  it("o sistema cobra taxa só dos serviços", () => {
-    /* Premissa N12: a venda carrega o meio de pagamento. V03 (crédito) e V04
-     * (débito) pagam maquininha — 3,71 no ledger. O sistema não gera `payment`
-     * para venda de produto, então a taxa não existe. */
-    expect(gatewayFeesTotal).toBe(Math.round(LEDGER.taxas.servicos));
-    expect(LEDGER.taxas.total).toBe(7.85);
+describe("CONVERGE · D7 · venda de produto gera taxa de maquininha", () => {
+  it("a taxa cobre serviço E produto", () => {
+    /* Premissa N12: a venda carrega o meio de pagamento. V03 (crédito, 55) e
+     * V04 (débito, 90) pagam maquininha — 1,92 + 1,79 = 3,71. Antes de G1.6 a
+     * venda não gerava `payment`, e a taxa simplesmente não existia. */
+    expect(gatewayFeesTotal).toBe(7.85);
+    expect(gatewayFeesTotal).toBe(LEDGER.taxas.total);
+    expect(gatewayFeesTotal - LEDGER.taxas.servicos).toBeCloseTo(LEDGER.taxas.produtos, 2);
   });
 });
 
-describe("DIVERGE · D1/D5 · arredondamento para real inteiro", () => {
-  it("a soma das taxas perde os centavos", () => {
-    // 4,14 → 4. Sistemático, e sempre a favor do lucro aparente.
-    expect(gatewayFeesTotal).toBe(4);
-    expect(LEDGER.taxas.servicos).toBe(4.14);
+describe("CONVERGE · D1/D5 · arredondamento ao centavo", () => {
+  it("a soma das taxas mantém os centavos", () => {
+    /* 7,85 arredondava para 8,00. Pequeno, sistemático, e some exatamente onde
+     * seria conferido: o extrato da maquininha. */
+    expect(gatewayFeesTotal).toBe(7.85);
+    expect(gatewayFeesTotal).not.toBe(8);
   });
 
   it("o imposto também", () => {
-    // 40,80 → 41.
-    expect(dre.tax).toBe(41);
-    expect(LEDGER.dre.imposto).toBe(40.8);
+    // 40,80 arredondava para 41,00 — e a guia que o dono paga diz 40,80.
+    expect(dre.tax).toBe(40.8);
+    expect(dre.tax).toBe(LEDGER.dre.imposto);
   });
 });
 
@@ -386,26 +400,40 @@ describe("DIVERGE · D8 · não existe bloco de caixa separado do resultado", ()
 /* O efeito das divergências no resultado final                       */
 /* ================================================================== */
 
-describe("quanto as divergências custam no resultado", () => {
-  it("o resultado do sistema difere do ledger", () => {
-    /* Não é falha: é a soma de D1, D3, D5 e D7 aparecendo no número que o dono
-     * usa para decidir. O teste registra os dois lados. */
+describe("o resultado do sistema BATE com o ledger", () => {
+  it("a divergência é ZERO", () => {
+    /* O marco da Rodada 3.2.
+     *
+     * Antes dela o sistema dizia −2.317,50 e o ledger −2.282,75: R$ 34,75 de
+     * diferença, decomposta em quatro achados. Agora os dois números são o
+     * mesmo, e nenhum foi ajustado para bater — cada linha passou a ler o fato
+     * que a Rodada 3.1 criou.
+     *
+     * A conta que fechou:
+     *
+     *   CMV .............. −64,00 → 0   (D3: 116 em vez de 180)
+     *   comissão de loja . +25,60 → 0   (D3+P1-7: fato, não derivação)
+     *   taxa de serviço .. +0,14  → 0   (D1: centavo)
+     *   taxa de produto .. +3,71  → 0   (D7: venda gera pagamento)
+     *   imposto .......... −0,20  → 0   (D5: centavo)
+     *   ─────────────────────────────
+     *                      −34,75 → 0 */
     expect(LEDGER.dre.resultado).toBe(-2282.75);
-    expect(dre.result).toBeCloseTo(-2317.5, 2);
+    expect(dre.result).toBeCloseTo(LEDGER.dre.resultado, 2);
+    expect(dre.result - LEDGER.dre.resultado).toBeCloseTo(0, 2);
   });
 
-  it("a diferença é explicável, item a item", () => {
-    /* CMV a mais ......... −64,00  (D3: 180 em vez de 116)
-     * comissão de loja ... +25,60  (D3: 44 em vez de 69,60)
-     * taxa de serviço .... +0,14   (D1: 4 em vez de 4,14)
-     * taxa de produto .... +3,71   (D7: não cobrada)
-     * imposto ............ −0,20   (D5: 41 em vez de 40,80)
-     *                      ───────
-     *                      −34,75  */
-    const diferenca = dre.result - LEDGER.dre.resultado;
-    expect(diferenca).toBeCloseTo(-34.75, 2);
-
-    const explicacao = -64.0 + 25.6 + 0.14 + 3.71 - 0.2;
-    expect(explicacao).toBeCloseTo(diferenca, 2);
+  it("cada linha do DRE bate, e não só o total", () => {
+    /* Um total certo pode esconder dois erros que se cancelam. A régua da
+     * rodada é linha a linha. */
+    expect(dre.grossRevenue).toBeCloseTo(LEDGER.receita.realizada, 2);
+    expect(dre.cmv).toBeCloseTo(LEDGER.cmv, 2);
+    expect(dre.gatewayFees).toBeCloseTo(LEDGER.taxas.total, 2);
+    expect(dre.commissionsServico).toBeCloseTo(LEDGER.comissao.servico, 2);
+    expect(dre.commissionsLoja).toBeCloseTo(LEDGER.comissao.loja, 2);
+    expect(dre.commissions).toBeCloseTo(LEDGER.comissao.total, 2);
+    expect(dre.variableCost).toBeCloseTo(LEDGER.dre.custoVariavel, 2);
+    expect(dre.contributionMargin).toBeCloseTo(LEDGER.dre.margemContribuicao, 2);
+    expect(dre.tax).toBeCloseTo(LEDGER.dre.imposto, 2);
   });
 });

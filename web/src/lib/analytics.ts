@@ -16,6 +16,15 @@ import {
 import type { Doc } from "@/lib/db/repository";
 import type { TenantPolicies } from "@/lib/tenant";
 import type { PaymentMethod } from "@/lib/types";
+import { dentroDoPeriodo, type Periodo } from "@/lib/analytics-periodo";
+import {
+  comissaoDeProduto,
+  custoDoVendido,
+  receitaDeMensalidade,
+  receitaDeProduto,
+  receitaDeServico,
+} from "@/lib/fontes-financeiras";
+import type { RefundDoc, SubscriptionInvoiceDoc } from "@/lib/domain";
 
 /**
  * Derivações financeiras a partir do dado bruto.
@@ -29,17 +38,14 @@ import type { PaymentMethod } from "@/lib/types";
  * tocar em Firestore. É o que as torna testáveis sem emulador.
  */
 
-export type Periodo = { inicio: string; fim: string };
+/* O recorte de período mora em `analytics-periodo.ts` desde a Rodada 3.2, para
+ * `fontes-financeiras.ts` poder usá-lo sem ciclo de import. Reexportado aqui
+ * porque dezenas de telas já importam daqui. */
+export { dentroDoPeriodo, mesPeriodo, type Periodo } from "@/lib/analytics-periodo";
 
-/** Primeiro e último dia de um mês `YYYY-MM`. */
-export function mesPeriodo(mes: string): Periodo {
-  const [ano, m] = mes.split("-").map(Number);
-  const ultimo = new Date(ano, m, 0).getDate();
-  return { inicio: `${mes}-01`, fim: `${mes}-${String(ultimo).padStart(2, "0")}` };
-}
-
-export function dentroDoPeriodo(data: string, periodo: Periodo) {
-  return data >= periodo.inicio && data <= periodo.fim;
+/** Arredonda ao centavo — nunca ao real. Ver D1/D5. */
+function centavos(v: number) {
+  return Math.round(v * 100) / 100;
 }
 
 /* ------------------------------------------------------------------ */
@@ -50,11 +56,36 @@ export type ReceitaDoMes = {
   servicos: number;
   encaixes: number;
   produtos: number;
+  /**
+   * MRR CONTRATADO — o retrato de `subscriptions` com status `ativo`.
+   *
+   * Continua fora de `bruta`: é contrato, não recebimento. Fica exposto para a
+   * tela mostrar à parte, com nome próprio.
+   */
   mensalistas: number;
+  /**
+   * Mensalidade REALIZADA — faturas efetivamente pagas no período (D20).
+   *
+   * Esta entra em `bruta`, porque tem lastro: existe uma fatura marcada como
+   * paga e, desde G1.6, um `PaymentDoc` com a taxa congelada.
+   *
+   * **Contratado projeta; realizado fatura.**
+   */
+  mensalidades: number;
   bruta: number;
-  /** O que entra pelo balcão — tudo menos mensalidade. */
+  /** O que entra pelo balcão. */
   caixa: number;
   atendimentos: number;
+  /** Quanto voltou ao cliente no período, somando as três origens (D22). */
+  estornos: number;
+  /**
+   * Quantos fatos caíram no fallback histórico.
+   *
+   * Torna a migração VISÍVEL. Sem isto, "a receita saiu dos pagamentos" e "a
+   * receita saiu do documento antigo" ficam indistinguíveis, e a reconciliação
+   * da 3.4 não teria como explicar uma divergência.
+   */
+  semFatoMaterializado: number;
 };
 
 export function receitaDoMes(params: {
@@ -64,66 +95,78 @@ export function receitaDoMes(params: {
   periodo: Periodo;
   /** Data de referência — decide se o retrato de mensalistas vale no período. */
   hoje?: Date;
+  /**
+   * Pagamentos congelados — Rodada 3.2.
+   *
+   * Quando existe um para o fato, o valor sai dele. Ausentes, cada linha cai no
+   * documento original: é o fallback histórico, e ele cobre os fatos anteriores
+   * à materialização automática.
+   *
+   * O fallback **não é uma segunda parcela somada**. A iteração é sobre o FATO,
+   * e o pagamento só substitui o valor — ver `fontes-financeiras.ts`.
+   */
+  payments?: Doc<PaymentDoc>[];
+  /** Devoluções do período. Reduzem a receita sem apagar o pagamento (D22). */
+  refunds?: Doc<RefundDoc>[];
+  /** Faturas de mensalidade. A PAGA é o que vira receita realizada (D20). */
+  invoices?: Doc<SubscriptionInvoiceDoc>[];
 }): ReceitaDoMes {
   const { bookings, movements, subscribers, periodo } = params;
+  const payments = params.payments ?? [];
+  const refunds = params.refunds ?? [];
+  const invoices = params.invoices ?? [];
 
-  const atendidos = bookings.filter(
-    (b) => isRevenue(b) && dentroDoPeriodo(b.date, periodo)
-  );
+  /* Cada linha itera sobre o próprio universo de fatos e escolhe a fonte por
+   * item. Nenhuma soma duas coleções — é o que garante que um atendimento não
+   * entre duas vezes quando o pagamento dele existe. */
+  const normais = receitaDeServico({ bookings, payments, refunds, periodo, apenasEncaixes: false });
+  const encaixados = receitaDeServico({ bookings, payments, refunds, periodo, apenasEncaixes: true });
+  const servico = receitaDeServico({ bookings, payments, refunds, periodo });
+  const produto = receitaDeProduto({ movements, payments, refunds, periodo });
+  const mensalidade = receitaDeMensalidade({ invoices, payments, refunds, periodo });
 
-  const servicos = atendidos.filter((b) => !b.isFitIn).reduce((s, b) => s + b.value, 0);
-  const encaixes = atendidos.filter((b) => b.isFitIn).reduce((s, b) => s + b.value, 0);
-
-  const produtos = movements
-    .filter((m) => m.kind === "venda" && dentroDoPeriodo(m.date, periodo))
-    .reduce((s, m) => s + m.value, 0);
-
-  /* Mensalidade é receita CONTRATADA, não realizada — e por isso fica fora da
-   * receita bruta.
+  /* MRR contratado — o retrato de HOJE, e por isso recortado pela data de
+   * referência. `SubscriberDoc` não guarda `createdAt` nem `canceledAt`: somar
+   * em qualquer período faria os 40 assinantes de hoje virarem receita de um
+   * janeiro que teve 5.
    *
-   * O único lastro de que este dinheiro entrou é alguém ter deixado o status
-   * como `ativo`. Não existe cobrança: `subscriptions` é flag de plano, e
-   * `subscription_invoices` não é escrita por ninguém. Somando isso em `bruta`,
-   * o produto AFIRMAVA um recebimento cuja evidência era uma caixinha marcada.
-   *
-   * O custo era concreto e triplo. No dia 1º o DRE já mostrava o mês inteiro de
-   * MRR como recebido, porque nada aqui olha `nextCharge`. O Simples Nacional
-   * incide sobre `bruta`, então o dono separava imposto sobre dinheiro que
-   * talvez não tivesse entrado. E a margem — o número que ele usa para decidir
-   * preço — subia junto.
-   *
-   * Um mensalista que parou de pagar seguia gerando receita até alguém lembrar
-   * de mudar o status à mão.
-   *
-   * `nextCharge` não resolveria: ele diz quando DEVERIA cobrar, não que foi
-   * pago. Trocaria uma afirmação sem evidência por outra. Quando existir
-   * cobrança de verdade — assinatura → cobrança → recebimento → confirmação —,
-   * a mensalidade recebida volta para `bruta` com lastro.
-   *
-   * Continua exposta em `mensalistas` para a tela mostrar à parte: o dono
-   * precisa enxergar o contratado, só não pode confundi-lo com o realizado.
-   *
-   * O recorte por período segue valendo pelo motivo antigo: `SubscriberDoc`
-   * guarda o estado de HOJE, sem `createdAt` nem `canceledAt`. Somar em
-   * qualquer período fazia o MRR atual aparecer em todo mês do histórico — 40
-   * assinantes de hoje viravam receita de um janeiro que teve 5. */
+   * Continua FORA de `bruta`. O que entra é `mensalidades`, que tem lastro de
+   * fatura paga — a decisão D20. */
   const referencia = toISODate(params.hoje ?? new Date());
   const mensalistas = dentroDoPeriodo(referencia, periodo)
     ? subscribers.filter((s) => s.status === "ativo").reduce((s, sub) => s + sub.price, 0)
     : 0;
 
-  const caixa = servicos + encaixes + produtos;
+  /* TODAS as linhas expõem o BRUTO, e o estorno é uma dedução única.
+   *
+   * Misturar bruto e líquido entre as linhas quebraria a soma da árvore — os
+   * filhos não fechariam com o cabeçalho, que é exatamente o D6/P1-2 que a
+   * Rodada 1 corrigiu. E descontar a devolução dentro da linha E de novo no
+   * total a subtrairia duas vezes.
+   *
+   * É também como um DRE de verdade se lê: receita bruta, deduções, receita
+   * líquida. */
+  const estornos = centavos(servico.estornada + produto.estornada + mensalidade.estornada);
+  const somaDasLinhas = centavos(
+    servico.bruta + produto.bruta + mensalidade.bruta
+  );
+  const caixa = centavos(somaDasLinhas - estornos);
 
   return {
-    servicos,
-    encaixes,
-    produtos,
-    /** CONTRATADA, não realizada. Fora de `bruta` de propósito. */
+    servicos: normais.bruta,
+    encaixes: encaixados.bruta,
+    produtos: produto.bruta,
     mensalistas,
+    mensalidades: mensalidade.bruta,
     caixa,
-    /** Receita REALIZADA: só o que tem lastro em atendimento ou venda. */
+    /** Receita REALIZADA: soma das linhas menos as devoluções. */
     bruta: caixa,
-    atendimentos: atendidos.length,
+    atendimentos: servico.quantidade,
+    estornos,
+    semFatoMaterializado:
+      servico.semFatoMaterializado +
+      produto.semFatoMaterializado +
+      mensalidade.semFatoMaterializado,
   };
 }
 
@@ -143,12 +186,55 @@ export function receitaDoMes(params: {
  * Linha zerada não entra: uma barbearia que não vende produto não precisa ver
  * "Produtos (loja) · R$ 0,00" todo mês.
  */
-export function composicaoDaReceita(receita: ReceitaDoMes) {
-  return [
+export type LinhaDaReceita = {
+  label: string;
+  value: number;
+  /** Fatia sobre a receita BRUTA. Negativo na dedução. */
+  pct: number;
+  /** `true` na devolução: subtrai em vez de compor. */
+  deducao: boolean;
+};
+
+export function composicaoDaReceita(receita: ReceitaDoMes): LinhaDaReceita[] {
+  const entradas = [
     { label: "Serviços avulsos", value: receita.servicos },
     { label: "Produtos (loja)", value: receita.produtos },
     { label: "Encaixes", value: receita.encaixes },
+    /* Mensalidade RECEBIDA entra na árvore desde a Rodada 3.2 (D20). O que
+     * continua fora é o MRR contratado, que não tem lastro de recebimento. */
+    { label: "Mensalidades recebidas", value: receita.mensalidades },
   ].filter((item) => item.value > 0);
+
+  /* O denominador é o BRUTO — a soma das entradas —, não a receita líquida.
+   *
+   * Usar a líquida fazia as fatias somarem mais de 100% num mês com devolução:
+   * R$ 50 + R$ 90 + R$ 99 sobre R$ 194 dá 26% + 46% + 51% = 123%. E a linha de
+   * devolução aparecia com 0%, porque `safePct` clampa negativo — o dono via
+   * uma dedução de R$ 45,00 valendo zero por cento.
+   *
+   * É o D6/P1-2 na versão percentual: os filhos não fechavam o cabeçalho. */
+  const bruto = entradas.reduce((s, i) => s + i.value, 0);
+  const fatia = (v: number) => (bruto > 0 ? Math.round((v / bruto) * 100) : 0);
+
+  const linhas: LinhaDaReceita[] = entradas.map((i) => ({
+    ...i,
+    pct: fatia(i.value),
+    deducao: false,
+  }));
+
+  /* A devolução entra por último e com sinal, porque não é uma fatia da receita
+   * — é o que saiu dela. Escondê-la faria a soma das linhas não bater com a
+   * receita realizada logo acima. */
+  if (receita.estornos > 0) {
+    linhas.push({
+      label: "Devoluções",
+      value: -receita.estornos,
+      pct: -fatia(receita.estornos),
+      deducao: true,
+    });
+  }
+
+  return linhas;
 }
 
 /**
@@ -416,11 +502,23 @@ export function folhaMensal(staff: Doc<StaffDoc>[]) {
  * DRE debitava zero de taxa: numa barbearia que passa metade do faturamento no
  * crédito, some cerca de 1,5% do faturamento total do resultado.
  */
+/**
+ * Soma das taxas congeladas do período — ao CENTAVO, não ao real (D1/D5).
+ *
+ * Arredondava para real inteiro: R$ 7,85 virava R$ 8,00. Parece irrelevante e
+ * é sistemático — e sempre na mesma direção, porque o valor arredondado entra
+ * como CUSTO. Com 7,85 → 8,00 o lucro aparente cai; com 4,14 → 4,00 ele sobe.
+ * Em nenhum dos dois o número bate com o extrato da maquininha, que é onde o
+ * dono confere.
+ *
+ * A taxa individual já nasce ao centavo em `valoresDoPagamento`; era só a soma
+ * que perdia a precisão de volta.
+ */
 export function taxasDePagamento(
   payments: Doc<PaymentDoc>[],
   periodo: Periodo
 ) {
-  return Math.round(
+  return centavos(
     payments
       .filter((p) => dentroDoPeriodo(p.date, periodo))
       .reduce((soma, p) => soma + (p.feeAmount ?? 0), 0)
@@ -464,10 +562,17 @@ export function resultadoDoMes(params: {
     .filter((e) => !e.recurring && dentroDoPeriodo(e.date, periodo))
     .reduce((s, e) => s + e.value, 0);
 
-  // CMV = custo de compra do que foi vendido no período.
-  const cmv = movements
-    .filter((m) => m.kind === "compra" && dentroDoPeriodo(m.date, periodo))
-    .reduce((s, m) => s + m.value, 0);
+  /* CMV pelo custo do que foi VENDIDO — D3.
+   *
+   * Somava `kind === "compra"` do período. Num mês de reposição o lucro da loja
+   * despencava sem nada ter piorado; num mês sem reposição a margem aparecia
+   * perfeita. Pior: com D19 aberto **não havia compras a somar**, e o CMV era
+   * zero estrutural — o dono pagava comissão sobre o custo da mercadoria.
+   *
+   * Só é possível porque G1 congelou `unitCost` na venda. Compra de estoque
+   * deixa de ser custo do período e passa a ser saída de CAIXA, na 3.3. */
+  const custoVendido = custoDoVendido({ movements, periodo });
+  const cmv = custoVendido.total;
 
   /* Vem somado de `taxasDePagamento`, sobre os pagamentos CONGELADOS, e não
    * derivado das reservas com a taxa vigente hoje: mudar a taxa da maquininha
@@ -507,8 +612,25 @@ export function resultadoDoMes(params: {
         porBarbeiro: [] as ComissaoDeBarbeiro[],
       };
 
-  const lucroLoja = Math.max(receita.produtos - cmv, 0);
-  const commissionsLoja = Math.round((lucroLoja * padraoPct) / 100);
+  /* Comissão de produto a partir do FATO — P1-7.
+   *
+   * Era `lucroLoja × política de hoje`, recalculada a cada leitura: mudar o
+   * split em outubro reescrevia o acerto de setembro. Agora cada venda carrega
+   * a própria comissão, com o percentual do barbeiro congelado, e as linhas de
+   * estorno (negativas) entram na mesma soma sem que a fórmula precise saber
+   * que houve devolução.
+   *
+   * **Sem fallback**, e a ausência é deliberada: derivar aqui restauraria o
+   * P1-7 na porta de saída. Venda anterior à Rodada 3.1 fica com zero, o que é
+   * verdade — não havia comissão registrada.
+   *
+   * `lucroLoja` sumiu junto: ele existia só como base da comissão, e nenhuma
+   * tela o consome. Mantê-lo "para o caso de" deixaria uma derivação viva ao
+   * lado do fato, que é o convite para alguém voltar a usá-la. */
+  const commissionsLoja = comissaoDeProduto({
+    commissions: params.commissions ?? [],
+    periodo,
+  });
   const commissions = servico.total + commissionsLoja;
 
   /* Simples Nacional (Anexo III) incide sobre RECEITA BRUTA, e é devido mesmo
@@ -518,7 +640,11 @@ export function resultadoDoMes(params: {
    *
    * Fica fora de `variableCost` para a escada do DRE continuar legível, e a
    * identidade `grossRevenue − totalCost === result` segue valendo. */
-  const tax = Math.round((receita.bruta * policies.taxRatePct) / 100);
+  /* Ao CENTAVO, não ao real — D1/D5. R$ 40,80 virava R$ 41,00, e o número
+   * deixava de bater com a guia que o dono paga. Mesma correção da soma das
+   * taxas de maquininha, e pela mesma razão: o erro é pequeno, sistemático e
+   * some exatamente onde ele seria conferido. */
+  const tax = centavos((receita.bruta * policies.taxRatePct) / 100);
 
   const variableCost = cmv + gatewayFees + commissions;
   const contributionMargin = receita.bruta - variableCost;

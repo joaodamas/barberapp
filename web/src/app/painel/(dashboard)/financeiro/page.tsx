@@ -62,7 +62,6 @@ export default function FinanceiroPage() {
   const totalExpenses = r.totalCost;
   const breakEvenPct = r.breakEvenDay ? Math.round(safePct(r.breakEvenDay, r.diasNoMes)) : 100;
 
-  const totalRevenueBreakdown = revenueBreakdown.reduce((s, item) => s + item.value, 0);
   const netGrowth = commercialStats.newSubscribers - commercialStats.cancellations;
   const cashFlowMonthTotal = caixa.reduce((s, d) => s + d.total, 0);
   const expensesTotal = raw.expenses.reduce((s, e) => s + e.value, 0);
@@ -175,25 +174,34 @@ export default function FinanceiroPage() {
             De onde vem o dinheiro
           </h3>
           <Card className="flex flex-col gap-3 md:p-6">
-            {revenueBreakdown.map((item, i) => {
-              const pct = Math.round(safePct(item.value, totalRevenueBreakdown));
-              return (
-                <div key={item.label} className="flex flex-col gap-1.5">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-ivory">{item.label}</span>
-                    <span className="font-medium text-ivory">
-                      {formatBRL(item.value)} · {pct}%
-                    </span>
-                  </div>
-                  <div className="h-2 w-full overflow-hidden rounded-full bg-surface-raised">
+            {/* O percentual vem PRONTO de `composicaoDaReceita`, calculado sobre
+                a receita bruta. A tela chegou a fazer a conta sozinha com a
+                receita líquida no denominador, e as fatias somavam 123% num mês
+                com devolução. Decisão de número mora no motor. */}
+            {revenueBreakdown.map((item, i) => (
+              <div key={item.label} className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between text-sm">
+                  <span className={item.deducao ? "text-ivory-muted" : "text-ivory"}>
+                    {item.label}
+                  </span>
+                  <span
+                    className={`font-medium ${item.deducao ? "text-danger" : "text-ivory"}`}
+                  >
+                    {formatBRL(item.value)} · {item.pct}%
+                  </span>
+                </div>
+                <div className="h-2 w-full overflow-hidden rounded-full bg-surface-raised">
+                  {/* A dedução não ganha barra: barra mede fatia, e devolução
+                      não é fatia da receita — é o que saiu dela. */}
+                  {!item.deducao && (
                     <div
                       className={`h-full rounded-full ${REVENUE_BAR_SHADES[i] ?? "bg-gold/20"}`}
-                      style={{ width: `${pct}%` }}
+                      style={{ width: `${item.pct}%` }}
                     />
-                  </div>
+                  )}
                 </div>
-              );
-            })}
+              </div>
+            ))}
           </Card>
         </div>
 

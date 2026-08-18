@@ -14,10 +14,12 @@ import { isReceived, isRevenue, OCCUPIES_SLOT } from "@/lib/domain";
 import {
   BOOKINGS,
   COMMISSIONS,
+  COMMISSIONS_PRODUTO,
   EXPENSES,
   MES,
   MOVEMENTS,
   PAYMENTS,
+  PAYMENTS_PRODUTO,
   POLICIES,
   STAFF,
   SUBSCRIBERS,
@@ -56,8 +58,8 @@ const dre = resultadoDoMes({
   policies,
   staff: STAFF,
   bookings: BOOKINGS,
-  commissions: COMMISSIONS,
-  gatewayFeesTotal: taxasDePagamento(PAYMENTS, periodo),
+  commissions: [...COMMISSIONS, ...COMMISSIONS_PRODUTO],
+  gatewayFeesTotal: taxasDePagamento([...PAYMENTS, ...PAYMENTS_PRODUTO], periodo),
 });
 
 /* ================================================================== */
@@ -240,10 +242,15 @@ describe("P1-1 · resumo de despesas", () => {
 
 describe("P1-9 · comissão sob o faturamento da loja", () => {
   it("o número que acompanha a loja é o da loja", () => {
-    /* Sob um cartão de R$ 290 de faturamento, a legenda mostrava R$ 222,50 —
-     * a comissão do mês inteiro, serviço incluído. */
-    expect(dre.commissionsLoja).toBe(44);
-    expect(dre.commissions).toBeCloseTo(222.5, 2);
+    /* Sob um cartão de R$ 290 de faturamento, a legenda mostrava a comissão do
+     * mês inteiro, serviço incluído.
+     *
+     * Os dois valores mudaram na Rodada 3.2 — a comissão de loja passou a sair
+     * do fato materializado, e subiu de 44 para 69,60 porque o CMV deixou de
+     * estar inflado. O que este teste protege continua sendo a SEPARAÇÃO: o
+     * número da loja não é o número do mês. */
+    expect(dre.commissionsLoja).toBe(69.6);
+    expect(dre.commissions).toBeCloseTo(248.1, 2);
     expect(dre.commissionsLoja).not.toBe(dre.commissions);
   });
 });
@@ -309,7 +316,10 @@ describe("D9 · custo total não é despesa", () => {
      * A distância entre os dois é exatamente o que o rótulo novo enumera. */
     const despesasDoPeriodo = resumoDeDespesas(EXPENSES, periodo).total;
     expect(despesasDoPeriodo).toBe(2550);
-    expect(dre.totalCost).toBeCloseTo(2997.5, 2);
+    /* 2.997,50 → 2.962,75 com as correções da 3.2. O achado nunca foi o valor:
+     * é o rótulo chamar de "despesas" um total que inclui CMV, taxas,
+     * comissões e imposto. */
+    expect(dre.totalCost).toBeCloseTo(2962.75, 2);
     expect(dre.totalCost).not.toBe(despesasDoPeriodo);
   });
 
