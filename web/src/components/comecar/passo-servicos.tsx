@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { formatBRL } from "@/lib/format";
+import { contar } from "@/lib/plural";
 import { EditorDeServicos, type Servico } from "@/components/servicos-editor";
 import type { Tenant } from "@/lib/tenant";
 
@@ -53,7 +54,10 @@ export function PassoServicos({
           ? "Salvando…"
           : validos.length === 0
             ? "Preencha ao menos um serviço"
-            : `Continuar com ${validos.length} serviço(s) · ${formatBRL(
+            : /* Este `(s)` é o mais caro dos nove: é o PRIMEIRO texto do
+                 produto que um dono novo lê, no onboarding, e o caso de um
+                 serviço só é o mais provável nesse momento. */
+              `Continuar com ${contar(validos.length, "serviço", "serviços")} · ${formatBRL(
                 validos.reduce((s, x) => s + x.price, 0) / validos.length
               )} em média`}
       </Button>

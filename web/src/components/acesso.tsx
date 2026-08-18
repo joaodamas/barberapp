@@ -39,8 +39,14 @@ export function AvisoDeTrial({ tenant }: { tenant: Tenant }) {
       <span>
         {dias === 1 ? (
           <>
+            {/* Dizia "o painel fecha". Ele NÃO fecha: entra em leitura, e é o
+                que `AvisoModoLeitura` mostra no dia seguinte — "você continua
+                vendo tudo, mas não consegue alterar". As duas frases descrevem
+                o mesmo momento e discordavam, e a errada é a que assusta:
+                anunciar perda de acesso a quem só vai perder a edição. */}
             <strong className="font-semibold">Seu teste termina amanhã.</strong> Depois
-            disso o painel fecha — sua agenda e seus dados continuam aqui.
+            disso você continua vendo tudo, mas não consegue mais alterar — e
+            seus clientes seguem agendando normalmente.
           </>
         ) : (
           <>

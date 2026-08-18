@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
 import { Pill } from "@/components/ui/pill";
 import { formatBRL, formatDatePtBR, toISODate } from "@/lib/format";
+import { contar } from "@/lib/plural";
 import { rotuloDoMes } from "@/lib/db/use-financeiro";
 import { useTenant } from "@/lib/tenant-context";
 import { useClients, usePlans, useSubscriptionInvoices } from "@/lib/db/use-shop-data";
@@ -138,7 +139,8 @@ export function GerirMensalistas({ competencia }: { competencia: string }) {
             {formatBRL(resumo.faturado)}
           </p>
           <p className="text-[11px] text-ivory-muted">
-            {resumo.quantidade} mensalidade(s) em {rotuloDoMes(competencia)}
+            {contar(resumo.quantidade, "mensalidade", "mensalidades")} em{" "}
+            {rotuloDoMes(competencia)}
           </p>
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:p-5">
@@ -149,7 +151,8 @@ export function GerirMensalistas({ competencia }: { competencia: string }) {
           {/* A frase que separa o contratado do realizado, sem exigir que o
               dono conheça a modelagem. */}
           <p className="text-[11px] text-ivory-muted">
-            {resumo.pagas} confirmada(s) — o resto ainda é cobrança
+            {contar(resumo.pagas, "confirmada", "confirmadas")} — o resto ainda é
+            cobrança
           </p>
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:p-5">
@@ -188,8 +191,12 @@ export function GerirMensalistas({ competencia }: { competencia: string }) {
             <p className="text-sm text-ivory">
               Nenhuma mensalidade em {rotuloDoMes(competencia)}
             </p>
+            {/* Dizia o que é e de qual mês, e parava aí. Faltava a outra
+                metade: o botão que resolve está logo acima e o vazio não o
+                mencionava. */}
             <p className="mt-1 text-xs text-ivory-muted">
-              As mensalidades emitidas neste período aparecerão aqui.
+              Toque em &quot;Emitir mensalidades de {rotuloDoMes(competencia)}&quot;
+              para gerar a cobrança de cada mensalista ativo.
             </p>
           </div>
         ) : (
@@ -360,9 +367,15 @@ export function GerirMensalistas({ competencia }: { competencia: string }) {
                 </button>
               ))}
             </div>
+            {/* Mandava "cadastrar em Serviços". A tela de Serviços edita o
+                CARDÁPIO (`services`) e não tem editor de plano: `plans` não é
+                escrita por nenhuma tela do painel. O dono ia até lá, não
+                achava, e ficava sem saber se o erro era dele.
+                Ver o STOP em `docs/VOCABULARIO.md`. */}
             {planosAtivos.length === 0 && (
               <p className="text-xs text-ivory-muted">
-                Nenhum plano ativo. Cadastre um em Serviços antes de contratar.
+                Nenhum plano ativo — sem plano não há o que contratar. Fale com
+                quem cuida da sua conta na plataforma para cadastrar os seus.
               </p>
             )}
           </div>

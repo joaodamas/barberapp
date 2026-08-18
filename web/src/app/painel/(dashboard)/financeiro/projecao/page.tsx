@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
 import { KpiTile, signTone } from "@/components/ui/kpi-tile";
 import { formatBRL, formatDateShortPtBR, formatWeekdayAndDay } from "@/lib/format";
+import { contar } from "@/lib/plural";
 import {
   useFinanceiro,
   mesAtual,
@@ -86,7 +87,9 @@ function ProjecaoConteudo() {
         <p className="text-sm text-ivory-muted md:text-base">
           Próximos {HORIZONTES[horizonte].dias} dias
         </p>
-        <h1 className="text-xl text-ivory md:text-3xl md:tracking-tight">Projeção de Caixa</h1>
+        {/* "Projeção de Caixa" contra "Projeção de caixa" no menu, no
+            `RecursoBloqueado` e no `BloqueioPlano` desta própria tela. */}
+        <h1 className="text-xl text-ivory md:text-3xl md:tracking-tight">Projeção de caixa</h1>
         <p className="mt-1 text-xs text-ivory-muted md:text-sm">
           Combina marcações já confirmadas, cobrança de mensalistas (data real)
           e despesas fixas recorrentes (dia real). Dias sem marcação ainda
@@ -146,7 +149,7 @@ function ProjecaoConteudo() {
         />
       </div>
 
-      {status === "carregando" && <LoadingRows rows={4} />}
+      {status === "carregando" && <LoadingRows rows={4} oQue="a projeção" />}
       {status === "erro" && <ErroAoCarregar oQue="a projeção" />}
       {status === "pronto" && semBase && (
         <EmptyState
@@ -169,7 +172,7 @@ function ProjecaoConteudo() {
             </p>
           </div>
           <LineChart
-            label={`Saldo acumulado projetado para os próximos ${cashProjection.length} dias.`}
+            label={`Saldo acumulado projetado para os próximos ${contar(cashProjection.length, "dia", "dias")}.`}
             data={
               porMes
                 ? meses.map((m) => ({ label: m.rotulo, value: m.cumulative }))

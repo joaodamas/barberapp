@@ -117,9 +117,14 @@ export default function ConfiguracoesPage() {
 
   return (
     <div className="flex flex-col gap-6 pt-1 md:gap-10 md:pt-2">
+      {/* O menu tem DOIS nomes para esta rota — o pai "Ajustes" e o filho
+          "Taxas e regras" — e a tela não usava nenhum dos dois: dizia
+          "Configurações". Sobretítulo e título passam a ser exatamente esses
+          dois, cada um no seu papel: o nome da área em cima como contexto não
+          servia, porque contexto é o que a tela contém, e o nome é o título. */}
       <div>
-        <p className="text-sm text-ivory-muted md:text-base">Ajustes</p>
-        <h1 className="text-xl text-ivory md:text-4xl md:tracking-tight">Configurações</h1>
+        <p className="text-sm text-ivory-muted md:text-base">Taxas e regras</p>
+        <h1 className="text-xl text-ivory md:text-4xl md:tracking-tight">Ajustes</h1>
       </div>
 
       {naoConfigurado && (
@@ -130,8 +135,9 @@ export default function ConfiguracoesPage() {
               Suas taxas de maquininha ainda não foram informadas
             </p>
             <p className="text-xs text-ivory-muted md:text-sm">
-              Enquanto estiverem em 0%, o DRE mostra o lucro sem descontar o que a
-              maquininha cobra — e o número aparece maior do que é.
+              Enquanto estiverem em 0%, o resultado do mês mostra o lucro sem
+              descontar o que a maquininha cobra — e o número aparece maior do
+              que é.
             </p>
           </div>
         </Card>
@@ -256,7 +262,7 @@ export default function ConfiguracoesPage() {
       <div className="flex items-center gap-3">
         <Button onClick={salvar} disabled={salvando || !mudou}>
           {salvando ? <Loader2 size={16} className="animate-spin" /> : null}
-          {salvando ? "Salvando…" : "Salvar configurações"}
+          {salvando ? "Salvando…" : "Salvar alterações"}
         </Button>
         {salvo && !mudou && (
           <span className="flex items-center gap-1 text-xs text-success">

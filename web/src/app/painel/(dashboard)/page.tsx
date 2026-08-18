@@ -34,6 +34,7 @@ import { usePayments } from "@/lib/db/use-shop-data";
 import type { PaymentMethod } from "@/lib/types";
 import { labelDoPagamento, PAYMENT_METHODS, paymentMethodLabel } from "@/lib/payment-method";
 import { formatBRL, formatPhonePtBR, safePct } from "@/lib/format";
+import { contar } from "@/lib/plural";
 import { refundAmountFor } from "@/lib/business-rules";
 import { useTenant } from "@/lib/tenant-context";
 import type { TenantPolicies } from "@/lib/tenant";
@@ -329,7 +330,7 @@ export default function PainelHojePage() {
         </h2>
         <Card className="flex flex-col gap-3 md:p-6">
           <div className="flex items-center justify-between text-sm md:text-base">
-            <span className="text-ivory-muted">Previsão do dia (agenda confirmada)</span>
+            <span className="text-ivory-muted">Previsão do dia</span>
             <span className="font-display font-semibold text-ivory md:text-lg">
               {formatBRL(previsaoHoje)}
             </span>
@@ -396,10 +397,13 @@ export default function PainelHojePage() {
             {acoesVisiveis.map((item) => (
               <ItemDeAcao key={item.id} item={item} onExecutar={executarIntencao} />
             ))}
+            {/* "as próximas" era plural fixo num número que começa em 1.
+                A cauda passa a ser invariável ("o resto"), e só a contagem
+                concorda — ver `lib/plural.ts`. */}
             {acoesOcultas.length > 0 && (
               <p className="px-1 text-xs text-ivory-muted">
-                E mais {acoesOcultas.length} pendência(s) — resolva as de cima
-                para ver as próximas.
+                E mais {contar(acoesOcultas.length, "pendência", "pendências")} na
+                fila — resolva as de cima para ver o resto.
               </p>
             )}
           </div>
@@ -437,7 +441,7 @@ export default function PainelHojePage() {
             Marcar atendimento
           </Button>
         </div>
-        {status === "carregando" && <LoadingRows rows={3} />}
+        {status === "carregando" && <LoadingRows rows={3} oQue="sua agenda" />}
         {status === "erro" && <ErroAoCarregar oQue="sua agenda" />}
         {status === "pronto" && bookings.length === 0 && (
           <EmptyState

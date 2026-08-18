@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
 import { Modal } from "@/components/ui/modal";
 import { formatBRL, formatDateShortPtBR } from "@/lib/format";
+import { contar } from "@/lib/plural";
 import { mesPeriodo, resumoDeDespesas } from "@/lib/analytics";
 import { mesAtual, rotuloDoMes } from "@/lib/db/use-financeiro";
 import {
@@ -154,7 +155,10 @@ export default function DespesasPage() {
    * a tela precisa dos mesmos dados para o caso liberado. */
   const acesso = useAcesso();
   if (!acesso.features.advancedFinance) {
-    return <BloqueioPlano titulo="Controle de despesas" descricao="Lance aluguel, luz, produtos e pró-labore uma vez e veja o lucro de verdade nas outras telas." />;
+    /* Dizia "Controle de despesas". O menu, o `h1` e o atalho do Resumo dizem
+       "Despesas": quem tem o plano vê um nome e quem não tem vê outro — e é
+       justamente quem não tem que está tentando descobrir o que é a tela. */
+    return <BloqueioPlano titulo="Despesas" descricao="Lance aluguel, luz, produtos e pró-labore uma vez e veja o lucro de verdade nas outras telas." />;
   }
 
   return (
@@ -164,13 +168,16 @@ export default function DespesasPage() {
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm text-ivory-muted md:text-base">
-            {resumo.lancamentos} lançamento(s) em {rotuloDoMes(mes)}
+            {contar(resumo.lancamentos, "lançamento", "lançamentos")} em {rotuloDoMes(mes)}
           </p>
           <h1 className="text-xl text-ivory md:text-3xl md:tracking-tight">Despesas</h1>
         </div>
+        {/* Caixa alta no meio da frase é convenção de inglês. O resto do painel
+            escreve "Marcar atendimento", "Adicionar produto", "Lançar
+            despesas" — este botão e o título do diálogo eram a exceção. */}
         <Button onClick={openModal}>
           <Plus size={16} />
-          Nova Despesa
+          Nova despesa
         </Button>
       </div>
 
@@ -232,8 +239,14 @@ export default function DespesasPage() {
             )}
             {status === "erro" && (
               <tr>
+                {/* Dizia só o fato. As outras doze telas usam `ErroAoCarregar`,
+                    que diz as TRÊS partes — o fato, a consequência ("nada foi
+                    perdido") e a saída. Sem a segunda, o dono que abre o mês e
+                    vê a tabela em branco não sabe se perdeu lançamento. */}
                 <td colSpan={7} className="px-4 py-10 text-center text-sm text-danger md:px-6">
-                  Não foi possível carregar os lançamentos.
+                  Não foi possível carregar os lançamentos. Pode ser a conexão ou
+                  uma permissão que mudou — nada foi perdido. Recarregue a página
+                  para tentar de novo.
                 </td>
               </tr>
             )}
@@ -242,9 +255,14 @@ export default function DespesasPage() {
                 {/* "ainda" valia quando a lista era o histórico inteiro. Com o
                     recorte por mês, um mês vazio não significa que nunca houve
                     despesa — e o dono precisa saber que está olhando um recorte,
-                    ou vai lançar de novo o que já lançou. */}
+                    ou vai lançar de novo o que já lançou.
+                    Faltava a outra metade do contrato de estado vazio: o que
+                    FAZER para sair dele. O botão existe no topo da tela; o vazio
+                    é que não o mencionava. */}
                 <td colSpan={7} className="px-4 py-10 text-center text-sm text-ivory-muted md:px-6">
-                  Nenhuma despesa lançada em {rotuloDoMes(mes)}.
+                  Nenhuma despesa lançada em {rotuloDoMes(mes)}. Use &quot;Nova
+                  despesa&quot; para registrar aluguel, luz e fornecedores — é o
+                  que falta para o resultado do mês ser verdade.
                 </td>
               </tr>
             )}
@@ -308,7 +326,7 @@ export default function DespesasPage() {
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={editingId ? "Editar Despesa" : "Nova Despesa"}
+        title={editingId ? "Editar despesa" : "Nova despesa"}
         className="max-w-xl"
         footer={
           <>
@@ -404,7 +422,7 @@ export default function DespesasPage() {
               onChange={(e) => setForm((f) => ({ ...f, recurring: e.target.checked }))}
               className="h-4 w-4 rounded border-border accent-gold"
             />
-            Recorrente (repete todo mês — entra como custo fixo no DRE)
+            Recorrente (repete todo mês — entra como custo fixo no resultado)
           </label>
 
           <label className="flex flex-col gap-1 text-xs text-ivory-muted md:col-span-2">

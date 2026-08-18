@@ -7,6 +7,7 @@ import { Pill } from "@/components/ui/pill";
 import { EditorDeServicos, type Servico } from "@/components/servicos-editor";
 import { useTenant } from "@/lib/tenant-context";
 import { formatBRL } from "@/lib/format";
+import { contar, plural } from "@/lib/plural";
 
 /**
  * Cardápio da barbearia.
@@ -53,9 +54,12 @@ export default function ServicosPage() {
         </Aviso>
       )}
 
+      {/* "serviço(s) visível(is)" — dois parênteses na mesma frase, e o
+          segundo é o pior deles: ninguém lê "visível(is)" e entende. */}
       {semPreco.length > 0 && (
         <Aviso tom="danger">
-          {semPreco.length} serviço(s) visível(is) com preço zerado:{" "}
+          {contar(semPreco.length, "serviço", "serviços")}{" "}
+          {plural(semPreco.length, "visível", "visíveis")} com preço zerado:{" "}
           {semPreco.map((s) => s.name || "sem nome").join(", ")}. O cliente
           consegue agendar sem pagar nada.
         </Aviso>
@@ -63,9 +67,13 @@ export default function ServicosPage() {
 
       {longoDemais.length > 0 && (
         <Aviso tom="danger">
-          {longoDemais.map((s) => s.name).join(", ")} dura mais que o expediente
-          ({tenant.schedule.opensAt}–{tenant.schedule.closesAt}). A agenda não
-          consegue oferecer nenhum horário para esse serviço.
+          {/* O verbo e o demonstrativo concordavam com um serviço só; com dois
+              a frase virava "Corte, Barba dura mais... para esse serviço". */}
+          {longoDemais.map((s) => s.name).join(", ")}{" "}
+          {plural(longoDemais.length, "dura", "duram")} mais que o expediente (
+          {tenant.schedule.opensAt}–{tenant.schedule.closesAt}). A agenda não
+          consegue oferecer nenhum horário para{" "}
+          {plural(longoDemais.length, "esse serviço", "esses serviços")}.
         </Aviso>
       )}
 
@@ -87,8 +95,10 @@ export default function ServicosPage() {
               {formatBRL(ticketMedio)}
             </p>
             <p className="text-[11px] text-ivory-muted md:text-xs">
-              Média simples dos {ativos.length} serviço(s) visíveis — não é o que
-              você fatura por atendimento, que depende do que o cliente escolhe.
+              Média simples {plural(ativos.length, "do", "dos")}{" "}
+              {contar(ativos.length, "serviço", "serviços")}{" "}
+              {plural(ativos.length, "visível", "visíveis")} — não é o que você
+              fatura por atendimento, que depende do que o cliente escolhe.
             </p>
           </Card>
 
@@ -106,7 +116,8 @@ export default function ServicosPage() {
             </p>
             {semNome.length > 0 && (
               <p className="text-danger">
-                {semNome.length} linha(s) sem nome não são salvas até você
+                {contar(semNome.length, "linha", "linhas")} sem nome{" "}
+                {plural(semNome.length, "não é salva", "não são salvas")} até você
                 preencher.
               </p>
             )}

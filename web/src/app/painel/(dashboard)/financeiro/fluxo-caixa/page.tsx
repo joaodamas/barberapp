@@ -4,6 +4,7 @@ import { Calendar, TrendingDown, TrendingUp, Wallet } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { KpiTile } from "@/components/ui/kpi-tile";
 import { formatBRL, formatWeekdayAndDay, safeDiv, safePct } from "@/lib/format";
+import { contar } from "@/lib/plural";
 import { useFinanceiro, mesAtual, rotuloDoMes } from "@/lib/db/use-financeiro";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
@@ -70,7 +71,11 @@ export default function FluxoCaixaPage() {
         <p className="text-sm text-ivory-muted md:text-base">
           Histórico diário · {rotuloDoMes(mes)}
         </p>
-        <h1 className="text-xl text-ivory md:text-3xl md:tracking-tight">Fluxo de Caixa</h1>
+        {/* "Fluxo de Caixa" com C maiúsculo, contra "Fluxo de caixa" no menu,
+            no bloqueio de plano e no atalho do Resumo. É a mesma classe de
+            defeito de "DRE Gerencial", num tamanho menor: três pontos
+            escreviam de um jeito e a tela de destino do outro. */}
+        <h1 className="text-xl text-ivory md:text-3xl md:tracking-tight">Fluxo de caixa</h1>
         {/* A legenda anterior dizia "só o que entra pelo balcão — mensalidades
             aparecem no Financeiro". Virou falsa na Rodada 3.2: a mensalidade
             paga gera pagamento e ENTRA aqui, e o fluxo passou a ter saídas.
@@ -99,7 +104,11 @@ export default function FluxoCaixaPage() {
           icon={Calendar}
           label="Atendimentos"
           value={String(totalAppointments)}
-          caption={`${dailyCashHistory.length} ${dailyCashHistory.length === 1 ? "dia" : "dias"} com movimento`}
+          /* Era "1 dias com movimento". A correção pontual de 17/08 resolveu
+             com um ternário aqui; a regra agora mora em `lib/plural.ts`, com
+             teste, porque o mesmo ternário estava escrito à mão em outras
+             quatro telas e ausente em onze. */
+          caption={`${contar(dailyCashHistory.length, "dia", "dias")} com movimento`}
         />
       </div>
 
@@ -126,8 +135,10 @@ export default function FluxoCaixaPage() {
         </div>
       )}
 
-      {status === "carregando" && <LoadingRows rows={4} />}
-      {status === "erro" && <ErroAoCarregar oQue="o caixa do período" />}
+      {status === "carregando" && <LoadingRows rows={4} oQue="o caixa do mês" />}
+      {/* "do período" onde a tela inteira fala em MÊS — o cabeçalho diz
+          "Histórico diário · agosto" e o vazio diz "neste mês". */}
+      {status === "erro" && <ErroAoCarregar oQue="o caixa do mês" />}
       {status === "pronto" && dailyCashHistory.length === 0 && (
         <EmptyState
           icon={Wallet}
