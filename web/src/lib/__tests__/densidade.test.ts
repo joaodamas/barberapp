@@ -1,4 +1,7 @@
 import { readFileSync } from "node:fs";
+import { caixaDoDia } from "@/lib/analytics";
+import type { Doc } from "@/lib/db/repository";
+import type { BookingDoc } from "@/lib/domain";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -141,5 +144,61 @@ describe("Números — o mapa de calor não é lido duas vezes", () => {
     expect(texto).toContain("noShowCount");
     expect(texto).toContain("lateCancelCount");
     expect(texto).toContain("totalBookings");
+  });
+});
+
+/* ================================================================== */
+/* A soma que não fechava — achado da auditoria de densidade          */
+/* ================================================================== */
+
+describe("caixaDoDia · os filhos somam o cabeçalho", () => {
+  const bk = (id: string, over: Record<string, unknown> = {}) =>
+    ({
+      id, date: "2026-09-14", time: "10:00", status: "completed", value: 50,
+      staffId: "leo", clientId: "c1", serviceIds: ["corte"], isFitIn: false,
+      paymentOrigin: "in_person", paymentMethod: "pix", ...over,
+    }) as unknown as Doc<BookingDoc>;
+
+  it("atendimento SEM meio informado tem coluna própria", () => {
+    /* O defeito: `total` contava todas as recebidas e as três parcelas
+     * filtravam por `paymentMethod`. Um atendimento concluído sem informar como
+     * o cliente pagou — estado que o servidor grava de propósito — entrava no
+     * cabeçalho e em parcela nenhuma. O dono somava as colunas na mão e não
+     * chegava no total.
+     *
+     * Mesma forma do defeito do CMV, e a função irmã `caixaDiario` já tinha
+     * sido corrigida na 3.2. */
+    const c = caixaDoDia([
+      bk("1", { paymentMethod: "pix", value: 100 }),
+      bk("2", { paymentMethod: null, value: 60 }),
+    ]);
+
+    expect(c.pix).toBe(100);
+    expect(c.naoInformado).toBe(60);
+    expect(c.pix + c.cartao + c.dinheiro + c.naoInformado).toBe(c.total);
+  });
+
+  it("o desconhecido NÃO vira dinheiro", () => {
+    /* A coluna dinheiro é a que o dono confere contra a gaveta. Somar ali o que
+     * não se sabe ser espécie é a primeira metade da régua sendo violada. */
+    const c = caixaDoDia([bk("1", { paymentMethod: null, value: 60 })]);
+    expect(c.dinheiro).toBe(0);
+    expect(c.naoInformado).toBe(60);
+  });
+
+  it("com todos os meios informados, a coluna extra é zero", () => {
+    const c = caixaDoDia([
+      bk("1", { paymentMethod: "pix", value: 50 }),
+      bk("2", { paymentMethod: "credit", value: 30 }),
+      bk("3", { paymentMethod: "cash", value: 20 }),
+    ]);
+    expect(c.naoInformado).toBe(0);
+    expect(c.pix + c.cartao + c.dinheiro).toBe(c.total);
+  });
+
+  it("dia sem atendimento é zero, não NaN", () => {
+    const c = caixaDoDia([]);
+    for (const v of Object.values(c)) expect(Number.isNaN(v)).toBe(false);
+    expect(c.total).toBe(0);
   });
 });

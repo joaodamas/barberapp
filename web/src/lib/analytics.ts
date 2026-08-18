@@ -1100,11 +1100,31 @@ export function caixaDoDia(bookings: Doc<BookingDoc>[]) {
       .filter((b) => b.paymentMethod && metodos.includes(b.paymentMethod))
       .reduce((s, b) => s + b.value, 0);
 
+  /* `naoInformado` fecha a conta — e sem ele os filhos não somavam o cabeçalho.
+   *
+   * `total` conta TODAS as recebidas; as três parcelas filtram por
+   * `paymentMethod`. Um atendimento concluído sem informar o meio — estado que
+   * o servidor grava de propósito, com `paymentMethod: null` — entrava no
+   * cabeçalho e em parcela nenhuma. O dono somava as três colunas na mão e não
+   * chegava no total.
+   *
+   * É a mesma forma do defeito do CMV, e a função irmã `caixaDiario` já tinha
+   * recebido a correção na 3.2 — esta ficou para trás. Achado pela auditoria de
+   * densidade, que foi procurar duplicação e encontrou uma soma que não fecha.
+   *
+   * Somar o desconhecido em dinheiro seria pior: a coluna dinheiro é a que o
+   * dono confere contra a gaveta no fim do expediente. */
+  const pix = soma(["pix"]);
+  const cartao = soma(["debit", "credit"]);
+  const dinheiro = soma(["cash"]);
+  const total = recebidas.reduce((s, b) => s + b.value, 0);
+
   return {
-    pix: soma(["pix"]),
-    cartao: soma(["debit", "credit"]),
-    dinheiro: soma(["cash"]),
-    total: recebidas.reduce((s, b) => s + b.value, 0),
+    pix,
+    cartao,
+    dinheiro,
+    naoInformado: centavos(total - pix - cartao - dinheiro),
+    total,
   };
 }
 
