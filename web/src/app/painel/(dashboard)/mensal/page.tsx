@@ -83,9 +83,17 @@ function MensalConteudo() {
 
   return (
     <div className="flex flex-col gap-6 pt-1 md:gap-10 md:pt-2">
+      {/* O menu diz "Mensalistas", o bloqueio de plano diz "Mensalistas", o
+          componente se chama `GerirMensalistas`, a landing diz "mensalistas" —
+          e a tela dizia "Mensal". É o mesmo defeito de "DRE Gerencial": o dono
+          clica num nome e chega em outro. UX-01 documentou por que o menu
+          mudou ("mensal o quê" — adjetivo sem substantivo, colidindo com o
+          fechamento do mês do Financeiro); faltava a tela acompanhar.
+          O sobretítulo e o título também estavam invertidos em relação a todas
+          as outras telas, onde o pequeno é o contexto e o grande é o nome. */}
       <div>
-        <p className="text-sm text-ivory-muted md:text-base">Mensalistas</p>
-        <h1 className="text-xl text-ivory md:text-4xl md:tracking-tight">Mensal</h1>
+        <p className="text-sm text-ivory-muted md:text-base">Receita que se repete</p>
+        <h1 className="text-xl text-ivory md:text-4xl md:tracking-tight">Mensalistas</h1>
       </div>
 
       {/* G2 · contratar e receber vem PRIMEIRO.
@@ -96,8 +104,13 @@ function MensalConteudo() {
 
       <div className="grid gap-4 md:grid-cols-[1fr_1.3fr] md:gap-8">
         <Card className="flex flex-col gap-3 md:p-6">
+          {/* "MRR" é a sigla que `navegacao.test.ts` já proíbe em rótulo de
+              menu, pela mesma razão que "DRE" saiu: é vocabulário de quem
+              vende SaaS, não de quem tem barbearia. O número é a soma da
+              mensalidade de quem está ativo — e é isso que o rótulo passa a
+              dizer. A barra ao lado já compara com o contratado. */}
           <div className="flex items-center justify-between text-sm md:text-base">
-            <span className="text-ivory-muted">MRR cobrável</span>
+            <span className="text-ivory-muted">Mensalidade de quem está ativo</span>
             <span className="font-display font-semibold text-gold-light md:text-2xl">
               {formatBRL(mrr.billed)}
             </span>
@@ -145,24 +158,33 @@ function MensalConteudo() {
         </Card>
       </div>
 
-      {status === "carregando" && <LoadingRows rows={3} />}
+      {status === "carregando" && <LoadingRows rows={3} oQue="os mensalistas" />}
       {status === "erro" && <ErroAoCarregar oQue="os mensalistas" />}
 
       {status === "pronto" && subscribers.length === 0 && (
+        /* O botão dizia "Criar plano" e levava para /painel/loja, que cadastra
+           PRODUTO e não tem editor de plano nenhum. Não foi só o destino
+           errado: não existe tela no painel que crie plano — `plans` só é
+           escrita pelo script de semeadura, e `GerirMensalistas` manda
+           "cadastrar em Serviços", onde também não há.
+           Uma porta que não abre é pior que porta nenhuma: o dono clica, chega
+           na Loja, não acha, e conclui que não entendeu o produto. Enquanto a
+           tela de planos não existir, o vazio diz a verdade e não oferece
+           saída falsa. Registrado como STOP em `docs/VOCABULARIO.md`. */
         <EmptyState
           icon={Users}
           title="Nenhum mensalista ainda"
-          description="Crie um plano e comece a ter receita previsível. Barbearias com clube de assinatura faturam mais e têm menos falta."
-          actionLabel="Criar plano"
-          actionHref="/painel/loja"
+          description="Mensalista é o cliente que paga todo mês e volta sem você precisar chamar — é a receita que entra na semana em que a barbearia esvazia. Para contratar o primeiro, seus planos precisam estar cadastrados; fale com quem cuida da sua conta na plataforma."
         />
       )}
 
       {subscribers.length > 0 && (
       <section>
         <div className="mb-2 flex items-center justify-between md:mb-3">
+          {/* "Assinantes" era a segunda palavra para a mesma pessoa, na tela
+              que agora se chama Mensalistas do menu ao título. */}
           <h2 className="text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm">
-            Assinantes
+            Mensalistas
           </h2>
           <div className="flex gap-1 rounded-lg border border-border bg-surface p-0.5">
             {(Object.keys(FILTER_LABELS) as Filter[]).map((f) => (
@@ -186,7 +208,10 @@ function MensalConteudo() {
                 <th className="px-4 py-3 font-medium md:px-6">Cliente</th>
                 <th className="px-4 py-3 font-medium">Plano</th>
                 <th className="px-4 py-3 font-medium">Próxima cobrança</th>
-                <th className="px-4 py-3 font-medium md:px-6">Status</th>
+                {/* As outras duas tabelas do painel — a agenda de Hoje e as
+                    mensalidades logo acima nesta mesma tela — chamam a coluna
+                    de "Situação". Esta era a única em inglês. */}
+                <th className="px-4 py-3 font-medium md:px-6">Situação</th>
               </tr>
             </thead>
             <tbody>
@@ -218,8 +243,12 @@ function MensalConteudo() {
               })}
               {filtered.length === 0 && (
                 <tr>
+                  {/* Vazio de FILTRO, não de dado: existe mensalista, só não
+                      neste status. Sem dizer a saída, o dono lê como se a
+                      lista tivesse sumido. */}
                   <td colSpan={4} className="px-4 py-6 text-center text-sm text-ivory-muted md:px-6">
-                    Nenhum assinante com esse status.
+                    Nenhum mensalista neste status. Toque em &quot;Todos&quot; para
+                    ver a lista inteira.
                   </td>
                 </tr>
               )}

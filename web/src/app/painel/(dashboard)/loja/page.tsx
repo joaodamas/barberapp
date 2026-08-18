@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
 import { Modal } from "@/components/ui/modal";
 import { formatBRL } from "@/lib/format";
+import { contar } from "@/lib/plural";
 import { useProducts } from "@/lib/db/use-shop-data";
 import { useFeature, useTenant } from "@/lib/tenant-context";
 import { RecursoBloqueado } from "@/components/recurso-bloqueado";
@@ -147,7 +148,8 @@ function LojaConteudo() {
           <AlertTriangle size={18} className="mt-0.5 shrink-0 text-danger" />
           <div>
             <p className="text-sm text-ivory md:text-base">
-              {lowStock.length} produto(s) abaixo do estoque mínimo
+              {contar(lowStock.length, "produto", "produtos")} abaixo do estoque
+              mínimo
             </p>
             <p className="text-xs text-ivory-muted md:text-sm">
               {lowStock.map((p) => p.name).join(", ")}
@@ -161,7 +163,7 @@ function LojaConteudo() {
           <h2 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:mb-3 md:text-sm">
             <Package size={12} /> Produtos
           </h2>
-          {status === "carregando" && <LoadingRows rows={3} />}
+          {status === "carregando" && <LoadingRows rows={3} oQue="seus produtos" />}
           {status === "erro" && <ErroAoCarregar oQue="seus produtos" />}
           {status === "pronto" && products.length === 0 && (
             <EmptyState
@@ -268,14 +270,19 @@ function LojaConteudo() {
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        title="Novo Produto"
+        /* Três nomes para um gesto só: o botão dizia "Adicionar produto", o
+           diálogo abria como "Novo Produto" (caixa alta de inglês) e o botão
+           de confirmar dizia "Cadastrar produto". O dono não sabe se são a
+           mesma coisa — e no diálogo de cadastro ele não deveria precisar
+           pensar nisso. */
+        title="Adicionar produto"
         className="max-w-xl"
         footer={
           <>
             <Button variant="ghost" onClick={() => setModalOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={saveProduct}>Cadastrar produto</Button>
+            <Button onClick={saveProduct}>Adicionar produto</Button>
           </>
         }
       >

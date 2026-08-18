@@ -241,7 +241,10 @@ export function MarcarNoBalcao({
       <Modal
         open={open}
         onClose={fechar}
-        title="Reserva confirmada"
+        /* O botão que abre este fluxo diz "Marcar atendimento" e a agenda ao
+           lado fala em horário e atendimento; só a confirmação dizia
+           "reserva", que é a palavra do app do CLIENTE. */
+        title="Atendimento marcado"
         description={`${formatDatePtBR(dia?.iso ?? "")} às ${hora}`}
         footer={
           <div className="flex gap-2">

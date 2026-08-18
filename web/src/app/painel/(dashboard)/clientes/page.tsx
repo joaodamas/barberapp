@@ -7,6 +7,7 @@ import { Modal } from "@/components/ui/modal";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
 import { formatBRL, formatDatePtBR, toISODate } from "@/lib/format";
+import { contar } from "@/lib/plural";
 import { mascararWhatsapp } from "@/lib/whatsapp-numero";
 import { combinaComBusca } from "@/lib/clientes-busca";
 import { listaDeClientes, type FichaDoCliente } from "@/lib/ficha-do-cliente";
@@ -70,12 +71,12 @@ export default function ClientesPage() {
     <div className="flex flex-col gap-6 pt-1 md:gap-8 md:pt-2">
       <div>
         <p className="text-sm text-ivory-muted md:text-base">
-          {clientes.length} cadastrado(s)
+          {contar(clientes.length, "cadastrado", "cadastrados")}
         </p>
         <h1 className="text-xl text-ivory md:text-4xl md:tracking-tight">Clientes</h1>
       </div>
 
-      {status === "carregando" && <LoadingRows rows={4} />}
+      {status === "carregando" && <LoadingRows rows={4} oQue="seus clientes" />}
       {status === "erro" && <ErroAoCarregar oQue="seus clientes" />}
 
       {status === "pronto" && clientes.length === 0 && (
@@ -139,11 +140,11 @@ export default function ClientesPage() {
                       ? "nunca veio"
                       : f.diasSemVir === 0
                         ? "veio hoje"
-                        : `há ${f.diasSemVir} dia${f.diasSemVir === 1 ? "" : "s"}`}
+                        : `há ${contar(f.diasSemVir, "dia", "dias")}`}
                   </p>
                   {f.visitas > 0 && (
                     <p className="text-[11px] text-ivory-muted">
-                      {f.visitas} visita{f.visitas === 1 ? "" : "s"}
+                      {contar(f.visitas, "visita", "visitas")}
                     </p>
                   )}
                 </div>

@@ -9,6 +9,7 @@ import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
 import { useServices, useStaff } from "@/lib/db/use-shop-data";
 import { createDoc, patchDoc, removeDoc } from "@/lib/db/repository";
 import { useTenant } from "@/lib/tenant-context";
+import { contarDeTotal } from "@/lib/plural";
 
 /**
  * A equipe.
@@ -95,7 +96,7 @@ export default function EquipePage() {
         </p>
       </div>
 
-      {status === "carregando" && <LoadingRows rows={2} />}
+      {status === "carregando" && <LoadingRows rows={2} oQue="sua equipe" />}
       {status === "erro" && <ErroAoCarregar oQue="sua equipe" />}
 
       {status === "pronto" && equipe.length === 0 && (
@@ -202,8 +203,8 @@ export default function EquipePage() {
                   />
                 </div>
                 <p className="text-xs text-ivory-muted">
-                  Fixo, além da comissão. Entra como custo de folha no DRE —
-                  deixe em branco para quem trabalha só por comissão.
+                  Fixo, além da comissão. Entra como custo de folha no resultado
+                  do mês — deixe em branco para quem trabalha só por comissão.
                 </p>
               </div>
 
@@ -233,9 +234,12 @@ export default function EquipePage() {
                   })}
                 </div>
                 <p className="text-xs text-ivory-muted">
+                  {/* "Atende 1 de 1 serviços" na barbearia que acabou de
+                      entrar — e ela SEMPRE começa com um serviço só. Na forma
+                      X de Y quem manda na concordância é Y. */}
                   {fazTudo
                     ? "Nada marcado — ele atende todos os serviços."
-                    : `Atende ${marcados.length} de ${servicos.length} serviços.`}
+                    : `Atende ${contarDeTotal(marcados.length, servicos.length, "serviço", "serviços")}.`}
                 </p>
               </div>
             </div>

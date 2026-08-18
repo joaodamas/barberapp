@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
 import { KpiTile, signTone } from "@/components/ui/kpi-tile";
 import { formatBRL, safePct } from "@/lib/format";
+import { contar, plural } from "@/lib/plural";
 import { useFinanceiro, mesAtual, rotuloDoMes } from "@/lib/db/use-financeiro";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
@@ -75,22 +76,29 @@ export default function FinanceiroPage() {
           <p className="text-sm text-ivory-muted md:text-base">Fechamento de {rotuloDoMes(mes)}</p>
           <h1 className="text-xl text-ivory md:text-4xl md:tracking-tight">Financeiro</h1>
         </div>
+        {/* Dizia "Fechamento do mês" e levava à tela que o menu chama "Quanto
+            sobrou" — o terceiro nome para o mesmo destino, e o mais confuso
+            dos três porque "fechamento" já é o subtítulo DESTA tela. */}
         <Link href="/painel/financeiro/dre" className="hidden md:inline-flex">
           <Button variant="secondary">
             <FileDown size={16} />
-            Fechamento do mês
+            Ver quanto sobrou
           </Button>
         </Link>
       </div>
 
-      {status === "carregando" && <LoadingRows rows={4} />}
+      {status === "carregando" && <LoadingRows rows={4} oQue="o resumo financeiro" />}
       {status === "erro" && <ErroAoCarregar oQue="o resumo financeiro" />}
 
       {status === "pronto" && receita.bruta === 0 && raw.expenses.length === 0 && (
         <EmptyState
           icon={Wallet}
           title="Seu resultado aparece assim que houver movimento"
-          description="Marque um atendimento como concluído na tela Hoje e lance suas despesas fixas. Com essas duas coisas, o DRE e o ponto de equilíbrio se montam sozinhos."
+          /* Dizia "o DRE e o ponto de equilíbrio se montam sozinhos". "DRE" é
+             a palavra que o produto deixou de usar quando o menu virou "Quanto
+             sobrou" — e o estado vazio, que é a PRIMEIRA tela que um dono novo
+             vê aqui, era onde ele aprendia o termo do contador. */
+          description="Marque um atendimento como concluído na tela Hoje e lance suas despesas fixas. Com essas duas coisas, o resultado do mês e o ponto de equilíbrio se montam sozinhos."
           actionLabel="Lançar despesas"
           actionHref="/painel/financeiro/despesas"
         />
@@ -243,6 +251,12 @@ export default function FinanceiroPage() {
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm">
             Relatórios detalhados
           </h3>
+          {/* Os quatro rótulos são os do MENU, palavra por palavra. Três
+              divergiam: "Fluxo de Caixa" com caixa alta onde o menu escreve
+              "Fluxo de caixa", e "Projeção" onde o menu diz "Projeção de
+              caixa" — que é justamente a palavra que ensina a diferença entre
+              o caixa que passou e o que vem. Cartão e item de menu levam à
+              mesma tela; dois nomes ensinam que são dois lugares. */}
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
             <QuickLinkCard
               href="/painel/financeiro/dre"
@@ -254,7 +268,7 @@ export default function FinanceiroPage() {
             <QuickLinkCard
               href="/painel/financeiro/fluxo-caixa"
               icon={Wallet}
-              label="Fluxo de Caixa"
+              label="Fluxo de caixa"
               value={formatBRL(cashFlowMonthTotal)}
               caption="histórico diário completo"
             />
@@ -263,12 +277,12 @@ export default function FinanceiroPage() {
               icon={Receipt}
               label="Despesas"
               value={formatBRL(expensesTotal)}
-              caption={`${raw.expenses.length} lançamentos`}
+              caption={contar(raw.expenses.length, "lançamento", "lançamentos")}
             />
             <QuickLinkCard
               href="/painel/financeiro/projecao"
               icon={CalendarClock}
-              label="Projeção"
+              label="Projeção de caixa"
               value={formatBRL(projectedResult)}
               caption="próximos 30 dias"
             />
@@ -286,14 +300,21 @@ export default function FinanceiroPage() {
             icon={Users}
             label="Crescimento líquido de mensalistas"
             value={`${netGrowth >= 0 ? "+" : ""}${netGrowth}`}
-            caption={`+${commercialStats.newSubscribers} novos · −${commercialStats.cancellations} cancelamento(s)`}
+            /* A palavra "novos" NÃO foi corrigida de propósito: `newSubscribers`
+               recebe `ativos.length`, ou seja, TODOS os mensalistas ativos — e
+               não os que entraram no mês. Escrever aqui um rótulo verdadeiro
+               ("ativos") deixaria a legenda honesta embaixo de um KPI que
+               continua chamando `ativos − cancelados` de "crescimento líquido",
+               e esconderia o defeito em vez de resolvê-lo. É dado, não
+               linguagem — reportado como STOP em `docs/VOCABULARIO.md`. */
+            caption={`+${commercialStats.newSubscribers} novos · −${contar(commercialStats.cancellations, "cancelamento", "cancelamentos")}`}
           />
           <KpiTile
             tone="neutral"
             icon={TrendingUp}
             label="Mensalidade média"
             value={formatBRL(Math.round(safeAvg(mrr.billed, activeSubscriberCount)))}
-            caption={`${activeSubscriberCount} mensalista(s) ativo(s)`}
+            caption={`${contar(activeSubscriberCount, "mensalista", "mensalistas")} ${plural(activeSubscriberCount, "ativo", "ativos")}`}
           />
           <KpiTile
             tone={commercialStats.defaultAmount > 0 ? "danger" : "success"}
@@ -318,7 +339,7 @@ export default function FinanceiroPage() {
       <Link href="/painel/financeiro/dre" className="md:hidden">
         <Button variant="secondary" className="w-full">
           <FileDown size={16} />
-          Ver fechamento do mês
+          Ver quanto sobrou
         </Button>
       </Link>
     </div>
