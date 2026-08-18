@@ -34,7 +34,8 @@ o que ficou não é trabalho pendente delas, é trabalho que nasceu delas.
 | UI/UX | Navegação | ✅ **fechado** | `fb44f1c` | — |
 | **FIN-02** | Auditoria semântica do CMV | ✅ **fechado** | `5fdce79` | achados migrados p/ FIN-04 |
 | **UX-05** | Vocabulário / microcopy | ✅ **fechado** | `fb44f1c` + `5840790` | Q15 · Q20 · Q21 |
-| **DENSITY-01** | Densidade / hierarquia | ✅ **fechado** | `123c0f8` + `454a7d1` | **D31 preso em `stash@{0}`** |
+| **DENSITY-01** | Densidade / hierarquia | ✅ **fechado** | `123c0f8` + `454a7d1` | — |
+| **D31** | Soma do caixa de hoje | ✅ motor · 🟡 tela | `843b84c` | tela não consome `naoInformado` → FIN-04 |
 | INFRA-01 | Tenant indisponível (D30) | ✅ **fechado** | `611017c` + `0ea7197` | — |
 | INFRA-02 | Estados de falha (Q6–Q10) | ✅ **fechado** | `9559d4b` | Q9 · 5 telas FIN-04 · `<title>` |
 | **FIN-03** | Comissão e mensalista | 🔴 **bloqueado** | — | **aguarda D1 e D2** |
@@ -59,10 +60,15 @@ transversal e o `plural.ts`. *Residual, e é irônico:* dois lugares escritos
 ser cadastrados quando eles existem (Q15).
 
 **DENSITY-01 fechou em `123c0f8` + merge `454a7d1`.** Entregou a auditoria antes
-do corte e removeu três duplicações literais. *Residual, e é o mais grave:* a
-correção do **D31 nunca entrou na branch** — está em `stash@{0}` junto com 59
-linhas de teste, tocando `analytics.ts`, que era arquivo bloqueado para aquela
-equipe.
+do corte e removeu três duplicações literais. *Residual — **resolvido em
+`843b84c`**:* a correção do D31 tinha ficado em `stash@{0}`, fora da branch,
+tocando `analytics.ts` (arquivo bloqueado para aquela equipe). O stash foi
+aplicado e removido; `git stash list` está vazio.
+
+O que sobrou do D31 é menor e está nomeado: o motor calcula `naoInformado`,
+**nenhuma tela o consome** — o bloco "Caixa de hoje" continua com três colunas, e
+o atendimento sem meio informado segue invisível ali. Ligar isso é do FIN-04,
+que já vai reescrever `painel/page.tsx` por causa do D3/D4.
 
 ---
 
