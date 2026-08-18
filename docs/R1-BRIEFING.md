@@ -162,14 +162,28 @@ aparece quando `!b.paymentMethod` (`action-center.ts:117`): **um atendimento com
 método preenchido não tem nenhum acesso à correção.** Metade da matriz não seria
 alcançável pela interface.
 
-Não é decisão de produto nova — é onde o botão mora. **Recomendação, a confirmar
-no briefing:** o acesso à correção fica **na linha do atendimento concluído**, na
-tabela do painel, servindo aos dois casos. O card crítico continua sendo o
-**alerta** do caso 1, e passa a apontar para a mesma porta.
+### ✅ DECIDIDO — porta própria na linha do atendimento
 
-Consequência obrigatória: `executarIntencao` (`page.tsx:316`) **para de reabrir o
-modal de conclusão** sobre uma reserva `completed`. É o elo que hoje produz o
-vazamento.
+> *"Atendimento concluído → ação 'Corrigir pagamento' na própria linha. E
+> manteria o 'Registrar pagamento' como alerta específico para o caso em que o
+> atendimento terminou sem método. E principalmente: não devemos reabrir o modal
+> de conclusão. O R1 precisa ser uma operação própria de correção financeira,
+> porque reabrir `completed` é justamente o caminho que hoje permite o vazamento
+> e pode interagir mal com o 'Veio depois'."* — João, 18/08/2026
+
+| | Elemento | Papel |
+|---|---|---|
+| **Ação "Corrigir pagamento"** | na linha do atendimento concluído | **a porta** — serve aos dois casos |
+| **Card "Registrar pagamento"** | Action Center | **o alerta** — específico do caso 1, aponta para a mesma porta |
+
+**Obrigatório:** `executarIntencao` (`page.tsx:316`) **para de reabrir o modal de
+conclusão** sobre uma reserva `completed`. É o elo que hoje produz o vazamento —
+e a razão é mais forte que o vazamento em si: reabrir `completed` é a mesma
+superfície por onde o `"Veio depois"` opera, e as duas operações não podem
+compartilhar caminho.
+
+**A correção é operação própria**, com modal próprio, não um reaproveitamento do
+fluxo de conclusão.
 
 ---
 
@@ -275,3 +289,89 @@ Pontos de tela que a matriz não cobre:
 
 > *"É exatamente o tipo de erro financeiro silencioso que você não quer descobrir
 > depois que uma barbearia já começou a usar o sistema."* — João
+
+---
+
+# 8 · O que o agent entrega, e o que ele **não** declara
+
+Regra do protocolo, §19 e §21 item 10:
+
+```
+AGENT ENTREGA          IMPLEMENTADO + TESTADO
+ORQUESTRADOR FAZ       INTEGRADO + VERIFICADO NA TELA
+```
+
+**O agent não declara o R1 fechado.** Nem que "os testes passaram", nem que "a
+matriz está verde". O fechamento é da integração, com dado real e tela aberta.
+
+## O P0 da integração
+
+Este é o roteiro que o orquestrador executa **depois** da entrega, com dado real:
+
+```
+plano não cobriu
+       ↓
+PaymentDoc sem método
+       ↓
+Corrigir pagamento · Pix → Dinheiro
+       ↓
+payment + booking iguais
+       ↓
+caixa muda de coluna · total permanece igual
+       ↓
+DRE coerente
+       ↓
+audit_log criado UMA única vez
+```
+
+E, **obrigatoriamente**, o cenário que o próprio briefing identificou como capaz
+de apagar a correção:
+
+```
+corrige
+   ↓
+"Veio depois"
+   ↓
+conclui novamente
+   ↓
+verifica que NÃO ressuscitou
+   ↓
+comissão / taxa / pagamento históricos permanecem corretos
+```
+
+> *"Esse é o cenário que eu trataria como P0 da integração, porque o próprio
+> briefing identifica que ele pode apagar a correção e recalcular histórico."*
+> — João
+
+---
+
+# 9 · A sequência depois do R1
+
+**R1 e N7 não vão em paralelo.**
+
+```
+AGORA
+  ↓
+R1
+  ↓
+integração + matriz de 9 cenários
+  ↓
+verificação visual
+  ↓
+R1 aprovado?  ──── NÃO ──→ volta
+  ↓ SIM
+corrigir N7 · N7 ponta a ponta
+  ↓
+QA transversal
+  ↓
+Mobile
+  ↓
+Identidade
+  ↓
+UX-AUDIT-FINAL
+  ↓
+Go / No-Go
+```
+
+> *"O R1 mexe em uma parte financeira sensível, e acabamos de aprender duas vezes
+> que a integração é onde aparece a 'quinta coisa'."* — João
