@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/cn";
-import { clienteNavItems } from "@/lib/nav-items";
+import { clienteNavItems, rotaAtiva } from "@/lib/nav-items";
 import { SidebarUserFooter } from "@/components/sidebar-user-footer";
 import { OwnerPanelLink } from "@/components/owner-panel-link";
 import { useTenant } from "@/lib/tenant-context";
@@ -31,10 +31,10 @@ export function ClienteSidebarNav() {
 
       <nav className="flex flex-1 flex-col gap-1 px-4">
         {clienteNavItems.map((item) => {
-          const active =
-            item.href === "/"
-              ? pathname === "/"
-              : pathname === item.href || pathname.startsWith(`${item.href}/`);
+          /* A mesma comparação estava copiada nas três navegações, cada uma
+             com a sua exceção de raiz escrita à mão. Agora a regra mora em
+             `rotaAtiva`, e a exceção de "/" vale para quem a chamar. */
+          const active = rotaAtiva(item.href, pathname);
           const Icon = item.icon;
           return (
             <Link
