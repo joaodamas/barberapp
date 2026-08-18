@@ -22,7 +22,12 @@ import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
-import { bookingStatusMeta } from "@/lib/booking-status";
+import {
+  assinaturaAtivaDe,
+  liquidacaoDoAtendimento,
+  metaDoStatus,
+  termosDoPlano,
+} from "@/lib/booking-status";
 import {
   avaliarOperacao,
   estaAtrasado,
@@ -33,14 +38,14 @@ import {
 } from "@/lib/action-center";
 import { usePayments } from "@/lib/db/use-shop-data";
 import type { PaymentMethod } from "@/lib/types";
-import { labelDoPagamento, PAYMENT_METHODS, paymentMethodLabel } from "@/lib/payment-method";
+import { PAYMENT_METHODS, paymentMethodLabel } from "@/lib/payment-method";
 import { formatBRL, formatPctPtBR, formatPhonePtBR, safePct } from "@/lib/format";
 import { NAO_APURADO } from "@/lib/apuracao";
 import { contar } from "@/lib/plural";
 import { refundAmountFor } from "@/lib/business-rules";
 import { useTenant } from "@/lib/tenant-context";
 import type { TenantPolicies } from "@/lib/tenant";
-import { useBookings, useServices, useStaff } from "@/lib/db/use-shop-data";
+import { useBookings, useServices, useStaff, useSubscribers } from "@/lib/db/use-shop-data";
 import { patchDoc } from "@/lib/db/repository";
 import { soAvisaSeGravou } from "@/lib/so-avisa-se-gravou";
 import { MarcarNoBalcao } from "@/components/marcar-no-balcao";
@@ -60,6 +65,13 @@ export default function PainelHojePage() {
   const { items: services, status: statusServicos } = useServices();
   const payments = usePayments();
   const { items: equipe } = useStaff();
+  /* D2 · o fechamento precisa saber se o cliente é mensalista.
+   *
+   * Só o FATO da assinatura — quem decide se o corte está coberto é o servidor,
+   * na conclusão. A tela lê isto para escolher que pergunta fazer, e a tela de
+   * Clientes já exibia o selo do plano: o dado existia e não era consultado no
+   * único lugar onde evitaria a cobrança em dobro. */
+  const { items: assinaturas } = useSubscribers();
 
   const hoje = toISODate(new Date());
   const bookings = todas.filter((b) => b.date === hoje);
@@ -81,7 +93,7 @@ export default function PainelHojePage() {
   /* Sem filtro por status: a seção "Encaixes pendentes" saiu junto com o
    * encaixe, e um `fit_in_requested` antigo ficaria invisível — some da agenda
    * e não tem mais onde ser encontrado. Ele aparece na tabela como qualquer
-   * outra reserva, com o rótulo que `bookingStatusMeta` já dá. */
+   * outra reserva, com o rótulo que `metaDoStatus` já dá. */
   const bookingsDoDia = bookings
     .slice()
     .sort((a, b) => a.time.localeCompare(b.time));
@@ -141,6 +153,16 @@ export default function PainelHojePage() {
     ? devolucaoDoCancelamento(aCancelar, tenant.policies.cancellation)
     : null;
 
+  /* D2 · o cliente que está sendo fechado tem plano contratado?
+   *
+   * `assinaturaAtivaDe` responde só isso. Não responde "este corte está
+   * coberto" — essa decisão depende de competência e cota, mora em
+   * `decidirCobertura` no servidor, e reimplementá-la aqui recriaria o D1 com
+   * outro nome: o web afirmando uma coisa e o fato nascendo outra. */
+  const assinaturaDoFechamento = aFechar
+    ? assinaturaAtivaDe(assinaturas, aFechar.clientId)
+    : null;
+
   const caixaHoje = caixaDoDia(agendados);
   const recebidoReal = caixaHoje.total;
 
@@ -162,8 +184,14 @@ export default function PainelHojePage() {
    * Método e status vão na MESMA escrita: o trigger financeiro lê o documento
    * depois da atualização, e gravar em duas etapas materializaria o pagamento
    * antes de o método existir.
+   *
+   * `metodo: null` é o fechamento do mensalista — D2. Não é ausência de
+   * resposta: é a resposta "não entrou dinheiro no balcão". A tela não afirma
+   * que o plano cobriu; ela deixa de inventar um meio de pagamento para um
+   * valor que ninguém recebeu, e quem decide a cobertura continua sendo o
+   * servidor, que lê a assinatura e a cota na conclusão.
    */
-  async function concluirCom(metodo: PaymentMethod) {
+  async function concluirCom(metodo: PaymentMethod | null) {
     const booking = aFechar;
     if (!booking) return;
     setSalvando(true);
@@ -523,7 +551,11 @@ export default function PainelHojePage() {
               </thead>
               <tbody>
                 {bookingsDoDia.map((booking) => {
-                  const statusMeta = bookingStatusMeta[booking.status];
+                  /* Leitura guardada: um status fora da união derrubava a tela
+                   * Hoje INTEIRA — `undefined.tone`, e o dono ficava sem a
+                   * agenda do dia por causa de uma linha. Ver `metaDoStatus`. */
+                  const statusMeta = metaDoStatus(booking.status);
+                  const liquidacao = liquidacaoDoAtendimento(booking);
                   const bookingServices = getServicesByIds(booking.serviceIds);
                   const emAberto =
                     booking.status === "confirmed" ||
@@ -583,8 +615,21 @@ export default function PainelHojePage() {
                       <td className="px-4 py-3 text-ivory-muted">
                         {bookingServices.map((s) => s.name).join(" + ")}
                       </td>
+                      {/* D2 · a coluna passa a dizer como o atendimento foi
+                          LIQUIDADO, não só que meio de pagamento tem gravado.
+                          O corte coberto pelo plano não tem pagamento — e
+                          exibia "A pagar no salão" depois de concluído, que é
+                          o produto mandando cobrar de novo o que a mensalidade
+                          já pagou. */}
                       <td className="px-4 py-3 text-ivory-muted">
-                        {labelDoPagamento(booking.paymentOrigin, booking.paymentMethod)}
+                        {liquidacao.coberto ? (
+                          <span className="text-ivory">{liquidacao.label}</span>
+                        ) : (
+                          liquidacao.label
+                        )}
+                        {liquidacao.detalhe && (
+                          <span className="block text-[11px]">{liquidacao.detalhe}</span>
+                        )}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-right text-ivory">
                         {formatBRL(booking.value)}
@@ -676,18 +721,70 @@ export default function PainelHojePage() {
         />
       )}
 
-      {/* Uma pergunta, quatro opções, e cada opção JÁ conclui.
-          Um botão "Confirmar" separado somaria um segundo clique ao gesto mais
-          repetido do dia — o fechamento precisa custar um toque, senão o dono
-          volta para o caderno. */}
+      {/* Uma pergunta e opções que JÁ concluem — nenhuma exige um "Confirmar"
+          depois. Um segundo clique no gesto mais repetido do dia é o que faz o
+          dono voltar para o caderno.
+          Qual pergunta, depende de quem está na cadeira: o avulso responde
+          COMO pagou; o mensalista responde SE houve cobrança — D2. */}
       <Modal
         open={!!aFechar}
         onClose={() => setAFechar(null)}
-        title="Como o cliente pagou?"
+        title={
+          assinaturaDoFechamento ? "Concluir atendimento" : "Como o cliente pagou?"
+        }
       >
         <p className="mb-4 text-sm text-ivory-muted">
           {aFechar?.clientName} · {aFechar ? formatBRL(aFechar.value) : ""}
         </p>
+
+        {/* D2 · o mensalista deixa de ser obrigado a escolher um meio de
+            pagamento para dinheiro que não entrou.
+            Era o F2 visto do balcão: o dono do plano Ilimitado concluía o corte
+            e o produto perguntava "Como o cliente pagou? · R$ 50,00", com
+            quatro opções e nenhuma saída honesta — cobrar de novo (receita e
+            comissão fantasmas) ou não concluir (a agenda nunca fecha).
+
+            Os meios de pagamento CONTINUAM aqui, e isso é deliberado: o quinto
+            corte de um plano de quatro é cobrança legítima, e esconder as
+            opções tiraria do dono a única chance de registrar o método — o
+            gatilho financeiro só materializa na transição para `completed`, e
+            não há caminho de volta para informá-lo depois. */}
+        {assinaturaDoFechamento && (
+          <div className="mb-5 flex flex-col gap-3">
+            <div className="rounded-xl border border-border bg-surface-raised px-3 py-2.5">
+              <p className="text-sm text-ivory">
+                Mensalista · {assinaturaDoFechamento.planName}
+              </p>
+              <p className="mt-0.5 text-xs text-ivory-muted">
+                {termosDoPlano(assinaturaDoFechamento)}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              disabled={salvando}
+              onClick={() => void concluirCom(null)}
+              className="flex min-h-16 cursor-pointer items-center justify-center gap-2 rounded-xl border border-gold/50 bg-gold/10 text-sm font-medium text-gold-light transition-colors hover:border-gold hover:bg-gold/15"
+            >
+              <Check size={16} /> Concluir sem cobrar
+            </button>
+
+            {/* A tela não promete cobertura — ela diz quem decide e quando.
+                Prometer aqui seria afirmar um fato que ainda não existe: a
+                cobertura é gravada na conclusão, pelo servidor, com a cota do
+                mês na mão. */}
+            <p className="text-xs text-ivory-muted">
+              Quem decide se o plano cobre este atendimento é o fechamento, com a
+              cota do mês. Se a cota já tiver acabado, ele entra como avulso — a
+              agenda mostra o motivo, e aí a cobrança é com você.
+            </p>
+
+            <p className="mt-1 text-xs uppercase tracking-wider text-ivory-muted">
+              Ou registre a cobrança
+            </p>
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-3">
           {PAYMENT_METHODS.map((metodo) => (
             <button

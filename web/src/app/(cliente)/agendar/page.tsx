@@ -10,7 +10,8 @@ import {
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useServices, useStaff } from "@/lib/db/use-shop-data";
+import { useMinhasAssinaturas, useServices, useStaff } from "@/lib/db/use-shop-data";
+import { assinaturaAtivaDe, termosDoPlano } from "@/lib/booking-status";
 import { useTenant } from "@/lib/tenant-context";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { CalendarX2 } from "lucide-react";
@@ -65,6 +66,18 @@ export default function AgendarPage() {
   );
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
   const { user } = useAuth();
+  /* D2 · o mensalista precisa se reconhecer ANTES de confirmar.
+   *
+   * A tela oferecia "Corte R$ 50,00" e prometia "pague R$ 50,00 no salão" a
+   * quem já tinha pago R$ 149,00 pelo plano no mesmo mês — duas afirmações
+   * falsas para o lado que paga. O selo do plano existia na tela de Clientes,
+   * do lado do dono; do lado do cliente, nada.
+   *
+   * Só o FATO do contrato entra aqui. Se ESTE atendimento está coberto, quem
+   * decide é o fechamento, no servidor, com a cota do mês — e a tela não
+   * antecipa essa resposta. */
+  const { items: minhasAssinaturas } = useMinhasAssinaturas(user?.uid);
+  const minhaAssinatura = assinaturaAtivaDe(minhasAssinaturas, user?.uid);
   const [confirmando, setConfirmando] = useState(false);
   const [erroReserva, setErroReserva] = useState<string | null>(null);
 
@@ -505,17 +518,40 @@ export default function AgendarPage() {
           <p className="text-xs uppercase tracking-wider text-ivory-muted">
             Pagamento
           </p>
-          <Card className="flex items-start gap-3 bg-surface-raised">
-            <Store size={16} className="mt-0.5 shrink-0 text-gold-light" />
-            <div>
-              <p className="text-sm text-ivory">Você paga no salão</p>
-              <p className="mt-0.5 text-xs text-ivory-muted">
-                Sua reserva é confirmada agora, sem cobrança. No dia, pague{" "}
-                {formatBRL(totalPrice)} como preferir — Pix, dinheiro ou
-                maquininha.
-              </p>
-            </div>
-          </Card>
+          {/* D2 · quem tem plano não recebe a mesma frase de quem não tem.
+              "Pague R$ 50,00 no dia" é falso para o mensalista do Ilimitado, e
+              é a versão da cobrança em dobro que chega ao CLIENTE — ele guarda
+              o valor na cabeça e chega no salão esperando pagar. A tela passa a
+              dizer o que ele contratou, sem prometer que ESTE corte está
+              coberto: a cota do mês é decidida no fechamento. */}
+          {minhaAssinatura ? (
+            <Card className="flex items-start gap-3 bg-surface-raised">
+              <Store size={16} className="mt-0.5 shrink-0 text-gold-light" />
+              <div>
+                <p className="text-sm text-ivory">
+                  Você é mensalista · {minhaAssinatura.planName}
+                </p>
+                <p className="mt-0.5 text-xs text-ivory-muted">
+                  Seu plano: {termosDoPlano(minhaAssinatura).toLowerCase()}. O
+                  que estiver incluído não é cobrado de novo no salão —{" "}
+                  {tenant.brand.name} confirma no atendimento. O que passar do
+                  plano você paga no dia, como preferir.
+                </p>
+              </div>
+            </Card>
+          ) : (
+            <Card className="flex items-start gap-3 bg-surface-raised">
+              <Store size={16} className="mt-0.5 shrink-0 text-gold-light" />
+              <div>
+                <p className="text-sm text-ivory">Você paga no salão</p>
+                <p className="mt-0.5 text-xs text-ivory-muted">
+                  Sua reserva é confirmada agora, sem cobrança. No dia, pague{" "}
+                  {formatBRL(totalPrice)} como preferir — Pix, dinheiro ou
+                  maquininha.
+                </p>
+              </div>
+            </Card>
+          )}
 
           {erroReserva && (
             <p role="alert" className="text-sm text-danger">
@@ -550,9 +586,12 @@ export default function AgendarPage() {
             <Check size={30} />
           </div>
           <h2 className="text-lg text-ivory">Reserva confirmada!</h2>
+          {/* "Não esqueça: R$ 50,00" é a última coisa que o mensalista lê antes
+              de sair da tela, e era a que ele levava para o balcão. */}
           <p className="max-w-xs text-sm text-ivory-muted">
-            Seu horário está garantido. Não esqueça: {formatBRL(totalPrice)} no
-            salão no dia do atendimento.
+            {minhaAssinatura
+              ? "Seu horário está garantido. O que estiver incluído no seu plano não é cobrado no dia."
+              : `Seu horário está garantido. Não esqueça: ${formatBRL(totalPrice)} no salão no dia do atendimento.`}
           </p>
           <Link href="/reservas" className="w-full">
             <Button className="w-full">Ver minhas reservas</Button>

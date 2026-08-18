@@ -108,6 +108,25 @@ export const useInventoryMovements = () =>
     direction: "desc",
   });
 
+/**
+ * A assinatura do próprio cliente — D2, no app de quem paga.
+ *
+ * Consulta filtrada por `clientId`, e não a coleção inteira: a regra do
+ * Firestore libera `subscriptions` para quem trabalha na loja **ou** para o
+ * dono do documento (`resource.data.clientId == request.auth.uid`), e uma
+ * listagem sem o filtro seria negada para o cliente — que é justamente quem
+ * precisa dela aqui.
+ *
+ * A lista vem porque a consulta é uma lista; quem escolhe a ativa é
+ * `assinaturaAtivaDe`, para que a regra de "qual assinatura vale" exista num
+ * lugar só e não em cada tela.
+ */
+export const useMinhasAssinaturas = (clientId: string | undefined) =>
+  useShopCollection<SubscriberDoc>("subscriptions", {
+    equals: { clientId },
+    enabled: !!clientId,
+  });
+
 /** Reservas de um cliente específico — o app do cliente. */
 export const useMyBookings = (clientId: string | undefined) =>
   useShopCollection<BookingDoc>("bookings", {
