@@ -7,6 +7,7 @@ import { TenantProvider } from "@/lib/tenant-context";
 import { toTenant } from "@/lib/tenant-shape";
 import { acessoDaBarbearia, type Tenant } from "@/lib/tenant";
 import { definirTravaDeEscrita } from "@/lib/db/trava-de-escrita";
+import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
 
 /**
  * A ficha da barbearia em tempo real, **dentro do painel**.
@@ -33,9 +34,27 @@ import { definirTravaDeEscrita } from "@/lib/db/trava-de-escrita";
  */
 export function TenantLive({
   inicial,
+  indisponivel = false,
   children,
 }: {
   inicial: Tenant;
+  /**
+   * A ficha da barbearia não pôde ser LIDA — D30.
+   *
+   * Diferente de "esta barbearia não existe": aqui o Firestore não respondeu, e
+   * `inicial` é o substituto (`DEFAULT_TENANT`), não a barbearia do dono. Quem
+   * decide isso é `resolverTenant()`, que separa 5xx e falha de rede do 404.
+   *
+   * Precisa ser tratado ACIMA do `AuthGuard`, e por isso mora aqui: o painel
+   * monta `<TenantLive><AuthGuard requireOwner>`, e o `AuthGuard` autoriza
+   * comparando `claims.barbershops[tenant.id]`. Com o id substituído, o dono
+   * não bate com nada, `isOwner` vira `false` e ele é mandado para a vitrine —
+   * a mesma tela de quem nunca teve conta. O defeito não é o `AuthGuard` estar
+   * errado; é ele ser CONSULTADO sobre uma barbearia que não chegou a carregar.
+   *
+   * Falso por padrão: sem ninguém passar a prop, o comportamento é o de hoje.
+   */
+  indisponivel?: boolean;
   children: React.ReactNode;
 }) {
   const [tenant, setTenant] = useState<Tenant>(inicial);
@@ -63,6 +82,11 @@ export function TenantLive({
     let cancelado = false;
     let parar = () => {};
 
+    /* Sem ficha resolvida, `inicial.id` é o do substituto. Escutar
+     * `barbershops/cortehub` acompanharia um documento que não é o do dono —
+     * e um snapshot vindo dali entraria como se fosse a barbearia dele. */
+    if (indisponivel) return;
+
     getDb()
       .then((db) => {
         if (cancelado) return;
@@ -87,7 +111,24 @@ export function TenantLive({
       cancelado = true;
       parar();
     };
-  }, [inicial.id]);
+  }, [inicial.id, indisponivel]);
+
+  /* Sem ficha, o painel não abre — mas o dono continua DENTRO do produto.
+   *
+   * A diferença que o D30 pede: uma frase que diz o que aconteceu e um botão
+   * para tentar de novo, no lugar de um redirecionamento silencioso para fora.
+   * `ErroAoCarregar` é o componente que a UX-04 já criou para o D27 — a mesma
+   * distinção ("não consegui ler" ≠ "não há nada"), um nível acima: lá era uma
+   * coleção dentro de uma tela, aqui é o painel inteiro.
+   *
+   * Nada de `router.replace`: quem foi expulso perde a URL em que estava. */
+  if (indisponivel) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-bg px-4">
+        <ErroAoCarregar oQue="o painel da sua barbearia" className="max-w-sm" />
+      </div>
+    );
+  }
 
   /* O tenant do servidor é reprovido pelo layout raiz; este Provider mais
    * interno vence para tudo que estiver abaixo dele. */
