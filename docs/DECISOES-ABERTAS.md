@@ -278,6 +278,20 @@ O formato do documento segue o que já existe:
 
 `action` no padrão `dominio.verbo_no_particípio`, como `barbershop.plano_definido`.
 
+### Dois requisitos acrescentados no fechamento
+
+> *"O R1 deve garantir atomicamente: correção → `PaymentDoc` atualizado →
+> `audit_log` imutável. E testar que não existe caminho de `delete` + `create`
+> para burlar o histórico."* — João, 18/08/2026
+
+1. **Atomicidade.** Os dois writes numa transação. Um `PaymentDoc` corrigido sem
+   log é pior que nenhuma correção: o número muda e nada explica. E um log sem a
+   correção afirma um fato que não aconteceu — os dois lados da regra de ouro.
+2. **O `delete` + `create` é caminho de fuga, e precisa de teste.** Não é
+   hipotético: recriar o pagamento com id novo produz um documento sem passado,
+   e o histórico fica intacto porque nunca soube que algo mudou. A trava tem que
+   ser verificável, não confiada à disciplina de quem escrever a próxima função.
+
 ---
 
 # GRUPO B · Mensalista no `/agendar`
@@ -429,10 +443,39 @@ que o teste acima proíbe, e por bom motivo: seriam duas contas para a mesma
 pergunta. Ou o `/agendar` recebe do servidor um retrato da cota, ou não exibe
 posição — mas não a calcula sozinho.
 
-**Ponto que ainda depende de você**, e que aparece só na tela: para o plano com
-cota, a linha de expectativa é *"se este corte ainda estiver na sua cota, você
-não paga"* ou é melhor mostrar só a posição e o valor cheio? Não decido isso no
-escuro — vai como duas variantes na verificação visual do ciclo.
+### ✅ O ponto aberto, fechado — **posição + valor cheio**
+
+> *"Eu escolheria posição + valor cheio, não a frase 'se estiver na sua cota,
+> você não paga'. Porque a segunda ainda induz o cliente a interpretar uma
+> condição futura como preço garantido."* — João, 18/08/2026
+
+E a regra que ele derivou disso, que vale além deste caso:
+
+> **Se o sistema ainda não possui o fato que determina o preço, a interface não
+> deve afirmar o preço.**
+
+Registrada como **§27** do protocolo.
+
+**Redação decidida:**
+
+```
+Plano Ilimitado
+  Este atendimento está incluído no seu plano.
+
+Plano com cota
+  Sua posição no plano: 1 de 4 utilizados
+  O valor será confirmado no atendimento.
+```
+
+O ilimitado afirma inclusão porque **a regra é determinística** — `unlimited`
+não depende de cota, de ordem de conclusão nem de competência disputada. O plano
+com cota mostra **uso**, que é fato passado e verificável, e deixa o valor
+condicionado ao atendimento, que é onde ele nasce.
+
+Note o que a segunda variante **não** faz: não mostra `R$ 50,00` como total nem
+`R$ 0,00` como total. Ela não afirma preço nenhum. A frase de expectativa foi
+recusada por transformar condição futura em promessa — o cliente lê *"você não
+paga"* e não lê o *"se"*.
 
 ---
 
@@ -485,7 +528,7 @@ suposição a carregar.
 | **R1.1** | taxa na correção | Sem versionamento agora; **taxa vigente na correção**, dita explicitamente na confirmação. A tela do Financeiro para de prometer versionamento |
 | **R1.2** | janela | Correção permitida **até o fechamento do mês**. Hoje isso se implementa como *mês corrente*, porque fechamento não existe ainda |
 | **R1.3** | alterar × somar | **`update` do `PaymentDoc`** + `audit_log` com de/para, quem e quando |
-| **N7.1** | preço do mensalista | **Preço condicionado à cobertura real do plano** — a regra vem do servidor, a tela não a reproduz |
+| **N7.1** | preço do mensalista | **Ilimitado afirma inclusão; cota mostra posição e não afirma preço.** O `/agendar` não decide cobertura — §27 |
 | **N7.2** | cancelamento | **Cancelamento afeta apenas o fato correspondente** |
 
 ---
@@ -545,12 +588,26 @@ Nada a inventar.
 Definida por João no fechamento:
 
 1. ✅ **Registrar as cinco decisões** — este documento
-2. **Auditoria curta da implementação proposta** — só leitura, sem commit de código
-3. **R1** — correção do meio de pagamento
-4. **N7.1** — preço condicional do mensalista
-5. **Verificação integrada na tela** — §19, com os dois lados abertos
+2. **Auditoria curta da implementação** — só leitura, sem worktree, sem commit
+3. **R1 sozinho** — correção do meio de pagamento
+4. **N7.1 separado** — posição no plano no `/agendar`
+5. **Verificação integrada na tela** — §19
 6. **Onda 3 / QA-02**
 
-Os passos 3 e 4 vão no **mesmo ciclo**: `/agendar` e o domínio de mensalista têm
-relação semântica, e separá-los repetiria o padrão que produziu a quinta coisa
-errada duas vezes (§25).
+### ⚠️ Revisão da ordem — os passos 3 e 4 **não** vão no mesmo ciclo
+
+A versão anterior deste documento dizia que iriam. **Revertido no fechamento:**
+
+> *"Eu manteria N7 separado. Ele é UX/domínio de leitura; R1 é mutação
+> financeira + auditoria. Misturar os dois novamente seria repetir exatamente o
+> padrão que o gate acabou de provar que precisamos evitar."* — João, 18/08/2026
+
+O argumento de juntar era a relação semântica entre `/agendar` e mensalista. O
+que a auditoria descobriu enfraqueceu esse argumento e fortaleceu o contrário:
+**a relação semântica é justamente o que torna a mistura perigosa.** R1 muda o
+motor financeiro no servidor; N7.1 muda o que a tela do cliente afirma. Duas
+frentes tocando o mesmo conceito por caminhos diferentes, sem interseção de
+arquivo — a descrição literal da §25.
+
+R1 vai sozinho por ser mutação financeira com auditoria, o território de maior
+consequência do produto.

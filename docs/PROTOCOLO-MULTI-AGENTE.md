@@ -499,3 +499,54 @@ Ao fechar qualquer decisão que crie, altere ou anule um fato financeiro:
 
 Fechar uma decisão financeira com *"a auditoria fica para depois"*. "Depois" é
 onde os três escritores de cadastro moram sozinhos há todo esse tempo.
+
+---
+
+# 27 · A interface não afirma o que o sistema ainda não sabe
+
+> **Regra estabelecida por João em 18/08/2026, ao fechar o N7.1.**
+
+> Se o sistema ainda não possui o fato que determina o preço, a interface não
+> deve afirmar o preço.
+
+## O caso que a produziu
+
+O `/agendar` precisa mostrar quanto o mensalista vai pagar. Medido:
+
+- `cobertoPeloPlano` lê `booking.cobertura`, gravado **na conclusão** — no
+  agendamento a reserva não existe;
+- `decidirCobertura` conta atendimentos **já concluídos**
+  (`financial-events.ts:339`), e reservas futuras não contam porque podem ser
+  canceladas.
+
+Cliente com cota 4, três usados e duas reservas futuras: **duas reservas
+disputam uma vaga**, e quem for concluído primeiro leva. A resposta não está
+faltando — ela **ainda não existe**.
+
+## As duas saídas recusadas, e por quê
+
+**`Total R$ 0,00`** — afirma cobertura que pode não acontecer. É o D1 com outro
+nome: o web dizendo uma coisa e o fato nascendo outra, agora do lado do cliente,
+que é quem menos tem como conferir.
+
+**"Se este corte ainda estiver na sua cota, você não paga"** — parece honesta
+porque tem o `se`. Foi recusada por João com o argumento decisivo: **o cliente lê
+"você não paga" e não lê o "se".** Uma condicional numa tela de preço é lida como
+promessa. Hedge não é honestidade quando o leitor descarta o hedge.
+
+## O corte que a regra faz
+
+| | |
+|---|---|
+| **Regra determinística** | pode afirmar. Plano ilimitado não depende de cota, ordem nem competência disputada |
+| **Regra que depende de evento futuro** | mostra o **fato passado verificável** (uso: *"1 de 4 utilizados"*) e diz onde o valor nasce (*"confirmado no atendimento"*) |
+
+## Por que ela é mais ampla que preço
+
+Preço foi o caso. A forma é geral: **existe uma diferença entre um fato que o
+sistema tem e ainda não exibiu, e um fato que o sistema ainda não tem.** O
+primeiro é trabalho de tela. O segundo não vira tela nenhuma — vira ou um evento
+que passa a existir, ou uma frase sobre o que se sabe.
+
+É a §22 aplicada ao tempo: *não afirmar o que não aconteceu* inclui **o que
+ainda não aconteceu**.
