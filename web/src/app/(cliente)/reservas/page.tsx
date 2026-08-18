@@ -292,9 +292,26 @@ export default function ReservasPage() {
                   <p className="text-ivory md:text-lg">
                     {bookingServices.map((s) => s.name).join(" + ")}
                   </p>
-                  <p className="text-sm capitalize text-ivory-muted md:text-base">
+                  {/* `capitalize` sobe TODA palavra e em português produz
+                      "Quarta-Feira, 19 De Agosto Às 14:00". Só a primeira. */}
+                  <p className="text-sm text-ivory-muted first-letter:uppercase md:text-base">
                     {booking ? `${formatDatePtBR(booking.date)} às ${booking.time}` : ""}
                   </p>
+                  {/* FALTA AQUI: "com {staffName}".
+                    *
+                    * O servidor grava `staffName` na reserva desde que ela
+                    * nasce (`functions/src/booking.ts`), e nenhuma tela do
+                    * cliente mostra: quem escolheu o profissional no
+                    * agendamento não tem onde conferir a escolha depois, e
+                    * quem chega no salão não sabe por quem perguntar.
+                    *
+                    * Não foi implementado de propósito. `BookingDoc`, em
+                    * `lib/domain.ts`, não declara o campo — é o mesmo buraco
+                    * que o comentário de `durationMin` descreve ali — e
+                    * `domain.ts` é contrato compartilhado com o painel e com
+                    * a apuração financeira. Declarar um campo novo nele por
+                    * conta de uma tela do cliente é exatamente a mudança
+                    * "de uma linha" que o §25 manda parar e reportar. */}
                 </div>
                 {statusMeta && <Pill tone={statusMeta.tone}>{statusMeta.label}</Pill>}
               </div>
@@ -353,7 +370,7 @@ export default function ReservasPage() {
                     <p className="truncate text-sm text-ivory md:text-base">
                       {bServices.map((s) => s.name).join(" + ")}
                     </p>
-                    <p className="truncate text-xs capitalize text-ivory-muted md:text-sm">
+                    <p className="truncate text-xs text-ivory-muted first-letter:uppercase md:text-sm">
                       {formatDatePtBR(b.date)} às {b.time} · {labelDoPagamento(b.paymentOrigin, b.paymentMethod)}
                     </p>
                   </div>
