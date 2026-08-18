@@ -241,6 +241,67 @@ clara, valor congelado e idempotência quando aplicável.
 
 ---
 
+## D25 · `cash_entries` implementado — e o que ele NÃO nivelou
+
+Fechado na Rodada 3.1. A regra que define a coleção:
+
+> Só existe quando há movimento de caixa que **não possui outro fato econômico
+> que o represente**.
+
+Cinco tipos, e só eles: sangria · troco inicial · aporte do dono · pagamento de
+comissão · ajuste de contagem.
+
+### Exclusividade por CONSTRUÇÃO
+
+`TipoDeCaixa` é um enum fechado que não contém "venda", "atendimento",
+"mensalidade", "compra" nem "despesa". **Não existe caminho** para lançar uma
+venda aqui, porque o tipo não existe — do mesmo jeito que a idempotência dos
+pagamentos vem do id derivado do fato, e não de uma checagem sujeita a corrida.
+
+Uma validação que compara strings seria contornada por um `kind` novo
+acrescentado sem pensar. Um enum fechado obriga a decisão a passar pelo arquivo.
+
+### O sinal mora no fato
+
+`amount` é assinado: positivo entra, negativo sai. Somar a coleção dá o saldo
+sem que nenhuma leitura conheça a tabela de tipos — mesmo princípio da comissão
+negativa no estorno e da taxa que emerge da soma do par.
+
+O dono nunca digita sinal: escolhe o TIPO, e o servidor deriva a direção. Só o
+`ajuste` pergunta, porque recontagem acha sobra ou falta.
+
+### Comissão devida não é comissão paga
+
+`CommissionDoc` é competência — o que a barbearia DEVE no fechamento. O
+`cash_entry` de `pagamento_comissao` é caixa — o dinheiro saindo da gaveta. Os
+dois precisam existir, e isso **não** viola a exclusividade: a comissão não é
+movimento de caixa, é obrigação. O pagamento dela não tem outro fato.
+
+---
+
+## ⚠️ Os fatos financeiros NÃO têm o mesmo nível de auditabilidade
+
+Registro deliberado, para ninguém assumir o contrário daqui a duas rodadas.
+
+| fato | escrita | valor congelado | idempotência | origem obrigatória |
+|---|---|---|---|---|
+| `payments` | só servidor | ✅ | ✅ id do fato | ✅ |
+| `commissions` | só servidor | ✅ | ✅ id do fato | ✅ |
+| `inventory_movements` | só servidor | ✅ | ✅ chave | ✅ |
+| `refunds` | só servidor | ✅ | ✅ fato + chave | ✅ motivo |
+| `cash_entries` | só servidor | ✅ | ✅ chave | ✅ motivo |
+| **`expenses`** | **tela, direto** | ❌ | ❌ | ❌ |
+
+**`expenses` é a única exceção, e é dívida consciente — o D24.** Despesa é
+editável para sempre e o produto não tem fechamento de período. Corrigir um
+aluguel em outubro ainda reescreve o lucro de setembro.
+
+Enquanto isso for verdade, **o sistema não pode prometer contabilidade
+histórica imutável** — e a Rodada 3.2 não pode escrever uma fórmula que dependa
+de a despesa ser tão confiável quanto as outras cinco linhas desta tabela.
+
+---
+
 ## Fechamento de período → **distinção mínima, agora**
 
 Não vira módulo contábil. Precisa de duas situações:

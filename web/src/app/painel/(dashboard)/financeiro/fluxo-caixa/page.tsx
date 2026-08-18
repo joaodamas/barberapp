@@ -11,6 +11,7 @@ import { BarChart } from "@/components/ui/chart";
 import { Voltar } from "@/components/ui/voltar";
 import { BloqueioPlano } from "@/components/ui/bloqueio-plano";
 import { useAcesso } from "@/lib/tenant-context";
+import { LivroCaixa } from "@/components/livro-caixa";
 
 export default function FluxoCaixaPage() {
   const mes = mesAtual();
@@ -168,6 +169,13 @@ export default function FluxoCaixaPage() {
         </table>
       </Card>
       )}
+
+      {/* D25 · o livro caixa, ao lado — e não dentro — do que a tela já mostra.
+          O gráfico acima deriva dos pagamentos; isto registra o dinheiro que
+          se move SEM outro fato por trás. Somar as duas metades num número só
+          é a Rodada 3.2, e fazê-lo aqui seria escrever a fórmula antes de a
+          decisão existir. */}
+      <LivroCaixa competencia={mes} />
     </div>
   );
 }

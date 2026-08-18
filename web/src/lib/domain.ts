@@ -219,6 +219,42 @@ export type RefundDoc = {
 };
 
 /**
+ * Livro caixa — D25.
+ *
+ * Escrito só pelo servidor. A regra do Firestore passou a recusar escrita
+ * direta na Rodada 3.1; antes era `write: if isOwnerOf`, herdado de quando a
+ * coleção não tinha contrato nem uma única escrita.
+ *
+ * ## O que entra aqui, e só isto
+ *
+ * > Movimento de caixa que **não possui outro fato econômico que o represente**.
+ *
+ * Atendimento, venda e mensalidade já têm `PaymentDoc`; compra tem
+ * `InventoryMovementDoc`; despesa tem `ExpenseDoc`. Nenhum deles gera
+ * lançamento aqui — se gerasse, o Fluxo de Caixa somaria o mesmo dinheiro duas
+ * vezes.
+ *
+ * Sobram os que não derivam de nada: sangria, troco inicial, aporte do dono,
+ * pagamento de comissão e ajuste de contagem. A exclusividade é garantida **por
+ * construção**: `kind` é um enum fechado que não contém as origens com fato
+ * próprio.
+ *
+ * Contrato e decisões em `functions/src/caixa.ts`.
+ */
+export type CashEntryDoc = {
+  kind: "sangria" | "troco_inicial" | "aporte" | "pagamento_comissao" | "ajuste";
+  direction: "entrada" | "saida";
+  /** ASSINADO: positivo entra, negativo sai. Somar dá o saldo, sem `switch`. */
+  amount: number;
+  date: string;
+  /** Por que existe. Sem isto o lançamento diz quanto e não o quê. */
+  reason: string;
+  paymentMethod: PaymentMethod;
+  /** Beneficiário, no pagamento de comissão. Nulo nos outros tipos. */
+  staffId: string | null;
+};
+
+/**
  * O cliente da barbearia — G3.
  *
  * O id do documento **é o uid quando a pessoa tem conta no app**, e um id

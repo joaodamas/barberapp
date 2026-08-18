@@ -10,17 +10,18 @@
     "serve": "npm run build && firebase emulators:start --only functions",
     "deploy": "firebase deploy --only functions",
     "logs": "firebase functions:log",
-    "test": "vitest run --exclude 'src/__tests__/firestore-rules.test.ts' --exclude 'src/__tests__/storage-rules.test.ts' --exclude 'src/__tests__/booking-concorrencia.test.ts' --exclude 'src/__tests__/isolamento-multi-tenant.test.ts' --exclude 'src/__tests__/clients-transacao.test.ts' --exclude 'src/__tests__/balcao.test.ts' --exclude 'src/__tests__/inventory-transacao.test.ts' --exclude 'src/__tests__/mensalistas-transacao.test.ts' --exclude 'src/__tests__/refunds-transacao.test.ts'",
+    "test": "vitest run --exclude 'src/__tests__/firestore-rules.test.ts' --exclude 'src/__tests__/storage-rules.test.ts' --exclude 'src/__tests__/booking-concorrencia.test.ts' --exclude 'src/__tests__/isolamento-multi-tenant.test.ts' --exclude 'src/__tests__/clients-transacao.test.ts' --exclude 'src/__tests__/balcao.test.ts' --exclude 'src/__tests__/inventory-transacao.test.ts' --exclude 'src/__tests__/mensalistas-transacao.test.ts' --exclude 'src/__tests__/refunds-transacao.test.ts' --exclude 'src/__tests__/caixa-transacao.test.ts'",
     "typecheck": "tsc --noEmit",
     "test:rules": "firebase emulators:exec --only firestore,storage --project regras-multi-tenant \"vitest run src/__tests__/firestore-rules.test.ts src/__tests__/storage-rules.test.ts\"",
     "test:concorrencia": "firebase emulators:exec --only firestore --project concorrencia-agenda \"vitest run src/__tests__/booking-concorrencia.test.ts\"",
-    "test:tudo": "npm run test && npm run test:concorrencia && npm run test:clientes && npm run test:balcao && npm run test:estoque && npm run test:mensalistas && npm run test:estornos && npm run test:isolamento && npm run test:rules",
+    "test:tudo": "npm run test && npm run test:concorrencia && npm run test:clientes && npm run test:balcao && npm run test:estoque && npm run test:mensalistas && npm run test:estornos && npm run test:caixa && npm run test:isolamento && npm run test:rules",
     "test:isolamento": "firebase emulators:exec --only firestore --project isolamento-multi-tenant \"vitest run src/__tests__/isolamento-multi-tenant.test.ts\"",
     "test:clientes": "firebase emulators:exec --only firestore --project clientes-g3 \"vitest run src/__tests__/clients-transacao.test.ts\"",
     "test:balcao": "firebase emulators:exec --only firestore --project balcao-d13 \"vitest run src/__tests__/balcao.test.ts\"",
     "test:estoque": "firebase emulators:exec --only firestore --project estoque-g1 \"vitest run src/__tests__/inventory-transacao.test.ts\"",
     "test:mensalistas": "firebase emulators:exec --only firestore --project mensalistas-g2 \"vitest run src/__tests__/mensalistas-transacao.test.ts\"",
-    "test:estornos": "firebase emulators:exec --only firestore --project estornos-d22 \"vitest run src/__tests__/refunds-transacao.test.ts\""
+    "test:estornos": "firebase emulators:exec --only firestore --project estornos-d22 \"vitest run src/__tests__/refunds-transacao.test.ts\"",
+    "test:caixa": "firebase emulators:exec --only firestore --project caixa-d25 \"vitest run src/__tests__/caixa-transacao.test.ts\""
   },
   "dependencies": {
     "firebase-admin": "^13.6.0",

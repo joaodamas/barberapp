@@ -5,6 +5,7 @@ import { saldoDeFidelidade } from "@/lib/domain";
 import { useTenant } from "@/lib/tenant-context";
 import type {
   BookingDoc, ClientDoc, CommissionDoc, ExpenseDoc, InventoryMovementDoc,
+  CashEntryDoc,
   LoyaltyTransactionDoc, PaymentDoc, PlanDoc, ProductDoc, RefundDoc, ServiceDoc,
   SubscriptionInvoiceDoc,
   StaffDoc, SubscriberDoc,
@@ -45,6 +46,18 @@ export const usePayments = () =>
  */
 export const useRefunds = () =>
   useShopCollection<RefundDoc>("refunds", {
+    orderByField: "date",
+    direction: "desc",
+  });
+
+/**
+ * Livro caixa — D25. Escrito só pelo servidor.
+ *
+ * Só o que NÃO tem outro fato por trás: sangria, troco, aporte, pagamento de
+ * comissão e ajuste. Somar `amount` dá o saldo — o sinal já está no fato.
+ */
+export const useCashEntries = () =>
+  useShopCollection<CashEntryDoc>("cashEntries", {
     orderByField: "date",
     direction: "desc",
   });

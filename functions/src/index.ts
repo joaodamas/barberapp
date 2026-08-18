@@ -37,6 +37,7 @@ export {
 } from "./booking";
 export { registrarVendaDeProduto, registrarEntradaDeEstoque } from "./inventory";
 export { registrarEstorno } from "./refunds";
+export { registrarMovimentoDeCaixa } from "./caixa";
 export {
   criarMensalista,
   cancelarMensalista,

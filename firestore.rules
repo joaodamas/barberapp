@@ -254,7 +254,19 @@ service cloud.firestore {
       /* -------- financeiro: só quem é do time -------- */
 
       match /expenses/{expenseId}         { allow read, write: if isOwnerOf(barbershopId); }
-      match /cash_entries/{entryId}       { allow read, write: if isOwnerOf(barbershopId); }
+      /* Livro caixa — escrito SÓ pelo servidor desde a Rodada 3.1 (D25).
+       *
+       * Era `write: if isOwnerOf`, herdado de quando a coleção não tinha
+       * contrato nem uma única escrita. Com valor congelado, sinal derivado do
+       * tipo e idempotência por chave, deixar a tela gravar direto tornaria as
+       * três promessas falsas na primeira gravação que passasse por fora de
+       * `registrarMovimentoDeCaixa`.
+       *
+       * Mesma decisão de `payments`, `commissions`, `refunds` e
+       * `inventory_movements`. `expenses` continua aberta — é o D24, dívida
+       * consciente e registrada. */
+      match /cash_entries/{entryId}       { allow read: if isOwnerOf(barbershopId);
+                                            allow write: if false; }
       /* Comissão é da PESSOA, não da equipe.
        *
        * A regra anterior era `isStaffOf`, ou seja: qualquer barbeiro lia a
