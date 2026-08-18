@@ -271,18 +271,23 @@ export default function PainelHojePage() {
         </h1>
       </div>
 
+      {/* O KPI "previsto hoje" saiu daqui.
+       *
+       * Ele imprimia `previsaoHoje` — a MESMA variável que o cartão "Previsão ×
+       * recebido" imprime 40px abaixo, com o rótulo "Previsão do dia". Um
+       * número, dois nomes, uma tela: é o defeito que `UI-UX-GUIDELINES.md`
+       * §13 lista nominalmente como exemplo proibido, e ele estava aqui.
+       *
+       * O número NÃO saiu da tela — saiu da repetição. Onde ele ficou é onde
+       * ele vira decisão: ao lado do recebido, com a barra que responde "estou
+       * no ritmo do que a agenda prometia?". Sozinho aqui em cima ele não
+       * permitia nenhuma decisão que o cartão de baixo já não permitisse.
+       *
+       * A grade continua `md:grid-cols-4` de propósito: três cartões ocupam
+       * três colunas e o quarto vão fica livre. Apertar para `grid-cols-3` no
+       * desktop mudaria a largura dos três, e largura de cartão é identidade —
+       * §10.6, a identidade se reforça, não se inventa. */}
       <div className="grid grid-cols-2 gap-2 md:col-span-2 md:grid-cols-4 md:gap-4">
-        <Card className="flex flex-col items-center gap-1 p-3 text-center md:flex-row md:justify-start md:gap-3 md:p-5">
-          <Wallet size={16} className="mx-auto text-gold-light md:mx-0 md:h-9 md:w-9 md:shrink-0 md:rounded-xl md:bg-gold/10 md:p-2" />
-          <div className="md:text-left">
-            <p className="font-display text-sm font-semibold text-ivory md:text-2xl">
-              {formatBRL(previsaoHoje)}
-            </p>
-            <p className="text-[11px] text-ivory-muted md:text-xs md:uppercase md:tracking-wide">
-              previsto hoje
-            </p>
-          </div>
-        </Card>
         <Card className="flex flex-col items-center gap-1 p-3 text-center md:flex-row md:justify-start md:gap-3 md:p-5">
           <Scissors size={16} className="mx-auto text-gold-light md:mx-0 md:h-9 md:w-9 md:shrink-0 md:rounded-xl md:bg-gold/10 md:p-2" />
           <div className="md:text-left">

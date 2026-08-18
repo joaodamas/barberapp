@@ -163,10 +163,20 @@ export default function FinanceiroPage() {
               style={{ width: `${breakEvenPct}%` }}
             />
           </div>
-          <p className="text-xs text-ivory-muted md:text-sm">
-            {formatBRL(r.grossRevenue)} de receita contra {formatBRL(totalExpenses)} de
-            custo total — sobra {formatBRL(operatingResult)} ({marginPct}% de margem).
-          </p>
+          {/* A frase de fechamento saiu daqui.
+           *
+           * Ela dizia "{receita} de receita contra {custo total} de custo total
+           * — sobra {resultado} ({margem}% de margem)": os QUATRO números dos
+           * quatro `KpiTile` que estão 40px acima, na MESMA ordem em que eles
+           * aparecem. Quatro repetições literais, nenhum quinto número.
+           *
+           * Nada saiu da tela: Receita realizada, Custo total, Resultado e
+           * Margem continuam onde estavam. O que saiu foi a segunda impressão
+           * deles — a régua da §2 é que a tela mostre o que o dono precisa
+           * decidir, e ler o mesmo número duas vezes não é uma decisão a mais.
+           *
+           * O que este cartão responde e nenhum outro elemento responde
+           * continua aqui: em que DIA do mês o faturamento cobriu o custo. */}
         </Card>
 
         <div>
