@@ -46,3 +46,6 @@ functions/.app-secret
 
 # Permissões locais do Claude Code — decisão de confiança pessoal, não do repo
 .claude/settings.local.json
+
+# Worktrees dos agentes — árvores de trabalho temporárias, nunca versionadas.
+.claude/worktrees/

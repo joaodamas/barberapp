@@ -199,3 +199,49 @@ DEPOIS de FIN-01
 O que muda em relação à proposta original: **UX-02 sai da primeira leva** e
 UX-04 vira pré-requisito de UX-03. As duas mudanças seguem a prioridade
 declarada — integridade dos contratos acima de velocidade.
+
+---
+
+# 19 · Os três estados de uma mudança
+
+> **Um agente nunca pode declarar uma funcionalidade "verificada" apenas porque
+> o código compila ou os testes passam.**
+
+| estado | o que significa | quem pode declarar |
+|---|---|---|
+| **IMPLEMENTADO** | o código existe | o próprio agente |
+| **TESTADO** | testes automatizados passaram | o próprio agente |
+| **VERIFICADO** | comportamento observado na interface real | só quem abriu a tela |
+
+**Só o terceiro permite marcar uma experiência como pronta.**
+
+A Rodada 3.2 ensinou isso da forma mais direta: 1268 testes verdes, typecheck,
+lint e build limpos — e a tela encontrou quatro defeitos, dois deles de
+produto, não de cálculo. O CMV é o caso exemplar: o total estava certo, e
+**nenhum teste pegaria**, porque o defeito estava no filho que a interface
+mostrava embaixo dele.
+
+E a razão de fundo:
+
+> O motor pode ser tecnicamente impecável. Se o dono da barbearia olhar para a
+> tela e entender a coisa errada, o produto está errado.
+
+## Regra prática
+
+Ao reportar, use as três palavras com precisão. "Implementei e testei" é uma
+frase honesta. "Está pronto" depois de rodar `vitest` não é.
+
+Quando o ambiente impedir a verificação — viewport móvel indisponível, falha de
+infraestrutura impossível de simular —, **declare como não verificado**. Nunca
+apresente uma aproximação como se fosse evidência.
+
+---
+
+# 20 · Worktrees isolados
+
+A primeira leva rodou com quatro equipes na MESMA árvore. Funcionou, mas o
+isolamento era só disciplina no prompt, e a QA registrou que a baseline se moveu
+três vezes sob os pés dela — recebeu um código que mudava enquanto ela media.
+
+A partir da segunda leva, cada agente recebe seu próprio worktree git. O
+orquestrador integra.
