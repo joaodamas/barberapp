@@ -7,6 +7,7 @@ import { KpiTile } from "@/components/ui/kpi-tile";
 import { formatBRL } from "@/lib/format";
 import { useFinanceiro, mesAtual, rotuloDoMes } from "@/lib/db/use-financeiro";
 import { composicaoDaReceita } from "@/lib/analytics";
+import { detalheDoCustoDoVendido } from "@/lib/fontes-financeiras";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
 import { useFeature, useTenant } from "@/lib/tenant-context";
@@ -61,7 +62,11 @@ function DreConteudo() {
 
   const tenant = useTenant();
   const mes = mesAtual(monthOffset);
-  const { dre: r, receita, raw, status } = useFinanceiro(mes);
+  /* `periodo` vem do hook, e não de `mes.startsWith(...)` montado aqui: é o
+   * MESMO recorte que o motor usa para o cabeçalho. Dois filtros de período
+   * escritos em lugares diferentes divergem na borda do mês, e a divergência
+   * aparece como um filho a mais ou a menos sob um total que não mudou. */
+  const { dre: r, receita, raw, status, periodo } = useFinanceiro(mes);
   const dreTaxRatePct = tenant.policies.taxRatePct;
 
   const monthExpenses = raw.expenses.filter((e) => e.date.startsWith(mes));
@@ -141,43 +146,77 @@ function DreConteudo() {
     return { key: `receita.${r.label}`, label: r.label, value: r.value };
   });
 
-  /* O detalhe do CMV, por produto — do que foi VENDIDO.
+  /* O detalhe do CMV vem PRONTO do motor — `detalheDoCustoDoVendido`.
    *
-   * Listava as COMPRAS do mês, e ficou órfão quando a Rodada 3.2 trocou a fonte
-   * do total. O efeito, visto na tela: cabeçalho R$ 18,00 e um único filho de
-   * R$ 180,00 embaixo. O dono que expandisse para conferir não fechava — é o
-   * D6/P1-2 outra vez, agora dentro do CMV.
+   * Ele já morou aqui duas vezes e divergiu do cabeçalho as duas. Primeiro
+   * listando `kind === "compra"`, e ficou órfão quando a 3.2 trocou a fonte do
+   * total: R$ 18,00 no cabeçalho, R$ 180,00 no único filho. Depois recalculando
+   * a venda por conta própria — mesma fonte, laço separado, arredondamento
+   * próprio por filho enquanto o motor arredondava só o total.
    *
-   * Agora agrupa venda por produto, com o `unitCost` congelado de cada uma, e
-   * subtrai a devolução: a mercadoria que voltou para a prateleira não foi
-   * consumida. Mesma conta de `custoDoVendido`, aberta por produto. */
-  const cmvTree: DreItem[] = (() => {
-    const porProduto = new Map<string, { custo: number; unidades: number }>();
+   * A causa das duas vezes é a mesma: DUAS contas para o mesmo número, e só a
+   * do motor sob teste. Aqui a tela não calcula mais nada de dinheiro — só
+   * resolve nome de produto e escreve a legenda. */
+  const detalheCmv = detalheDoCustoDoVendido({ movements: raw.movements, periodo });
 
-    for (const m of raw.movements) {
-      if (!m.date.startsWith(mes)) continue;
-      const custo = Number(m.unitCost);
-      if (!Number.isFinite(custo)) continue;
+  const nomeDoProduto = (productId: string) =>
+    products.find((p) => p.id === productId)?.name ??
+    /* Produto apagado do cadastro continua tendo vendido no mês. Mostrar o id
+     * cru do Firestore não diz nada ao dono; dizer que foi removido explica
+     * por que o nome sumiu sem sumir com o custo. */
+    "Produto removido do cadastro";
 
-      const devolucao = m.kind === "ajuste" && m.refundOf;
-      if (m.kind !== "venda" && !devolucao) continue;
+  const cmvTree: DreItem[] = detalheCmv.linhas.flatMap((l): DreItem[] => {
+    const nome = nomeDoProduto(l.productId);
 
-      const sinal = devolucao ? -1 : 1;
-      const atual = porProduto.get(m.productId) ?? { custo: 0, unidades: 0 };
-      atual.custo += sinal * custo * m.quantity;
-      atual.unidades += sinal * m.quantity;
-      porProduto.set(m.productId, atual);
+    /* A legenda mostra a CONTA, não só a quantidade. "1 un. vendida" ao lado de
+     * R$ 18,00 não permite conferir nada — o dono precisa ver de onde saiu o
+     * 18. Mesmo padrão da linha de comissão, que já mostra base e percentual.
+     *
+     * Com custos diferentes no mesmo mês não existe um "× R$ X" verdadeiro, e
+     * anunciar um seria pedir uma multiplicação que não fecha: nesse caso a
+     * legenda diz que o custo é médio. */
+    const partes: string[] = [];
+    if (l.unidadesVendidas > 0) {
+      partes.push(
+        l.custoUnitario !== null
+          ? `${l.unidadesVendidas} un. × ${formatBRL(l.custoUnitario)}`
+          : `${l.unidadesVendidas} un. · custo médio ${formatBRL(l.custoVendido / l.unidadesVendidas)}`
+      );
+    }
+    /* A venda sem custo congelado some do total sem explicação nenhuma se a
+     * tela não disser que ela existe — o dono lê um CMV menor e conclui que o
+     * sistema perdeu a venda. */
+    if (l.unidadesSemCusto > 0) {
+      partes.push(`${l.unidadesSemCusto} un. sem custo registrado, fora do cálculo`);
     }
 
-    return [...porProduto.entries()]
-      .filter(([, v]) => v.unidades !== 0)
-      .map(([productId, v]) => ({
-        key: `cmv.${productId}`,
-        label: products.find((p) => p.id === productId)?.name ?? productId,
-        value: Math.round(v.custo * 100) / 100,
-        caption: `${v.unidades} un. ${v.unidades === 1 ? "vendida" : "vendidas"}`,
-      }));
-  })();
+    const linhas: DreItem[] = [
+      {
+        key: `cmv.${l.productId}`,
+        label: nome,
+        value: l.custoVendido,
+        caption: partes.join(" · ") || undefined,
+      },
+    ];
+
+    /* Devolução é linha própria, com sinal — nunca abatida por dentro.
+     *
+     * Agregada, "vendeu 3 e devolveu 1" vira "2 un. vendidas": a devolução some
+     * da tela e o número para de bater com a Loja, que mostra as 3 vendas. É o
+     * contrato que `composicaoDaReceita` já usa um bloco acima, na mesma tela —
+     * entradas primeiro, o que saiu delas por último. */
+    if (l.unidadesDevolvidas > 0) {
+      linhas.push({
+        key: `cmv.${l.productId}.devolucao`,
+        label: `Devolução · ${nome}`,
+        value: -l.custoDevolvido,
+        caption: `${l.unidadesDevolvidas} un. de volta na prateleira`,
+      });
+    }
+
+    return linhas;
+  });
 
   /* Comissão aberta POR PESSOA, e não numa linha só.
    *

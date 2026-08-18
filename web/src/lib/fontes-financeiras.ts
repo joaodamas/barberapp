@@ -294,8 +294,144 @@ export function custoDoVendido(params: {
   movements: Doc<InventoryMovementDoc>[];
   periodo: Periodo;
 }): { total: number; semCustoCongelado: number } {
+  const d = detalheDoCustoDoVendido(params);
+  return { total: d.total, semCustoCongelado: d.semCustoCongelado };
+}
+
+/**
+ * Uma linha do detalhamento do CMV — o que a tela abre embaixo do cabeçalho.
+ *
+ * Os valores já vêm **em centavos fechados**: a soma assinada de
+ * `custoVendido − custoDevolvido` de todas as linhas é exatamente `total`.
+ * Fechar aqui, e não na tela, é o ponto inteiro deste tipo — ver
+ * `detalheDoCustoDoVendido`.
+ */
+export type LinhaDoCmv = {
+  productId: string;
+  /** Custo consumido pelas vendas do período, ANTES da devolução. */
+  custoVendido: number;
+  /** Custo que voltou para a prateleira. Zero quando não houve devolução. */
+  custoDevolvido: number;
+  unidadesVendidas: number;
+  unidadesDevolvidas: number;
+  /**
+   * Custo unitário congelado, quando é o MESMO em todas as vendas do período.
+   *
+   * `null` quando o produto saiu a custos diferentes — duas reposições com
+   * preços diferentes na mesma prateleira é o caso normal, e é exatamente por
+   * isso que o custo é congelado por movimento. A tela que anunciasse um
+   * "× R$ X" único nesse caso estaria mostrando uma conta que não fecha.
+   */
+  custoUnitario: number | null;
+  /** Vendas do produto sem `unitCost` congelado — anteriores a G1. */
+  vendasSemCusto: number;
+  /** Unidades vendidas que não entraram no custo, por falta do campo. */
+  unidadesSemCusto: number;
+};
+
+export type DetalheDoCmv = {
+  /** Uma por produto que teve venda ou devolução no período. */
+  linhas: LinhaDoCmv[];
+  /** O mesmo número que o cabeçalho publica — por construção, não por teste. */
+  total: number;
+  /** Vendas do período sem custo congelado, somadas. */
+  semCustoCongelado: number;
+  unidadesSemCusto: number;
+};
+
+/**
+ * O CMV aberto por produto — a conta que o cabeçalho resume.
+ *
+ * ## Por que isto mora no motor, e não na tela
+ *
+ * O detalhamento vivia dentro do `page.tsx` do DRE, montado a partir de
+ * `kind === "compra"`. Quando a Rodada 3.2 trocou a fonte do TOTAL para o
+ * custo do vendido (D3), o filho ficou órfão e ninguém percebeu: na tela
+ * apareceu cabeçalho de R$ 18,00 com um único filho de R$ 180,00 embaixo.
+ *
+ * Nenhum teste pegou — e não pegaria, porque a conta do filho era uma IIFE
+ * dentro de um componente, inalcançável sem renderizar. O defeito não foi de
+ * aritmética: foi de ARQUITETURA. Duas contas para o mesmo número, em módulos
+ * diferentes, com só uma delas testável.
+ *
+ * Aqui há uma conta só. `custoDoVendido` delega para esta função, então o
+ * cabeçalho e os filhos não podem divergir nem que alguém queira: são o mesmo
+ * laço, no mesmo acumulador.
+ *
+ * ## Por que os valores já vêm fechados em centavos
+ *
+ * A tela arredondava cada filho por conta própria enquanto o motor arredondava
+ * só o total. Com custo unitário que não cai em centavo redondo — uma caixa de
+ * 12 pomadas por R$ 100,00 dá R$ 8,333… a unidade, que é o caso comum e não a
+ * exceção — a soma dos filhos arredondados foge do cabeçalho por centavos. O
+ * dono que conferisse na calculadora não fecharia, de novo.
+ *
+ * O resíduo é distribuído pelo maior resto, e não jogado no último filho: a
+ * distorção fica no item de maior valor, onde um centavo é ruído, em vez de
+ * cair sempre no mesmo azarado da lista.
+ *
+ * ## Por que a devolução é linha própria, e não desconto embutido
+ *
+ * Agregar a devolução dentro do produto faz "vendeu 3, devolveu 1" aparecer
+ * como "2 un. vendidas": o fato de ter havido devolução SOME da tela, e o
+ * número deixa de bater com a Loja, que mostra as 3 vendas. Some justamente o
+ * fato que o dono precisa investigar.
+ *
+ * `composicaoDaReceita` já resolveu isso do jeito certo, na mesma tela e um
+ * bloco acima: a devolução entra por último, com sinal, como dedução. Este é o
+ * mesmo contrato — as entradas primeiro, o que saiu delas depois.
+ *
+ * ## Por que a venda sem custo vira linha visível
+ *
+ * Ela contribui R$ 0,00 para o total (ler `products.cost` reintroduziria o
+ * defeito que o D3 existe para matar). Mas se ela apenas desaparecer do
+ * detalhamento, o dono vê uma lista mais curta e um total menor sem nenhuma
+ * explicação — e a leitura natural é que o sistema perdeu a venda. Os
+ * contadores por produto deixam a lacuna dizível na tela, pelo mesmo motivo
+ * que `LinhaDeReceita.semFatoMaterializado` existe.
+ */
+export function detalheDoCustoDoVendido(params: {
+  movements: Doc<InventoryMovementDoc>[];
+  periodo: Periodo;
+}): DetalheDoCmv {
+  type Acc = {
+    productId: string;
+    custoVendido: number;
+    custoDevolvido: number;
+    unidadesVendidas: number;
+    unidadesDevolvidas: number;
+    custos: Set<number>;
+    vendasSemCusto: number;
+    unidadesSemCusto: number;
+  };
+
+  /* Acumulador único, na ordem dos movimentos. É literalmente o laço que o
+   * cabeçalho usava — mantido idêntico para o total não mudar de valor ao
+   * ganhar detalhamento. */
   let total = 0;
   let semCusto = 0;
+  let unidadesSemCusto = 0;
+
+  /* `Map` preserva a ordem de inserção: os produtos saem na ordem em que
+   * apareceram no mês, e não numa ordem que muda a cada render. */
+  const porProduto = new Map<string, Acc>();
+  const linhaDe = (productId: string): Acc => {
+    let a = porProduto.get(productId);
+    if (!a) {
+      a = {
+        productId,
+        custoVendido: 0,
+        custoDevolvido: 0,
+        unidadesVendidas: 0,
+        unidadesDevolvidas: 0,
+        custos: new Set<number>(),
+        vendasSemCusto: 0,
+        unidadesSemCusto: 0,
+      };
+      porProduto.set(productId, a);
+    }
+    return a;
+  };
 
   for (const m of params.movements) {
     if (!dentroDoPeriodo(m.date, params.periodo)) continue;
@@ -304,22 +440,107 @@ export function custoDoVendido(params: {
     const qtd = Number(m.quantity) || 0;
 
     if (m.kind === "venda") {
+      const linha = linhaDe(m.productId);
       /* Venda anterior a G1 não congelou custo. Somar zero é o correto — e o
        * contador expõe quantas, porque a alternativa (ler `products.cost`)
        * reintroduziria exatamente o defeito que este cálculo existe para
        * eliminar. */
       if (!Number.isFinite(custo)) {
         semCusto++;
+        unidadesSemCusto += qtd;
+        linha.vendasSemCusto++;
+        linha.unidadesSemCusto += qtd;
         continue;
       }
       total += custo * qtd;
+      linha.custoVendido += custo * qtd;
+      linha.unidadesVendidas += qtd;
+      linha.custos.add(custo);
     } else if (m.kind === "ajuste" && m.refundOf) {
       if (!Number.isFinite(custo)) continue;
+      const linha = linhaDe(m.productId);
       total -= custo * qtd;
+      linha.custoDevolvido += custo * qtd;
+      linha.unidadesDevolvidas += qtd;
     }
   }
 
-  return { total: centavos(total), semCustoCongelado: semCusto };
+  const acumulado = [...porProduto.values()];
+
+  /* Os valores que a tela vai SOMAR, em ordem, com o sinal com que aparecem.
+   * Arredondar este vetor junto — e não cada linha isolada — é o que faz o
+   * detalhamento fechar com o cabeçalho no centavo. */
+  const exatos: number[] = [];
+  for (const a of acumulado) {
+    exatos.push(a.custoVendido);
+    exatos.push(-a.custoDevolvido);
+  }
+  const fechados = emCentavosFechando(exatos, Math.round(total * 100));
+
+  const linhas: LinhaDoCmv[] = acumulado.map((a, i) => ({
+    productId: a.productId,
+    custoVendido: fechados[i * 2],
+    /* Volta a positivo: o sinal é da APRESENTAÇÃO, e guardá-lo no dado faria
+     * cada consumidor ter de lembrar de qual lado ele está. */
+    custoDevolvido: -fechados[i * 2 + 1] + 0,
+    unidadesVendidas: a.unidadesVendidas,
+    unidadesDevolvidas: a.unidadesDevolvidas,
+    custoUnitario: a.custos.size === 1 ? [...a.custos][0] : null,
+    vendasSemCusto: a.vendasSemCusto,
+    unidadesSemCusto: a.unidadesSemCusto,
+  }));
+
+  return {
+    linhas,
+    /* `+ 0` mata o zero negativo, e ele é alcançável: um mês em que tudo foi
+     * devolvido termina o acumulador um fio abaixo de zero por resíduo de
+     * ponto flutuante, `Math.round` devolve `-0`, e o cabeçalho do CMV sai
+     * como "−R$ 0,00" — um custo negativo, que não existe. Achado pelo teste
+     * de cenário aleatório. */
+    total: centavos(total) + 0,
+    semCustoCongelado: semCusto,
+    unidadesSemCusto,
+  };
+}
+
+/**
+ * Arredonda um vetor de valores para centavos **preservando a soma**.
+ *
+ * Maior resto (Hare): arredonda tudo para baixo e devolve os centavos que
+ * sobraram a quem tinha a maior fração pendente. É a mesma regra que rateio de
+ * assento em eleição usa, e existe aqui pelo motivo prático de que
+ * `Σ round(xᵢ) ≠ round(Σ xᵢ)` — a desigualdade que fazia o detalhamento
+ * divergir do cabeçalho por centavos.
+ *
+ * `alvoEmCentavos` é a soma já arredondada, calculada pelo MESMO acumulador que
+ * publica o cabeçalho. Não é recomputada aqui de propósito: recomputar abriria
+ * a porta para a divergência que a função existe para fechar.
+ */
+function emCentavosFechando(valores: number[], alvoEmCentavos: number): number[] {
+  if (valores.length === 0) return [];
+
+  const emCentavos = valores.map((v) => v * 100);
+  const piso = emCentavos.map((v) => Math.floor(v));
+  const soma = piso.reduce((s, v) => s + v, 0);
+
+  const ordem = emCentavos
+    .map((v, i) => ({ i, resto: v - piso[i] }))
+    .sort((a, b) => b.resto - a.resto || a.i - b.i);
+
+  /* Fechar a soma é INVARIANTE, não expectativa: os dois laços cobrem sobra
+   * positiva e negativa e giram na lista, então `Σ resultado === alvo` vale
+   * para qualquer entrada. A alternativa — assumir que a sobra cabe numa
+   * passada — é o tipo de premissa que só falha em produção, num mês com
+   * muitos produtos e custo quebrado. */
+  let sobra = alvoEmCentavos - soma;
+  for (let k = 0; sobra > 0; k++, sobra--) piso[ordem[k % ordem.length].i] += 1;
+  for (let k = 0; sobra < 0; k++, sobra++) {
+    piso[ordem[ordem.length - 1 - (k % ordem.length)].i] -= 1;
+  }
+
+  /* `+ 0` mata o zero negativo: `formatBRL(-0)` sai como "−R$ 0,00" e o dono
+   * lê uma devolução que não existiu. */
+  return piso.map((c) => c / 100 + 0);
 }
 
 /* ================================================================== */
