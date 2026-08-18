@@ -587,7 +587,16 @@ export function saldoDeFidelidade(
   };
 }
 
-/** Taxa do gateway, versionada por vigência (PRD §5). */
+/**
+ * Taxa do gateway.
+ *
+ * ⚠️ Tipo ÓRFÃO: nada o grava e nada o lê. Ele descrevia um versionamento por
+ * vigência que o produto não tem — R1.1 decidiu que a taxa é congelada no fato
+ * quando ele nasce, e que a correção de pagamento usa a tabela vigente hoje.
+ * `validFrom` é o campo que sustentava a promessa, e por isso ela cai aqui
+ * junto com os outros dois lugares que a faziam. O tipo fica enquanto o gateway
+ * não entra; a afirmação de vigência, não.
+ */
 export type GatewayFeeDoc = {
   gateway: string;
   method: string;
