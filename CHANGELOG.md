@@ -3,6 +3,174 @@
 Histórico de mudanças do CorteHub — plataforma de gestão para barbearias.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [2026-08-18] — o R1, e o dia em que a pergunta mudou três vezes
+
+Entrou a correção de pagamento de atendimento (R1). Mas o registro honesto desta
+data não é o código: é que **o enunciado do problema mudou três vezes**, e nenhuma
+das mudanças veio de rodar teste. Vieram de perguntar *quem escreve isto* e
+seguir até o fim.
+
+### Cinco decisões de produto fechadas antes de qualquer linha
+
+`docs/DECISOES-ABERTAS.md` foi de brief para documento fechado. As diretrizes:
+
+| | Decisão | Diretriz |
+|---|---|---|
+| **R1.1** | taxa na correção | tabela **vigente hoje**; sem versionamento |
+| **R1.2** | janela | **mês corrente** pelo `date` |
+| **R1.3** | alterar × somar | **`update`** do `PaymentDoc` + `audit_log` |
+| **N7.1** | preço do mensalista | ilimitado afirma inclusão; **cota mostra posição e não afirma preço** |
+| **N7.2** | cancelamento | **por fato econômico**, não por visita |
+
+Duas não sobreviveram ao desenho que a diretriz sugeria, e a medição foi o que
+mostrou:
+
+- **`audit_log` é `allow write: if false`** (`firestore.rules:341`), imutável até
+  para o dono. Um `updateDoc` de tela não consegue registrar a correção, e
+  afrouxar a regra destruiria a propriedade que a torna útil. **O R1 virou Cloud
+  Function.**
+- **A cobertura do plano é indecidível antes da conclusão.** `decidirCobertura`
+  conta atendimentos **já concluídos** (`financial-events.ts:339`), então duas
+  reservas futuras do mesmo mês disputam a mesma vaga da cota. Não falta
+  cálculo — falta o evento que decide.
+- **Fechamento de mês não existe** em lugar nenhum do produto. A janela
+  implementável é o mês corrente; o fechamento explícito virou frente futura.
+
+### Duas regras novas no protocolo
+
+**§26 — toda mudança de fato financeiro define seu próprio rastro.** Não é boa
+prática recomendada: é parte da definição de pronto. O achado que a produziu é
+que os três escritores de `audit_log` (`provisioning`, `signup`, `subscription`)
+são **todos de cadastro** — a conclusão de um atendimento, que cria pagamento e
+comissão e move caixa e DRE de uma vez, não deixa rastro nenhum.
+
+**§27 — a interface não afirma o que o sistema ainda não sabe.** *Se o sistema
+ainda não possui o fato que determina o preço, a interface não deve afirmar o
+preço.* Nasceu do N7.1, e recusa duas saídas: `Total R$ 0,00`, que afirma
+cobertura que pode não acontecer, e a condicional *"se estiver na sua cota, você
+não paga"* — recusada com o argumento decisivo de que **o cliente lê "você não
+paga" e não lê o "se"**. Hedge não é honestidade quando o leitor descarta o
+hedge. É a §22 aplicada ao tempo.
+
+### O R1 não era o que o nome dizia
+
+Começou como *"deixar corrigir o meio de pagamento"*. A auditoria encontrou que
+existe **um** escritor de `status: "completed"` (`page.tsx:222`), e o único
+caminho que passa `paymentMethod: null` é o botão **"Coberto pelo plano"**
+(`page.tsx:803`), que só aparece para cliente com plano ativo.
+
+```
+dono conclui mensalista como "coberto"
+        ↓  servidor decide
+cobertura = "plano"    → sem PaymentDoc, sem card
+cobertura = "avulso"   → PaymentDoc com método nulo → CARD CRÍTICO
+```
+
+**O card "Registrar pagamento" nasce quando o dono disse que o plano cobria e o
+plano não cobriu.** E como o plano "2 cortes" do seed não tem
+`servicesIncluded`, ele **nunca** cobre — todo mensalista dele cai aí.
+
+Isso respondeu o escopo por fato: `inventory.ts:586` e `mensalistas.ts:543`
+exigem o método na origem, então o caso "sem forma" é **exclusivo do serviço**.
+
+E revelou um **caso 2** que nenhuma tela detecta: método preenchido e **errado**.
+O filtro do card é `!b.paymentMethod`, então ele não aparece; nenhum alerta o
+levanta e nenhum caminho o corrigia.
+
+### O que entrou
+
+- **`functions/src/correcao-de-pagamento.ts`** — callable dono-only. Pagamento,
+  reserva e `audit_log` numa `runTransaction`; `tx.update` nos dois fatos,
+  `tx.set` só no log (doc novo, id derivado da chave, nunca `.doc()`
+  automático); taxa vigente hoje por `valoresDoPagamento`, **reusada e não
+  reimplementada**.
+- **Porta própria** — ação "Corrigir pagamento" na linha do atendimento
+  concluído, com modal próprio. O card do Action Center continua sendo o alerta
+  do caso 1 e aponta para a mesma porta.
+- **`executarIntencao` parou de reabrir o modal de conclusão sobre `completed`.**
+  A razão é mais forte que o vazamento: essa é a mesma superfície por onde o
+  "Veio depois" opera, e as duas operações não podem compartilhar caminho.
+- **A promessa de versionamento caiu dos três lugares** que a faziam
+  (`financeiro/page.tsx:308`, `business-rules.ts:210`, `domain.ts:590`) — ela
+  contradizia o próprio modal de conclusão, que já dizia a verdade.
+
+Suíte: **781 web · 471 functions · 33 no emulador**, typecheck, lint e build
+limpos, rodados no worktree e de novo depois de integrado.
+
+### Uma afirmação minha, corrigida
+
+Eu havia registrado que *"o único número que anda é `feeAmount`"*. Errado.
+`netAmount` também é gravado (`analytics.ts:350`, `fluxo-de-caixa.ts:138`), e
+com ele andam `caixaDiario`, `movimentosDeCaixa` e a Projeção. São **seis**
+leituras, não uma. A decisão R1.2 sobrevive porque o que a sustenta é `date` não
+mudar — e não muda —, mas por margem menor.
+
+### Dois testes que estavam verdes sobre a coisa errada
+
+- `action-center.test.ts:99` **afirmava a intenção que produzia o vazamento**.
+- Um teste de atomicidade passou quando deveria falhar: **o Admin SDK aceita
+  `undefined` em silêncio**, simplesmente omitindo o campo. Refeito com array
+  aninhado, que o Firestore recusa de verdade. Qualquer teste desta base que use
+  `undefined` para forçar erro está provando menos do que diz.
+
+É a mesma família do `estornos.test.ts`, que assertava a devolução errada ao
+lado de um teste de plural.
+
+### O caminho de fuga do `delete`+`create` existe, e tem botão
+
+```
+completed → no_show    pagamentoRef.delete()      financial-events.ts:387
+no_show → completed    pagamentoRef.set({...})    financial-events.ts:513  ← sem merge
+                       relê policies e staff AGORA          :421-434
+```
+
+O botão é **"Veio depois"** (`page.tsx:691`). Uma correção do R1 pode ser apagada
+por ali, e a comissão volta a ser recalculada do cadastro de hoje — o P1-7
+ressuscitando. O arquivo está fora do território do R1: o que entrou foi o
+**invariante nomeado** do qual ele passa a depender,
+`decidirEfeito("completed","completed") === "nada"`, com teste que vira notícia
+se mudar.
+
+### Quatro desalinhamentos da bancada de verificação
+
+O gate P0 na tela ainda **não** foi executado — a montagem do ambiente consumiu
+a rodada, e cada tropeço se disfarçava de defeito de produto:
+
+| | Causa | Sintoma |
+|---|---|---|
+| 1 | seed em `day-in-the-life`, app em `axon-barber` | dados invisíveis |
+| 2 | `NEXT_PUBLIC_USE_EMULATOR` ausente no `.env.local` | login contra **produção** |
+| 3 | `VAR=x npm run dev` não propaga no Git Bash | a flag "ligada" que não ligou |
+| 4 | **`NEXT_PUBLIC_ROOT_DOMAIN` ausente** | `osiqueira.lvh.me` não gera slug → tenant `cortehub` → **o dono vira cliente** |
+
+O quarto sustentava todos: `tenant.ts:500` cai em `jpproject.com.br`, e
+`slugFromHost` exige que o host termine nisso. O `tenant-server.ts:163` já
+descreve este sintoma quase palavra por palavra — *"o dono de uma barbearia local
+é tratado como CLIENTE... Some o painel, sem erro"* — e a correção dele está lá e
+funciona. **A causa que sobrou é de configuração, e nada no produto a sinaliza.**
+
+Descoberto instrumentando o `fetch` da página e lendo o destino real, não
+deduzindo. Uma hipótese intermediária (cache do Next) estava errada.
+
+Fica registrado como candidato a achado: quando `slugFromHost` devolve `null` em
+desenvolvimento, servir o tenant de fallback em silêncio é a mesma classe do D30.
+
+### O que continua aberto
+
+1. **Gate P0 na tela** — os nove cenários com dado real, incluindo o
+   `corrige → "Veio depois" → conclui de novo`. **O R1 não está fechado.**
+2. **O caso 2 não é detectado por nenhuma tela** — bloqueia o piloto junto com o R1.
+3. **Nenhuma tela lê `audit_log`** — §26 item 3 parcialmente descumprido, por
+   decisão consciente.
+4. **Plano com cota não existe como caminho de produto** — nenhuma tela escreve
+   `plans`, e o "2 cortes" do seed não cobre nada.
+5. **Correção sobre pagamento já estornado** — o R1 recusa e registra, em vez de
+   escolher entre propagar e divergir.
+6. Produto e mensalidade, versionamento de taxa, fechamento de mês: frentes
+   próprias.
+
+---
+
 ## [2026-08-12] — a esteira publica pela primeira vez
 
 Tudo abaixo deixou de ser "não publicado": foi ao ar em 12/08 pelo GitHub
