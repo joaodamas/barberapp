@@ -90,7 +90,9 @@ export default function InicioPage() {
               <p className="text-ivory md:text-lg">
                 {bookingServices.map((s) => s.name).join(" + ")}
               </p>
-              <p className="text-sm capitalize text-ivory-muted md:text-base">
+              {/* `capitalize` sobe TODA palavra e em português produz
+                  "Quarta-Feira, 19 De Agosto Às 14:00". Só a primeira. */}
+              <p className="text-sm text-ivory-muted first-letter:uppercase md:text-base">
                 {formatDatePtBR(nextBooking.date)} às {nextBooking.time}
               </p>
             </div>

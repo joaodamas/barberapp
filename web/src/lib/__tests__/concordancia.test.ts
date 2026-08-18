@@ -162,11 +162,14 @@ describe("o ternário de concordância não mora na linha", () => {
    * O outro sintoma da mesma desistência, e o mais fácil de reintroduzir: o
    * produto se recusando a concordar e devolvendo a conta para quem lê.
    */
-  const PARENTESE_REGISTRADO = [
-    /* Território do UX-06, em edição paralela: `${selectedServices.length}
-     * serviço(s)` na tela de agendar. Registrado, não corrigido. */
-    "app/(cliente)/agendar/page.tsx",
-  ];
+  /* Vazio de novo, e é para continuar assim.
+   *
+   * A única exceção registrada era `${selectedServices.length} serviço(s)` na
+   * barra fixa do agendar — deixada para o dono do território, que era a N7.
+   * Corrigida em 18/08 com `contar(...)`; a exceção sai junto, senão o teste
+   * segue cego para o arquivo inteiro e o `(s)` volta pela próxima frase que
+   * alguém escrever ali. */
+  const PARENTESE_REGISTRADO: string[] = [];
 
   it("nenhuma tela escreve serviço(s)", () => {
     const achados = FONTES.flatMap(({ arquivo, texto }) =>

@@ -16,6 +16,8 @@ import { useTenant } from "@/lib/tenant-context";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { CalendarX2 } from "lucide-react";
 import { formatBRL } from "@/lib/format";
+import { contar } from "@/lib/plural";
+import { estadoDosHorarios } from "./estado-dos-horarios";
 import { bookableDays, firstBookableIndex } from "@/lib/slots";
 import { useAuth } from "@/lib/auth-context";
 import {
@@ -240,7 +242,15 @@ export default function AgendarPage() {
     available: true,
   }));
 
-  const hasFreeSlot = slots.length > 0;
+  /* Cinco estados, não dois. A regra e o porquê moram em
+   * `estado-dos-horarios.ts` — resumo: `null` significa "não perguntei ainda"
+   * e `[]` significa "perguntei e não há", e a tela tratava os dois como o
+   * segundo. Ver o cabeçalho daquele arquivo. */
+  const estadoDaLista = estadoDosHorarios({
+    diaFechado: !!selectedDay?.disabled,
+    temProfissional: !!barbeiroEscolhido,
+    horariosLivres,
+  });
 
   /* Rótulo e trava do CTA existiam duplicados na barra fixa do mobile e no
    * card sticky do desktop — o mesmo ternário de 3 níveis escrito duas vezes. */
@@ -419,23 +429,41 @@ export default function AgendarPage() {
             })}
           </div>
 
-          {selectedDay?.disabled ? (
+          {estadoDaLista === "dia-fechado" ? (
             <Card className="py-8 text-center text-sm text-ivory-muted">
               A barbearia não abre neste dia. Escolha outra data.
             </Card>
-          ) : !hasFreeSlot ? (
+          ) : estadoDaLista === "escolher-profissional" ? (
+            /* Quem escolhe o profissional é o cliente, e o produto não escolhe
+             * por ele: qual barbeiro seria o padrão da casa é decisão de quem
+             * opera, não do agendamento. O que a tela pode fazer é PEDIR, em
+             * vez de responder por uma pergunta que não fez. */
+            <Card className="flex flex-col gap-2 py-6 text-center text-sm text-ivory-muted">
+              <span>Escolha com quem você quer cortar.</span>
+              <span className="text-xs">
+                Os horários livres mudam conforme o profissional — por isso a
+                lista aparece depois da escolha.
+              </span>
+            </Card>
+          ) : estadoDaLista === "carregando" ? (
+            <LoadingRows rows={3} />
+          ) : estadoDaLista === "sem-horario" ? (
             <Card className="flex flex-col gap-2 py-6 text-center text-sm text-ivory-muted">
               <span>
-                Nenhum horário livre comporta {totalDuration} min neste dia.
+                {barbeiroEscolhido?.name} não tem horário livre de{" "}
+                {totalDuration} min neste dia.
               </span>
+              {/* "Tente outro profissional" numa barbearia de um barbeiro só
+                  manda o cliente para uma porta que não existe. */}
               <span className="text-xs">
-                Escolha outro dia, ou fale com a barbearia pelo WhatsApp para
-                ver se dá para encaixar.
+                Escolha outro dia
+                {barbeirosAtivos.length > 1 && ", outro profissional"}, ou fale
+                com a barbearia pelo WhatsApp para ver se dá para encaixar.
               </span>
             </Card>
           ) : null}
 
-          {!selectedDay?.disabled && (
+          {estadoDaLista === "com-horario" && (
           <div className="grid grid-cols-3 gap-2 md:grid-cols-4 md:gap-3">
             {slots.map((slot) => {
               const active = selectedSlot?.time === slot.time;
@@ -466,7 +494,11 @@ export default function AgendarPage() {
             <p className="text-sm text-ivory md:text-base">
               {selectedServices.map((s) => s.name).join(" + ")}
             </p>
-            <p className="text-xs capitalize text-ivory-muted">
+            {/* `capitalize` põe maiúscula em TODA palavra, e em português isso
+                produz "Quarta-Feira, 19 De Agosto Às 14:00 · 30 Min" — mês,
+                preposição e a abreviação de minuto, que é invariável. Só a
+                primeira letra da frase sobe. */}
+            <p className="text-xs text-ivory-muted first-letter:uppercase">
               {selectedDay?.date.toLocaleDateString("pt-BR", {
                 weekday: "long",
                 day: "2-digit",
@@ -586,6 +618,32 @@ export default function AgendarPage() {
             <Check size={30} />
           </div>
           <h2 className="text-lg text-ivory">Reserva confirmada!</h2>
+          {/* A tela dizia "seu horário está garantido" sem dizer QUAL.
+            *
+            * O passo 4 é a última coisa que o cliente vê antes de fechar o
+            * app, e era o único da jornada sem data, sem hora e sem o
+            * profissional que ele mesmo tinha acabado de escolher — o fato
+            * mais importante da reserva ficava a uma navegação de distância,
+            * em "Ver minhas reservas". Confirmar é repetir o que foi
+            * combinado, não anunciar que algo foi combinado. */}
+          <Card className="w-full max-w-xs bg-surface-raised text-left">
+            <p className="text-sm text-ivory">
+              {selectedServices.map((s) => s.name).join(" + ")}
+            </p>
+            <p className="mt-0.5 text-xs text-ivory-muted first-letter:uppercase">
+              {selectedDay?.date.toLocaleDateString("pt-BR", {
+                weekday: "long",
+                day: "2-digit",
+                month: "long",
+              })}{" "}
+              às {selectedSlot?.time}
+            </p>
+            {barbeirosAtivos.length > 1 && barbeiroEscolhido && (
+              <p className="mt-0.5 text-xs text-ivory-muted">
+                com {barbeiroEscolhido.name}
+              </p>
+            )}
+          </Card>
           {/* "Não esqueça: R$ 50,00" é a última coisa que o mensalista lê antes
               de sair da tela, e era a que ele levava para o balcão. */}
           <p className="max-w-xs text-sm text-ivory-muted">
@@ -603,8 +661,11 @@ export default function AgendarPage() {
         <div className="fixed inset-x-0 bottom-16 z-10 mx-auto w-full max-w-md border-t border-border bg-bg/95 px-4 py-3 backdrop-blur safe-bottom md:hidden">
           <div className="mb-2 flex items-center justify-between text-sm">
             <span className="text-ivory-muted">
+              {/* O `(s)` é o produto se recusando a concordar e devolvendo a
+                  conta para quem lê — `UI-UX-GUIDELINES` §9. A regra mora em
+                  `lib/plural`, e "min" fica invariável de propósito. */}
               {selectedServices.length > 0
-                ? `${selectedServices.length} serviço(s) · ${totalDuration} min`
+                ? `${contar(selectedServices.length, "serviço", "serviços")} · ${totalDuration} min`
                 : "Selecione ao menos um serviço"}
             </span>
             {totalPrice > 0 && (
@@ -662,7 +723,7 @@ export default function AgendarPage() {
           {step >= 2 && selectedSlot && (
             <div className="flex flex-col gap-1 border-b border-border pb-4 text-sm">
               <span className="text-ivory-muted">Dia e horário</span>
-              <span className="capitalize text-ivory">
+              <span className="block text-ivory first-letter:uppercase">
                 {selectedDay?.date.toLocaleDateString("pt-BR", {
                   weekday: "long",
                   day: "2-digit",
@@ -670,6 +731,17 @@ export default function AgendarPage() {
                 })}{" "}
                 às {selectedSlot.time}
               </span>
+            </div>
+          )}
+
+          {/* O resumo repetia serviço, dia, hora e preço — tudo menos a
+              escolha que o cliente fez a mais nesta barbearia. Com um
+              profissional só não há escolha a confirmar, e a linha seria
+              ruído. */}
+          {step >= 2 && barbeirosAtivos.length > 1 && barbeiroEscolhido && (
+            <div className="flex items-center justify-between border-b border-border pb-4 text-sm">
+              <span className="text-ivory-muted">Profissional</span>
+              <span className="text-ivory">{barbeiroEscolhido.name}</span>
             </div>
           )}
 
