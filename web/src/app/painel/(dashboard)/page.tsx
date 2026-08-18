@@ -163,7 +163,19 @@ export default function PainelHojePage() {
     ? assinaturaAtivaDe(assinaturas, aFechar.clientId)
     : null;
 
-  const caixaHoje = caixaDoDia(agendados);
+  /* D2 · o caixa do dia nasce do PAGAMENTO, não da reserva concluída.
+   *
+   * Passava `agendados`, e toda reserva concluída virava dinheiro. Com o
+   * atendimento coberto pelo plano isso deixou de valer: o servidor conclui,
+   * grava `cobertura` e não cria pagamento nenhum — e a tela exibia
+   * `Recebido até agora R$ 50,00` de dinheiro que não entrou.
+   *
+   * Aqui entram TODAS as origens do dia — serviço, produto e mensalidade —
+   * porque a pergunta do bloco é "quanto passou pelo meu caixa hoje", e a
+   * gaveta não distingue de onde veio. É também o que faz o número parar de
+   * divergir do Fluxo de Caixa por população. */
+  const pagamentosDeHoje = payments.items.filter((p) => p.date === hoje);
+  const caixaHoje = caixaDoDia(pagamentosDeHoje);
   const recebidoReal = caixaHoje.total;
 
   /* D3 · sem a agenda, todo número desta tela é zero por falta de leitura.

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { caixaDoDia } from "@/lib/analytics";
 import type { Doc } from "@/lib/db/repository";
-import type { BookingDoc } from "@/lib/domain";
+import type { PaymentDoc } from "@/lib/domain";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -156,12 +156,17 @@ describe("Números — o mapa de calor não é lido duas vezes", () => {
 /* ================================================================== */
 
 describe("caixaDoDia · os filhos somam o cabeçalho", () => {
+  /* A fonte passou de reserva para PAGAMENTO no D2 — o helper acompanhou. O
+   * que este bloco guarda continua sendo o mesmo: a soma das parcelas fecha o
+   * cabeçalho, e o desconhecido não vira dinheiro. */
   const bk = (id: string, over: Record<string, unknown> = {}) =>
     ({
-      id, date: "2026-09-14", time: "10:00", status: "completed", value: 50,
-      staffId: "leo", clientId: "c1", serviceIds: ["corte"], isFitIn: false,
-      paymentOrigin: "in_person", paymentMethod: "pix", ...over,
-    }) as unknown as Doc<BookingDoc>;
+      id, origin: "servico", clientId: "c1", date: "2026-09-14",
+      paymentOrigin: "in_person", paymentMethod: "pix",
+      grossAmount: 50, feePct: 0, feeAmount: 0, netAmount: 50,
+      ...(over.value !== undefined ? { grossAmount: over.value } : {}),
+      ...over,
+    }) as unknown as Doc<PaymentDoc>;
 
   it("atendimento SEM meio informado tem coluna própria", () => {
     /* O defeito: `total` contava todas as recebidas e as três parcelas

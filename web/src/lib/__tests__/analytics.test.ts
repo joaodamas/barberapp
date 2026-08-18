@@ -808,29 +808,86 @@ describe("jornada", () => {
   });
 });
 
-describe("caixa do dia", () => {
-  it("só o atendimento concluído entra no caixa, qualquer que seja o método", () => {
-    /* Pix e cartão contavam ao CONFIRMAR, e dinheiro só ao concluir — dois
-     * regimes dentro do mesmo número. Com um marco financeiro único, "Recebido"
-     * passa a ser caixa realizado; o que era previsão vive no card de previsão
-     * do dia, que já existe separado. */
-    const c = caixaDoDia([
-      bk({ id: "1", status: "confirmed", paymentMethod: "pix", value: 90 }),
-      bk({ id: "2", status: "confirmed", paymentMethod: "cash", value: 60 }),
-      bk({ id: "3", status: "completed", paymentMethod: "cash", value: 35 }),
-      bk({ id: "4", status: "completed", paymentMethod: "pix", value: 40 }),
-    ]);
+describe("caixa do dia · D2 · a fonte é o pagamento, não a reserva", () => {
+  /* A troca de fonte É a correção. Enquanto "concluído" e "recebido" foram
+   * sinônimos, somar reservas funcionava. O atendimento coberto pelo plano
+   * quebrou a equivalência: o servidor conclui e não cria pagamento. */
+  const pg = (over: Record<string, unknown> = {}) =>
+    ({
+      id: "p1", origin: "servico", clientId: "c1", date: "2026-09-14",
+      paymentOrigin: "in_person", paymentMethod: "pix",
+      grossAmount: 50, feePct: 0, feeAmount: 0, netAmount: 50, ...over,
+    }) as unknown as Doc<PaymentDoc>;
+
+  it("1 · atendimento pago entra no caixa", () => {
+    const c = caixaDoDia([pg({ paymentMethod: "pix", grossAmount: 40 })]);
     expect(c.pix).toBe(40);
-    expect(c.dinheiro).toBe(35);
-    expect(c.total).toBe(75);
+    expect(c.total).toBe(40);
   });
 
-  it("reserva cancelada ou não comparecida nunca entra no caixa", () => {
+  it("2 · atendimento COBERTO pelo plano não entra — porque não tem pagamento", () => {
+    /* Verificado na tela em 18/08: o mensalista do plano Ilimitado tinha o
+     * corte concluído, o servidor gravava `cobertura` e nenhum `PaymentDoc`, e
+     * o Hoje exibia `Recebido até agora R$ 50,00`.
+     *
+     * A prova aqui é a AUSÊNCIA: não existe pagamento para passar. É por isso
+     * que a correção foi trocar a fonte em vez de filtrar por cobertura — o
+     * `PaymentDoc` já é, por construção, a definição de "entrou". */
+    expect(caixaDoDia([]).total).toBe(0);
+    expect(caixaDoDia([]).naoInformado).toBe(0);
+  });
+
+  it("3 · pagamento SEM forma informada é dinheiro que entrou — e não é ausência de pagamento", () => {
+    /* A distinção que o D2 tornou obrigatória, e que a coluna precisa manter:
+     * ausência de pagamento e pagamento sem forma informada são opostos. O
+     * primeiro não entra em lugar nenhum; o segundo entrou e falta classificar. */
     const c = caixaDoDia([
-      bk({ id: "1", status: "no_show", paymentMethod: "pix", value: 90 }),
-      bk({ id: "2", status: "cancelled_by_client", paymentMethod: "pix", value: 60 }),
+      pg({ id: "a", paymentMethod: "pix", grossAmount: 100 }),
+      pg({ id: "b", paymentMethod: null, grossAmount: 60 }),
     ]);
-    expect(c.total).toBe(0);
+    expect(c.pix).toBe(100);
+    expect(c.naoInformado).toBe(60);
+    expect(c.dinheiro).toBe(0);
+    expect(c.total).toBe(160);
+  });
+
+  it("4 · venda de produto continua entrando", () => {
+    const c = caixaDoDia([pg({ origin: "produto", paymentMethod: "credit", grossAmount: 135 })]);
+    expect(c.cartao).toBe(135);
+    expect(c.total).toBe(135);
+  });
+
+  it("5 · mensalidade entra só quando há pagamento real", () => {
+    const paga = caixaDoDia([
+      pg({ origin: "mensalidade", paymentMethod: "pix", grossAmount: 149 }),
+    ]);
+    expect(paga.pix).toBe(149);
+    /* Fatura emitida e não paga não gera `PaymentDoc` — logo não chega aqui. */
+    expect(caixaDoDia([]).total).toBe(0);
+  });
+
+  it("os filhos sempre somam o cabeçalho", () => {
+    const c = caixaDoDia([
+      pg({ id: "a", paymentMethod: "pix", grossAmount: 50 }),
+      pg({ id: "b", paymentMethod: "credit", grossAmount: 30 }),
+      pg({ id: "c", paymentMethod: "cash", grossAmount: 20 }),
+      pg({ id: "d", paymentMethod: null, grossAmount: 15 }),
+    ]);
+    expect(c.pix + c.cartao + c.dinheiro + c.naoInformado).toBe(c.total);
+    expect(c.total).toBe(115);
+  });
+
+  it("é BRUTO — a taxa não é descontada aqui", () => {
+    /* Esta tela responde "quanto passou pelo meu caixa hoje", que é o que o
+     * dono confere contra a maquininha e a gaveta. O líquido, com a taxa já
+     * descontada como no extrato, é a pergunta do Fluxo de Caixa. */
+    const c = caixaDoDia([
+      pg({
+        paymentMethod: "credit", grossAmount: 100,
+        feePct: 3.49, feeAmount: 3.49, netAmount: 96.51,
+      }),
+    ]);
+    expect(c.cartao).toBe(100);
   });
 });
 

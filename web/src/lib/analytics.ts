@@ -1,6 +1,10 @@
 import { safeDiv, toISODate } from "@/lib/format";
 import {
-  isReceived,
+  /* `isReceived` saiu daqui com o D2: "status conta como recebido" deixou de
+   * ser a pergunta certa quando o atendimento coberto pelo plano passou a ser
+   * concluído sem dinheiro. O predicado continua em `domain.ts`, com teste
+   * próprio, para quem precisar da pergunta de AGENDA — mas nenhum número
+   * financeiro sai mais dele. */
   isRevenue,
   monthOf,
   OCCUPIES_SLOT,
@@ -1163,32 +1167,57 @@ export function estoqueBaixo(products: Doc<ProductDoc>[]) {
   return products.filter((p) => p.stock < p.minStock);
 }
 
-/** Caixa do dia por meio de pagamento — a tela Hoje. */
-export function caixaDoDia(bookings: Doc<BookingDoc>[]) {
-  const recebidas = bookings.filter(isReceived);
+/**
+ * Caixa do dia por meio de pagamento — a tela Hoje.
+ *
+ * ## Lê PAGAMENTO, não reserva — e é disso que dependia a correção
+ *
+ * A versão anterior somava `bookings.filter(isReceived)`: toda reserva
+ * concluída virava dinheiro, porque o único teste era o status. Isso estava
+ * certo enquanto "concluído" e "recebido" eram a mesma coisa. **Deixaram de
+ * ser** quando o D2 introduziu o atendimento coberto pelo plano.
+ *
+ * O sintoma, verificado na tela em 18/08: um mensalista do plano Ilimitado tem
+ * o corte concluído; o servidor faz o certo — grava `cobertura` e **não** cria
+ * `PaymentDoc`, porque dinheiro nenhum entrou. E o Hoje exibia
+ * `Recebido até agora R$ 50,00` e `Sem forma informada R$ 50,00`. O fato estava
+ * correto; a leitura inventava a entrada.
+ *
+ * A função irmã `caixaDiario` já lia pagamentos desde a 3.2. Esta ficou para
+ * trás, e o D31 lhe deu só metade da correção — ganhou a coluna que fecha a
+ * soma, manteve a fonte errada. Ler o pagamento resolve as duas coisas de uma
+ * vez, porque **a existência do `PaymentDoc` é a definição de "entrou"**:
+ * atendimento coberto não tem, então não aparece; venda e mensalidade têm,
+ * então aparecem, sem nenhuma regra nova sobre origem.
+ *
+ * ## `naoInformado` guarda um significado estreito, de propósito
+ *
+ * É **pagamento que existe e cuja forma não foi informada** — não é ausência de
+ * pagamento. A diferença não é sutil: o primeiro é dinheiro que entrou e
+ * precisa ser classificado; o segundo é dinheiro que não entrou. Confundi-los é
+ * exatamente o defeito que esta função acabou de deixar de ter.
+ *
+ * Somar o desconhecido em "dinheiro" continua sendo pior que a coluna própria:
+ * aquela é a que o dono confere contra a gaveta no fim do expediente.
+ *
+ * ## Bruto, e não líquido
+ *
+ * `grossAmount`, não `netAmount`. Esta tela responde "quanto passou pelo meu
+ * caixa hoje", que é o que o dono compara com a maquininha e a gaveta. O
+ * líquido — com a taxa já descontada, como no extrato — é a pergunta do Fluxo
+ * de Caixa, e as duas telas dizem qual é qual.
+ */
+export function caixaDoDia(payments: Doc<PaymentDoc>[]) {
+  const bruto = (p: Doc<PaymentDoc>) => Number(p.grossAmount) || 0;
   const soma = (metodos: PaymentMethod[]) =>
-    recebidas
-      .filter((b) => b.paymentMethod && metodos.includes(b.paymentMethod))
-      .reduce((s, b) => s + b.value, 0);
+    payments
+      .filter((p) => p.paymentMethod && metodos.includes(p.paymentMethod))
+      .reduce((s, p) => s + bruto(p), 0);
 
-  /* `naoInformado` fecha a conta — e sem ele os filhos não somavam o cabeçalho.
-   *
-   * `total` conta TODAS as recebidas; as três parcelas filtram por
-   * `paymentMethod`. Um atendimento concluído sem informar o meio — estado que
-   * o servidor grava de propósito, com `paymentMethod: null` — entrava no
-   * cabeçalho e em parcela nenhuma. O dono somava as três colunas na mão e não
-   * chegava no total.
-   *
-   * É a mesma forma do defeito do CMV, e a função irmã `caixaDiario` já tinha
-   * recebido a correção na 3.2 — esta ficou para trás. Achado pela auditoria de
-   * densidade, que foi procurar duplicação e encontrou uma soma que não fecha.
-   *
-   * Somar o desconhecido em dinheiro seria pior: a coluna dinheiro é a que o
-   * dono confere contra a gaveta no fim do expediente. */
   const pix = soma(["pix"]);
   const cartao = soma(["debit", "credit"]);
   const dinheiro = soma(["cash"]);
-  const total = recebidas.reduce((s, b) => s + b.value, 0);
+  const total = payments.reduce((s, p) => s + bruto(p), 0);
 
   return {
     pix,

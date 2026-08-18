@@ -93,14 +93,23 @@ const comissoes = comissoesDeServico({
 /* VISÃO 1 · Dashboard — recorte do DIA                                */
 /* ------------------------------------------------------------------ */
 
-/** Como `painel/(dashboard)/page.tsx` monta, para um dia. */
+/**
+ * Como `painel/(dashboard)/page.tsx` monta, para um dia.
+ *
+ * O caixa passou a sair de PAGAMENTOS no D2 — antes saía das reservas
+ * concluídas, e o atendimento coberto pelo plano quebrou essa equivalência.
+ * A previsão e a contagem continuam vindo da agenda, que é o que elas são.
+ */
 function dashboardDe(dia: string) {
   const doDia = BOOKINGS.filter((b) => b.date === dia);
   const agendados = doDia.filter((b) => OCCUPIES_SLOT.includes(b.status));
   return {
-    previsto: agendados.reduce((s, b) => s + b.value, 0), // l. 86
-    atendimentos: agendados.length, // l. 82
-    caixa: caixaDoDia(agendados), // l. 131
+    previsto: agendados.reduce((s, b) => s + b.value, 0),
+    atendimentos: agendados.length,
+    /* TODAS as origens, como a tela faz: a gaveta não distingue de onde veio o
+     * dinheiro. Antes o Dashboard ignorava produto e mensalidade por acidente
+     * de fonte, não por decisão. */
+    caixa: caixaDoDia([...PAYMENTS, ...PAYMENTS_PRODUTO].filter((p) => p.date === dia)),
   };
 }
 
@@ -115,13 +124,30 @@ describe("visão 1 · Dashboard", () => {
     expect(d03.caixa.cartao).toBe(90); // crédito
   });
 
-  it("não conhece produto, mensalista, CMV, comissão, taxa nem despesa", () => {
-    /* O Dashboard é operação, não resultado. A ausência é desenho: R$ 290 de
-     * produto vendido no mês não aparecem aqui em dia nenhum, porque
-     * `caixaDoDia` recebe apenas reservas. */
+  it("D2 · o caixa do dia PASSA a enxergar a venda — era o A7", () => {
+    /* Este teste afirmava o contrário, e a justificativa dele era circular:
+     * "a ausência é desenho, porque `caixaDoDia` recebe apenas reservas". A
+     * ausência não era desenho — era consequência da fonte.
+     *
+     * O sintoma medido em 18/08: o bloco "CAIXA DE HOJE" exibia
+     * `Cartão R$ 0,00` num dia em que R$ 130,29 entraram no cartão por venda de
+     * produto. O dono conferia a maquininha contra um número que ignorava a
+     * metade do movimento.
+     *
+     * Lendo pagamento, a venda entra porque tem `PaymentDoc` — sem nenhuma
+     * regra nova sobre origem. */
     const d04 = dashboardDe("2026-09-04"); // dia da venda V01, R$ 45
-    expect(d04.caixa.total).toBe(0);
+    expect(d04.caixa.total).toBe(45);
+    /* A previsão continua sendo da AGENDA, e venda não ocupa horário. */
     expect(d04.previsto).toBe(0);
+    expect(d04.atendimentos).toBe(0);
+  });
+
+  it("continua sem conhecer CMV, comissão, taxa nem despesa", () => {
+    /* O Dashboard é caixa e operação, não resultado. O que ele passou a
+     * enxergar foi dinheiro que de fato entrou — não custo, não margem. */
+    const d04 = dashboardDe("2026-09-04");
+    expect(Object.keys(d04)).toEqual(["previsto", "atendimentos", "caixa"]);
   });
 
   it("ERRO · a previsão do dia NÃO desconta a falta confirmada", () => {

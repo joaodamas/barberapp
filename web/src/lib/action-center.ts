@@ -1,4 +1,5 @@
 import type { Doc } from "@/lib/db/repository";
+import { cobertoPeloPlano } from "@/lib/domain";
 import type { BookingDoc, PaymentDoc, ServiceDoc } from "@/lib/domain";
 import type { TenantPaymentFees } from "@/lib/tenant";
 import { dentroDoPeriodo, type Periodo } from "@/lib/analytics";
@@ -99,7 +100,21 @@ const ORDEM_SEVERIDADE: Record<ActionSeverity, number> = {
  */
 export function fechamentosPendentes(bookings: Doc<BookingDoc>[]): ActionItem[] {
   return bookings
-    .filter((b) => b.status === "completed" && !b.paymentMethod)
+    /* Coberto pelo plano NÃO é pendência — é um desfecho completo.
+     *
+     * A regra era `completed && !paymentMethod`, e valia enquanto a ausência de
+     * método só podia significar esquecimento. O D2 criou um segundo motivo
+     * para o campo ser nulo: o atendimento que a mensalidade já pagou, onde o
+     * servidor deliberadamente não cria pagamento.
+     *
+     * Sem esta guarda, o produto abria um alerta CRÍTICO pedindo "Registrar
+     * pagamento" de dinheiro que não existe, e justificava com "a taxa da
+     * maquininha entra como zero" — sobre uma transação que nunca passou por
+     * maquininha nenhuma. Verificado na tela em 18/08.
+     *
+     * É a mesma distinção que `caixaDoDia` passou a fazer: ausência de
+     * pagamento e pagamento sem forma informada são coisas opostas. */
+    .filter((b) => b.status === "completed" && !b.paymentMethod && !cobertoPeloPlano(b))
     .map((b) => ({
       id: `fechamento-pendente:${b.id}`,
       severity: "critical" as const,

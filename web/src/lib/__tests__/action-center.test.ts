@@ -60,6 +60,35 @@ describe("fechamento pendente", () => {
     ).toHaveLength(0);
   });
 
+  it("D2 · atendimento coberto pelo plano NÃO é pendência", () => {
+    /* O caso 3 da régua: concluído sem pagamento não pode virar cobrança
+     * automática de informação. O servidor não cria `PaymentDoc` de propósito —
+     * a mensalidade já pagou.
+     *
+     * Verificado na tela em 18/08: o produto abria um alerta CRÍTICO pedindo
+     * "Registrar pagamento" de dinheiro inexistente, justificando com "a taxa
+     * da maquininha entra como zero" sobre uma transação que nunca passou por
+     * maquininha nenhuma. */
+    const coberto = bk({ id: "1", paymentMethod: null }) as Doc<BookingDoc>;
+    (coberto as { cobertura?: unknown }).cobertura = {
+      tipo: "plano", subscriptionId: "s1", planId: "ilimitado",
+      planName: "Ilimitado", competencia: "2026-08",
+      valorCoberto: 50, usoNaCompetencia: 1, cota: null,
+    };
+    expect(fechamentosPendentes([coberto])).toHaveLength(0);
+  });
+
+  it("D2 · avulso sem método CONTINUA sendo pendência", () => {
+    /* A guarda nova não pode engolir o caso original. Cobertura `avulso` é
+     * exatamente o corte que o plano NÃO cobriu — cota esgotada, por exemplo —
+     * e aí a cobrança é real e a forma precisa ser informada. */
+    const avulso = bk({ id: "2", paymentMethod: null }) as Doc<BookingDoc>;
+    (avulso as { cobertura?: unknown }).cobertura = {
+      tipo: "avulso", motivo: "cota_esgotada", valorCoberto: 0,
+    };
+    expect(fechamentosPendentes([avulso])).toHaveLength(1);
+  });
+
   it("morre quando o pagamento é registrado, não por descarte", () => {
     const antes = fechamentosPendentes([bk({ id: "1", paymentMethod: null })]);
     const depois = fechamentosPendentes([bk({ id: "1", paymentMethod: "debit" })]);
