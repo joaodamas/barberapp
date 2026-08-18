@@ -119,11 +119,15 @@ Dois fatos que reduzem o susto:
 1. **A correção não move o fato de mês.** `PaymentDoc.date` não muda, e toda
    filtragem de período é por `date`. Um Pix de janeiro corrigido em dezembro
    continua em janeiro.
-2. **O único número que se move é `feeAmount`** → `gatewayFees` → margem e
-   resultado daquele mês. Receita, CMV, comissão e imposto **não mudam** — o
-   imposto incide sobre bruto, e o bruto não muda.
+2. ~~**O único número que se move é `feeAmount`**~~ → **CORRIGIDO na auditoria
+   de implementação.** `netAmount` também é gravado e também se move
+   (`analytics.ts:350`, `fluxo-de-caixa.ts:138`), e com ele andam `caixaDiario`,
+   `movimentosDeCaixa` e a Projeção de caixa. São **seis** leituras, não uma.
+   Receita, CMV, comissão e imposto continuam parados — o imposto incide sobre
+   bruto, e o bruto não muda. Detalhe em `AUDITORIA-R1-N7.md`.
 
-Ou seja: o pior caso é o resultado de um mês antigo mudar pelo **delta de uma
+O ponto **1 é o que sustenta a decisão**, e ele se confirma: nada atravessa mês.
+O pior caso é o resultado de um mês antigo mudar pelo **delta de uma
 taxa**, tipicamente alguns reais.
 
 ### As opções
