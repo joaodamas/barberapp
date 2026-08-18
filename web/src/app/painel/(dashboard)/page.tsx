@@ -178,6 +178,14 @@ export default function PainelHojePage() {
   const caixaHoje = caixaDoDia(pagamentosDeHoje);
   const recebidoReal = caixaHoje.total;
 
+  /* D3 · o recebido tem fonte PRÓPRIA desde o D2, e some pela falha dela.
+   *
+   * Enquanto o caixa saía de `bookings`, um gate só bastava. Agora a agenda
+   * pode estar ilegível com os pagamentos perfeitamente legíveis — e nesse dia
+   * "quanto entrou" continua sendo uma pergunta respondível. É a segunda metade
+   * da regra do D3: suprimir o que não dá para apurar, preservar o que dá. */
+  const pagamentosIlegiveis = payments.status === "erro";
+
   /* D3 · sem a agenda, todo número desta tela é zero por falta de leitura.
    *
    * `agendados` sai de `bookings`; com a coleção ilegível ela vira `[]` e a
@@ -374,47 +382,67 @@ export default function PainelHojePage() {
         </Card>
       </div>
 
-      {/* Os dois blocos de dinheiro saem inteiros de `bookings`. Sem a leitura
-          eles mostrariam "R$ 0,00 previsto, R$ 0,00 recebido" e um caixa do dia
-          zerado — o retrato exato de um dia sem movimento, que é a conclusão
-          que o dono NÃO pode tirar de uma falha de leitura. Suprimir os dois é
-          diferente de mostrá-los vazios: some o cartão, não o número. */}
-      {!agendaIlegivel && (
-      <section className="md:col-span-2">
-        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm">
-          Previsão × recebido
-        </h2>
-        <Card className="flex flex-col gap-3 md:p-6">
-          <div className="flex items-center justify-between text-sm md:text-base">
-            <span className="text-ivory-muted">Previsão do dia</span>
-            <span className="font-display font-semibold text-ivory md:text-lg">
+      {/* F5/F6 · duas perguntas, dois cartões — e nenhuma régua entre elas.
+          =================================================================
+          Isto era um cartão só, com uma barra de progresso: `previsaoHoje` em
+          cima, `recebidoReal` embaixo, e `safePct(recebido, previsão)` no meio.
+          A barra afirmava "quanto do previsto já entrou".
+
+          Ela deixou de poder afirmar isso no D2. "Previsão do dia" sai da
+          AGENDA e é serviço; "Recebido" passou a sair de `payments` e é caixa de
+          TODAS as origens. Medido na tela em 18/08, com dois atendimentos, uma
+          venda e uma mensalidade:
+
+              Previsão do dia    R$ 100,00   (2 cortes agendados)
+              Recebido até agora R$ 244,00   (50 serviço + 45 venda + 149 mensalidade)
+
+          A barra ficava cheia e sugeria 244% de um dia "realizado". Os R$ 149 da
+          mensalidade e os R$ 45 da venda não pertencem à população da previsão:
+          venda não ocupa horário e mensalidade não é atendimento. O percentual
+          não estava errado por arredondamento — estava comparando coisas que
+          não se comparam.
+
+          A saída NÃO é voltar o recebido para serviço só. O D2 estabeleceu que
+          recebido é caixa, e desfazer isso para a barra funcionar seria escolher
+          a régua em vez do fato. A saída é separar as perguntas: "o que estava
+          previsto para hoje?" e "quanto dinheiro entrou hoje?" são duas, e a
+          tela passa a fazer as duas.
+
+          Cada cartão também some pela SUA fonte, e não mais pela da agenda: a
+          previsão morre com `bookings` ilegível, o recebido com `payments`. Era
+          o mesmo gate para os dois porque os dois vinham de `bookings`. */}
+      <div className="grid gap-3 md:col-span-2 md:grid-cols-2 md:gap-4">
+        {!agendaIlegivel && (
+          <Card className="flex flex-col gap-1 md:p-6">
+            <p className="text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm">
+              Previsão do dia
+            </p>
+            <p className="font-display text-xl font-semibold text-ivory md:text-2xl">
               {formatBRL(previsaoHoje)}
-            </span>
-          </div>
-          <div className="h-2 w-full overflow-hidden rounded-full bg-surface-raised">
-            <div
-              className="h-full rounded-full bg-success transition-[width] duration-300"
-              style={{ width: `${safePct(recebidoReal, previsaoHoje)}%` }}
-            />
-          </div>
-          <div className="flex items-center justify-between text-sm md:text-base">
-            <span className="text-ivory-muted">Recebido até agora</span>
-            <span className="font-display font-semibold text-success md:text-lg">
+            </p>
+            <p className="text-xs text-ivory-muted">
+              serviços agendados para hoje, já sem faltas e cancelamentos
+            </p>
+          </Card>
+        )}
+
+        {!pagamentosIlegiveis && (
+          <Card className="flex flex-col gap-1 md:p-6">
+            <p className="text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm">
+              Recebido hoje
+            </p>
+            <p className="font-display text-xl font-semibold text-success md:text-2xl">
               {formatBRL(recebidoReal)}
-            </span>
-          </div>
-          {/* A regra é UMA para todos os meios desde agosto: o dinheiro entra
-              quando o atendimento é concluído. A legenda anterior descrevia o
-              comportamento anterior — Pix e cartão contando na confirmação — e
-              ensinava ao dono que ele já tinha recebido o que ainda não
-              recebeu. Ver `isReceived` em `lib/domain.ts`. */}
-          <p className="text-xs text-ivory-muted">
-            O valor entra aqui quando você conclui o atendimento — em qualquer
-            forma de pagamento. A previsão desconta faltas e cancelamentos.
-          </p>
-        </Card>
-      </section>
-      )}
+            </p>
+            {/* Dizer as origens é o que impede o dono de ler este número como
+                "o quanto da agenda já entrou". São coisas diferentes, e a
+                legenda é onde isso fica explícito. */}
+            <p className="text-xs text-ivory-muted">
+              tudo que entrou no caixa — atendimento, venda e mensalidade
+            </p>
+          </Card>
+        )}
+      </div>
 
       {!agendaIlegivel && (
       <section className="md:col-span-2">
