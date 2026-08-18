@@ -44,7 +44,7 @@ import {
  * classe de defeito de `dueStage`, campo que envelhece e ninguém atualiza.
  */
 export default function ClientesPage() {
-  const { items: clientes, status } = useClients();
+  const { items: clientes, status, error } = useClients();
   const { items: bookings } = useBookings();
   const { items: movements } = useInventoryMovements();
   const { items: subscribers } = useSubscribers();
@@ -77,7 +77,7 @@ export default function ClientesPage() {
       </div>
 
       {status === "carregando" && <LoadingRows rows={4} oQue="seus clientes" />}
-      {status === "erro" && <ErroAoCarregar oQue="seus clientes" />}
+      {status === "erro" && <ErroAoCarregar oQue="seus clientes" erro={error} />}
 
       {status === "pronto" && clientes.length === 0 && (
         <EmptyState

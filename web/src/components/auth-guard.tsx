@@ -2,9 +2,14 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { DoorClosed } from "lucide-react";
+import { signOut } from "firebase/auth";
+import { auth } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
 import { useTenant } from "@/lib/tenant-context";
 import { isOnboardingComplete } from "@/lib/tenant";
+import { Button } from "@/components/ui/button";
+import { EstadoCentral } from "@/components/ui/estado-central";
 
 /**
  * Porta de entrada das áreas logadas. O login é um só (`/login`) — o que
@@ -34,6 +39,19 @@ export function AuthGuard({
   // Dono com onboarding pela metade não deve cair num painel vazio.
   const precisaOnboarding = isOwner && !isOnboardingComplete(tenant.onboarding);
 
+  /* Tem conta, e a conta não é desta barbearia.
+   *
+   * Era `router.replace("/")` em silêncio: quem abria um link do painel — de um
+   * favorito, de uma mensagem, de um e-mail — aparecia na área do cliente sem
+   * uma palavra, e não tinha como saber se errou o endereço, se perdeu o
+   * acesso, ou se entrou com a conta errada. As três causas pedem ações
+   * diferentes e o produto não dizia qual foi.
+   *
+   * É a mesma classe do D30 — traduzir "não é para você" sem dizer por quê —
+   * e a mesma de `ErroAoCarregar`: um estado terminal não pode parecer um
+   * carregamento que nunca termina. */
+  const semVinculo = !!user && !!requireOwner && !isOwner;
+
   useEffect(() => {
     if (loading) return;
     if (precisaTrocarSenha) {
@@ -45,9 +63,42 @@ export function AuthGuard({
       return;
     }
     if (authorized) return;
-    // Sem conta → login. Com conta, mas sem permissão → área do cliente.
-    router.replace(user ? "/" : "/login");
+    /* Sem conta → login. Com conta e sem vínculo NÃO redireciona mais: explica
+     * e oferece as duas saídas reais. */
+    if (!user) router.replace("/login");
   }, [loading, authorized, user, router, precisaOnboarding, precisaTrocarSenha]);
+
+  if (semVinculo) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-bg px-4">
+        <EstadoCentral
+          icon={DoorClosed}
+          titulo="Esta conta não tem acesso a este painel"
+          descricao={
+            <>
+              Você está conectado como <strong className="text-ivory">{user.email}</strong>, e
+              esta conta não está vinculada a esta barbearia. Nada foi perdido — se você
+              administra a barbearia, entre com a conta que recebeu o acesso.
+            </>
+          }
+          acao={
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <Button onClick={() => router.replace("/")}>Ir para a área do cliente</Button>
+              <Button
+                variant="ghost"
+                onClick={async () => {
+                  await signOut(auth);
+                  router.replace("/login");
+                }}
+              >
+                Entrar com outra conta
+              </Button>
+            </div>
+          }
+        />
+      </div>
+    );
+  }
 
   if (loading || !authorized || precisaOnboarding || precisaTrocarSenha) {
     return (

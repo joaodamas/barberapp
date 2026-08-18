@@ -60,7 +60,7 @@ const TIPOS: CashEntryDoc["kind"][] = [
 
 export function LivroCaixa({ competencia }: { competencia?: string }) {
   const tenant = useTenant();
-  const { items: entradas, status } = useCashEntries();
+  const { items: entradas, status, error } = useCashEntries();
   const { items: equipe } = useStaff();
 
   const [aberto, setAberto] = useState(false);
@@ -144,7 +144,7 @@ export function LivroCaixa({ competencia }: { competencia?: string }) {
         já entram pelo próprio pagamento e não são lançados aqui.
       </p>
 
-      {status === "erro" && <ErroAoCarregar oQue="os movimentos de caixa" />}
+      {status === "erro" && <ErroAoCarregar oQue="os movimentos de caixa" erro={error} />}
 
       <div className="grid grid-cols-3 gap-2">
         <Card className="flex flex-col gap-0.5 p-3">

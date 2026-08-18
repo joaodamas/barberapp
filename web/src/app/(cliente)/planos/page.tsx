@@ -32,7 +32,7 @@ import { useTenant } from "@/lib/tenant-context";
  * abre a conversa; quem confirma é quem recebe o dinheiro.
  */
 export default function PlanosPage() {
-  const { items: plans, status } = usePlans();
+  const { items: plans, status, error } = usePlans();
   const tenant = useTenant();
 
   const ativos = plans.filter((p) => p.active !== false);
@@ -52,7 +52,7 @@ export default function PlanosPage() {
       </div>
 
       {status === "carregando" && <LoadingRows rows={3} />}
-      {status === "erro" && <ErroAoCarregar oQue="os planos" />}
+      {status === "erro" && <ErroAoCarregar oQue="os planos" erro={error} />}
 
       {status === "pronto" && ativos.length === 0 && (
         <EmptyState

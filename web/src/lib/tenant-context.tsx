@@ -13,19 +13,53 @@ import { acessoDaBarbearia, DEFAULT_TENANT, type Tenant } from "@/lib/tenant";
  */
 const TenantContext = createContext<Tenant>(DEFAULT_TENANT);
 
+/**
+ * O tenant é um SUBSTITUTO, não a barbearia de verdade.
+ *
+ * Existe separado do tenant porque `resolverTenant` já garante que
+ * `tenant` nunca é nulo — em qualquer falha vem `DEFAULT_TENANT`. Sem este
+ * sinal, quem consome não tem como saber se está olhando a barbearia do dono ou
+ * a marca da plataforma no lugar dela.
+ *
+ * A decisão de degradar em silêncio na VITRINE é deliberada e continua valendo
+ * (`tenant-server.ts`: *"barbearia com a marca da plataforma é melhor que
+ * barbearia fora do ar"*). Este sinal não a desfaz — apenas permite que telas
+ * onde o silêncio é inaceitável façam diferente. Hoje é uma só: o login.
+ */
+const TenantIndisponivelContext = createContext(false);
+
 export function TenantProvider({
   tenant,
+  indisponivel = false,
   children,
 }: {
   tenant: Tenant;
+  /** A resolução falhou por infraestrutura e `tenant` é o padrão da plataforma. */
+  indisponivel?: boolean;
   children: React.ReactNode;
 }) {
-  return <TenantContext.Provider value={tenant}>{children}</TenantContext.Provider>;
+  return (
+    <TenantContext.Provider value={tenant}>
+      <TenantIndisponivelContext.Provider value={indisponivel}>
+        {children}
+      </TenantIndisponivelContext.Provider>
+    </TenantContext.Provider>
+  );
 }
 
 /** A barbearia atual. Nunca é nula: sem subdomínio, cai no tenant padrão. */
 export function useTenant() {
   return useContext(TenantContext);
+}
+
+/**
+ * `true` quando o que está em `useTenant()` é substituto, não a barbearia.
+ *
+ * Quem pergunta isto está prestes a **afirmar uma identidade** para o usuário.
+ * Quem só precisa de cor, ícone ou nome curto não precisa perguntar.
+ */
+export function useTenantIndisponivel() {
+  return useContext(TenantIndisponivelContext);
 }
 
 /** Atalho para as políticas — o que antes eram constantes de `business-rules`. */

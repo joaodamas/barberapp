@@ -33,7 +33,7 @@ export default function EquipePage() {
   /* Do tenant, não da constante da plataforma: a barbearia que combinou 50/50
    * via 40% aqui e o split correto no DRE — duas telas, dois números. */
   const padraoDaCasa = tenant.policies.commissionSplit.barberPct;
-  const { items: equipe, status } = useStaff();
+  const { items: equipe, status, error } = useStaff();
   const { items: servicos } = useServices();
   const [erro, setErro] = useState<string | null>(null);
 
@@ -97,7 +97,7 @@ export default function EquipePage() {
       </div>
 
       {status === "carregando" && <LoadingRows rows={2} oQue="sua equipe" />}
-      {status === "erro" && <ErroAoCarregar oQue="sua equipe" />}
+      {status === "erro" && <ErroAoCarregar oQue="sua equipe" erro={error} />}
 
       {status === "pronto" && equipe.length === 0 && (
         <EmptyState

@@ -58,7 +58,7 @@ export default function MensalPage() {
 
 function MensalConteudo() {
   const [filter, setFilter] = useState<Filter>("todos");
-  const { items: subscribers, status } = useSubscribers();
+  const { items: subscribers, status, error } = useSubscribers();
   const { items: faturas } = useSubscriptionInvoices();
 
   /* MRR derivado da lista: cobrável = ativos; contratado inclui suspensos, que
@@ -159,7 +159,7 @@ function MensalConteudo() {
       </div>
 
       {status === "carregando" && <LoadingRows rows={3} oQue="os mensalistas" />}
-      {status === "erro" && <ErroAoCarregar oQue="os mensalistas" />}
+      {status === "erro" && <ErroAoCarregar oQue="os mensalistas" erro={error} />}
 
       {status === "pronto" && subscribers.length === 0 && (
         /* O botão dizia "Criar plano" e levava para /painel/loja, que cadastra

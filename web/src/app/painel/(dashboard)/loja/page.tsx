@@ -62,7 +62,7 @@ function LojaConteudo() {
    * o simulador estava prometendo um número que venda nenhuma produzia. */
   const padraoDaCasa = policies.commissionSplit.barberPct;
   const impostoDaCasa = policies.taxRatePct;
-  const { items: products, status } = useProducts();
+  const { items: products, status, error } = useProducts();
   const [simPrice, setSimPrice] = useState(45);
   const [simCost, setSimCost] = useState(18);
   const [modalOpen, setModalOpen] = useState(false);
@@ -164,7 +164,7 @@ function LojaConteudo() {
             <Package size={12} /> Produtos
           </h2>
           {status === "carregando" && <LoadingRows rows={3} oQue="seus produtos" />}
-          {status === "erro" && <ErroAoCarregar oQue="seus produtos" />}
+          {status === "erro" && <ErroAoCarregar oQue="seus produtos" erro={error} />}
           {status === "pronto" && products.length === 0 && (
             <EmptyState
               icon={Package}

@@ -3,6 +3,7 @@
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
+import { explicarFalha } from "@/lib/erro-de-leitura";
 
 /**
  * Não consegui ler — e isso NÃO é "está vazio" (D27).
@@ -39,14 +40,24 @@ import { cn } from "@/lib/cn";
  */
 export function ErroAoCarregar({
   oQue,
+  erro,
   className,
   onTentarDeNovo,
 }: {
   /** O que falhou, em linguagem de dono: "as despesas", "sua agenda". */
   oQue: string;
+  /**
+   * O erro cru do listener, quando a tela tiver.
+   *
+   * Opcional de propósito: sem ele o componente diz exatamente o que dizia
+   * antes. É o que permite ligar a distinção permissão × conexão sem tocar nas
+   * telas que outra equipe está reescrevendo.
+   */
+  erro?: unknown;
   className?: string;
   onTentarDeNovo?: () => void;
 }) {
+  const { explicacao, temRetry } = explicarFalha(erro);
   return (
     <div
       role="alert"
@@ -59,23 +70,27 @@ export function ErroAoCarregar({
         <AlertTriangle size={16} className="shrink-0 text-danger" />
         <p className="text-sm text-ivory">Não foi possível carregar {oQue}.</p>
       </div>
-      {/* Diz as duas causas prováveis em vez de "erro inesperado": permissão e
-          conexão pedem ações diferentes de quem está lendo. */}
-      <p className="text-xs text-ivory-muted">
-        Pode ser a conexão ou uma permissão que mudou. Nada foi perdido.
-      </p>
-      {/* `size="sm"` em vez de `min-h-9` na mão: o alvo continua com 36px de
-          desenho e volta a ter 44px de área. Escrito à mão, este era o botão
-          MAIS estreito do produto — `px-0` deixava a área do lado com a largura
-          exata das palavras. */}
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={onTentarDeNovo ?? (() => window.location.reload())}
-        className="px-0"
-      >
-        Tentar de novo
-      </Button>
+      {/* Permissão e conexão pedem ações diferentes de quem está lendo — e essa
+          diferença agora é dita, em vez de deixada como "ou" para o dono
+          resolver. Ver `lib/erro-de-leitura.ts`. */}
+      <p className="text-xs text-ivory-muted">{explicacao}</p>
+      {/* Sem retry quando recarregar não pode funcionar: um botão que promete
+          uma saída inexistente é pior que botão nenhum. O dono clica três
+          vezes, conclui que o produto quebrou, e a causa real nunca chega. */}
+      {temRetry && (
+        /* `size="sm"` em vez de `min-h-9` na mão: o alvo continua com 36px de
+           desenho e volta a ter 44px de área. Escrito à mão, este era o botão
+           MAIS estreito do produto — `px-0` deixava a área do lado com a largura
+           exata das palavras. */
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onTentarDeNovo ?? (() => window.location.reload())}
+          className="px-0"
+        >
+          Tentar de novo
+        </Button>
+      )}
     </div>
   );
 }
@@ -94,28 +109,31 @@ export function ErroAoCarregar({
  */
 export function LinhaDeErro({
   oQue,
+  erro,
   colSpan,
   onTentarDeNovo,
 }: {
   oQue: string;
+  erro?: unknown;
   colSpan: number;
   onTentarDeNovo?: () => void;
 }) {
+  const { explicacao, temRetry } = explicarFalha(erro);
   return (
     <tr>
       <td colSpan={colSpan} role="alert" className="px-4 py-10 text-center md:px-6">
         <p className="text-sm text-ivory">Não foi possível carregar {oQue}.</p>
-        <p className="mt-1 text-xs text-ivory-muted">
-          Pode ser a conexão ou uma permissão que mudou. Nada foi perdido.
-        </p>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onTentarDeNovo ?? (() => window.location.reload())}
-          className="mt-1"
-        >
-          Tentar de novo
-        </Button>
+        <p className="mt-1 text-xs text-ivory-muted">{explicacao}</p>
+        {temRetry && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onTentarDeNovo ?? (() => window.location.reload())}
+            className="mt-1"
+          >
+            Tentar de novo
+          </Button>
+        )}
       </td>
     </tr>
   );
