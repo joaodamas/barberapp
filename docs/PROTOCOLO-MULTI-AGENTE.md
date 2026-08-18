@@ -245,3 +245,25 @@ três vezes sob os pés dela — recebeu um código que mudava enquanto ela medi
 
 A partir da segunda leva, cada agente recebe seu próprio worktree git. O
 orquestrador integra.
+
+## ⚠️ Armadilha de provisionamento — verificar SEMPRE
+
+Na primeira leva com worktrees, **quatro de quatro** nasceram em `659091a`
+(`main`), não na branch ativa — cerca de 30 commits atrás. Nenhum dos documentos
+obrigatórios existia lá, e no caso do FIN-02 **o defeito que ele ia auditar
+ainda não tinha sido introduzido**.
+
+Os quatro detectaram sozinhos e corrigiram com `merge --ff-only`, porque a base
+era ancestral estrita. Mas o dano potencial era silencioso: um agente auditando
+código que não é o que roda, e reportando com confiança.
+
+**Todo brief de worktree deve começar com:**
+
+```
+Antes de qualquer coisa, confirme a base:
+  git log --oneline -1
+Se não for o HEAD de <branch ativa>, faça `git merge --ff-only <branch>`
+e só então leia os documentos. Se não for fast-forward possível, PARE e reporte.
+```
+
+E o orquestrador confere `git worktree list` **antes** de disparar, não depois.
