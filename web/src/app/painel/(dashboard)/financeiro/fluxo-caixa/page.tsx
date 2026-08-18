@@ -99,7 +99,7 @@ export default function FluxoCaixaPage() {
           icon={Calendar}
           label="Atendimentos"
           value={String(totalAppointments)}
-          caption={`${dailyCashHistory.length} dias com movimento`}
+          caption={`${dailyCashHistory.length} ${dailyCashHistory.length === 1 ? "dia" : "dias"} com movimento`}
         />
       </div>
 
@@ -132,7 +132,12 @@ export default function FluxoCaixaPage() {
         <EmptyState
           icon={Wallet}
           title="Nenhum movimento neste mês"
-          description="Cada atendimento marcado como concluído na tela Hoje entra aqui automaticamente, separado por meio de pagamento."
+          /* Dizia só "cada atendimento concluído entra aqui". Virou promessa
+             parcial na Rodada 3.2: venda, mensalidade, compra, devolução e
+             sangria também entram. Prometer menos do que se faz é o mesmo
+             defeito de prometer mais — o dono conclui que falta registrar algo
+             que o sistema já registra. */
+          description="Atendimento concluído, venda, mensalidade paga, compra de estoque, devolução e retirada — tudo entra aqui automaticamente. Comece marcando um atendimento como concluído."
           actionLabel="Ir para Hoje"
           actionHref="/painel"
         />

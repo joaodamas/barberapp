@@ -35,7 +35,7 @@ export default function DrePage() {
   if (!liberado) {
     return (
       <RecursoBloqueado
-        titulo="DRE Gerencial"
+        titulo="Quanto sobrou"
         oQueFaz="Monta o resultado do mês linha a linha: receita, comissão, custo de produto, despesa fixa, imposto e o que sobra."
         porQueVale="É a diferença entre saber quanto entrou e saber quanto ficou. Sem ele, o mês fecha no positivo no extrato e no negativo na conta."
       />
@@ -141,14 +141,43 @@ function DreConteudo() {
     return { key: `receita.${r.label}`, label: r.label, value: r.value };
   });
 
-  const cmvTree: DreItem[] = raw.movements
-    .filter((m) => m.kind === "compra" && m.date.startsWith(mes))
-    .map((m) => ({
-      key: `cmv.${m.id}`,
-      label: products.find((p) => p.id === m.productId)?.name ?? m.productId,
-      value: m.value,
-      caption: `${m.quantity} un. compradas`,
-    }));
+  /* O detalhe do CMV, por produto — do que foi VENDIDO.
+   *
+   * Listava as COMPRAS do mês, e ficou órfão quando a Rodada 3.2 trocou a fonte
+   * do total. O efeito, visto na tela: cabeçalho R$ 18,00 e um único filho de
+   * R$ 180,00 embaixo. O dono que expandisse para conferir não fechava — é o
+   * D6/P1-2 outra vez, agora dentro do CMV.
+   *
+   * Agora agrupa venda por produto, com o `unitCost` congelado de cada uma, e
+   * subtrai a devolução: a mercadoria que voltou para a prateleira não foi
+   * consumida. Mesma conta de `custoDoVendido`, aberta por produto. */
+  const cmvTree: DreItem[] = (() => {
+    const porProduto = new Map<string, { custo: number; unidades: number }>();
+
+    for (const m of raw.movements) {
+      if (!m.date.startsWith(mes)) continue;
+      const custo = Number(m.unitCost);
+      if (!Number.isFinite(custo)) continue;
+
+      const devolucao = m.kind === "ajuste" && m.refundOf;
+      if (m.kind !== "venda" && !devolucao) continue;
+
+      const sinal = devolucao ? -1 : 1;
+      const atual = porProduto.get(m.productId) ?? { custo: 0, unidades: 0 };
+      atual.custo += sinal * custo * m.quantity;
+      atual.unidades += sinal * m.quantity;
+      porProduto.set(m.productId, atual);
+    }
+
+    return [...porProduto.entries()]
+      .filter(([, v]) => v.unidades !== 0)
+      .map(([productId, v]) => ({
+        key: `cmv.${productId}`,
+        label: products.find((p) => p.id === productId)?.name ?? productId,
+        value: Math.round(v.custo * 100) / 100,
+        caption: `${v.unidades} un. ${v.unidades === 1 ? "vendida" : "vendidas"}`,
+      }));
+  })();
 
   /* Comissão aberta POR PESSOA, e não numa linha só.
    *
@@ -209,7 +238,7 @@ function DreConteudo() {
    * a tela precisa dos mesmos dados para o caso liberado. */
   const acesso = useAcesso();
   if (!acesso.features.advancedFinance) {
-    return <BloqueioPlano titulo="DRE Gerencial" descricao="Veja quanto sobra depois de comissão, custo fixo e imposto — com margem de contribuição e ponto de equilíbrio calculados do seu custo real." />;
+    return <BloqueioPlano titulo="Quanto sobrou" descricao="Veja quanto sobra depois de comissão, custo fixo e imposto — com margem de contribuição e ponto de equilíbrio calculados do seu custo real." />;
   }
 
   return (
@@ -218,10 +247,16 @@ function DreConteudo() {
 
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl text-ivory md:text-3xl md:tracking-tight">DRE Gerencial</h1>
+          {/* O menu passou a dizer "Quanto sobrou" e a tela continuava dizendo
+              "DRE Gerencial": o dono clicava num nome e chegava em outro. UX-01
+              declarou a pendência ao renomear; fechada aqui.
+              "Demonstração de resultado" fica no subtítulo — quem conhece o
+              termo o reconhece, e quem não conhece não precisa dele para
+              entender a tela. */}
+          <h1 className="text-xl text-ivory md:text-3xl md:tracking-tight">Quanto sobrou</h1>
           <p className="text-xs text-ivory-muted md:text-sm">
-            Demonstração de resultado — custo fixo × variável e margem de
-            contribuição
+            Demonstração de resultado — o que entrou, o que custou e o que
+            sobrou no mês
           </p>
         </div>
         <div className="flex items-center gap-1 text-sm text-ivory-muted">

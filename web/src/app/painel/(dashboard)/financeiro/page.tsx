@@ -247,7 +247,7 @@ export default function FinanceiroPage() {
             <QuickLinkCard
               href="/painel/financeiro/dre"
               icon={TrendingUp}
-              label="DRE Gerencial"
+              label="Quanto sobrou"
               value={formatBRL(operatingResult)}
               caption="resultado do mês, item a item"
             />
