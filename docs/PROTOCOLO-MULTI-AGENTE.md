@@ -358,3 +358,87 @@ matchMedia('(min-width: 768px)').matches  →  true
 
 A ferramenta relatou sucesso e o viewport não mudou. É a diferença entre "não
 consegui verificar" e "verifiquei e passou" — e é a §19 aplicada ao ambiente.
+
+---
+
+# 25 · A quinta coisa errada
+
+> **Agents podem desenvolver em paralelo. Validação de produto, não.**
+
+## O que aconteceu — duas vezes, na mesma rodada
+
+Quatro equipes entregaram quatro peças, cada uma **correta isoladamente**:
+
+```
+FIN-03       o servidor não cria PaymentDoc para atendimento coberto      ✅
+FIN-04       coluna "Sem forma informada" para fechar a soma do caixa     ✅
+UX-06        a agenda mostra "Coberto pelo plano"                         ✅
+DENSITY-01   `naoInformado` no motor (D31)                                ✅
+```
+
+Unidas, produziram uma **quinta coisa que ninguém escreveu**: a tela Hoje
+exibindo `Recebido até agora R$ 50,00` de dinheiro que não entrou, a mesma
+quantia em "Sem forma informada", e um alerta **crítico** pedindo *"Registrar
+pagamento"* de um pagamento inexistente — justificado com *"a taxa da maquininha
+entra como zero"* sobre uma transação que nunca passou por maquininha.
+
+A causa é instrutiva: a coluna do D31 foi desenhada para *"concluí e esqueci de
+informar o meio"*. O D2 criou um **segundo motivo** para o campo ser nulo —
+*"a mensalidade já pagou"* — e a coluna passou a capturar as duas coisas, que
+são opostas.
+
+O segundo caso, menor e da mesma forma: o D2 trocou a fonte do recebido para
+`payments` (correto), e a barra "Previsão × Recebido" continuou comparando os
+dois (correta desde sempre). Juntos: **R$ 100 previsto contra R$ 244 recebido,
+barra cheia, um dia 244% realizado.**
+
+## Por que nenhuma revisão de código teria pego
+
+**Nos dois casos, testes, typecheck, lint e build estavam verdes** — 731 e 739
+testes. Cada equipe testou o seu lado, e cada lado estava certo.
+
+E há um agravante que vale internalizar: **quanto mais correta cada peça, mais
+difícil a colisão é de prever.** Ler os quatro diffs não revela o problema,
+porque o problema não está em nenhum deles — está no encontro.
+
+O que pegou os dois foi **abrir a tela com dado real no banco, depois de
+integrar.**
+
+## A regra
+
+```
+AGENTS
+  ↓  implementam isoladamente, cada um no seu território
+  ↓  cada um testa o que escreveu
+INTEGRAÇÃO
+  ↓  UM gate, onde se procura deliberadamente a quinta coisa errada
+VERIFICAÇÃO DE EXPERIÊNCIA
+  ↓  tela + banco, com dado real
+PRÓXIMA ONDA
+```
+
+Isso **não** obriga a reduzir o paralelismo. Dois, três ou quatro agents
+continuam valendo quando os territórios forem independentes. O que muda é que a
+validação de produto deixa de ser paralela: ela é uma só, e é do orquestrador.
+
+## E o significado de "fechado"
+
+> **Nenhum agent pode declarar uma frente "fechada" apenas porque seus testes
+> passaram.**
+>
+> "Fechado" exige **implementação + testes + integração + verificação de
+> experiência** — esta última sempre que o território afetar uma jornada do
+> produto.
+
+É a §19 levada à sua conclusão. O agent alcança **IMPLEMENTADO** e **TESTADO**
+sozinho; **VERIFICADO** é estado de integração, e nunca de território.
+
+## Conflito de arquivo não é o risco principal
+
+O protocolo até aqui protegia contra dois agents editando o mesmo arquivo (§15,
+§18). Os dois casos acima **não tiveram nenhuma interseção de arquivo** — a
+verificação de `comm -12` deu vazia nas duas ondas.
+
+O risco que sobra é **semântico**: duas frentes mudando o significado do mesmo
+conceito por caminhos diferentes. Território separado não protege disso. Só o
+gate de integração protege.
