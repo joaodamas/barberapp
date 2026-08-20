@@ -100,7 +100,8 @@ preservou o histórico, e o R1 apenas tornou o dano visível.
 | ✅ | ~~**P1-7**~~ — fechado em 20/08, ver §4.2.1 | — |
 | 🟡 | **Cobertura re-decidida** — a parte **silenciosa** foi fechada pelo D-3, ver §4.2.2 | resta o caso em que o dono escolhe "Concluir sem cobrar" sobre um atendimento que já tinha pagamento: o valor sai, por decisão dele, e nada avisa que havia receita ali |
 | 🔴 | **Caso 2** — meio de pagamento preenchido e errado | indetectável hoje: não há segunda origem |
-| 🔴 | **D18** — mensalista contado duas vezes no DRE | o problema conceitual mais importante em aberto |
+| ✅ | ~~**D18**~~ — **já estava fechado pelo D2**, ver §4.2.3 | o registro que o dava como aberto estava velho |
+| 🟡 | **Quatro leituras derivadas ignoram a cobertura** | previsão e relatório inflados — não é receita realizada errada |
 
 ### 4.2.1 · P1-7 — fechado, e provado em execução
 
@@ -184,6 +185,56 @@ dizendo *"Pix — Fora do plano: o plano cobriria, e você registrou a cobrança
 
 Verde: **499 functions · 781 web**, typecheck, lint e build.
 
+### 4.2.3 · D18 — estava fechado, e o registro é que estava velho
+
+O `BACKLOG-FASE-3.md:104` (04/08) e o `GATE-DE-PRODUTO.md` (18/08) davam o D18
+como integralmente aberto: *"o mensalista paga a mensalidade E o atendimento
+dele vira `booking` com `value` cheio, que entra na receita realizada"*.
+
+**Isso não acontece desde o D2.** `fontes-financeiras.ts:153` exclui
+`!cobertoPeloPlano(b)` do universo da receita de serviço, e o comentário do
+arquivo descreve o D18 palavra por palavra:
+
+> *"O atendimento coberto pelo plano fica de fora — D2. É justamente o fallback
+> que tornava isso perigoso: o corte coberto não tem pagamento, então cairia no
+> `b.value` e viraria receita — o mensalista do Ilimitado seria cobrado de novo
+> a cada corte, pela porta dos fundos da migração."*
+
+`quantidade` também o exclui, para o `avgTicket` não dividir por um universo
+diferente do numerador.
+
+Confirmado na tela durante o gate: Receita realizada **R$ 50,00** com um
+atendimento coberto na agenda — ele não entrou.
+
+**Por que o registro envelheceu:** o `GATE-DE-PRODUTO.md` foi escrito em 18/08,
+o mesmo dia em que o D2 foi mergeado (`96565f3`, `0b4e8ce`) — e ninguém
+reavaliou depois. É a mesma armadilha que o `CHANGELOG` de 12/08 já havia
+registrado: *"o changelog chegou a listar como pendente o que já estava feito"*.
+
+## 4.2.4 · O que sobrou: quatro leituras derivadas
+
+Quatro funções somam `booking.value` **sem** consultar a cobertura. Não é
+receita realizada errada — é previsão e relatório inflados pelo valor de cortes
+que o plano absorveu.
+
+| Função | Onde o dono vê |
+|---|---|
+| `previsaoDoDia` (`analytics.ts:259`) | "Previsão do dia", no painel |
+| `topServicos` (`:903`) | ranking de serviços |
+| `recorrenciaDeClientes` (`:933`) | quanto cada cliente gastou |
+| `projecaoDeCaixa` (`:1110`) | "Projeção de caixa · próximos 30 dias" |
+
+O sintoma foi visto durante o gate sem ser reconhecido: a "Previsão do dia"
+marcava **R$ 150,00** com um atendimento coberto no meio — R$ 50,00 que não
+entrariam.
+
+⚠️ **Atenção ao consertar:** `previsaoDoDia` e `projecaoDeCaixa` falam do
+FUTURO, e um atendimento agendado **ainda não tem `cobertura`** — ela só é
+decidida na conclusão (é o achado do R1: *a cobertura é indecidível antes da
+conclusão*). Filtrar por `cobertura` não alcança o caso que mais importa nessas
+duas. Elas precisam de outra fonte: a assinatura ativa do cliente. Ou seja, não
+é "uma linha em cada".
+
 ## 4.3 · Portão do Go-Live
 
 Mobile sem uma única medição · pendência jurídica da LGPD · deploy completo
@@ -244,6 +295,25 @@ emulador (`functions/package.json:15-25`) usam `--only firestore`; nenhum sobe
 `functions`. O Gate P0 de 20/08 foi a **primeira execução real** — e o que ela
 mediu está em `GATE-P0-R1-EXECUTADO.md`. A lacuna na suíte **continua aberta**:
 o que provou o comportamento foi uma bancada montada à mão, não a esteira.
+
+## 6.1 · `test:tudo` executado — 20/08
+
+Rodado com a bancada derrubada e o `.env.local` restaurado, depois do D-3:
+
+| Suíte | Testes |
+|---|---|
+| unitários | 499 |
+| concorrência · clientes · balcão | 13 · 15 · 23 |
+| estoque · mensalistas · estornos | 53 · 14 · 31 |
+| caixa · correção (R1) · isolamento | 9 · 33 · 88 |
+| regras Firestore + Storage | 69 |
+| **total** | **847, zero falhas** |
+
+`mensalistas` e `correção` eram os que o P1-7 e o D-3 podiam ter quebrado —
+passaram. **A lacuna de verificação dos 11 testes de emulador está fechada.**
+
+Segue aberta a lacuna estrutural, que é outra: nenhum deles sobe `functions`,
+então o trigger continua sem cobertura automatizada.
 
 ## Dois defeitos de bancada, encontrados ao montá-la
 

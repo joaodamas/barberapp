@@ -18,6 +18,20 @@ mensalidade, estorno ou despesa. Não escolhi nenhuma.
 
 ### C.1.1 · Mensalista: a mesma pessoa fatura duas vezes no mesmo mês
 
+> ⚠️ **SUPERADO — leia antes de agir sobre esta seção.**
+>
+> Este documento foi escrito em 18/08, **no mesmo dia** em que o D2 foi mergeado
+> (`96565f3`, `0b4e8ce`), e não foi reavaliado depois. A dupla contagem descrita
+> abaixo **não acontece mais**: `fontes-financeiras.ts:153` exclui o atendimento
+> coberto pelo plano da receita de serviço, e o comentário do arquivo descreve
+> este defeito palavra por palavra.
+>
+> Verificado em 20/08, por leitura e na tela. Ver `ESTADO-DO-PROJETO.md §4.2.3`.
+> O que sobrou — quatro leituras derivadas que ignoram a cobertura — está em
+> §4.2.4 e é problema de outra natureza.
+>
+> O restante da seção fica como registro do que era verdade em 18/08.
+
 *(já registrado como **D18** em `BACKLOG-FASE-3.md:104` — confirmo que segue
 integralmente aberto, e trago o que a leitura de hoje acrescenta)*
 
