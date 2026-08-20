@@ -25,6 +25,29 @@ export function Modal({
   const dialogRef = useRef<HTMLDivElement>(null);
   const id = useId();
 
+  /* `onClose` numa ref, e FORA das dependências do efeito — este é o conserto
+   * do bug que fazia todo campo de modal aceitar UM caractere só.
+   *
+   * Todo consumidor passa `onClose={() => setAlgo(false)}`: uma função nova a
+   * cada render. Com ela na lista de dependências, digitar uma letra disparava
+   * a cadeia inteira:
+   *
+   *   setState do formulário → re-render do pai → `onClose` muda de identidade
+   *     → cleanup do efeito → `previouslyFocused.focus()`  (foco SAI do modal)
+   *     → efeito roda de novo → `dialogRef.focus()`        (foca o container)
+   *
+   * O caractere entrava, o foco era arrancado do campo, e o seguinte ia para o
+   * nada. O efeito existe para montar focus trap e travar o scroll — coisas que
+   * dependem de `open`, não de qual função fecha o diálogo. */
+  const onCloseRef = useRef(onClose);
+  /* A escrita vai num efeito próprio, e não no corpo do componente: mexer em
+   * ref durante o render é impuro, e `react-hooks/refs` recusa — com razão. Este
+   * efeito roda a cada mudança de `onClose`, mas não faz nada além de guardar a
+   * referência: não toca em foco, em scroll nem em listener. */
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
   useEffect(() => {
     if (!open) return;
 
@@ -38,7 +61,7 @@ export function Modal({
 
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (e.key !== "Tab" || !dialogRef.current) return;
@@ -66,7 +89,9 @@ export function Modal({
       document.body.style.overflow = previousOverflow;
       previouslyFocused?.focus();
     };
-  }, [open, onClose]);
+    /* Só `open`. Ver o comentário da ref acima: incluir `onClose` remontava o
+     * focus trap a cada tecla. */
+  }, [open]);
 
   if (!open) return null;
 
