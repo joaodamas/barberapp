@@ -99,7 +99,7 @@ preservou o histórico, e o R1 apenas tornou o dano visível.
 |---|---|---|
 | ✅ | ~~**P1-7**~~ — fechado em 20/08, ver §4.2.1 | — |
 | 🟡 | **Cobertura re-decidida** — a parte **silenciosa** foi fechada pelo D-3, ver §4.2.2 | resta o caso em que o dono escolhe "Concluir sem cobrar" sobre um atendimento que já tinha pagamento: o valor sai, por decisão dele, e nada avisa que havia receita ali |
-| 🔴 | **Caso 2** — meio de pagamento preenchido e errado | indetectável hoje: não há segunda origem |
+| 🔴 | **Caso 2** — meio de pagamento preenchido e errado | indetectável hoje: não há segunda origem. **Único bloqueio 🔴 restante.** Briefing de decisão em `DECISAO-CASO-2.md` — aguarda **D-Caso-2** |
 | ✅ | ~~**D18**~~ — **já estava fechado pelo D2**, ver §4.2.3 | o registro que o dava como aberto estava velho |
 | 🟡 | **Quatro leituras derivadas ignoram a cobertura** | previsão e relatório inflados — não é receita realizada errada |
 
