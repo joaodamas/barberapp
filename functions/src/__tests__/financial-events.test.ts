@@ -208,10 +208,26 @@ describe("atendimento concluído sem informar o método", () => {
   });
 });
 
-describe("o histórico não muda quando o cadastro muda", () => {
+describe("o CÁLCULO não muda quando o cadastro muda", () => {
   /* Este é o critério de aceite que originou o Bloco 1. Antes, a comissão era
    * lida de `staff.commissionPct` a cada leitura do DRE: renegociar em setembro
-   * reescrevia agosto. */
+   * reescrevia agosto.
+   *
+   * ⚠️ ATENÇÃO AO QUE ESTE BLOCO PROVA — E AO QUE NÃO PROVA.
+   *
+   * Ele se chamava "o histórico não muda quando o cadastro muda" e chama
+   * `calcularEventoFinanceiro` duas vezes, comparando duas variáveis locais.
+   * Isso demonstra que uma função pura não muta o objeto que já devolveu — o
+   * que é verdade trivial em JavaScript. Sobre o DOCUMENTO GRAVADO, que é o que
+   * o título antigo afirmava, ele nunca disse nada.
+   *
+   * O gate de 20/08 mediu o contrário na bancada com trigger real:
+   * `completed → no_show → completed` recriava `comissao_{bookingId}` lendo o
+   * cadastro de hoje, e R$ 20,00 viraram R$ 30,00 num atendimento passado. Um
+   * critério de aceite de bloco inteiro estava apoiado num teste que não
+   * testava o que dizia.
+   *
+   * O que o título prometia agora vive em `p1-7-comissao-do-ciclo.test.ts`. */
 
   it("alterar a comissão do barbeiro não altera o atendimento já concluído", () => {
     // Dia 1 — Rômulo a 40%, atendimento de R$ 50.

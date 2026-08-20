@@ -2,6 +2,11 @@ import { onDocumentUpdated } from "firebase-functions/v2/firestore";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { valoresDoPagamento } from "./payments";
 import { competenciaDe, decidirCobertura, type Cobertura } from "./mensalistas";
+import {
+  estornoDaComissaoDeServico,
+  idDaComissaoDeCicloNovo,
+  idDoEstornoDaComissaoDeServico,
+} from "./comissoes";
 
 /**
  * Materialização do evento financeiro do atendimento.
@@ -285,6 +290,71 @@ export function decidirEfeito(
 }
 
 /**
+ * O que a reserva guarda sobre o próprio ciclo financeiro — P1-7.
+ *
+ * Existe porque a reversão APAGA o pagamento, e a reconclusão precisa saber o
+ * que havia antes para não reconstruir o fato a partir do cadastro de hoje.
+ * A comissão não precisa disto — ela deixou de ser apagada —, mas o congelado
+ * fica aqui mesmo assim: é o que permite a reconclusão gravar a linha nova sem
+ * ter de adivinhar qual documento era o vigente.
+ */
+export type CicloFinanceiro = {
+  /** Id do evento que desfez a conclusão. Presença = a reserva já foi revertida. */
+  revertidoEm: string;
+  /** CONGELADOS da comissão vigente no momento da reversão. */
+  comissao: {
+    commissionPct: number;
+    commissionBase: number;
+    staffId: string;
+    uid: string | null;
+    staffName: string | null;
+  } | null;
+  /** CONGELADO do pagamento apagado — o bruto é o do FATO, não o da reserva hoje. */
+  pagamento: { grossAmount: number } | null;
+  /**
+   * Qual documento de comissão está valendo agora.
+   *
+   * A primeira conclusão grava `comissao_{bookingId}`; cada reconclusão grava um
+   * id próprio. Sem guardar qual é o vigente, a SEGUNDA reversão negaria a linha
+   * original — que a primeira já negou — e o barbeiro ficaria devendo dinheiro
+   * que recebeu uma vez só.
+   */
+  comissaoVigenteId?: string | null;
+};
+
+/**
+ * O documento de comissão que está valendo para esta reserva.
+ *
+ * Sem ciclo anterior é o id clássico, derivado da reserva. Depois de uma
+ * reconclusão é o id daquele ciclo — e é por isso que ele é guardado.
+ */
+function comissaoVigenteRef(
+  db: FirebaseFirestore.Firestore,
+  barbershopId: string,
+  bookingId: string,
+  reserva: FirebaseFirestore.DocumentData
+) {
+  const ciclo = reserva.cicloFinanceiro as CicloFinanceiro | undefined;
+  const id = ciclo?.comissaoVigenteId || `comissao_${bookingId}`;
+  return db.doc(`barbershops/${barbershopId}/commissions/${id}`);
+}
+
+/**
+ * A chave do ciclo, derivada do id do evento.
+ *
+ * O gatilho reprocessa: `event.id` é estável entre as tentativas da MESMA
+ * entrega e distinto entre eventos diferentes. É o que faz a linha de estorno
+ * ser idempotente **por construção** — a doutrina que o handler já declara para
+ * os ids derivados da reserva. Uma chave de relógio ou aleatória gravaria duas
+ * linhas negativas num retry e cortaria o acerto do barbeiro pela metade, que é
+ * um defeito pior do que o corrigido aqui.
+ */
+export function chaveDoCiclo(eventId: string | undefined): string {
+  const limpa = String(eventId ?? "").replace(/[^A-Za-z0-9_-]/g, "");
+  return limpa || "sem-evento";
+}
+
+/**
  * Descobre, no momento da conclusão, se o atendimento está coberto — D2.
  *
  * O RETRATO é lido aqui e a DECISÃO é de `decidirCobertura`, que é pura. Esta
@@ -379,18 +449,83 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
     const efeito = decidirEfeito(antes.status, depois.status);
 
     if (efeito === "reverter") {
-      /* Conclusão desfeita por correção do dono remove os dois. Sem isso,
-       * marcar como concluído por engano deixa comissão a pagar e receita
-       * fantasma no fechamento, sem caminho de volta pela interface. */
+      /* Conclusão desfeita: o fato financeiro sai do acerto, mas NÃO some do
+       * histórico — P1-7, D-2 fechada em 20/08.
+       *
+       * O que havia aqui era `comissaoRef.delete()` + `pagamentoRef.delete()`.
+       * O gate mediu o preço disso: o par delete+create recriava a comissão
+       * lendo `staff.commissionPct` de hoje, e R$ 20,00 viraram R$ 30,00 num
+       * atendimento que já tinha acontecido. E como o id do pagamento é
+       * derivado, nada duplicava, nada sobrava e nenhuma tela podia notar.
+       *
+       * Agora a comissão volta somando uma linha negativa — a mesma regra que
+       * `refunds.ts:495` já aplicava à venda de produto, com a mesma
+       * justificativa, e que o atendimento nunca teve. */
+      const chave = chaveDoCiclo(event.id);
+
+      const [comissaoSnap, pagamentoSnap] = await Promise.all([
+        comissaoVigenteRef(db, barbershopId, bookingId, depois).get(),
+        pagamentoRef.get(),
+      ]);
+
+      const congelado: CicloFinanceiro = {
+        revertidoEm: chave,
+        comissao: comissaoSnap.exists
+          ? {
+              commissionPct: Number(comissaoSnap.get("commissionPct")) || 0,
+              commissionBase: Number(comissaoSnap.get("commissionBase")) || 0,
+              staffId: String(comissaoSnap.get("staffId") ?? ""),
+              uid: (comissaoSnap.get("uid") ?? null) as string | null,
+              staffName: (comissaoSnap.get("staffName") ?? null) as string | null,
+            }
+          : null,
+        /* O BRUTO do fato, não o `value` da reserva. Sem isto a reconclusão lê
+         * `depois.value` de agora: editar o preço do serviço entre as duas
+         * conclusões faria o "mesmo" pagamento renascer com outro bruto, e nada
+         * registraria a troca. */
+        pagamento: pagamentoSnap.exists
+          ? { grossAmount: Number(pagamentoSnap.get("grossAmount")) || 0 }
+          : null,
+      };
+
       await Promise.all([
-        comissaoRef.delete().catch(() => undefined),
+        /* A linha negativa. Id derivado da reserva E do evento: um retry da
+         * mesma entrega sobrescreve em vez de somar duas vezes. */
+        comissaoSnap.exists && congelado.comissao?.staffId
+          ? db
+              .doc(
+                `barbershops/${barbershopId}/commissions/` +
+                  idDoEstornoDaComissaoDeServico(bookingId, chave)
+              )
+              .set({
+                ...estornoDaComissaoDeServico({
+                  bookingId,
+                  chave,
+                  staffId: congelado.comissao.staffId,
+                  uid: congelado.comissao.uid,
+                  staffName: congelado.comissao.staffName,
+                  date: String(depois.date ?? ""),
+                  commissionPct: congelado.comissao.commissionPct,
+                  commissionBase: congelado.comissao.commissionBase,
+                  commissionAmount: Number(comissaoSnap.get("commissionAmount")) || 0,
+                }),
+                createdAt: FieldValue.serverTimestamp(),
+              })
+          : Promise.resolve(),
+
+        /* O PAGAMENTO continua sendo apagado — D-2, segunda pergunta.
+         *
+         * Receita realizada de um atendimento que o dono acabou de dizer que
+         * não aconteceu não pode ficar de pé no caixa e no DRE. Mas o fato é
+         * preservado antes, para a reconclusão não o reinventar. */
         pagamentoRef.delete().catch(() => undefined),
+
         /* A cobertura sai junto — D2. Ela consumiu uma vaga da cota do mês, e
          * desfazer a conclusão precisa devolver essa vaga: senão o cliente de
          * um plano de quatro cortes perde um deles para um atendimento que o
          * dono já disse que não aconteceu. */
         reservaRef
-          .update({ cobertura: FieldValue.delete() })
+          .set({ cobertura: FieldValue.delete(), cicloFinanceiro: congelado }, { merge: true })
           .catch(() => undefined),
       ]);
       return;
@@ -411,7 +546,20 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
       return;
     }
 
-    const valor = Number(depois.value) || 0;
+    /* Esta reserva já teve conclusão desfeita? — P1-7.
+     *
+     * A presença do ciclo separa duas operações que hoje compartilham botão,
+     * modal e escrita: concluir um atendimento NOVO, e reconcluir um que já
+     * produziu fato financeiro antes. A segunda não pode reconstruir o passado
+     * a partir do cadastro de agora. */
+    const ciclo = depois.cicloFinanceiro as CicloFinanceiro | undefined;
+    const reconclusao = Boolean(ciclo?.revertidoEm);
+
+    /* O bruto do FATO. `depois.value` é o preço da reserva HOJE, e ele pode ter
+     * sido editado entre as duas conclusões. */
+    const valor = reconclusao && ciclo?.pagamento
+      ? ciclo.pagamento.grossAmount
+      : Number(depois.value) || 0;
     const metodo = (depois.paymentMethod ?? null) as PaymentMethod | null;
     const staffId = String(depois.staffId ?? "");
     const date = String(depois.date ?? "");
@@ -433,12 +581,27 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
     const fees: PaymentFees = { ...SEM_TAXA, ...(policies.paymentFees ?? {}) };
     const padraoPct = padraoDaCasa(policies);
 
+    /* O PERCENTUAL DO BARBEIRO — o coração do P1-7.
+     *
+     * Numa reconclusão ele sai do documento congelado, nunca do cadastro. Quem
+     * renegociou de 40% para 60% entre as duas conclusões não pode ver o acerto
+     * de um atendimento passado subir sozinho; e o barbeiro que renegociou para
+     * MENOS não pode perder o que já tinha ganhado. É a mesma razão que
+     * `comissoes.ts:164` já dava para o estorno de venda — *"congelado do
+     * documento original, nunca relido do cadastro"* —, aplicada à porta que
+     * faltava.
+     *
+     * `padraoPct` continua sendo o de hoje de propósito: ele só é consultado
+     * quando o barbeiro não tem percentual próprio, e nesse caminho o valor
+     * congelado já vem resolvido em `commissionPct`. */
+    const pctCongelado = reconclusao ? ciclo?.comissao?.commissionPct ?? null : null;
+
     const { commission, payment } = calcularEventoFinanceiro({
       valor,
       metodo,
       origem: (depois.paymentOrigin ?? null) as PaymentOrigin | null,
       // Gravado como `null` no cadastro inicial, não ausente.
-      commissionPctDoBarbeiro: staffSnap?.get("commissionPct") ?? null,
+      commissionPctDoBarbeiro: pctCongelado ?? staffSnap?.get("commissionPct") ?? null,
       padraoPct,
       fees,
     });
@@ -462,14 +625,38 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
 
     const coberto = cobertura.tipo === "plano";
 
+    /* Onde a comissão deste ciclo é gravada.
+     *
+     * A primeira conclusão usa o id derivado da reserva, como sempre. A
+     * reconclusão **não pode** reusá-lo: a linha original já foi negada pelo
+     * estorno, e sobrescrevê-la deixaria o saldo do barbeiro em zero sobre um
+     * atendimento que aconteceu. Id novo por ciclo, derivado do evento — logo,
+     * idempotente no retry. */
+    const chaveDesteCiclo = chaveDoCiclo(event.id);
+    const comissaoDoCicloRef = reconclusao
+      ? db.doc(
+          `barbershops/${barbershopId}/commissions/` +
+            idDaComissaoDeCicloNovo(bookingId, chaveDesteCiclo)
+        )
+      : comissaoRef;
+
     await Promise.all([
       /* O fato do atendimento passa a dizer como foi liquidado.
        *
        * Vai para a RESERVA, e não só para o pagamento, porque no caso coberto
        * não existe pagamento — e um fato que só se descreve pela ausência de
        * outro documento não é descrição nenhuma. */
-      reservaRef.set({ cobertura }, { merge: true }),
-      comissaoRef.set({
+      reservaRef.set(
+        {
+          cobertura,
+          /* Qual linha passa a valer, para a PRÓXIMA reversão negar a certa. */
+          ...(reconclusao
+            ? { cicloFinanceiro: { ...ciclo, comissaoVigenteId: comissaoDoCicloRef.id } }
+            : {}),
+        },
+        { merge: true }
+      ),
+      comissaoDoCicloRef.set({
         bookingId,
         staffId,
         /* O barbeiro lê a própria comissão pela regra `resource.data.uid ==

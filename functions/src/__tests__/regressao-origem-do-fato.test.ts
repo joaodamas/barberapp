@@ -57,10 +57,18 @@ function arquivosQueEscrevemComissao(): string[] {
     .filter((f) => {
       const t = readFileSync(resolve(SRC, f), "utf8");
       /* Os dois padrões que o repositório usa: `set(...)` com a coleção logo
-       * adiante, ou uma ref nomeada que recebe `.set(`. */
+       * adiante, ou uma ref nomeada que recebe `.set(`.
+       *
+       * A segunda regex era `comissaoRef\.set\(` — o nome exato da variável. O
+       * P1-7 introduziu uma segunda ref no mesmo arquivo (`comissaoDoCicloRef`,
+       * para a linha do ciclo reconcluído) e a varredura deixou de enxergar
+       * `financial-events.ts`: a guarda de "pelo menos 3 arquivos" disparou, que
+       * é exatamente o que ela existe para fazer. Agora o padrão aceita qualquer
+       * ref de comissão, e amarrar ao nome de UMA variável deixa de ser o que
+       * mantém este teste vivo. */
       return (
         /set\([\s\S]{0,160}collection\("commissions"\)/.test(t) ||
-        /comissaoRef\.set\(/.test(t)
+        /comiss\w*Ref\.set\(/.test(t)
       );
     });
 }

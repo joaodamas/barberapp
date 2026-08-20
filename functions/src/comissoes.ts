@@ -192,3 +192,85 @@ export function estornoDaComissao(params: {
 export function idDoEstornoDaComissao(movementId: string, chave: string): string {
   return `comissao_estorno_venda_${movementId}_${chave}`;
 }
+
+/**
+ * A comissão devolvida quando a conclusão de um ATENDIMENTO é desfeita — P1-7.
+ *
+ * ## O mesmo defeito, na outra porta
+ *
+ * O cabeçalho deste arquivo diz que a comissão de serviço "é materializada
+ * desde o Gate A, com percentual e base congelados", e que só a loja tinha o
+ * P1-7. **Não era verdade, e o gate de 20/08 mediu:** `completed → no_show`
+ * apagava `comissao_{bookingId}`, e a reconclusão o recriava lendo
+ * `staff.commissionPct` de HOJE. Um atendimento de R$ 50,00 comissionado a 40%
+ * (R$ 20,00) virou 60% (R$ 30,00) porque o cadastro mudou no intervalo — sem
+ * tela, sem log, sem nada que o dono pudesse notar.
+ *
+ * Era o P1-7 entrando pela porta da frente, enquanto `refunds.ts` já o barrava
+ * na de saída.
+ *
+ * ## Por que somar, e não apagar
+ *
+ * A regra é a mesma de `estornoDaComissao`, e a razão também: apagar deixa o
+ * acerto do mês certo e o histórico mudo. Com as duas linhas, o ciclo inteiro
+ * se lê:
+ *
+ * ```
+ * comissao_{bk}                  +20,00   concluído a 40%
+ * comissao_estorno_{bk}_{ev1}    −20,00   dono desfez a conclusão
+ * comissao_{bk}_{ev2}            +20,00   "veio depois" — MESMOS 40%
+ * ```
+ *
+ * O saldo é R$ 20,00, e é possível responder por que — que é justamente o que
+ * o `delete` tornava impossível.
+ *
+ * ## Por que nega o valor original em vez de recalcular
+ *
+ * Aqui, ao contrário da venda, **não existe reversão parcial**: ou o
+ * atendimento aconteceu, ou não aconteceu. Negar exatamente o que foi gravado
+ * é o que garante que o par sempre feche em zero, inclusive para documentos
+ * antigos gravados por versões anteriores desta função.
+ */
+export function estornoDaComissaoDeServico(params: {
+  /** Reserva ORIGINAL — o estorno aponta para ela. */
+  bookingId: string;
+  /** Chave do evento que desfez a conclusão, para dois ciclos não colidirem. */
+  chave: string;
+  staffId: string;
+  uid: string | null;
+  staffName: string | null;
+  date: string;
+  /** CONGELADOS do documento vigente, nunca relidos do cadastro. */
+  commissionPct: number;
+  commissionBase: number;
+  commissionAmount: number;
+}): CommissionDoc {
+  return {
+    origin: "servico",
+    bookingId: params.bookingId,
+    staffId: params.staffId,
+    uid: params.uid,
+    staffName: params.staffName,
+    date: params.date,
+    commissionPct: params.commissionPct,
+    commissionBase: -params.commissionBase,
+    commissionAmount: -params.commissionAmount,
+  };
+}
+
+/** O id da comissão de atendimento devolvida. Deriva da reserva E do evento. */
+export function idDoEstornoDaComissaoDeServico(bookingId: string, chave: string): string {
+  return `comissao_estorno_${bookingId}_${chave}`;
+}
+
+/**
+ * O id da comissão de um atendimento RECONCLUÍDO.
+ *
+ * A primeira conclusão grava em `comissao_{bookingId}` — id derivado do fato,
+ * como sempre. A reconclusão **não pode** reusar esse id: sobrescreveria a
+ * linha original, que a linha de estorno já negou, e o saldo do barbeiro cairia
+ * pela metade. Cada ciclo ganha o seu, derivado do evento que o abriu.
+ */
+export function idDaComissaoDeCicloNovo(bookingId: string, chave: string): string {
+  return `comissao_${bookingId}_${chave}`;
+}

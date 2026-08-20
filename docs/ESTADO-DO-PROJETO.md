@@ -36,6 +36,7 @@ produtiva.
 | **N7** — área do cliente | ✅ `/agendar` não afirma "não há horário" antes de perguntar | `e9eea9b` |
 | **ROOT_DOMAIN / tenant** | ✅ login identifica "O Siqueira Barbearia" — reconfirmado na tela em 20/08 | `9559d4b` |
 | **R1** — correção de pagamento | ✅ **FECHADO** — Gate P0 executado na tela em 20/08, 9 passos e 9 cenários | `a9c5eca` · `GATE-P0-R1-EXECUTADO.md` |
+| **P1-7** — comissão do atendimento reconcluído | ✅ **FECHADO e provado em execução** — ver §4.2.1 | `financial-events.ts` · `comissoes.ts` |
 | **LGPD técnica** | 🟡 política, termos, links, exclusão e 11 testes; pendência jurídica | — |
 | **Suíte** | ✅ 781 web · 471 functions · 33 emulador; typecheck, lint e build limpos | — |
 
@@ -92,14 +93,59 @@ Um cenário da matriz falhou — o **6**, "Veio depois não recalcula histórico
 falha contra a **expectativa do briefing**, não contra o R1: a reabertura nunca
 preservou o histórico, e o R1 apenas tornou o dano visível.
 
-## 4.2 · Portão do piloto — quatro itens
+## 4.2 · Portão do piloto — três itens
 
 | | Bloqueio | Por quê |
 |---|---|---|
-| 🔴 | **P1-7** — `completed → no_show → completed` reescreve comissão congelada | muda o acerto com o barbeiro retroativamente |
-| 🔴 | **Cobertura re-decidida apaga receita realizada** | acontece sem tela, sem log e sem alerta |
+| ✅ | ~~**P1-7**~~ — fechado em 20/08, ver §4.2.1 | — |
+| 🔴 | **Cobertura re-decidida apaga receita realizada** | acontece sem tela, sem log e sem alerta. **É o próximo alvo** |
 | 🔴 | **Caso 2** — meio de pagamento preenchido e errado | indetectável hoje: não há segunda origem |
 | 🔴 | **D18** — mensalista contado duas vezes no DRE | o problema conceitual mais importante em aberto |
+
+### 4.2.1 · P1-7 — fechado, e provado em execução
+
+**D-2 decidida:** a comissão de um atendimento reconcluído nasce do **fato**, não
+do cadastro de hoje — e o histórico se corrige **somando**, nunca apagando. É a
+mesma regra que `refunds.ts:495` já aplicava à venda de produto, com a mesma
+justificativa (*"é o P1-7 tentando entrar pela porta de saída"*), e que a porta
+do atendimento nunca teve. A diferença entre as duas portas nunca foi escolhida:
+foi herdada.
+
+O que passou a valer:
+
+- **A reversão preserva a comissão original.** Onde havia `comissaoRef.delete()`
+  agora entra uma linha negativa com o percentual **congelado** do documento
+  vigente.
+- **A reconclusão usa `pctCongelado`, não o cadastro.** A ordem
+  `pctCongelado ?? staffSnap…` é o que fecha o defeito — invertida, o cadastro de
+  hoje volta a vencer, em silêncio.
+- **O segundo ciclo estorna a linha vigente**, não a original. Sem isso, a
+  segunda reversão negaria algo que a primeira já negou, e o barbeiro ficaria
+  devendo dinheiro que recebeu uma vez só.
+- **`comissaoVigenteId`** (em `bookings.cicloFinanceiro`) é o que identifica a
+  linha válida de cada ciclo.
+- **O bruto sai do congelado**, não de `booking.value` — o que também fecha o
+  defeito 🟡 do `grossAmount` recriado.
+
+Medido na bancada com trigger real, **com o cadastro do barbeiro em 80%**:
+
+```
+comissao_{bk}                    pct=30   +15   conclusão original
+comissao_estorno_{bk}_{ev1}      pct=30   −15   reversão
+comissao_{bk}_{ev2}              pct=30   +15   reconclusão — CONGELADO
+SALDO                                     +15
+```
+
+Antes, a reconclusão gravaria R$ 40,00. E o **segundo ciclo** fecha em zero,
+negando a linha certa.
+
+Verde: **486 functions · 781 web**, typecheck, lint e build. Os 11 testes de
+emulador (`test:tudo`) não rodaram — usam as mesmas portas da bancada; nenhum
+deles exercita `financial-events`.
+
+**Aberto:** nenhuma tela lê as linhas do ciclo. O saldo do barbeiro está certo,
+mas o dono não tem onde ver as três linhas que o explicam — mesma família do
+`audit_log` sem leitor (§26 item 3).
 
 ## 4.3 · Portão do Go-Live
 
@@ -181,19 +227,31 @@ o que provou o comportamento foi uma bancada montada à mão, não a esteira.
 **Não é construir feature.**
 
 ```
-Gate P0 do R1 ✅ → P1-7 → cobertura re-decidida → D18 → gate de Go-Live
+Gate P0 do R1 ✅ → P1-7 ✅ → cobertura re-decidida → caso 2 / D18 → Go-Live
 ```
 
-O **P1-7 é o próximo**, e agora tem número em vez de argumento: no gate, o acerto
-com o barbeiro saltou de R$ 20 para R$ 30 num atendimento que já tinha
-acontecido, só porque o cadastro mudou entre as duas conclusões. Ele depende da
-decisão **D-2** — a comissão renasce do cadastro de hoje ou do documento
-anterior? — e essa decisão é do dono.
+**A cobertura re-decidida é o próximo alvo.** No passo 6 do gate, o cliente
+ganhou plano entre as duas conclusões e R$ 50,00 de receita realizada
+desapareceram — sem tela, sem log, sem alerta, e com a linha se lendo como
+perfeitamente normal.
 
-Três correções 🟡 não dependem de decisão nenhuma e podem sair antes:
-`paymentMethod` órfão no `no_show` (uma linha em `financial-events.ts:392-394`),
-`grossAmount` recriado de `booking.value`, e o alcance da porta do R1, que só
-enxerga hoje enquanto o servidor já concede o mês corrente.
+E há uma vantagem que não existia antes: **`cicloFinanceiro` já preserva o
+`grossAmount`**, então a perda de receita passa a ser investigável com rastro
+histórico, em vez de sumir sem deixar nada.
+
+Duas correções 🟡 seguem sem depender de decisão nenhuma: `paymentMethod` órfão
+no `no_show` (uma linha na perna de reversão) e o alcance da porta do R1, que só
+enxerga hoje enquanto o servidor já concede o mês corrente. A terceira
+(`grossAmount` recriado de `booking.value`) **caiu junto com o P1-7**.
+
+## Uma sequência de evidência que vale preservar
+
+```
+Gate P0 → R1 fechado → P1-7 fechado → cobertura re-decidida
+```
+
+Cada marco tem commit próprio, de propósito: misturar correções faria uma
+mudança futura esconder qual delas resolveu qual dano.
 
 ## O marco de retomada
 
