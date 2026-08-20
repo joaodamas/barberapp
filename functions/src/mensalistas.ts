@@ -203,7 +203,13 @@ export function faturaDaCompetencia(params: {
 export type Cobertura =
   | {
       tipo: "avulso";
-      motivo: "sem_plano" | "plano_inativo" | "plano_nao_cobre" | "cota_esgotada";
+      motivo:
+        | "sem_plano"
+        | "plano_inativo"
+        | "plano_nao_cobre"
+        | "cota_esgotada"
+        /* O plano cobriria, e o dono registrou cobrança mesmo assim — D-3. */
+        | "cobrado_no_balcao";
       valorCoberto: 0;
     }
   | {
@@ -257,6 +263,14 @@ export function decidirCobertura(params: {
    * sem contar o que está sendo decidido agora.
    */
   jaCobertosNaCompetencia: number;
+  /**
+   * O meio de pagamento que o DONO informou ao concluir — D-3.
+   *
+   * `null` é o caminho de cobertura: "Concluir sem cobrar", ou conclusão sem
+   * método. Preenchido significa que o dono afirmou ter recebido dinheiro, e a
+   * afirmação dele vence a decisão do servidor.
+   */
+  metodoInformado?: string | null;
 }): Cobertura {
   const { assinatura } = params;
   if (!assinatura) return { tipo: "avulso", motivo: "sem_plano", valorCoberto: 0 };
@@ -283,7 +297,34 @@ export function decidirCobertura(params: {
     usoNaCompetencia: params.jaCobertosNaCompetencia + 1,
   } as const;
 
-  if (assinatura.unlimited) return { tipo: "plano", ...cobre, cota: null };
+  /* D-3 · A AFIRMAÇÃO DO DONO VENCE A DECISÃO DO SERVIDOR.
+   *
+   * Só chega aqui quem o plano cobriria. Se o dono informou um meio de
+   * pagamento, ele está dizendo que recebeu dinheiro por este atendimento — e
+   * o produto media isso na bancada em 20/08: ele escolhia "Pix", o servidor
+   * decidia `plano`, o pagamento não era criado, `bookings.paymentMethod` ficava
+   * com "pix" sem lastro nenhum e a tela exibia "Coberto pelo plano". A escolha
+   * do operador era descartada em silêncio, e a receita sumia com ela.
+   *
+   * A guarda fica DEPOIS de toda a régua de propósito. Antes, ela roubaria os
+   * motivos mais informativos: um plano que não inclui atendimento deve
+   * continuar dizendo `plano_nao_cobre`, porque essa é a explicação real de por
+   * que houve cobrança. `cobrado_no_balcao` só descreve o caso em que o plano
+   * cobriria e o dono cobrou assim mesmo.
+   *
+   * Consequência desejada: o atendimento NÃO consome vaga da cota. Ele foi pago
+   * à parte, e debitar a cota faria o cliente perder um corte que comprou duas
+   * vezes.
+   *
+   * O caminho de cobertura continua existindo e é explícito: "Concluir sem
+   * cobrar" conclui sem método, e aí o plano manda. */
+  const cobrouMesmoAssim = Boolean(params.metodoInformado);
+
+  if (assinatura.unlimited) {
+    return cobrouMesmoAssim
+      ? { tipo: "avulso", motivo: "cobrado_no_balcao", valorCoberto: 0 }
+      : { tipo: "plano", ...cobre, cota: null };
+  }
 
   const cota = Number(assinatura.servicesIncluded) || 0;
   if (cota <= 0) return { tipo: "avulso", motivo: "plano_nao_cobre", valorCoberto: 0 };
@@ -291,7 +332,9 @@ export function decidirCobertura(params: {
     return { tipo: "avulso", motivo: "cota_esgotada", valorCoberto: 0 };
   }
 
-  return { tipo: "plano", ...cobre, cota };
+  return cobrouMesmoAssim
+    ? { tipo: "avulso", motivo: "cobrado_no_balcao", valorCoberto: 0 }
+    : { tipo: "plano", ...cobre, cota };
 }
 
 /**

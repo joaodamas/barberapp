@@ -89,13 +89,19 @@ export function metaDoStatus(status: unknown): BookingStatusMeta {
  *
  * `sem_plano` fica de fora de propósito: é o caso da esmagadora maioria dos
  * atendimentos, e escrever "não coberto porque o cliente não tem plano" em toda
- * linha da agenda seria ruído puro. Os outros três só acontecem com quem TEM
- * plano, e aí a explicação é o que impede o dono de achar que o produto errou.
+ * linha da agenda seria ruído puro. Os outros só acontecem com quem TEM plano, e
+ * aí a explicação é o que impede o dono de achar que o produto errou.
+ *
+ * `cobrado_no_balcao` é o único em que o produto não errou NEM o plano falhou:
+ * o dono cobrou de um cliente cujo plano cobriria, e a linha diz isso em vez de
+ * exibir "Coberto pelo plano" sobre um atendimento que teve dinheiro — que é o
+ * que a tela fazia antes do D-3.
  */
 const MOTIVO_AVULSO: Record<string, string> = {
   plano_inativo: "o plano não valia nesta data",
   plano_nao_cobre: "o plano não inclui atendimento",
   cota_esgotada: "a cota do mês já tinha acabado",
+  cobrado_no_balcao: "o plano cobriria, e você registrou a cobrança",
 };
 
 export type LiquidacaoDoAtendimento = {

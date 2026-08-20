@@ -402,7 +402,13 @@ export type CoberturaDoAtendimento =
   | {
       tipo: "avulso";
       /** Por que não foi coberto. É o que a tela precisa para explicar a cobrança. */
-      motivo: "sem_plano" | "plano_inativo" | "plano_nao_cobre" | "cota_esgotada";
+      motivo:
+        | "sem_plano"
+        | "plano_inativo"
+        | "plano_nao_cobre"
+        | "cota_esgotada"
+        /* O plano cobriria, e o dono registrou cobrança mesmo assim — D-3. */
+        | "cobrado_no_balcao";
       valorCoberto: 0;
     }
   | {

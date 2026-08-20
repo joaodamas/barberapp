@@ -377,6 +377,8 @@ async function resolverCobertura(params: {
   clientId: string;
   date: string;
   valor: number;
+  /** O que o dono informou ao concluir — D-3. `null` é o caminho de cobertura. */
+  metodoInformado: string | null;
 }): Promise<Cobertura> {
   const { db, barbershopId, clientId } = params;
   if (!clientId) return { tipo: "avulso", motivo: "sem_plano", valorCoberto: 0 };
@@ -421,6 +423,7 @@ async function resolverCobertura(params: {
     data: params.date,
     assinatura,
     jaCobertosNaCompetencia,
+    metodoInformado: params.metodoInformado,
   });
 }
 
@@ -621,6 +624,9 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
         clientId: String(depois.clientId ?? ""),
         date,
         valor,
+        /* D-3 · o que o dono informou entra na decisão. Método preenchido é
+         * afirmação de que houve dinheiro, e ela vence a cobertura do plano. */
+        metodoInformado: metodo,
       }));
 
     const coberto = cobertura.tipo === "plano";

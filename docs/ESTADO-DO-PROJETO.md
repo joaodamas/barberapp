@@ -98,7 +98,7 @@ preservou o histórico, e o R1 apenas tornou o dano visível.
 | | Bloqueio | Por quê |
 |---|---|---|
 | ✅ | ~~**P1-7**~~ — fechado em 20/08, ver §4.2.1 | — |
-| 🔴 | **Cobertura re-decidida apaga receita realizada** | acontece sem tela, sem log e sem alerta. **É o próximo alvo** |
+| 🟡 | **Cobertura re-decidida** — a parte **silenciosa** foi fechada pelo D-3, ver §4.2.2 | resta o caso em que o dono escolhe "Concluir sem cobrar" sobre um atendimento que já tinha pagamento: o valor sai, por decisão dele, e nada avisa que havia receita ali |
 | 🔴 | **Caso 2** — meio de pagamento preenchido e errado | indetectável hoje: não há segunda origem |
 | 🔴 | **D18** — mensalista contado duas vezes no DRE | o problema conceitual mais importante em aberto |
 
@@ -146,6 +146,43 @@ deles exercita `financial-events`.
 **Aberto:** nenhuma tela lê as linhas do ciclo. O saldo do barbeiro está certo,
 mas o dono não tem onde ver as três linhas que o explicam — mesma família do
 `audit_log` sem leitor (§26 item 3).
+
+### 4.2.2 · D-3 — a cobrança do dono vence a cobertura do plano
+
+**O achado que mudou o problema:** o relatório descrevia "a cobertura pode
+virar" como defeito da reabertura. A medição de 20/08 mostrou **duas** variantes,
+e a segunda não estava registrada em lugar nenhum — nem dependia do ciclo
+`no_show`.
+
+| | Variante | Estado |
+|---|---|---|
+| 1 | Dono clica **"Concluir sem cobrar"** e a receita anterior sai | 🟡 é escolha dele, mas nada avisa que havia valor ali |
+| 2 | Dono escolhe **Pix** e o servidor decide `plano` assim mesmo | ✅ **fechada** |
+
+A variante 2 acontecia em **toda** conclusão de mensalista em que o dono
+informasse um método — primeira vez inclusive. O resultado era:
+
+```
+payments/pagamento_{bk}   NÃO EXISTE          a receita não era registrada
+bookings.paymentMethod    "pix"               afirmação sem lastro nenhum
+a tela                    "Coberto pelo plano" a escolha do dono, descartada
+```
+
+**D-3 decidida:** método informado é afirmação de que houve dinheiro, e ela
+vence a decisão do servidor. O caminho de cobertura continua existindo e é
+explícito — "Concluir sem cobrar" conclui sem método, e aí o plano manda.
+
+A regra coube numa função pura (`decidirCobertura`), com a guarda **depois** de
+toda a régua: `plano_nao_cobre` e `cota_esgotada` continuam sendo ditos, porque
+são a explicação real da cobrança. O motivo novo, `cobrado_no_balcao`, descreve
+só o caso em que o plano cobriria e o dono cobrou assim mesmo — e o atendimento
+**não consome vaga da cota**, porque foi pago à parte.
+
+Medido na bancada, com o Pedro mensalista Ilimitado e o dono escolhendo Pix:
+pagamento criado, `Recebido hoje` subindo de R$ 50,00 para R$ 100,00, e a linha
+dizendo *"Pix — Fora do plano: o plano cobriria, e você registrou a cobrança"*.
+
+Verde: **499 functions · 781 web**, typecheck, lint e build.
 
 ## 4.3 · Portão do Go-Live
 
@@ -227,22 +264,27 @@ o que provou o comportamento foi uma bancada montada à mão, não a esteira.
 **Não é construir feature.**
 
 ```
-Gate P0 do R1 ✅ → P1-7 ✅ → cobertura re-decidida → caso 2 / D18 → Go-Live
+Gate P0 ✅ → P1-7 ✅ → cobertura silenciosa ✅ → D18 → caso 2 → Go-Live
 ```
 
-**A cobertura re-decidida é o próximo alvo.** No passo 6 do gate, o cliente
-ganhou plano entre as duas conclusões e R$ 50,00 de receita realizada
-desapareceram — sem tela, sem log, sem alerta, e com a linha se lendo como
-perfeitamente normal.
+**O D18 é o próximo alvo** — mensalista contado duas vezes no DRE, o problema
+conceitual mais importante em aberto. E o D-3 acabou de tocar a fronteira dele:
+`cobrado_no_balcao` cria, de propósito, o caso em que um mensalista **gera
+receita de serviço** — o que é correto (ele pagou à parte), mas encosta na
+mesma pergunta que o D18 faz sobre o que a mensalidade cobre.
 
-E há uma vantagem que não existia antes: **`cicloFinanceiro` já preserva o
-`grossAmount`**, então a perda de receita passa a ser investigável com rastro
-histórico, em vez de sumir sem deixar nada.
+Três correções 🟡 seguem sem depender de decisão nenhuma:
 
-Duas correções 🟡 seguem sem depender de decisão nenhuma: `paymentMethod` órfão
-no `no_show` (uma linha na perna de reversão) e o alcance da porta do R1, que só
-enxerga hoje enquanto o servidor já concede o mês corrente. A terceira
-(`grossAmount` recriado de `booking.value`) **caiu junto com o P1-7**.
+- `paymentMethod` órfão no `no_show` (uma linha na perna de reversão);
+- o alcance da porta do R1, que só enxerga hoje enquanto o servidor já concede
+  o mês corrente;
+- **`page.tsx:100` ordena a agenda com `a.time.localeCompare(b.time)` sem
+  guarda** — um único booking sem `time` derruba a tela inteira do dia com
+  "Esta tela não abriu". Encontrado por acidente, escrevendo um documento
+  incompleto direto no banco; as regras permitem essa escrita ao dono e à
+  equipe (`firestore.rules:246`).
+
+A quarta (`grossAmount` recriado de `booking.value`) **caiu junto com o P1-7**.
 
 ## Uma sequência de evidência que vale preservar
 
