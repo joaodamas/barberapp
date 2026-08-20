@@ -91,18 +91,18 @@ export default function TrocarSenhaPage() {
 
   if (loading || !user) {
     return (
-      <div className="flex min-h-screen items-center justify-center overflow-y-auto bg-bg md:h-full">
-        <Loader2 className="h-8 w-8 animate-spin text-gold-light" />
+      <div className="flex min-h-screen items-center justify-center overflow-y-auto bg-canvas md:h-full">
+        <Loader2 className="h-8 w-8 animate-spin text-gold-strong" />
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-6 overflow-y-auto bg-bg px-4 py-10 md:h-full">
+    <div className="flex min-h-screen flex-col items-center justify-center gap-6 overflow-y-auto bg-canvas px-4 py-10 md:h-full">
       <div className="flex flex-col items-center gap-2 text-center">
         <Image src={brand.logo} alt="" width={56} height={56} priority />
-        <h1 className="font-display text-xl text-ivory">Crie sua senha</h1>
-        <p className="max-w-sm text-sm text-ivory-muted">
+        <h1 className="font-display text-xl text-ink">Crie sua senha</h1>
+        <p className="max-w-sm text-sm text-ink-muted">
           A senha que te enviamos era temporária e some agora. Escolha uma que só
           você saiba — é com ela que você entra daqui pra frente.
         </p>
@@ -117,7 +117,7 @@ export default function TrocarSenhaPage() {
           }}
         >
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="nova-senha" className="text-xs font-medium text-ivory-muted">
+            <label htmlFor="nova-senha" className="text-xs font-medium text-ink-muted">
               Nova senha
             </label>
             <div className="relative">
@@ -129,13 +129,13 @@ export default function TrocarSenhaPage() {
                 value={senha}
                 onChange={(e) => setSenha(e.target.value)}
                 autoFocus
-                className="w-full rounded-xl border border-border bg-surface px-4 py-3 pr-12 text-sm text-ivory outline-none focus-visible:ring-2 focus-visible:ring-gold"
+                className="w-full rounded-xl border border-border bg-surface px-4 py-3 pr-12 text-sm text-ink outline-none focus-visible:ring-2 focus-visible:ring-gold"
               />
               <button
                 type="button"
                 onClick={() => setMostrar((m) => !m)}
                 aria-label={mostrar ? "Esconder senha" : "Mostrar senha"}
-                className="absolute right-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-xl text-ivory-muted transition-colors hover:text-ivory"
+                className="absolute right-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-xl text-ink-muted transition-colors hover:text-ink"
               >
                 {mostrar ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
@@ -143,7 +143,7 @@ export default function TrocarSenhaPage() {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="confirmar-senha" className="text-xs font-medium text-ivory-muted">
+            <label htmlFor="confirmar-senha" className="text-xs font-medium text-ink-muted">
               Repita a nova senha
             </label>
             <input
@@ -153,7 +153,7 @@ export default function TrocarSenhaPage() {
               type={mostrar ? "text" : "password"}
               value={confirmacao}
               onChange={(e) => setConfirmacao(e.target.value)}
-              className="rounded-xl border border-border bg-surface px-4 py-3 text-sm text-ivory outline-none focus-visible:ring-2 focus-visible:ring-gold"
+              className="rounded-xl border border-border bg-surface px-4 py-3 text-sm text-ink outline-none focus-visible:ring-2 focus-visible:ring-gold"
             />
           </div>
 
@@ -161,7 +161,7 @@ export default function TrocarSenhaPage() {
             {regras(senha).map((r) => (
               <li
                 key={r.texto}
-                className={r.ok ? "flex items-center gap-1.5 text-success" : "flex items-center gap-1.5 text-ivory-muted"}
+                className={r.ok ? "flex items-center gap-1.5 text-success" : "flex items-center gap-1.5 text-ink-muted"}
               >
                 <Check size={12} className={r.ok ? "opacity-100" : "opacity-30"} />
                 {r.texto}
@@ -188,8 +188,8 @@ export default function TrocarSenhaPage() {
           </p>
         )}
 
-        <p className="flex items-start gap-2 text-xs text-ivory-muted">
-          <ShieldCheck size={14} className="mt-0.5 shrink-0 text-gold-light" />
+        <p className="flex items-start gap-2 text-xs text-ink-muted">
+          <ShieldCheck size={14} className="mt-0.5 shrink-0 text-gold-strong" />
           Ninguém da nossa equipe consegue ver essa senha. Se esquecer, use
           &quot;Esqueci a senha&quot; na tela de entrada.
         </p>

@@ -35,10 +35,10 @@ export function PainelSidebarNav() {
       >
         <Image src={brand.logo} alt="" width={38} height={38} priority />
         <div className="leading-tight">
-          <p className="font-display text-base uppercase tracking-wider text-ivory">
+          <p className="font-display text-base uppercase tracking-wider text-ink">
             {brand.shortName}
           </p>
-          <p className="text-[11px] uppercase tracking-wide text-ivory-muted">
+          <p className="text-[11px] uppercase tracking-wide text-ink-muted">
             {brand.panelLabel}
           </p>
         </div>
@@ -62,8 +62,8 @@ export function PainelSidebarNav() {
                 className={cn(
                   "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors duration-150",
                   active
-                    ? "bg-gold/10 text-gold-light"
-                    : "text-ivory-muted hover:bg-surface-raised hover:text-ivory"
+                    ? "bg-gold/10 text-gold-strong"
+                    : "text-ink-muted hover:bg-surface-raised hover:text-ink"
                 )}
               >
                 <span
@@ -77,8 +77,8 @@ export function PainelSidebarNav() {
                   className={cn(
                     "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors duration-150",
                     active
-                      ? "bg-gold/15 text-gold-light"
-                      : "text-ivory-muted/80 group-hover:text-ivory"
+                      ? "bg-gold/15 text-gold-strong"
+                      : "text-ink-muted/80 group-hover:text-ink"
                   )}
                 >
                   <Icon size={17} strokeWidth={active ? 2.4 : 1.8} />
@@ -87,7 +87,7 @@ export function PainelSidebarNav() {
                 {item.feature && !features[item.feature] && (
                   <Lock
                     size={13}
-                    className="ml-auto shrink-0 text-ivory-muted/70"
+                    className="ml-auto shrink-0 text-ink-muted/70"
                     aria-label="Não incluído no seu plano"
                   />
                 )}
@@ -110,8 +110,8 @@ export function PainelSidebarNav() {
                         className={cn(
                           "flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm transition-colors duration-150",
                           childActive
-                            ? "font-medium text-gold-light"
-                            : "text-ivory-muted hover:text-ivory"
+                            ? "font-medium text-gold-strong"
+                            : "text-ink-muted hover:text-ink"
                         )}
                       >
                         {child.label}
@@ -120,7 +120,7 @@ export function PainelSidebarNav() {
                         {bloqueado && (
                           <Lock
                             size={12}
-                            className="ml-auto shrink-0 text-ivory-muted/70"
+                            className="ml-auto shrink-0 text-ink-muted/70"
                             aria-label="Não incluído no seu plano"
                           />
                         )}

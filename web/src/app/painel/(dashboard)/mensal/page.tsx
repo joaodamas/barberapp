@@ -98,8 +98,8 @@ function MensalConteudo() {
           O sobretítulo e o título também estavam invertidos em relação a todas
           as outras telas, onde o pequeno é o contexto e o grande é o nome. */}
       <div>
-        <p className="text-sm text-ivory-muted md:text-base">Receita que se repete</p>
-        <h1 className="text-xl text-ivory md:text-4xl md:tracking-tight">Mensalistas</h1>
+        <p className="text-sm text-ink-muted md:text-base">Receita que se repete</p>
+        <h1 className="text-xl text-ink md:text-4xl md:tracking-tight">Mensalistas</h1>
       </div>
 
       {/* G2 · contratar e receber vem PRIMEIRO.
@@ -116,8 +116,8 @@ function MensalConteudo() {
               mensalidade de quem está ativo — e é isso que o rótulo passa a
               dizer. A barra ao lado já compara com o contratado. */}
           <div className="flex items-center justify-between text-sm md:text-base">
-            <span className="text-ivory-muted">Mensalidade de quem está ativo</span>
-            <span className="font-display font-semibold text-gold-light md:text-2xl">
+            <span className="text-ink-muted">Mensalidade de quem está ativo</span>
+            <span className="font-display font-semibold text-gold-strong md:text-2xl">
               {formatBRL(mrr.billed)}
             </span>
           </div>
@@ -127,14 +127,14 @@ function MensalConteudo() {
               style={{ width: `${mrrPct}%` }}
             />
           </div>
-          <div className="flex items-center justify-between text-xs text-ivory-muted md:text-sm">
+          <div className="flex items-center justify-between text-xs text-ink-muted md:text-sm">
             <span>{mrrPct}% do contratado</span>
             <span>Contratado: {formatBRL(mrr.contracted)}</span>
           </div>
         </Card>
 
         <Card className="flex flex-col gap-3 md:p-6">
-          <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm">
+          <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
             <CalendarClock size={12} /> Régua de cobrança
           </p>
           <div className="flex items-center justify-between gap-1 md:gap-2">
@@ -150,13 +150,13 @@ function MensalConteudo() {
                     className={
                       "flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold transition-colors md:h-11 md:w-11 md:text-sm " +
                       (count > 0
-                        ? "bg-gold text-ivory"
-                        : "border border-border text-ivory-muted/50")
+                        ? "bg-gold text-ink"
+                        : "border border-border text-ink-muted/50")
                     }
                   >
                     {count > 0 ? count : ""}
                   </div>
-                  <span className="text-[11px] text-ivory-muted md:text-xs">{stage}</span>
+                  <span className="text-[11px] text-ink-muted md:text-xs">{stage}</span>
                 </div>
               );
             })}
@@ -206,7 +206,7 @@ function MensalConteudo() {
         <div className="mb-2 flex items-center justify-between md:mb-3">
           {/* "Assinantes" era a segunda palavra para a mesma pessoa, na tela
               que agora se chama Mensalistas do menu ao título. */}
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
             Mensalistas
           </h2>
           <div className="flex gap-1 rounded-lg border border-border bg-surface p-0.5">
@@ -215,7 +215,7 @@ function MensalConteudo() {
                 key={f}
                 onClick={() => setFilter(f)}
                 className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                  f === filter ? "bg-gold text-ivory" : "text-ivory-muted hover:text-ivory"
+                  f === filter ? "bg-gold text-ink" : "text-ink-muted hover:text-ink"
                 }`}
               >
                 {FILTER_LABELS[f]}
@@ -227,7 +227,7 @@ function MensalConteudo() {
         <Card className="table-scroll overflow-x-auto p-0">
           <table className="w-full min-w-[520px] text-sm">
             <thead>
-              <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ivory-muted">
+              <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ink-muted">
                 <th className="px-4 py-3 font-medium md:px-6">Cliente</th>
                 <th className="px-4 py-3 font-medium">Plano</th>
                 <th className="px-4 py-3 font-medium">Próxima cobrança</th>
@@ -245,9 +245,9 @@ function MensalConteudo() {
                     key={s.id}
                     className="border-b border-border/60 transition-colors last:border-0 hover:bg-surface-raised/60"
                   >
-                    <td className="px-4 py-3 text-ivory md:px-6">{s.name}</td>
-                    <td className="px-4 py-3 text-ivory-muted">{s.planName}</td>
-                    <td className="whitespace-nowrap px-4 py-3 text-ivory-muted">
+                    <td className="px-4 py-3 text-ink md:px-6">{s.name}</td>
+                    <td className="px-4 py-3 text-ink-muted">{s.planName}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-ink-muted">
                       {/* `nextCharge` virou opcional em G2: o vencimento passou
                           a ser derivado da FATURA (`dueDate`), que é o
                           documento que sabe a competência. A assinatura guarda
@@ -269,7 +269,7 @@ function MensalConteudo() {
                   {/* Vazio de FILTRO, não de dado: existe mensalista, só não
                       neste status. Sem dizer a saída, o dono lê como se a
                       lista tivesse sumido. */}
-                  <td colSpan={4} className="px-4 py-6 text-center text-sm text-ivory-muted md:px-6">
+                  <td colSpan={4} className="px-4 py-6 text-center text-sm text-ink-muted md:px-6">
                     Nenhum mensalista neste status. Toque em &quot;Todos&quot; para
                     ver a lista inteira.
                   </td>

@@ -19,7 +19,7 @@ const toneBorder: Record<KpiTone, string> = {
 const toneText: Record<KpiTone, string> = {
   success: "text-success",
   danger: "text-danger",
-  neutral: "text-gold-light",
+  neutral: "text-gold-strong",
 };
 
 /**
@@ -54,12 +54,12 @@ export function KpiTile({
     <Card padding="sm" className={cn(CAIXA, toneBorder[tone], className)}>
       <div className="flex items-center gap-1.5">
         <Icon size={12} className={toneText[tone]} aria-hidden />
-        <p className="text-[11px] uppercase tracking-wide text-ivory-muted md:text-xs">
+        <p className="text-[11px] uppercase tracking-wide text-ink-muted md:text-xs">
           {label}
         </p>
       </div>
-      <p className="font-display text-lg font-semibold text-ivory md:text-2xl">{value}</p>
-      {caption && <p className="text-[11px] text-ivory-muted md:text-xs">{caption}</p>}
+      <p className="font-display text-lg font-semibold text-ink md:text-2xl">{value}</p>
+      {caption && <p className="text-[11px] text-ink-muted md:text-xs">{caption}</p>}
     </Card>
   );
 }

@@ -153,18 +153,18 @@ export default function ConfiguracoesPage() {
           dois, cada um no seu papel: o nome da área em cima como contexto não
           servia, porque contexto é o que a tela contém, e o nome é o título. */}
       <div>
-        <p className="text-sm text-ivory-muted md:text-base">Taxas e regras</p>
-        <h1 className="text-xl text-ivory md:text-4xl md:tracking-tight">Ajustes</h1>
+        <p className="text-sm text-ink-muted md:text-base">Taxas e regras</p>
+        <h1 className="text-xl text-ink md:text-4xl md:tracking-tight">Ajustes</h1>
       </div>
 
       {naoConfigurado && (
         <Card className="flex items-start gap-3 border-danger/30 md:p-5">
           <AlertTriangle size={18} className="mt-0.5 shrink-0 text-danger" />
           <div>
-            <p className="text-sm text-ivory md:text-base">
+            <p className="text-sm text-ink md:text-base">
               Suas taxas de maquininha ainda não foram informadas
             </p>
-            <p className="text-xs text-ivory-muted md:text-sm">
+            <p className="text-xs text-ink-muted md:text-sm">
               Enquanto estiverem em 0%, o resultado do mês mostra o lucro sem
               descontar o que a maquininha cobra — e o número aparece maior do
               que é.
@@ -176,11 +176,11 @@ export default function ConfiguracoesPage() {
       <section className="grid gap-4 md:grid-cols-[1.4fr_1fr] md:gap-8">
         <Card className="flex flex-col gap-5 md:p-6">
           <div>
-            <h2 className="flex items-center gap-1.5 text-sm font-semibold text-ivory md:text-base">
-              <Percent size={14} className="text-gold-light" />
+            <h2 className="flex items-center gap-1.5 text-sm font-semibold text-ink md:text-base">
+              <Percent size={14} className="text-gold-strong" />
               Taxas por forma de pagamento
             </h2>
-            <p className="mt-1 text-xs text-ivory-muted md:text-sm">
+            <p className="mt-1 text-xs text-ink-muted md:text-sm">
               O que a sua maquininha cobra, não a média do mercado. Está no extrato
               ou no contrato dela.
             </p>
@@ -193,10 +193,10 @@ export default function ConfiguracoesPage() {
               return (
                 <div key={m.chave} className="grid gap-2 md:grid-cols-[1fr_120px_auto] md:items-center">
                   <div>
-                    <label htmlFor={`taxa-${m.chave}`} className="text-sm text-ivory">
+                    <label htmlFor={`taxa-${m.chave}`} className="text-sm text-ink">
                       {m.label}
                     </label>
-                    <p className="text-xs text-ivory-muted">{m.ajuda}</p>
+                    <p className="text-xs text-ink-muted">{m.ajuda}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <input
@@ -207,13 +207,13 @@ export default function ConfiguracoesPage() {
                       step="0.01"
                       value={taxa}
                       onChange={(e) => alterar(m.chave, e.target.value)}
-                      className="min-h-11 w-full rounded-xl border border-border bg-surface-raised px-3 text-sm text-ivory"
+                      className="min-h-11 w-full rounded-xl border border-border bg-surface-raised px-3 text-sm text-ink"
                     />
-                    <span className="text-sm text-ivory-muted">%</span>
+                    <span className="text-sm text-ink-muted">%</span>
                   </div>
-                  <p className="text-xs text-ivory-muted md:text-right">
+                  <p className="text-xs text-ink-muted md:text-right">
                     {formatBRL(EXEMPLO)} viram{" "}
-                    <span className="text-ivory">{formatBRL(liquido)}</span>
+                    <span className="text-ink">{formatBRL(liquido)}</span>
                   </p>
                 </div>
               );
@@ -222,14 +222,14 @@ export default function ConfiguracoesPage() {
 
         </Card>
 
-        <Card className="flex flex-col gap-2 text-xs text-ivory-muted md:p-6 md:text-sm">
-          <p className="font-medium text-ivory">Como a taxa é aplicada</p>
+        <Card className="flex flex-col gap-2 text-xs text-ink-muted md:p-6 md:text-sm">
+          <p className="font-medium text-ink">Como a taxa é aplicada</p>
           <p>
             No momento em que você conclui um atendimento, o sistema guarda a taxa
             vigente junto com o pagamento.
           </p>
           <p>
-            <strong className="text-ivory">Mudar a taxa não altera o passado.</strong>{" "}
+            <strong className="text-ink">Mudar a taxa não altera o passado.</strong>{" "}
             Se hoje o crédito é 3,49% e mês que vem virar 2,99%, os atendimentos já
             concluídos continuam com 3,49% — é o que você de fato pagou.
           </p>
@@ -241,11 +241,11 @@ export default function ConfiguracoesPage() {
 
         <Card className="flex flex-col gap-5 md:p-6">
           <div>
-            <h2 className="flex items-center gap-1.5 text-sm font-semibold text-ivory md:text-base">
-              <Clock size={14} className="text-gold-light" />
+            <h2 className="flex items-center gap-1.5 text-sm font-semibold text-ink md:text-base">
+              <Clock size={14} className="text-gold-strong" />
               Quando um atraso vira atraso
             </h2>
-            <p className="mt-1 text-xs text-ivory-muted md:text-sm">
+            <p className="mt-1 text-xs text-ink-muted md:text-sm">
               Depois desse tempo, o painel avisa que o horário passou e a reserva
               continua em aberto — e oferece concluir ou marcar falta.
             </p>
@@ -253,10 +253,10 @@ export default function ConfiguracoesPage() {
 
           <div className="grid gap-2 md:grid-cols-[1fr_120px_auto] md:items-center">
             <div>
-              <label htmlFor="tolerancia" className="text-sm text-ivory">
+              <label htmlFor="tolerancia" className="text-sm text-ink">
                 Tolerância de atraso
               </label>
-              <p className="text-xs text-ivory-muted">
+              <p className="text-xs text-ink-muted">
                 Barbearia trabalha com atraso normal. Muito curto, tudo vira
                 alerta e você para de ler a seção.
               </p>
@@ -270,19 +270,19 @@ export default function ConfiguracoesPage() {
                 step={5}
                 value={tolerancia}
                 onChange={(e) => alterarTolerancia(e.target.value)}
-                className="min-h-11 w-full rounded-xl border border-border bg-surface-raised px-3 text-sm text-ivory"
+                className="min-h-11 w-full rounded-xl border border-border bg-surface-raised px-3 text-sm text-ink"
               />
-              <span className="text-sm text-ivory-muted">min</span>
+              <span className="text-sm text-ink-muted">min</span>
             </div>
-            <p className="text-xs text-ivory-muted md:text-right">
+            <p className="text-xs text-ink-muted md:text-right">
               14:00 avisa às{" "}
-              <span className="text-ivory">
+              <span className="text-ink">
                 {horaMaisMinutos("14:00", tolerancia)}
               </span>
             </p>
           </div>
 
-          <p className="text-xs text-ivory-muted">
+          <p className="text-xs text-ink-muted">
             Marcar falta é sempre uma decisão sua. O sistema aponta o que está em
             aberto e nunca fecha o dia decidindo sozinho quem faltou.
           </p>
@@ -294,11 +294,11 @@ export default function ConfiguracoesPage() {
             (40%)" e o dono não tinha onde mudar os 40. */}
         <Card className="flex flex-col gap-5 md:p-6">
           <div>
-            <h2 className="flex items-center gap-1.5 text-sm font-semibold text-ivory md:text-base">
-              <Percent size={14} className="text-gold-light" />
+            <h2 className="flex items-center gap-1.5 text-sm font-semibold text-ink md:text-base">
+              <Percent size={14} className="text-gold-strong" />
               Comissão padrão da barbearia
             </h2>
-            <p className="mt-1 text-xs text-ivory-muted md:text-sm">
+            <p className="mt-1 text-xs text-ink-muted md:text-sm">
               Vale para quem está no padrão da casa. Quem tem percentual próprio
               cadastrado em Equipe continua com o dele.
             </p>
@@ -306,10 +306,10 @@ export default function ConfiguracoesPage() {
 
           <div className="grid gap-2 md:grid-cols-[1fr_120px_auto] md:items-center">
             <div>
-              <label htmlFor="comissao" className="text-sm text-ivory">
+              <label htmlFor="comissao" className="text-sm text-ink">
                 Fica com o barbeiro
               </label>
-              <p className="text-xs text-ivory-muted">
+              <p className="text-xs text-ink-muted">
                 Sobre o valor do atendimento; na loja, sobre o lucro da venda.
               </p>
             </div>
@@ -322,13 +322,13 @@ export default function ConfiguracoesPage() {
                 step={5}
                 value={comissao}
                 onChange={(e) => alterarComissao(e.target.value)}
-                className="min-h-11 w-full rounded-xl border border-border bg-surface-raised px-3 text-sm text-ivory"
+                className="min-h-11 w-full rounded-xl border border-border bg-surface-raised px-3 text-sm text-ink"
               />
-              <span className="text-sm text-ivory-muted">%</span>
+              <span className="text-sm text-ink-muted">%</span>
             </div>
-            <p className="text-xs text-ivory-muted md:text-right">
+            <p className="text-xs text-ink-muted md:text-right">
               Num corte de {formatBRL(EXEMPLO)}:{" "}
-              <span className="text-ivory">
+              <span className="text-ink">
                 {formatBRL((EXEMPLO * comissao) / 100)}
               </span>{" "}
               para o barbeiro, {formatBRL((EXEMPLO * (100 - comissao)) / 100)} para
@@ -336,7 +336,7 @@ export default function ConfiguracoesPage() {
             </p>
           </div>
 
-          <p className="text-xs text-ivory-muted">
+          <p className="text-xs text-ink-muted">
             Vale dos próximos atendimentos em diante. O percentual do dia do
             atendimento é o que fica no histórico — mudar aqui não reescreve
             acerto que já foi fechado.

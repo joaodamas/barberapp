@@ -70,13 +70,13 @@ export function AuthGuard({
 
   if (semVinculo) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-bg px-4">
+      <div className="flex min-h-screen items-center justify-center bg-canvas px-4">
         <EstadoCentral
           icon={DoorClosed}
           titulo="Esta conta não tem acesso a este painel"
           descricao={
             <>
-              Você está conectado como <strong className="text-ivory">{user.email}</strong>, e
+              Você está conectado como <strong className="text-ink">{user.email}</strong>, e
               esta conta não está vinculada a esta barbearia. Nada foi perdido — se você
               administra a barbearia, entre com a conta que recebeu o acesso.
             </>
@@ -102,7 +102,7 @@ export function AuthGuard({
 
   if (loading || !authorized || precisaOnboarding || precisaTrocarSenha) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-bg">
+      <div className="flex min-h-screen items-center justify-center bg-canvas">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-gold border-t-transparent" />
       </div>
     );

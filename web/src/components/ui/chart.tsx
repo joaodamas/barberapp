@@ -184,8 +184,8 @@ export function LineChart({
             transform: "translateX(-50%)",
           }}
         >
-          <span className="text-ivory-muted">{ponto.label}</span>{" "}
-          <span className={ponto.value < 0 ? "font-semibold text-danger" : "font-semibold text-ivory"}>
+          <span className="text-ink-muted">{ponto.label}</span>{" "}
+          <span className={ponto.value < 0 ? "font-semibold text-danger" : "font-semibold text-ink"}>
             {formatBRL(ponto.value)}
           </span>
         </div>
@@ -295,8 +295,8 @@ export function BarChart({
             transform: "translateX(-50%)",
           }}
         >
-          <span className="text-ivory-muted">{data[ativo].label}</span>{" "}
-          <span className="font-semibold text-ivory">{formatBRL(data[ativo].value)}</span>
+          <span className="text-ink-muted">{data[ativo].label}</span>{" "}
+          <span className="font-semibold text-ink">{formatBRL(data[ativo].value)}</span>
           {segunda && (
             <>
               {" · "}

@@ -49,13 +49,13 @@ export default function ErroDeTela({
   }, [error]);
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-6 bg-bg px-4 py-16 text-center">
+    <main className="flex min-h-screen flex-col items-center justify-center gap-6 bg-canvas px-4 py-16 text-center">
       <div className="flex flex-col items-center gap-3">
         <AlertTriangle size={28} className="text-danger" aria-hidden />
-        <h1 className="font-display text-xl text-ivory">Esta tela não abriu</h1>
-        <p className="max-w-sm text-sm text-ivory-muted">
+        <h1 className="font-display text-xl text-ink">Esta tela não abriu</h1>
+        <p className="max-w-sm text-sm text-ink-muted">
           Alguma coisa quebrou ao montar a página.{" "}
-          <strong className="text-ivory">O que você já tinha registrado está salvo</strong> —
+          <strong className="text-ink">O que você já tinha registrado está salvo</strong> —
           o que falhou foi mostrar, não gravar.
         </p>
       </div>
@@ -63,13 +63,13 @@ export default function ErroDeTela({
       <div className="flex flex-wrap items-center justify-center gap-3">
         <button
           onClick={reset}
-          className="inline-flex min-h-11 items-center rounded-xl bg-gold px-5 text-sm font-semibold text-ivory transition-colors hover:bg-gold-hover"
+          className="inline-flex min-h-11 items-center rounded-xl bg-gold px-5 text-sm font-semibold text-ink transition-colors hover:bg-gold-hover"
         >
           Tentar de novo
         </button>
         <a
           href="/painel"
-          className="inline-flex min-h-11 items-center rounded-xl border border-border px-5 text-sm text-ivory transition-colors hover:bg-surface-raised"
+          className="inline-flex min-h-11 items-center rounded-xl border border-border px-5 text-sm text-ink transition-colors hover:bg-surface-raised"
         >
           Voltar ao painel
         </a>
@@ -78,7 +78,7 @@ export default function ErroDeTela({
       {error.digest && (
         /* Some visualmente do fluxo principal e continua copiável: é o que o
          * dono manda no WhatsApp quando pede ajuda. */
-        <p className="text-[11px] text-ivory-muted">
+        <p className="text-[11px] text-ink-muted">
           Código para suporte: <span className="font-mono">{error.digest}</span>
         </p>
       )}

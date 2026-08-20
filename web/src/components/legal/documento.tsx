@@ -25,37 +25,37 @@ export function DocumentoLegal({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-full bg-bg">
+    <div className="min-h-full bg-canvas">
       <header className="border-b border-border">
         <div className="mx-auto flex w-full max-w-3xl items-center justify-between px-5 py-5 md:px-8">
           <Link href="/">
-            <AssinaturaCorteHub className="text-ivory" />
+            <AssinaturaCorteHub className="text-ink" />
           </Link>
-          <span className="text-xs text-ivory-muted">
+          <span className="text-xs text-ink-muted">
             Atualizado em {atualizadoEm}
           </span>
         </div>
       </header>
 
       <main className="mx-auto w-full max-w-3xl px-5 py-10 md:px-8 md:py-16">
-        <h1 className="font-display text-2xl text-ivory md:text-4xl">{titulo}</h1>
-        <p className="mt-3 border-l-2 border-gold/50 pl-4 text-sm leading-relaxed text-ivory-muted md:text-base">
+        <h1 className="font-display text-2xl text-ink md:text-4xl">{titulo}</h1>
+        <p className="mt-3 border-l-2 border-gold/50 pl-4 text-sm leading-relaxed text-ink-muted md:text-base">
           {resumo}
         </p>
 
-        <div className="documento-legal mt-10 flex flex-col gap-6 text-sm leading-relaxed text-ivory-muted md:text-base">
+        <div className="documento-legal mt-10 flex flex-col gap-6 text-sm leading-relaxed text-ink-muted md:text-base">
           {children}
         </div>
       </main>
 
       <footer className="border-t border-border">
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-2 px-5 py-8 text-xs text-ivory-muted md:flex-row md:justify-between md:px-8">
+        <div className="mx-auto flex w-full max-w-3xl flex-col gap-2 px-5 py-8 text-xs text-ink-muted md:flex-row md:justify-between md:px-8">
           <span>CorteHub</span>
           <span className="flex gap-4">
-            <Link href="/privacidade" className="underline-offset-2 hover:text-ivory hover:underline">
+            <Link href="/privacidade" className="underline-offset-2 hover:text-ink hover:underline">
               Privacidade
             </Link>
-            <Link href="/termos" className="underline-offset-2 hover:text-ivory hover:underline">
+            <Link href="/termos" className="underline-offset-2 hover:text-ink hover:underline">
               Termos
             </Link>
           </span>
@@ -77,7 +77,7 @@ export function Secao({
 }) {
   return (
     <section className="flex flex-col gap-3">
-      <h2 id={`s${n}`} className="scroll-mt-6 font-display text-lg text-ivory md:text-xl">
+      <h2 id={`s${n}`} className="scroll-mt-6 font-display text-lg text-ink md:text-xl">
         {n}. {titulo}
       </h2>
       {children}
@@ -95,7 +95,7 @@ export function Secao({
 export function AConfirmar({ children }: { children: React.ReactNode }) {
   return (
     <mark
-      className="rounded bg-gold/20 px-1 font-medium text-gold-light"
+      className="rounded bg-gold/20 px-1 font-medium text-gold-strong"
       title="Campo pendente de preenchimento antes da publicação"
     >
       {children}

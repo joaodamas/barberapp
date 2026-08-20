@@ -94,13 +94,13 @@ function ProjecaoConteudo() {
       <Voltar />
 
       <div>
-        <p className="text-sm text-ivory-muted md:text-base">
+        <p className="text-sm text-ink-muted md:text-base">
           Próximos {HORIZONTES[horizonte].dias} dias
         </p>
         {/* "Projeção de Caixa" contra "Projeção de caixa" no menu, no
             `RecursoBloqueado` e no `BloqueioPlano` desta própria tela. */}
-        <h1 className="text-xl text-ivory md:text-3xl md:tracking-tight">Projeção de caixa</h1>
-        <p className="mt-1 text-xs text-ivory-muted md:text-sm">
+        <h1 className="text-xl text-ink md:text-3xl md:tracking-tight">Projeção de caixa</h1>
+        <p className="mt-1 text-xs text-ink-muted md:text-sm">
           Combina marcações já confirmadas, cobrança de mensalistas (data real)
           e despesas fixas recorrentes (dia real). Dias sem marcação ainda
           usam a média histórica daquele dia da semana — marcados como
@@ -119,8 +119,8 @@ function ProjecaoConteudo() {
           }))}
         />
         {pctEstimado > 0 && (
-          <p className="text-xs text-ivory-muted">
-            <strong className="text-ivory">{pctEstimado}%</strong> desta receita é
+          <p className="text-xs text-ink-muted">
+            <strong className="text-ink">{pctEstimado}%</strong> desta receita é
             estimativa, calculada pela média histórica de cada dia da semana — não
             por horário já marcado.
             {pctEstimado >= 80 &&
@@ -180,7 +180,7 @@ function ProjecaoConteudo() {
       {projecaoApurada && !semBase && cashProjection.length > 1 && (
         <Card className="flex flex-col gap-3">
           <div className="flex items-baseline justify-between">
-            <p className="text-sm font-medium text-ivory">Saldo acumulado</p>
+            <p className="text-sm font-medium text-ink">Saldo acumulado</p>
             <p className={`font-display text-lg ${signTone(resultadoProjetado) === "success" ? "text-success" : "text-danger"}`}>
               {formatBRL(resultadoProjetado)}
             </p>
@@ -196,7 +196,7 @@ function ProjecaoConteudo() {
                   }))
             }
           />
-          <p className="text-xs text-ivory-muted">
+          <p className="text-xs text-ink-muted">
             A linha tracejada é o zero. Onde a curva cruza para baixo dela, o
             caixa fecha negativo naquele dia.
           </p>
@@ -210,7 +210,7 @@ function ProjecaoConteudo() {
         <Card className="table-scroll overflow-x-auto p-0">
           <table className="w-full min-w-[560px] text-sm">
             <thead>
-              <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ivory-muted">
+              <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ink-muted">
                 <th className="px-4 py-3 font-medium md:px-6">Mês</th>
                 <th className="px-4 py-3 text-right font-medium">Receita</th>
                 <th className="px-4 py-3 text-right font-medium">Mensalistas</th>
@@ -226,17 +226,17 @@ function ProjecaoConteudo() {
                   className="border-b border-border/60 transition-colors last:border-0 hover:bg-surface-raised/60"
                 >
                   <td className="px-4 py-3 md:px-6">
-                    <span className="capitalize text-ivory">{m.rotulo}</span>
+                    <span className="capitalize text-ink">{m.rotulo}</span>
                     {m.fracaoEstimada > 0 && (
-                      <span className="ml-2 text-xs text-ivory-muted">
+                      <span className="ml-2 text-xs text-ink-muted">
                         {Math.round(m.fracaoEstimada * 100)}% estimado
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-right text-ivory">
+                  <td className="px-4 py-3 text-right text-ink">
                     {formatBRL(m.bookingRevenue)}
                   </td>
-                  <td className="px-4 py-3 text-right text-ivory-muted">
+                  <td className="px-4 py-3 text-right text-ink-muted">
                     {formatBRL(m.subscriptionCharge)}
                   </td>
                   <td className="px-4 py-3 text-right text-danger">
@@ -251,7 +251,7 @@ function ProjecaoConteudo() {
                   </td>
                   <td
                     className={`px-4 py-3 text-right font-display md:px-6 ${
-                      m.cumulative >= 0 ? "text-ivory" : "text-danger"
+                      m.cumulative >= 0 ? "text-ink" : "text-danger"
                     }`}
                   >
                     {formatBRL(m.cumulative)}
@@ -267,7 +267,7 @@ function ProjecaoConteudo() {
       <Card className="table-scroll overflow-x-auto p-0">
         <table className="w-full min-w-[640px] text-sm">
           <thead>
-            <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ivory-muted">
+            <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ink-muted">
               <th className="px-4 py-3 font-medium md:px-6">Dia</th>
               <th className="px-4 py-3 font-medium">Receita</th>
               <th className="px-4 py-3 text-right font-medium">Mensalista</th>
@@ -282,22 +282,22 @@ function ProjecaoConteudo() {
                 key={d.date}
                 className="border-b border-border/60 transition-colors last:border-0 hover:bg-surface-raised/60"
               >
-                <td className="whitespace-nowrap px-4 py-2.5 text-ivory md:px-6">
+                <td className="whitespace-nowrap px-4 py-2.5 text-ink md:px-6">
                   {formatWeekdayAndDay(d.date)}
                 </td>
                 <td className="px-4 py-2.5">
                   {d.isClosed ? (
-                    <span className="text-ivory-muted">fechado</span>
+                    <span className="text-ink-muted">fechado</span>
                   ) : (
                     <span className="flex items-center gap-2">
-                      <span className="text-ivory-muted">{formatBRL(d.bookingRevenue)}</span>
+                      <span className="text-ink-muted">{formatBRL(d.bookingRevenue)}</span>
                       <Pill tone={d.isEstimate ? "gold" : "success"}>
                         {d.isEstimate ? "estimado" : "confirmado"}
                       </Pill>
                     </span>
                   )}
                 </td>
-                <td className="px-4 py-2.5 text-right text-ivory-muted">
+                <td className="px-4 py-2.5 text-right text-ink-muted">
                   {d.subscriptionCharge > 0 ? formatBRL(d.subscriptionCharge) : "—"}
                 </td>
                 <td className="px-4 py-2.5 text-right text-danger">

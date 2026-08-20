@@ -70,10 +70,10 @@ export default function ClientesPage() {
   return (
     <div className="flex flex-col gap-6 pt-1 md:gap-8 md:pt-2">
       <div>
-        <p className="text-sm text-ivory-muted md:text-base">
+        <p className="text-sm text-ink-muted md:text-base">
           {contar(clientes.length, "cadastrado", "cadastrados")}
         </p>
-        <h1 className="text-xl text-ivory md:text-4xl md:tracking-tight">Clientes</h1>
+        <h1 className="text-xl text-ink md:text-4xl md:tracking-tight">Clientes</h1>
       </div>
 
       {status === "carregando" && <LoadingRows rows={4} oQue="seus clientes" />}
@@ -92,17 +92,17 @@ export default function ClientesPage() {
       {clientes.length > 0 && (
         <>
           <div className="flex items-center gap-2 rounded-xl border border-border bg-surface px-3">
-            <Search size={16} className="text-ivory-muted" />
+            <Search size={16} className="text-ink-muted" />
             <input
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
               placeholder="Buscar por nome ou WhatsApp"
-              className="min-h-11 flex-1 bg-transparent text-sm text-ivory placeholder:text-ivory-muted"
+              className="min-h-11 flex-1 bg-transparent text-sm text-ink placeholder:text-ink-muted"
             />
           </div>
 
           {busca && encontrados.length === 0 && (
-            <p className="text-sm text-ivory-muted">
+            <p className="text-sm text-ink-muted">
               Ninguém com esse nome ou número.
             </p>
           )}
@@ -121,12 +121,12 @@ export default function ClientesPage() {
               >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className="truncate text-sm text-ivory md:text-base">{f.cliente.name}</p>
+                    <p className="truncate text-sm text-ink md:text-base">{f.cliente.name}</p>
                     {f.mensalista && (
                       <Pill tone="gold">{f.mensalista.planName}</Pill>
                     )}
                   </div>
-                  <p className="truncate text-xs text-ivory-muted">
+                  <p className="truncate text-xs text-ink-muted">
                     {f.cliente.whatsapp ? mascararWhatsapp(f.cliente.whatsapp) : "sem WhatsApp"}
                     {f.cliente.uid === null && " · balcão"}
                   </p>
@@ -135,7 +135,7 @@ export default function ClientesPage() {
                 <div className="shrink-0 text-right">
                   {/* A informação que faz o dono agir: há quanto tempo não vem.
                       "12 visitas" é vaidade; "há 47 dias" é decisão. */}
-                  <p className="text-xs text-ivory-muted">
+                  <p className="text-xs text-ink-muted">
                     {f.diasSemVir === null
                       ? "nunca veio"
                       : f.diasSemVir === 0
@@ -143,7 +143,7 @@ export default function ClientesPage() {
                         : `há ${contar(f.diasSemVir, "dia", "dias")}`}
                   </p>
                   {f.visitas > 0 && (
-                    <p className="text-[11px] text-ivory-muted">
+                    <p className="text-[11px] text-ink-muted">
                       {contar(f.visitas, "visita", "visitas")}
                     </p>
                   )}
@@ -183,10 +183,10 @@ export default function ClientesPage() {
 
             {aberta.proximoAtendimento && (
               <div className="rounded-xl border border-gold/40 bg-gold/5 p-3">
-                <p className="text-[11px] uppercase tracking-wide text-ivory-muted">
+                <p className="text-[11px] uppercase tracking-wide text-ink-muted">
                   Próximo atendimento
                 </p>
-                <p className="text-sm text-ivory">
+                <p className="text-sm text-ink">
                   {formatDatePtBR(aberta.proximoAtendimento.date)} às{" "}
                   {aberta.proximoAtendimento.time}
                 </p>
@@ -195,8 +195,8 @@ export default function ClientesPage() {
 
             {aberta.mensalista && (
               <div className="rounded-xl border border-border bg-surface-raised p-3">
-                <p className="text-[11px] uppercase tracking-wide text-ivory-muted">Mensalista</p>
-                <p className="text-sm text-ivory">
+                <p className="text-[11px] uppercase tracking-wide text-ink-muted">Mensalista</p>
+                <p className="text-sm text-ink">
                   {aberta.mensalista.planName} · {formatBRL(aberta.mensalista.price)}/mês
                 </p>
               </div>
@@ -204,7 +204,7 @@ export default function ClientesPage() {
 
             {/* Diz o que ainda não existe, em vez de deixar a ficha parecer
                 completa. É a mesma disciplina de D14: não sugerir capacidade. */}
-            <p className="text-[11px] text-ivory-muted">
+            <p className="text-[11px] text-ink-muted">
               O histórico completo de atendimentos e compras entra numa próxima
               versão desta ficha.
             </p>
@@ -218,8 +218,8 @@ export default function ClientesPage() {
 function Dado({ rotulo, valor }: { rotulo: string; valor: string }) {
   return (
     <div className="rounded-xl border border-border bg-surface p-3">
-      <p className="text-[11px] uppercase tracking-wide text-ivory-muted">{rotulo}</p>
-      <p className="font-display text-base font-semibold text-ivory">{valor}</p>
+      <p className="text-[11px] uppercase tracking-wide text-ink-muted">{rotulo}</p>
+      <p className="font-display text-base font-semibold text-ink">{valor}</p>
     </div>
   );
 }

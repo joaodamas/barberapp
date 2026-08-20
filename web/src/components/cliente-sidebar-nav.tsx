@@ -18,10 +18,10 @@ export function ClienteSidebarNav() {
       <Link href="/" className="flex items-center gap-3 px-6 pb-6 pt-8">
         <Image src={brand.logo} alt="" width={38} height={38} priority />
         <div className="leading-tight">
-          <p className="font-display text-base uppercase tracking-wider text-ivory">
+          <p className="font-display text-base uppercase tracking-wider text-ink">
             {brand.shortName}
           </p>
-          <p className="text-[11px] uppercase tracking-wide text-ivory-muted">
+          <p className="text-[11px] uppercase tracking-wide text-ink-muted">
             {brand.clientTagline}
           </p>
         </div>
@@ -44,8 +44,8 @@ export function ClienteSidebarNav() {
               className={cn(
                 "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors duration-150",
                 active
-                  ? "bg-gold/10 text-gold-light"
-                  : "text-ivory-muted hover:bg-surface-raised hover:text-ivory"
+                  ? "bg-gold/10 text-gold-strong"
+                  : "text-ink-muted hover:bg-surface-raised hover:text-ink"
               )}
             >
               <span
@@ -59,8 +59,8 @@ export function ClienteSidebarNav() {
                 className={cn(
                   "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors duration-150",
                   active
-                    ? "bg-gold/15 text-gold-light"
-                    : "text-ivory-muted/80 group-hover:text-ivory"
+                    ? "bg-gold/15 text-gold-strong"
+                    : "text-ink-muted/80 group-hover:text-ink"
                 )}
               >
                 <Icon size={17} strokeWidth={active ? 2.4 : 1.8} />

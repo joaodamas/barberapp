@@ -42,20 +42,20 @@ export default async function PrivacidadePage() {
         </p>
         <ul className="flex list-disc flex-col gap-2 pl-5">
           <li>
-            <strong className="text-ivory">
+            <strong className="text-ink">
               {barbearia ?? "A barbearia que você atende"} é a controladora
             </strong>{" "}
             dos dados de quem agenda: é ela que decide coletar seu nome e
             telefone, para que usar e por quanto tempo guardar.
           </li>
           <li>
-            <strong className="text-ivory">O CorteHub é o operador</strong>:
+            <strong className="text-ink">O CorteHub é o operador</strong>:
             trata esses dados <em>por conta da barbearia</em> e apenas para fazer
             o sistema funcionar. Não vendemos, não alugamos e não usamos os dados
             de clientes para finalidade própria.
           </li>
           <li>
-            <strong className="text-ivory">
+            <strong className="text-ink">
               O CorteHub é controlador dos dados da CONTA da barbearia
             </strong>{" "}
             — e-mail do dono, dados do estabelecimento e registros de uso da
@@ -71,7 +71,7 @@ export default async function PrivacidadePage() {
       </Secao>
 
       <Secao n={2} titulo="Que dados são tratados">
-        <p className="text-ivory">Se você agenda um horário</p>
+        <p className="text-ink">Se você agenda um horário</p>
         <ul className="flex list-disc flex-col gap-1.5 pl-5">
           <li>Nome e número de WhatsApp</li>
           <li>
@@ -84,7 +84,7 @@ export default async function PrivacidadePage() {
           </li>
           <li>Saldo e movimentação de fidelidade, quando a barbearia usa</li>
         </ul>
-        <p className="text-ivory">Se você é dono de barbearia</p>
+        <p className="text-ink">Se você é dono de barbearia</p>
         <ul className="flex list-disc flex-col gap-1.5 pl-5">
           <li>E-mail, senha (armazenada apenas como hash pelo Firebase Auth)</li>
           <li>
@@ -97,7 +97,7 @@ export default async function PrivacidadePage() {
           </li>
         </ul>
         <p>
-          <strong className="text-ivory">
+          <strong className="text-ink">
             Não tratamos dado sensível nem dado de pagamento.
           </strong>{" "}
           Não há cartão de crédito no sistema: registramos <em>como</em> o
@@ -109,7 +109,7 @@ export default async function PrivacidadePage() {
       <Secao n={3} titulo="Para que servem, e com que base legal">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[520px] border-collapse text-left text-sm">
-            <thead className="text-ivory">
+            <thead className="text-ink">
               <tr className="border-b border-border">
                 <th className="py-2 pr-4 font-medium">Finalidade</th>
                 <th className="py-2 font-medium">Base legal (art. 7º)</th>
@@ -144,7 +144,7 @@ export default async function PrivacidadePage() {
           </table>
         </div>
         <p>
-          O CorteHub <strong className="text-ivory">não envia marketing</strong>{" "}
+          O CorteHub <strong className="text-ink">não envia marketing</strong>{" "}
           para clientes das barbearias. Mensagem de divulgação, se a barbearia
           quiser enviar um dia, depende de consentimento que ela precisará
           coletar — e que não é este documento.
@@ -154,16 +154,16 @@ export default async function PrivacidadePage() {
       <Secao n={4} titulo="Com quem os dados são compartilhados">
         <ul className="flex list-disc flex-col gap-2 pl-5">
           <li>
-            <strong className="text-ivory">Google LLC (Google Cloud e Firebase)</strong>{" "}
+            <strong className="text-ink">Google LLC (Google Cloud e Firebase)</strong>{" "}
             — hospeda o banco de dados, a autenticação, os arquivos e a execução
             do sistema. Atua como suboperador.
           </li>
           <li>
-            <strong className="text-ivory">A própria barbearia</strong> — que é a
+            <strong className="text-ink">A própria barbearia</strong> — que é a
             controladora e enxerga os dados dos clientes dela, e apenas deles.
           </li>
           <li>
-            <strong className="text-ivory">Meta Platforms</strong> — quando o
+            <strong className="text-ink">Meta Platforms</strong> — quando o
             envio de mensagens por WhatsApp estiver ativo, o número de telefone
             necessário para entregar a mensagem transita pela infraestrutura da
             Meta.{" "}
@@ -174,7 +174,7 @@ export default async function PrivacidadePage() {
           </li>
         </ul>
         <p>
-          Uma barbearia <strong className="text-ivory">nunca</strong> enxerga
+          Uma barbearia <strong className="text-ink">nunca</strong> enxerga
           dados de clientes de outra. O isolamento é imposto por regras no banco
           de dados, não apenas pela interface.
         </p>
@@ -183,19 +183,19 @@ export default async function PrivacidadePage() {
       <Secao n={5} titulo="Onde os dados ficam — inclusive fora do Brasil">
         <p>
           Parte do processamento acontece{" "}
-          <strong className="text-ivory">fora do território nacional</strong>, e
+          <strong className="text-ink">fora do território nacional</strong>, e
           a LGPD exige que isso seja dito com clareza (art. 33):
         </p>
         <ul className="flex list-disc flex-col gap-1.5 pl-5">
           <li>
             O banco de dados e as funções de negócio operam na região de{" "}
-            <strong className="text-ivory">São Paulo</strong> (
+            <strong className="text-ink">São Paulo</strong> (
             <code className="text-xs">southamerica-east1</code>).
           </li>
           <li>
             A renderização das páginas — o componente que monta a tela que você
             vê e que, para isso, processa os dados em trânsito — executa em{" "}
-            <strong className="text-ivory">Iowa, Estados Unidos</strong> (
+            <strong className="text-ink">Iowa, Estados Unidos</strong> (
             <code className="text-xs">us-central1</code>).
           </li>
         </ul>
@@ -209,17 +209,17 @@ export default async function PrivacidadePage() {
       <Secao n={6} titulo="Por quanto tempo ficam guardados">
         <ul className="flex list-disc flex-col gap-1.5 pl-5">
           <li>
-            <strong className="text-ivory">Histórico de atendimento:</strong>{" "}
+            <strong className="text-ink">Histórico de atendimento:</strong>{" "}
             enquanto a barbearia for cliente do CorteHub, porque é o que sustenta
             o financeiro e o histórico dela.
           </li>
           <li>
-            <strong className="text-ivory">Encerrada a conta da barbearia:</strong>{" "}
+            <strong className="text-ink">Encerrada a conta da barbearia:</strong>{" "}
             os dados ficam disponíveis por 30 dias para que ela exporte o que
             precisa, e depois são excluídos.
           </li>
           <li>
-            <strong className="text-ivory">Registros fiscais e contábeis:</strong>{" "}
+            <strong className="text-ink">Registros fiscais e contábeis:</strong>{" "}
             pelo prazo que a lei exigir, mesmo após a exclusão do restante.
           </li>
         </ul>
@@ -233,14 +233,14 @@ export default async function PrivacidadePage() {
         </p>
         <ul className="flex list-disc flex-col gap-2 pl-5">
           <li>
-            <strong className="text-ivory">Se você é cliente de uma barbearia</strong>{" "}
+            <strong className="text-ink">Se você é cliente de uma barbearia</strong>{" "}
             — peça{" "}
             {barbearia ? `à ${barbearia}, ` : "à barbearia onde você se atende, "}
             que é a controladora. Ela usa o CorteHub para atender ao pedido, e
             nós a apoiamos no prazo legal.
           </li>
           <li>
-            <strong className="text-ivory">Se você é dono de barbearia</strong> —
+            <strong className="text-ink">Se você é dono de barbearia</strong> —
             peça diretamente ao CorteHub, em{" "}
             <AConfirmar>[E-MAIL DE CONTATO]</AConfirmar>.
           </li>

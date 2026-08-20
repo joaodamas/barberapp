@@ -111,13 +111,13 @@ export function DesfazerVenda() {
 
   return (
     <section>
-      <h2 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:mb-3 md:text-sm">
+      <h2 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-ink-muted md:mb-3 md:text-sm">
         <RotateCcw size={12} /> Vendas recentes
       </h2>
 
       {feito && (
         <Card className="mb-2 flex items-center gap-2 border-gold/40 py-2.5 text-sm">
-          <RotateCcw size={16} className="shrink-0 text-gold-light" />
+          <RotateCcw size={16} className="shrink-0 text-gold-strong" />
           {/* Concorda em número: "1 un. voltou", "2 un. voltaram". A frase já
               saía certa — o que estava errado era a FORMA: um ternário inline,
               o mesmo anti-padrão que produziu o defeito 15 linhas abaixo, no
@@ -136,11 +136,11 @@ export function DesfazerVenda() {
           return (
             <div key={v.movementId} className="flex items-center gap-3 px-3 py-2.5 md:px-4">
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm text-ivory">
+                <p className="truncate text-sm text-ink">
                   {v.quantidade}× {nomeDoProduto(v.productId)}
-                  <span className="text-ivory-muted"> · {formatBRL(v.valor)}</span>
+                  <span className="text-ink-muted"> · {formatBRL(v.valor)}</span>
                 </p>
-                <p className="truncate text-[11px] text-ivory-muted">
+                <p className="truncate text-[11px] text-ink-muted">
                   {v.date}
                   {v.paymentMethod &&
                     ` · ${paymentMethodLabel[v.paymentMethod as PaymentMethod]}`}
@@ -148,11 +148,11 @@ export function DesfazerVenda() {
                   {/* A devolução aparece na própria linha da venda: é a mesma
                       história, e separá-la em outra lista obrigaria o dono a
                       cruzar as duas de cabeça. */}
-                  {situacao && <span className="text-gold-light"> · {situacao}</span>}
+                  {situacao && <span className="text-gold-strong"> · {situacao}</span>}
                 </p>
               </div>
               {v.encerrada ? (
-                <span className="shrink-0 text-[11px] text-ivory-muted">Devolvida</span>
+                <span className="shrink-0 text-[11px] text-ink-muted">Devolvida</span>
               ) : (
                 <Button variant="ghost" className="shrink-0 text-xs" onClick={() => abrir(v)}>
                   Devolver
@@ -188,7 +188,7 @@ export function DesfazerVenda() {
                 forma certa, é escrever uma frase que não dependa dela.
                 "Venda" é o substantivo da AÇÃO, invariável aqui, e o produto
                 passa a ser dado da linha em vez de sujeito de um adjetivo. */}
-            <p className="text-sm text-ivory-muted">
+            <p className="text-sm text-ink-muted">
               Venda de {aDesfazer.date} · {aDesfazer.quantidade}×{" "}
               {nomeDoProduto(aDesfazer.productId)} · {formatBRL(aDesfazer.valor)}
             </p>
@@ -200,7 +200,7 @@ export function DesfazerVenda() {
                * exemplo do próprio guia. E o "Restam" errava sozinho no
                * extremo oposto: com 2 de 3 devolvidas, a tela dizia
                * "Restam 1". */
-              <p className="text-xs text-gold-light">
+              <p className="text-xs text-gold-strong">
                 {aDesfazer.devolvida} un. já{" "}
                 {plural(aDesfazer.devolvida, "voltou", "voltaram")}.{" "}
                 {plural(aDesfazer.resta, "Resta", "Restam")} {aDesfazer.resta}.
@@ -208,7 +208,7 @@ export function DesfazerVenda() {
             )}
 
             {aDesfazer.quantidade > 1 && (
-              <label className="flex flex-col gap-1 text-xs text-ivory-muted">
+              <label className="flex flex-col gap-1 text-xs text-ink-muted">
                 Quantas unidades voltam
                 <input
                   type="number"
@@ -221,30 +221,30 @@ export function DesfazerVenda() {
                       Math.min(Math.max(Math.trunc(Number(e.target.value) || 0), 1), aDesfazer.resta)
                     )
                   }
-                  className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
+                  className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ink"
                 />
               </label>
             )}
 
-            <label className="flex flex-col gap-1 text-xs text-ivory-muted">
+            <label className="flex flex-col gap-1 text-xs text-ink-muted">
               Por que está devolvendo *
               <input
                 value={motivo}
                 onChange={(e) => setMotivo(e.target.value)}
                 placeholder="Ex.: cliente devolveu o produto lacrado"
-                className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
+                className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ink"
               />
             </label>
 
             {/* Diz o que vai acontecer com os três fatos, antes de acontecer.
                 O dono não deveria precisar descobrir no fechamento que a
                 comissão do barbeiro também mudou. */}
-            <div className="rounded-xl border border-border bg-surface-raised/60 p-3 text-xs text-ivory-muted">
-              <p className="mb-1 font-semibold text-ivory">O que vai ser registrado</p>
+            <div className="rounded-xl border border-border bg-surface-raised/60 p-3 text-xs text-ink-muted">
+              <p className="mb-1 font-semibold text-ink">O que vai ser registrado</p>
               <p>· Devolução de {formatBRL(valorADevolver)} ao cliente</p>
               <p>· {quantidade} un. de volta no estoque</p>
               {aDesfazer.staffId && <p>· A comissão dessa parte sai do acerto do barbeiro</p>}
-              <p className="mt-1.5 text-ivory-muted">
+              <p className="mt-1.5 text-ink-muted">
                 A venda original continua no histórico — o estorno é um registro
                 novo, não um apagamento.
               </p>

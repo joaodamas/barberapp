@@ -64,8 +64,8 @@ export function BottomNav({ items }: { items: NavItem[] }) {
                       // O filho é identificado pelo recuo e pela ausência de
                       // ícone — o mesmo desenho que a barra lateral já usa para
                       // submenu no desktop. Não é padrão novo.
-                      destino.filho && "pl-11 text-ivory-muted",
-                      active ? "bg-gold/10 text-gold-light" : "text-ivory-muted"
+                      destino.filho && "pl-11 text-ink-muted",
+                      active ? "bg-gold/10 text-gold-strong" : "text-ink-muted"
                     )}
                   >
                     {Icon && <Icon size={20} strokeWidth={active ? 2.4 : 1.8} />}
@@ -76,7 +76,7 @@ export function BottomNav({ items }: { items: NavItem[] }) {
                     {bloqueado && (
                       <Lock
                         size={13}
-                        className="ml-auto shrink-0 text-ivory-muted/70"
+                        className="ml-auto shrink-0 text-ink-muted/70"
                         aria-label="Não incluído no seu plano"
                       />
                     )}
@@ -99,19 +99,19 @@ export function BottomNav({ items }: { items: NavItem[] }) {
                   aria-current={active ? "page" : undefined}
                   className={cn(
                     "relative flex min-h-14 flex-col items-center justify-center gap-1 py-2 text-[11px] font-medium transition-colors",
-                    active ? "text-gold-light" : "text-ivory-muted"
+                    active ? "text-gold-strong" : "text-ink-muted"
                   )}
                 >
                   <span className="relative">
                     <Icon
                       size={22}
                       strokeWidth={active ? 2.4 : 1.8}
-                      className={active ? "text-gold-light" : "text-ivory-muted"}
+                      className={active ? "text-gold-strong" : "text-ink-muted"}
                     />
                     {bloqueado && (
                       <Lock
                         size={11}
-                        className="absolute -right-1.5 -top-0.5 text-ivory-muted/70"
+                        className="absolute -right-1.5 -top-0.5 text-ink-muted/70"
                         aria-label="Não incluído no seu plano"
                       />
                     )}
@@ -131,7 +131,7 @@ export function BottomNav({ items }: { items: NavItem[] }) {
                 aria-label={maisAberto ? "Fechar mais opções" : "Mais opções"}
                 className={cn(
                   "flex min-h-14 w-full flex-col items-center justify-center gap-1 py-2 text-[11px] font-medium transition-colors",
-                  maisAberto || algumNoMaisAtivo ? "text-gold-light" : "text-ivory-muted"
+                  maisAberto || algumNoMaisAtivo ? "text-gold-strong" : "text-ink-muted"
                 )}
               >
                 <MoreHorizontal

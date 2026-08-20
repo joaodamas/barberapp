@@ -141,7 +141,7 @@ describe("o ternário de concordância não mora na linha", () => {
    * A comparação é contra **1** e os dois lados são PALAVRAS.
    *
    * Sem as duas restrições o teste vira ruído e é desligado: `>= 0 ? "success"
-   * : "danger"` e `> 0 ? "bg-gold text-ivory" : "border border-border"` são
+   * : "danger"` e `> 0 ? "bg-gold text-ink" : "border border-border"` são
    * escolha de estado e de classe, não de concordância. O 1 é a fronteira do
    * singular, e "palavra" — só letras — exclui classe de CSS e rótulo composto.
    */

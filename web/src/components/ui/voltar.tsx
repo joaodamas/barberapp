@@ -22,7 +22,7 @@ export function Voltar({
   return (
     <Link
       href={href}
-      className="-ml-1 inline-flex min-h-11 items-center gap-1 text-sm text-ivory-muted transition-colors hover:text-ivory"
+      className="-ml-1 inline-flex min-h-11 items-center gap-1 text-sm text-ink-muted transition-colors hover:text-ink"
     >
       <ChevronLeft size={16} />
       {label}

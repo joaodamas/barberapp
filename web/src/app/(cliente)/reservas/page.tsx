@@ -249,21 +249,21 @@ export default function ReservasPage() {
 
   return (
     <div className="grid grid-cols-1 gap-5 pt-1 md:grid-cols-[1fr_360px] md:items-start md:gap-x-10 md:gap-y-8 md:pt-4">
-      <h1 className="text-xl text-ivory md:col-span-2 md:text-3xl md:tracking-tight">Reservas</h1>
+      <h1 className="text-xl text-ink md:col-span-2 md:text-3xl md:tracking-tight">Reservas</h1>
 
       <div className="flex flex-col gap-5 md:col-start-1 md:row-start-2 md:gap-7">
         <div className="grid grid-cols-2 gap-2 md:w-fit md:gap-4">
           <Card className="flex flex-col items-center gap-0.5 p-3 text-center md:min-w-32 md:p-4">
-            <p className="font-display text-lg font-semibold text-ivory">
+            <p className="font-display text-lg font-semibold text-ink">
               {bookingHistory.length}
             </p>
-            <p className="text-[11px] text-ivory-muted md:text-xs">atendimentos concluídos</p>
+            <p className="text-[11px] text-ink-muted md:text-xs">atendimentos concluídos</p>
           </Card>
           <Card className="flex flex-col items-center gap-0.5 p-3 text-center md:min-w-32 md:p-4">
-            <p className="font-display text-lg font-semibold text-gold-light">
+            <p className="font-display text-lg font-semibold text-gold-strong">
               {formatBRL(totalSpentHistory)}
             </p>
-            <p className="text-[11px] text-ivory-muted md:text-xs">investido na barbearia</p>
+            <p className="text-[11px] text-ink-muted md:text-xs">investido na barbearia</p>
           </Card>
         </div>
 
@@ -274,7 +274,7 @@ export default function ReservasPage() {
               onClick={() => setTab(t)}
               className={
                 "flex-1 rounded-lg py-2 text-sm font-medium capitalize transition-colors md:px-6 md:py-2.5 md:text-base " +
-                (tab === t ? "bg-gold text-ivory" : "text-ivory-muted hover:text-ivory")
+                (tab === t ? "bg-gold text-ink" : "text-ink-muted hover:text-ink")
               }
             >
               {t === "futuras" ? "Futuras" : "Histórico"}
@@ -289,12 +289,12 @@ export default function ReservasPage() {
             <Card className="flex flex-col gap-3 md:max-w-xl md:p-6">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <p className="text-ivory md:text-lg">
+                  <p className="text-ink md:text-lg">
                     {bookingServices.map((s) => s.name).join(" + ")}
                   </p>
                   {/* `capitalize` sobe TODA palavra e em português produz
                       "Quarta-Feira, 19 De Agosto Às 14:00". Só a primeira. */}
-                  <p className="text-sm text-ivory-muted first-letter:uppercase md:text-base">
+                  <p className="text-sm text-ink-muted first-letter:uppercase md:text-base">
                     {booking ? `${formatDatePtBR(booking.date)} às ${booking.time}` : ""}
                   </p>
                   {/* FALTA AQUI: "com {staffName}".
@@ -316,10 +316,10 @@ export default function ReservasPage() {
                 {statusMeta && <Pill tone={statusMeta.tone}>{statusMeta.label}</Pill>}
               </div>
               <div className="flex items-center justify-between border-t border-border pt-2 text-sm md:pt-3 md:text-base">
-                <span className="text-ivory-muted">
+                <span className="text-ink-muted">
                   {booking?.paymentMethod ? "Valor pago" : "A pagar no salão"}
                 </span>
-                <span className="font-display font-semibold text-ivory md:text-lg">
+                <span className="font-display font-semibold text-ink md:text-lg">
                   {formatBRL(booking?.value ?? 0)}
                 </span>
               </div>
@@ -341,13 +341,13 @@ export default function ReservasPage() {
                   Cancelar
                 </Button>
               </div>
-              <p className="text-xs text-ivory-muted md:text-sm">
+              <p className="text-xs text-ink-muted md:text-sm">
                 Cancelamento até {cancellationPolicy.fullRefundHours}h antes: 100% de
                 volta. Entre {cancellationPolicy.fullRefundHours}h e{" "}
                 {cancellationPolicy.partialRefundHours}h: taxa de{" "}
                 {cancellationPolicy.cancellationFeePct}%.{" "}
                 {!podeReagendar && active && (
-                  <span className="text-gold-light">{motivoBloqueio}</span>
+                  <span className="text-gold-strong">{motivoBloqueio}</span>
                 )}
               </p>
             </Card>
@@ -367,14 +367,14 @@ export default function ReservasPage() {
               return (
                 <Card key={b.id} className="flex items-center justify-between gap-3 md:p-5">
                   <div className="min-w-0">
-                    <p className="truncate text-sm text-ivory md:text-base">
+                    <p className="truncate text-sm text-ink md:text-base">
                       {bServices.map((s) => s.name).join(" + ")}
                     </p>
-                    <p className="truncate text-xs text-ivory-muted first-letter:uppercase md:text-sm">
+                    <p className="truncate text-xs text-ink-muted first-letter:uppercase md:text-sm">
                       {formatDatePtBR(b.date)} às {b.time} · {labelDoPagamento(b.paymentOrigin, b.paymentMethod)}
                     </p>
                   </div>
-                  <span className="shrink-0 font-display font-semibold text-ivory">
+                  <span className="shrink-0 font-display font-semibold text-ink">
                     {formatBRL(b.value)}
                   </span>
                 </Card>
@@ -383,8 +383,8 @@ export default function ReservasPage() {
           </div>
         ) : (
           <Card className="flex flex-col items-center gap-2 py-10 text-center md:max-w-xl md:py-16">
-            <CalendarX2 size={22} className="text-ivory-muted" />
-            <p className="text-sm text-ivory-muted md:text-base">
+            <CalendarX2 size={22} className="text-ink-muted" />
+            <p className="text-sm text-ink-muted md:text-base">
               Nenhum atendimento concluído ainda.
             </p>
           </Card>
@@ -395,16 +395,16 @@ export default function ReservasPage() {
         <section aria-labelledby="fidelidade-reservas">
           <h2
             id="fidelidade-reservas"
-            className="mb-2 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm"
+            className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm"
           >
             Fidelidade
           </h2>
           <Card className="flex flex-col gap-3 md:p-6">
             <div className="flex items-center justify-between">
-              <p className="text-sm text-ivory md:text-base">
+              <p className="text-sm text-ink md:text-base">
                 {loyalty.stamps} de {loyalty.goal} carimbos
               </p>
-              <p className="text-xs text-gold-light md:text-sm">
+              <p className="text-xs text-gold-strong md:text-sm">
                 {loyalty.podeResgatar ? "pronto para resgatar" : `faltam ${stampsLeft}`}
               </p>
             </div>
@@ -436,12 +436,12 @@ export default function ReservasPage() {
         <section aria-labelledby="ajuda-reservas">
           <h2
             id="ajuda-reservas"
-            className="mb-2 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm"
+            className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm"
           >
             Precisa de ajuda?
           </h2>
           <Card className="flex flex-col gap-3 md:p-6">
-            <p className="text-sm text-ivory-muted md:text-base">
+            <p className="text-sm text-ink-muted md:text-base">
               Reagendamentos e cancelamentos fora do prazo são resolvidos direto com a
               barbearia.
             </p>
@@ -490,7 +490,7 @@ export default function ReservasPage() {
             </p>
           )}
           <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-ivory-muted">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted">
               Escolha o dia
             </p>
             <div className="flex gap-2 overflow-x-auto pb-1">
@@ -506,21 +506,21 @@ export default function ReservasPage() {
                   className={
                     "flex min-w-14 shrink-0 flex-col items-center rounded-xl border px-3 py-2 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-35 " +
                     (i === dayIndex
-                      ? "border-gold bg-gold/10 text-gold-light"
-                      : "border-border text-ivory-muted hover:border-gold/40 hover:text-ivory")
+                      ? "border-gold bg-gold/10 text-gold-strong"
+                      : "border-border text-ink-muted hover:border-gold/40 hover:text-ink")
                   }
                 >
                   <span className="capitalize">
                     {d.date.toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", "")}
                   </span>
-                  <span className="font-display text-base text-ivory">{d.date.getDate()}</span>
+                  <span className="font-display text-base text-ink">{d.date.getDate()}</span>
                 </button>
               ))}
             </div>
           </div>
 
           <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-ivory-muted">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted">
               Horários livres
             </p>
             <div className="grid grid-cols-4 gap-2">
@@ -533,8 +533,8 @@ export default function ReservasPage() {
                   className={
                     "rounded-lg border px-2 py-2 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-30 " +
                     (time === slot.time
-                      ? "border-gold bg-gold text-ivory"
-                      : "border-border text-ivory hover:border-gold/50")
+                      ? "border-gold bg-gold text-ink"
+                      : "border-border text-ink hover:border-gold/50")
                   }
                 >
                   {slot.time}
@@ -567,14 +567,14 @@ export default function ReservasPage() {
         }
       >
         <div className="flex flex-col gap-3">
-          <p className="text-sm text-ivory">{refund?.label}</p>
+          <p className="text-sm text-ink">{refund?.label}</p>
           <div className="flex items-center justify-between rounded-xl border border-border bg-surface-raised px-4 py-3 text-sm">
-            <span className="text-ivory-muted">Valor a devolver</span>
-            <span className="font-display font-semibold text-ivory">
+            <span className="text-ink-muted">Valor a devolver</span>
+            <span className="font-display font-semibold text-ink">
               {formatBRL(refund?.amount ?? 0)}
             </span>
           </div>
-          <p className="text-xs text-ivory-muted">
+          <p className="text-xs text-ink-muted">
             Esta ação libera o horário na agenda e não pode ser desfeita.
           </p>
           {erroReserva && (

@@ -84,7 +84,7 @@ export function AvisoModoLeitura() {
   return (
     <div
       role="status"
-      className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-b border-gold/30 bg-gold/10 px-4 py-2 text-center text-xs text-ivory md:text-sm"
+      className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-b border-gold/30 bg-gold/10 px-4 py-2 text-center text-xs text-ink md:text-sm"
     >
       <span>
         {acesso.motivo === "trial_vencido"
@@ -100,7 +100,7 @@ export function AvisoModoLeitura() {
           )}
           target="_blank"
           rel="noopener noreferrer"
-          className="font-semibold text-gold-light underline underline-offset-2"
+          className="font-semibold text-gold-strong underline underline-offset-2"
         >
           Escolher um plano
         </a>

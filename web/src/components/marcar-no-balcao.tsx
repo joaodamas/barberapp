@@ -261,10 +261,10 @@ export function MarcarNoBalcao({
           <div className="flex size-12 items-center justify-center rounded-full bg-gold/15">
             <Check size={22} className="text-gold" />
           </div>
-          <p className="text-sm text-ivory">
+          <p className="text-sm text-ink">
             {clienteEscolhido?.name ?? nomeNovo} · {escolhidos.map((s) => s.name).join(" + ")}
           </p>
-          <p className="text-xs text-ivory-muted">
+          <p className="text-xs text-ink-muted">
             O pagamento é registrado quando você concluir o atendimento.
           </p>
         </div>
@@ -299,7 +299,7 @@ export function MarcarNoBalcao({
       <div className="flex flex-col gap-5">
         {/* ---- 1 · serviço ---- */}
         <section className="flex flex-col gap-2">
-          <p className="text-[11px] uppercase tracking-wide text-ivory-muted">
+          <p className="text-[11px] uppercase tracking-wide text-ink-muted">
             1 · O que vai fazer
           </p>
           <div className="flex flex-wrap gap-2">
@@ -318,12 +318,12 @@ export function MarcarNoBalcao({
                   className={
                     "rounded-xl border px-3 py-2 text-left text-xs transition-colors " +
                     (marcado
-                      ? "border-gold bg-gold/10 text-ivory"
-                      : "border-border text-ivory-muted hover:border-gold/60")
+                      ? "border-gold bg-gold/10 text-ink"
+                      : "border-border text-ink-muted hover:border-gold/60")
                   }
                 >
                   <span className="block">{s.name}</span>
-                  <span className="block text-[11px] text-ivory-muted">
+                  <span className="block text-[11px] text-ink-muted">
                     {formatBRL(s.price ?? 0)} · {s.durationMin ?? 0} min
                   </span>
                 </button>
@@ -331,7 +331,7 @@ export function MarcarNoBalcao({
             })}
           </div>
           {catalogo.length === 0 && (
-            <p className="text-xs text-ivory-muted">
+            <p className="text-xs text-ink-muted">
               Nenhum serviço ativo. Cadastre um em Serviços antes de marcar.
             </p>
           )}
@@ -339,7 +339,7 @@ export function MarcarNoBalcao({
 
         {/* ---- 2 · barbeiro ---- */}
         <section className="flex flex-col gap-2">
-          <p className="text-[11px] uppercase tracking-wide text-ivory-muted">
+          <p className="text-[11px] uppercase tracking-wide text-ink-muted">
             2 · Com quem
           </p>
           <div className="flex flex-wrap gap-2">
@@ -355,8 +355,8 @@ export function MarcarNoBalcao({
                 className={
                   "rounded-xl border px-3 py-2 text-xs transition-colors " +
                   (barbeiroId === b.id
-                    ? "border-gold bg-gold/10 text-ivory"
-                    : "border-border text-ivory-muted hover:border-gold/60")
+                    ? "border-gold bg-gold/10 text-ink"
+                    : "border-border text-ink-muted hover:border-gold/60")
                 }
               >
                 {b.name}
@@ -373,7 +373,7 @@ export function MarcarNoBalcao({
 
         {/* ---- 3 · quando ---- */}
         <section className="flex flex-col gap-2">
-          <p className="text-[11px] uppercase tracking-wide text-ivory-muted">3 · Quando</p>
+          <p className="text-[11px] uppercase tracking-wide text-ink-muted">3 · Quando</p>
           <div className="flex gap-1.5 overflow-x-auto pb-1">
             {dias.slice(0, 14).map((d, i) => (
               <button
@@ -388,8 +388,8 @@ export function MarcarNoBalcao({
                 className={
                   "shrink-0 rounded-lg border px-2.5 py-1.5 text-[11px] transition-colors disabled:opacity-30 " +
                   (i === diaIndex
-                    ? "border-gold bg-gold/10 text-ivory"
-                    : "border-border text-ivory-muted")
+                    ? "border-gold bg-gold/10 text-ink"
+                    : "border-border text-ink-muted")
                 }
               >
                 {d.iso === toISODate(new Date()) ? "Hoje" : formatDatePtBR(d.iso)}
@@ -398,13 +398,13 @@ export function MarcarNoBalcao({
           </div>
 
           {!barbeiroId ? (
-            <p className="text-xs text-ivory-muted">
+            <p className="text-xs text-ink-muted">
               Escolha o serviço e o barbeiro para ver os horários livres.
             </p>
           ) : horariosLivres === null ? (
-            <p className="text-xs text-ivory-muted">Carregando horários…</p>
+            <p className="text-xs text-ink-muted">Carregando horários…</p>
           ) : horariosLivres.length === 0 ? (
-            <p className="text-xs text-ivory-muted">
+            <p className="text-xs text-ink-muted">
               Nenhum horário livre nesse dia para esse barbeiro.
             </p>
           ) : (
@@ -418,8 +418,8 @@ export function MarcarNoBalcao({
                   className={
                     "rounded-lg border py-2 text-xs transition-colors " +
                     (hora === h
-                      ? "border-gold bg-gold/10 text-ivory"
-                      : "border-border text-ivory-muted hover:border-gold/60")
+                      ? "border-gold bg-gold/10 text-ink"
+                      : "border-border text-ink-muted hover:border-gold/60")
                   }
                 >
                   {h}
@@ -431,13 +431,13 @@ export function MarcarNoBalcao({
 
         {/* ---- 4 · quem ---- */}
         <section className="flex flex-col gap-2">
-          <p className="text-[11px] uppercase tracking-wide text-ivory-muted">4 · Para quem</p>
+          <p className="text-[11px] uppercase tracking-wide text-ink-muted">4 · Para quem</p>
 
           {clienteEscolhido ? (
             <div className="flex items-center justify-between gap-2 rounded-xl border border-gold/60 bg-gold/5 px-3 py-2">
               <div>
-                <p className="text-sm text-ivory">{clienteEscolhido.name}</p>
-                <p className="text-[11px] text-ivory-muted">
+                <p className="text-sm text-ink">{clienteEscolhido.name}</p>
+                <p className="text-[11px] text-ink-muted">
                   {clienteEscolhido.whatsapp
                     ? mascararWhatsapp(clienteEscolhido.whatsapp)
                     : "sem WhatsApp"}
@@ -455,14 +455,14 @@ export function MarcarNoBalcao({
                 value={nomeNovo}
                 onChange={(e) => setNomeNovo(e.target.value)}
                 placeholder="Nome de quem vai ser atendido"
-                className="min-h-11 rounded-xl border border-border bg-surface px-3 text-sm text-ivory placeholder:text-ivory-muted"
+                className="min-h-11 rounded-xl border border-border bg-surface px-3 text-sm text-ink placeholder:text-ink-muted"
               />
               <input
                 value={whatsappNovo}
                 onChange={(e) => setWhatsappNovo(e.target.value)}
                 inputMode="numeric"
                 placeholder="WhatsApp com DDD (opcional)"
-                className="min-h-11 rounded-xl border border-border bg-surface px-3 text-sm text-ivory placeholder:text-ivory-muted"
+                className="min-h-11 rounded-xl border border-border bg-surface px-3 text-sm text-ink placeholder:text-ink-muted"
               />
               {/* O número não é obrigatório: uma pessoa pode não querer dar. Mas
                   sem ele não há como reconhecê-la na próxima visita, e o aviso
@@ -473,7 +473,7 @@ export function MarcarNoBalcao({
                   uma frase falsa na tela, que é exatamente a classe de defeito
                   que a Rodada 1 acabou de tirar do produto. Achado abrindo a
                   tela; nenhum teste desta rodada olhava para este texto. */}
-              <p className="text-[11px] text-ivory-muted">
+              <p className="text-[11px] text-ink-muted">
                 {!whatsappNovo.trim()
                   ? "Sem WhatsApp, este cliente não é reconhecido na próxima visita."
                   : !whatsappValido(whatsappNovo)
@@ -487,12 +487,12 @@ export function MarcarNoBalcao({
           ) : (
             <div className="flex flex-col gap-2">
               <div className="flex items-center gap-2 rounded-xl border border-border bg-surface px-3">
-                <Search size={14} className="text-ivory-muted" />
+                <Search size={14} className="text-ink-muted" />
                 <input
                   value={busca}
                   onChange={(e) => setBusca(e.target.value)}
                   placeholder="Buscar por nome ou WhatsApp"
-                  className="min-h-11 flex-1 bg-transparent text-sm text-ivory placeholder:text-ivory-muted"
+                  className="min-h-11 flex-1 bg-transparent text-sm text-ink placeholder:text-ink-muted"
                 />
               </div>
 
@@ -504,14 +504,14 @@ export function MarcarNoBalcao({
                     onClick={() => setClienteEscolhido(c)}
                     className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-left transition-colors hover:border-gold/60"
                   >
-                    <span className="text-sm text-ivory">{c.name}</span>
-                    <span className="text-[11px] text-ivory-muted">
+                    <span className="text-sm text-ink">{c.name}</span>
+                    <span className="text-[11px] text-ink-muted">
                       {c.whatsapp ? mascararWhatsapp(c.whatsapp) : "—"}
                     </span>
                   </button>
                 ))}
                 {busca && encontrados.length === 0 && (
-                  <p className="px-1 text-xs text-ivory-muted">
+                  <p className="px-1 text-xs text-ink-muted">
                     Ninguém com esse nome ou número.
                   </p>
                 )}
@@ -537,11 +537,11 @@ export function MarcarNoBalcao({
         {/* ---- resumo ---- */}
         {podeConfirmar && (
           <section className="flex flex-col gap-1 rounded-xl border border-border bg-surface-raised p-3">
-            <p className="text-[11px] uppercase tracking-wide text-ivory-muted">Resumo</p>
-            <p className="text-sm text-ivory">
+            <p className="text-[11px] uppercase tracking-wide text-ink-muted">Resumo</p>
+            <p className="text-sm text-ink">
               {clienteEscolhido?.name ?? nomeNovo} · {escolhidos.map((s) => s.name).join(" + ")}
             </p>
-            <p className="text-xs text-ivory-muted">
+            <p className="text-xs text-ink-muted">
               {formatDatePtBR(dia!.iso)} às {hora} · {duracaoTotal} min ·{" "}
               {ativos.find((b) => b.id === barbeiroId)?.name}
             </p>
@@ -549,7 +549,7 @@ export function MarcarNoBalcao({
               <Pill tone="gold">{formatBRL(valorTotal)}</Pill>
               {/* O produto não recebe pagamento antecipado. Dizer isso aqui
                   evita que o dono espere uma etapa de cobrança que não existe. */}
-              <span className="text-[11px] text-ivory-muted">pagamento no atendimento</span>
+              <span className="text-[11px] text-ink-muted">pagamento no atendimento</span>
             </div>
           </section>
         )}

@@ -121,8 +121,8 @@ function LojaConteudo() {
     <div className="flex flex-col gap-6 pt-1 md:gap-10 md:pt-2">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-sm text-ivory-muted md:text-base">Catálogo</p>
-          <h1 className="text-xl text-ivory md:text-4xl md:tracking-tight">Loja</h1>
+          <p className="text-sm text-ink-muted md:text-base">Catálogo</p>
+          <h1 className="text-xl text-ink md:text-4xl md:tracking-tight">Loja</h1>
         </div>
         <Button onClick={openModal}>
           <Plus size={16} />
@@ -147,11 +147,11 @@ function LojaConteudo() {
         <Card className="flex items-start gap-3 border-danger/30 md:p-5">
           <AlertTriangle size={18} className="mt-0.5 shrink-0 text-danger" />
           <div>
-            <p className="text-sm text-ivory md:text-base">
+            <p className="text-sm text-ink md:text-base">
               {contar(lowStock.length, "produto", "produtos")} abaixo do estoque
               mínimo
             </p>
-            <p className="text-xs text-ivory-muted md:text-sm">
+            <p className="text-xs text-ink-muted md:text-sm">
               {lowStock.map((p) => p.name).join(", ")}
             </p>
           </div>
@@ -160,7 +160,7 @@ function LojaConteudo() {
 
       <div className="grid gap-4 md:grid-cols-[1.4fr_1fr] md:gap-8">
         <section>
-          <h2 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:mb-3 md:text-sm">
+          <h2 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-ink-muted md:mb-3 md:text-sm">
             <Package size={12} /> Produtos
           </h2>
           {status === "carregando" && <LoadingRows rows={3} oQue="seus produtos" />}
@@ -185,8 +185,8 @@ function LojaConteudo() {
                   className="flex items-center justify-between gap-3 border-b border-border pb-3 last:border-0 last:pb-0 md:pb-4"
                 >
                   <div className="min-w-0">
-                    <p className="truncate text-sm text-ivory md:text-base">{p.name}</p>
-                    <p className="text-xs text-ivory-muted md:text-sm">
+                    <p className="truncate text-sm text-ink md:text-base">{p.name}</p>
+                    <p className="text-xs text-ink-muted md:text-sm">
                       Custo {formatBRL(p.cost)} · Venda {formatBRL(p.price)} ·
                       margem {formatBRL(margin)}
                     </p>
@@ -214,11 +214,11 @@ function LojaConteudo() {
         </section>
 
         <section>
-          <h2 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:mb-3 md:text-sm">
+          <h2 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-ink-muted md:mb-3 md:text-sm">
             <Percent size={12} /> Simulador rápido de comissão
           </h2>
           <Card className="flex flex-col gap-3 md:gap-4 md:p-6">
-            <label className="flex flex-col gap-1 text-xs text-ivory-muted md:text-sm">
+            <label className="flex flex-col gap-1 text-xs text-ink-muted md:text-sm">
               Preço de venda
               <input
                 type="number"
@@ -231,10 +231,10 @@ function LojaConteudo() {
                 value={simPrice || ""}
                 placeholder="0,00"
                 onChange={(e) => setSimPrice(Number(e.target.value) || 0)}
-                className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory md:py-2.5 md:text-base"
+                className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ink md:py-2.5 md:text-base"
               />
             </label>
-            <label className="flex flex-col gap-1 text-xs text-ivory-muted md:text-sm">
+            <label className="flex flex-col gap-1 text-xs text-ink-muted md:text-sm">
               Custo do produto
               <input
                 type="number"
@@ -243,14 +243,14 @@ function LojaConteudo() {
                 value={simCost || ""}
                 placeholder="0,00"
                 onChange={(e) => setSimCost(Number(e.target.value) || 0)}
-                className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory md:py-2.5 md:text-base"
+                className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ink md:py-2.5 md:text-base"
               />
             </label>
             <div className="flex items-center justify-between border-t border-border pt-3 text-sm md:text-base">
-              <span className="text-ivory-muted">
+              <span className="text-ink-muted">
                 Comissão do profissional ({padraoDaCasa}% do lucro)
               </span>
-              <span className="font-display font-semibold text-gold-light md:text-lg">
+              <span className="font-display font-semibold text-gold-strong md:text-lg">
                 {formatBRL(simSplit.commission)}
               </span>
             </div>
@@ -258,7 +258,7 @@ function LojaConteudo() {
                 nasce com o percentual de quem vendeu. Dizer isso aqui custa
                 uma linha; deixar o dono descobrir no acerto custa a confiança
                 dele na tela. */}
-            <p className="text-xs text-ivory-muted md:text-sm">
+            <p className="text-xs text-ink-muted md:text-sm">
               Rateio sobre o lucro da venda, não sobre o preço cheio. Usa o
               padrão da casa — quem tem percentual próprio na Equipe recebe o
               dele.
@@ -287,17 +287,17 @@ function LojaConteudo() {
         }
       >
         <div className="grid gap-4 md:grid-cols-2">
-          <label className="flex flex-col gap-1 text-xs text-ivory-muted md:col-span-2">
+          <label className="flex flex-col gap-1 text-xs text-ink-muted md:col-span-2">
             Nome do produto *
             <input
               value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
               placeholder="Ex: Cera modeladora"
-              className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
+              className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ink"
             />
           </label>
 
-          <label className="flex flex-col gap-1 text-xs text-ivory-muted">
+          <label className="flex flex-col gap-1 text-xs text-ink-muted">
             Custo unitário (R$) *
             <input
               type="number"
@@ -306,11 +306,11 @@ function LojaConteudo() {
               value={form.cost}
               onChange={(e) => setForm((f) => ({ ...f, cost: e.target.value }))}
               placeholder="0"
-              className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
+              className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ink"
             />
           </label>
 
-          <label className="flex flex-col gap-1 text-xs text-ivory-muted">
+          <label className="flex flex-col gap-1 text-xs text-ink-muted">
             Margem sobre o preço de venda (%)
             <input
               type="number"
@@ -318,14 +318,14 @@ function LojaConteudo() {
               max={MAX_PROFIT_PCT}
               value={form.profitPct}
               onChange={(e) => setForm((f) => ({ ...f, profitPct: e.target.value }))}
-              className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
+              className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ink"
             />
-            <span className="text-[11px] text-ivory-muted">
+            <span className="text-[11px] text-ink-muted">
               preço = custo ÷ (1 − margem). Não é markup sobre o custo.
             </span>
           </label>
 
-          <label className="flex flex-col gap-1 text-xs text-ivory-muted">
+          <label className="flex flex-col gap-1 text-xs text-ink-muted">
             Estoque inicial (un.)
             <input
               type="number"
@@ -333,24 +333,24 @@ function LojaConteudo() {
               value={form.stock}
               onChange={(e) => setForm((f) => ({ ...f, stock: e.target.value }))}
               placeholder="0"
-              className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
+              className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ink"
             />
           </label>
 
-          <label className="flex flex-col gap-1 text-xs text-ivory-muted">
+          <label className="flex flex-col gap-1 text-xs text-ink-muted">
             Estoque mínimo (un.)
             <input
               type="number"
               min={0}
               value={form.minStock}
               onChange={(e) => setForm((f) => ({ ...f, minStock: e.target.value }))}
-              className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
+              className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ink"
             />
           </label>
         </div>
 
         <div className="mt-4 flex flex-col gap-2 rounded-xl border border-border bg-surface-raised/60 p-4">
-          <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-gold-light">
+          <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-gold-strong">
             <Percent size={12} /> Prévia de precificação
           </p>
           <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
@@ -407,10 +407,10 @@ function Row({
   tone?: "success" | "danger";
   strong?: boolean;
 }) {
-  const valueClass = tone === "success" ? "text-success" : tone === "danger" ? "text-danger" : "text-ivory";
+  const valueClass = tone === "success" ? "text-success" : tone === "danger" ? "text-danger" : "text-ink";
   return (
     <div className="flex flex-col">
-      <span className="text-xs text-ivory-muted">{label}</span>
+      <span className="text-xs text-ink-muted">{label}</span>
       <span className={`${strong ? "font-display font-semibold" : "font-medium"} ${valueClass}`}>
         {value}
       </span>

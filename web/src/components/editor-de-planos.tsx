@@ -150,7 +150,7 @@ export function EditorDePlanos({ open, onClose }: { open: boolean; onClose: () =
     >
       <div className="flex flex-col gap-4">
         {linhas.length === 0 && (
-          <p className="text-sm text-ivory-muted">
+          <p className="text-sm text-ink-muted">
             Nenhum plano ainda. Crie o primeiro abaixo — depois dele, o botão
             “Novo mensalista” já consegue contratar.
           </p>
@@ -165,13 +165,13 @@ export function EditorDePlanos({ open, onClose }: { open: boolean; onClose: () =
                 onChange={(e) => alterar(p.id, "name", e.target.value)}
                 onBlur={() => salvar(p)}
                 placeholder="Ex.: 4 cortes no mês"
-                className="min-h-11 w-full rounded-xl border border-border bg-surface-raised px-3 text-sm text-ivory"
+                className="min-h-11 w-full rounded-xl border border-border bg-surface-raised px-3 text-sm text-ink"
               />
               <button
                 type="button"
                 aria-label={`Remover ${p.name || "plano"}`}
                 onClick={() => remover(p.id)}
-                className="shrink-0 rounded-lg p-2 text-ivory-muted transition-colors hover:text-danger"
+                className="shrink-0 rounded-lg p-2 text-ink-muted transition-colors hover:text-danger"
               >
                 <Trash2 size={16} />
               </button>
@@ -194,7 +194,7 @@ export function EditorDePlanos({ open, onClose }: { open: boolean; onClose: () =
               />
             </div>
 
-            <label className="flex items-center gap-2 text-sm text-ivory">
+            <label className="flex items-center gap-2 text-sm text-ink">
               <input
                 type="checkbox"
                 checked={p.unlimited}
@@ -208,7 +208,7 @@ export function EditorDePlanos({ open, onClose }: { open: boolean; onClose: () =
 
             {!p.unlimited && (
               <div className="flex flex-col gap-1.5">
-                <label className="text-sm text-ivory">Atendimentos inclusos por mês</label>
+                <label className="text-sm text-ink">Atendimentos inclusos por mês</label>
                 <input
                   type="number"
                   min={0}
@@ -216,9 +216,9 @@ export function EditorDePlanos({ open, onClose }: { open: boolean; onClose: () =
                   onChange={(e) => alterar(p.id, "servicesIncluded", e.target.value)}
                   onBlur={() => salvar(p)}
                   placeholder="0"
-                  className="min-h-11 w-32 rounded-xl border border-border bg-surface-raised px-3 text-sm text-ivory"
+                  className="min-h-11 w-32 rounded-xl border border-border bg-surface-raised px-3 text-sm text-ink"
                 />
-                <p className="text-xs text-ivory-muted">
+                <p className="text-xs text-ink-muted">
                   {Number(p.servicesIncluded) > 0
                     ? `Do ${Number(p.servicesIncluded) + 1}º atendimento no mês em diante, ele paga o avulso.`
                     : "Zero significa que o plano NÃO cobre atendimento — é só desconto, e cada corte é cobrado."}
@@ -227,23 +227,23 @@ export function EditorDePlanos({ open, onClose }: { open: boolean; onClose: () =
             )}
 
             {Number(p.price) > 0 && Number(p.priceAvulso) > 0 && !p.unlimited && Number(p.servicesIncluded) > 0 && (
-              <p className="text-xs text-ivory-muted">
+              <p className="text-xs text-ink-muted">
                 Cada atendimento sai a{" "}
-                <span className="text-ivory">
+                <span className="text-ink">
                   {formatBRL(Number(p.price) / Number(p.servicesIncluded))}
                 </span>{" "}
                 para ele — o avulso é {formatBRL(Number(p.priceAvulso))}.
               </p>
             )}
 
-            {salvando === p.id && <p className="text-xs text-ivory-muted">Salvando…</p>}
+            {salvando === p.id && <p className="text-xs text-ink-muted">Salvando…</p>}
           </div>
         ))}
 
         <button
           type="button"
           onClick={adicionar}
-          className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-dashed border-border text-sm text-ivory-muted transition-colors hover:border-gold/40 hover:text-ivory"
+          className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-dashed border-border text-sm text-ink-muted transition-colors hover:border-gold/40 hover:text-ink"
         >
           <Plus size={16} /> Adicionar plano
         </button>
@@ -269,9 +269,9 @@ function Campo({
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="text-sm text-ivory">{label}</label>
+      <label className="text-sm text-ink">{label}</label>
       <div className="flex items-center gap-1.5 rounded-xl border border-border bg-surface-raised px-3 py-2.5 focus-within:border-gold/40">
-        <span aria-hidden className="text-sm text-ivory-muted">R$</span>
+        <span aria-hidden className="text-sm text-ink-muted">R$</span>
         <input
           aria-label={label}
           type="text"
@@ -280,10 +280,10 @@ function Campo({
           onChange={(e) => onChange(e.target.value.replace(",", "."))}
           onBlur={onBlur}
           placeholder="0,00"
-          className="w-full bg-transparent text-sm text-ivory outline-none"
+          className="w-full bg-transparent text-sm text-ink outline-none"
         />
       </div>
-      <p className="text-xs text-ivory-muted">{dica}</p>
+      <p className="text-xs text-ink-muted">{dica}</p>
     </div>
   );
 }

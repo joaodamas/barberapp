@@ -19,12 +19,12 @@ export function ProfileIdentity() {
 
   return (
     <div className="flex items-center gap-3 md:gap-4">
-      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gold/15 text-lg font-semibold text-gold-light md:h-20 md:w-20 md:text-2xl">
+      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gold/15 text-lg font-semibold text-gold-strong md:h-20 md:w-20 md:text-2xl">
         {initialsOf(name) || "?"}
       </div>
       <div className="min-w-0">
-        <p className="truncate text-ivory md:text-lg md:font-medium">{name}</p>
-        <p className="truncate text-sm text-ivory-muted md:text-base">{contact}</p>
+        <p className="truncate text-ink md:text-lg md:font-medium">{name}</p>
+        <p className="truncate text-sm text-ink-muted md:text-base">{contact}</p>
       </div>
     </div>
   );

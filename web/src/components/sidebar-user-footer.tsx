@@ -39,12 +39,12 @@ export function SidebarUserFooter({
 
   const identity = (
     <>
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gold/15 font-display text-xs text-gold-light">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gold/15 font-display text-xs text-gold-strong">
         {initials}
       </div>
       <div className="min-w-0 flex-1 leading-tight">
-        <p className="truncate text-xs font-medium text-ivory">{name}</p>
-        <p className="truncate text-[11px] text-ivory-muted">{caption}</p>
+        <p className="truncate text-xs font-medium text-ink">{name}</p>
+        <p className="truncate text-[11px] text-ink-muted">{caption}</p>
       </div>
     </>
   );
@@ -61,7 +61,7 @@ export function SidebarUserFooter({
       <button
         onClick={handleSignOut}
         aria-label="Sair"
-        className="flex h-11 w-11 shrink-0 items-center justify-center md:h-8 md:w-8 rounded-lg text-ivory-muted/70 transition-colors hover:bg-surface hover:text-ivory"
+        className="flex h-11 w-11 shrink-0 items-center justify-center md:h-8 md:w-8 rounded-lg text-ink-muted/70 transition-colors hover:bg-surface hover:text-ink"
       >
         <LogOut size={14} />
       </button>

@@ -124,7 +124,7 @@ export function TenantLive({
    * Nada de `router.replace`: quem foi expulso perde a URL em que estava. */
   if (indisponivel) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-bg px-4">
+      <div className="flex min-h-screen items-center justify-center bg-canvas px-4">
         <ErroAoCarregar oQue="o painel da sua barbearia" className="max-w-sm" />
       </div>
     );

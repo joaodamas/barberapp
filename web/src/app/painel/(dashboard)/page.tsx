@@ -354,8 +354,8 @@ export default function PainelHojePage() {
   return (
     <div className="grid grid-cols-1 gap-5 pt-1 md:grid-cols-[1fr_360px] md:items-start md:gap-x-10 md:gap-y-10 md:pt-2">
       <div className="md:col-span-2">
-        <p className="text-sm text-ivory-muted md:text-base">Hoje</p>
-        <h1 className="text-xl text-ivory md:text-4xl md:tracking-tight">
+        <p className="text-sm text-ink-muted md:text-base">Hoje</p>
+        <h1 className="text-xl text-ink md:text-4xl md:tracking-tight">
           {new Date().toLocaleDateString("pt-BR", {
             weekday: "long",
             day: "2-digit",
@@ -382,34 +382,34 @@ export default function PainelHojePage() {
        * §10.6, a identidade se reforça, não se inventa. */}
       <div className="grid grid-cols-2 gap-2 md:col-span-2 md:grid-cols-4 md:gap-4">
         <Card className="flex flex-col items-center gap-1 p-3 text-center md:flex-row md:justify-start md:gap-3 md:p-5">
-          <Scissors size={16} className="mx-auto text-gold-light md:mx-0 md:h-9 md:w-9 md:shrink-0 md:rounded-xl md:bg-gold/10 md:p-2" />
+          <Scissors size={16} className="mx-auto text-gold-strong md:mx-0 md:h-9 md:w-9 md:shrink-0 md:rounded-xl md:bg-gold/10 md:p-2" />
           <div className="md:text-left">
-            <p className="font-display text-sm font-semibold text-ivory md:text-2xl">
+            <p className="font-display text-sm font-semibold text-ink md:text-2xl">
               {agendaIlegivel ? NAO_APURADO : confirmedCount}
             </p>
-            <p className="text-[11px] text-ivory-muted md:text-xs md:uppercase md:tracking-wide">
+            <p className="text-[11px] text-ink-muted md:text-xs md:uppercase md:tracking-wide">
               atendimentos
             </p>
           </div>
         </Card>
         <Card className="flex flex-col items-center gap-1 p-3 text-center md:flex-row md:justify-start md:gap-3 md:p-5">
-          <Percent size={16} className="mx-auto text-gold-light md:mx-0 md:h-9 md:w-9 md:shrink-0 md:rounded-xl md:bg-gold/10 md:p-2" />
+          <Percent size={16} className="mx-auto text-gold-strong md:mx-0 md:h-9 md:w-9 md:shrink-0 md:rounded-xl md:bg-gold/10 md:p-2" />
           <div className="md:text-left">
-            <p className="font-display text-sm font-semibold text-ivory md:text-2xl">
+            <p className="font-display text-sm font-semibold text-ink md:text-2xl">
               {agendaIlegivel ? NAO_APURADO : formatPctPtBR(ocupacaoPct, 0)}
             </p>
-            <p className="text-[11px] text-ivory-muted md:text-xs md:uppercase md:tracking-wide">
+            <p className="text-[11px] text-ink-muted md:text-xs md:uppercase md:tracking-wide">
               ocupação
             </p>
           </div>
         </Card>
         <Card className="flex flex-col items-center gap-1 p-3 text-center md:flex-row md:justify-start md:gap-3 md:p-5">
-          <CalendarCheck size={16} className="mx-auto text-gold-light md:mx-0 md:h-9 md:w-9 md:shrink-0 md:rounded-xl md:bg-gold/10 md:p-2" />
+          <CalendarCheck size={16} className="mx-auto text-gold-strong md:mx-0 md:h-9 md:w-9 md:shrink-0 md:rounded-xl md:bg-gold/10 md:p-2" />
           <div className="md:text-left">
-            <p className="font-display text-sm font-semibold text-ivory md:text-2xl">
+            <p className="font-display text-sm font-semibold text-ink md:text-2xl">
               {agendaIlegivel ? NAO_APURADO : horariosLivres}
             </p>
-            <p className="text-[11px] text-ivory-muted md:text-xs md:uppercase md:tracking-wide">
+            <p className="text-[11px] text-ink-muted md:text-xs md:uppercase md:tracking-wide">
               horários livres
             </p>
           </div>
@@ -448,13 +448,13 @@ export default function PainelHojePage() {
       <div className="grid gap-3 md:col-span-2 md:grid-cols-2 md:gap-4">
         {!agendaIlegivel && (
           <Card className="flex flex-col gap-1 md:p-6">
-            <p className="text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm">
+            <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
               Previsão do dia
             </p>
-            <p className="font-display text-xl font-semibold text-ivory md:text-2xl">
+            <p className="font-display text-xl font-semibold text-ink md:text-2xl">
               {formatBRL(previsaoHoje)}
             </p>
-            <p className="text-xs text-ivory-muted">
+            <p className="text-xs text-ink-muted">
               serviços agendados para hoje, já sem faltas e cancelamentos
             </p>
           </Card>
@@ -462,7 +462,7 @@ export default function PainelHojePage() {
 
         {!pagamentosIlegiveis && (
           <Card className="flex flex-col gap-1 md:p-6">
-            <p className="text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm">
+            <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
               Recebido hoje
             </p>
             <p className="font-display text-xl font-semibold text-success md:text-2xl">
@@ -471,7 +471,7 @@ export default function PainelHojePage() {
             {/* Dizer as origens é o que impede o dono de ler este número como
                 "o quanto da agenda já entrou". São coisas diferentes, e a
                 legenda é onde isso fica explícito. */}
-            <p className="text-xs text-ivory-muted">
+            <p className="text-xs text-ink-muted">
               tudo que entrou no caixa — atendimento, venda e mensalidade
             </p>
           </Card>
@@ -480,28 +480,28 @@ export default function PainelHojePage() {
 
       {!agendaIlegivel && (
       <section className="md:col-span-2">
-        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm">
+        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
           Caixa de hoje
         </h2>
         <Card className="flex flex-col divide-y divide-border p-0 md:flex-row md:divide-x md:divide-y-0">
           <div className="flex items-center gap-3 px-4 py-3 md:flex-1 md:p-5">
-            <Landmark size={16} className="shrink-0 text-gold-light" />
-            <span className="flex-1 text-sm text-ivory-muted">Pix</span>
-            <span className="font-display font-semibold text-ivory">
+            <Landmark size={16} className="shrink-0 text-gold-strong" />
+            <span className="flex-1 text-sm text-ink-muted">Pix</span>
+            <span className="font-display font-semibold text-ink">
               {formatBRL(caixaHoje.pix)}
             </span>
           </div>
           <div className="flex items-center gap-3 px-4 py-3 md:flex-1 md:p-5">
-            <CreditCard size={16} className="shrink-0 text-gold-light" />
-            <span className="flex-1 text-sm text-ivory-muted">Cartão</span>
-            <span className="font-display font-semibold text-ivory">
+            <CreditCard size={16} className="shrink-0 text-gold-strong" />
+            <span className="flex-1 text-sm text-ink-muted">Cartão</span>
+            <span className="font-display font-semibold text-ink">
               {formatBRL(caixaHoje.cartao)}
             </span>
           </div>
           <div className="flex items-center gap-3 px-4 py-3 md:flex-1 md:p-5">
-            <Wallet size={16} className="shrink-0 text-gold-light" />
-            <span className="flex-1 text-sm text-ivory-muted">Dinheiro</span>
-            <span className="font-display font-semibold text-ivory">
+            <Wallet size={16} className="shrink-0 text-gold-strong" />
+            <span className="flex-1 text-sm text-ink-muted">Dinheiro</span>
+            <span className="font-display font-semibold text-ink">
               {formatBRL(caixaHoje.dinheiro)}
             </span>
           </div>
@@ -520,18 +520,18 @@ export default function PainelHojePage() {
            * que é o oposto do caso normal. */}
           {caixaHoje.naoInformado > 0 && (
             <div className="flex items-center gap-3 px-4 py-3 md:flex-1 md:p-5">
-              <HelpCircle size={16} className="shrink-0 text-ivory-muted" />
-              <span className="flex-1 text-sm text-ivory-muted">
+              <HelpCircle size={16} className="shrink-0 text-ink-muted" />
+              <span className="flex-1 text-sm text-ink-muted">
                 Sem forma informada
               </span>
-              <span className="font-display font-semibold text-ivory">
+              <span className="font-display font-semibold text-ink">
                 {formatBRL(caixaHoje.naoInformado)}
               </span>
             </div>
           )}
         </Card>
         {caixaHoje.naoInformado > 0 && (
-          <p className="mt-1.5 text-xs text-ivory-muted">
+          <p className="mt-1.5 text-xs text-ink-muted">
             Entrou no total, mas não dá para conferir contra a gaveta enquanto
             não souber como foi pago.
           </p>
@@ -541,7 +541,7 @@ export default function PainelHojePage() {
 
       {acoesVisiveis.length > 0 && (
         <section className="md:col-start-2 md:row-start-4">
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm">
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
             Precisa de você
           </h2>
           <div className="flex flex-col gap-2 md:gap-3">
@@ -552,7 +552,7 @@ export default function PainelHojePage() {
                 A cauda passa a ser invariável ("o resto"), e só a contagem
                 concorda — ver `lib/plural.ts`. */}
             {acoesOcultas.length > 0 && (
-              <p className="px-1 text-xs text-ivory-muted">
+              <p className="px-1 text-xs text-ink-muted">
                 E mais {contar(acoesOcultas.length, "pendência", "pendências")} na
                 fila — resolva as de cima para ver o resto.
               </p>
@@ -580,7 +580,7 @@ export default function PainelHojePage() {
          * do painel criava reserva: o produto tinha um caminho só, o app do
          * cliente autenticado. */}
         <div className="mb-2 flex items-center justify-between gap-2">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
             Agenda do dia
           </h2>
           <Button
@@ -613,7 +613,7 @@ export default function PainelHojePage() {
           <Card className="table-scroll overflow-x-auto p-0">
             <table className="w-full min-w-[720px] text-sm">
               <thead>
-                <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ivory-muted">
+                <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ink-muted">
                   <th className="px-4 py-3 font-medium md:px-6">Hora</th>
                   <th className="px-4 py-3 font-medium">Cliente</th>
                   <th className="px-4 py-3 font-medium">Telefone</th>
@@ -656,7 +656,7 @@ export default function PainelHojePage() {
                       key={booking.id}
                       className="border-b border-border/60 transition-colors last:border-0 hover:bg-surface-raised/60"
                     >
-                      <td className="whitespace-nowrap px-4 py-3 font-display text-gold-light md:px-6">
+                      <td className="whitespace-nowrap px-4 py-3 font-display text-gold-strong md:px-6">
                         {booking.time}
                         {atrasado && (
                           <span className="block font-sans text-[11px] text-danger">
@@ -664,10 +664,10 @@ export default function PainelHojePage() {
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-ivory">
+                      <td className="px-4 py-3 text-ink">
                         {booking.clientName}
                         {booking.isFitIn && (
-                          <span className="ml-2 text-xs text-ivory-muted">encaixe</span>
+                          <span className="ml-2 text-xs text-ink-muted">encaixe</span>
                         )}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3">
@@ -678,15 +678,15 @@ export default function PainelHojePage() {
                             href={`https://wa.me/${digitos}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-ivory-muted underline-offset-2 transition-colors hover:text-gold-light hover:underline"
+                            className="text-ink-muted underline-offset-2 transition-colors hover:text-gold-strong hover:underline"
                           >
                             {formatPhonePtBR(digitos)}
                           </a>
                         ) : (
-                          <span className="text-ivory-muted">—</span>
+                          <span className="text-ink-muted">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-ivory-muted">
+                      <td className="px-4 py-3 text-ink-muted">
                         {bookingServices.map((s) => s.name).join(" + ")}
                       </td>
                       {/* D2 · a coluna passa a dizer como o atendimento foi
@@ -695,9 +695,9 @@ export default function PainelHojePage() {
                           exibia "A pagar no salão" depois de concluído, que é
                           o produto mandando cobrar de novo o que a mensalidade
                           já pagou. */}
-                      <td className="px-4 py-3 text-ivory-muted">
+                      <td className="px-4 py-3 text-ink-muted">
                         {liquidacao.coberto ? (
-                          <span className="text-ivory">{liquidacao.label}</span>
+                          <span className="text-ink">{liquidacao.label}</span>
                         ) : (
                           liquidacao.label
                         )}
@@ -705,7 +705,7 @@ export default function PainelHojePage() {
                           <span className="block text-[11px]">{liquidacao.detalhe}</span>
                         )}
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-right text-ivory">
+                      <td className="whitespace-nowrap px-4 py-3 text-right text-ink">
                         {formatBRL(booking.value)}
                       </td>
                       <td className="px-4 py-3 md:px-6">
@@ -719,7 +719,7 @@ export default function PainelHojePage() {
                                 setErroAoFechar(null);
                                 setAFechar(booking);
                               }}
-                              className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ivory-muted transition-colors hover:border-success hover:text-success"
+                              className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ink-muted transition-colors hover:border-success hover:text-success"
                             >
                               <Check size={14} />
                               {booking.status === "no_show" ? "Veio depois" : "Concluir"}
@@ -734,7 +734,7 @@ export default function PainelHojePage() {
                                 setErroDaFalta(null);
                                 setFaltaDe(booking);
                               }}
-                              className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ivory-muted transition-colors hover:border-danger hover:text-danger"
+                              className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ink-muted transition-colors hover:border-danger hover:text-danger"
                             >
                               <UserX size={14} /> Não veio
                             </button>
@@ -748,7 +748,7 @@ export default function PainelHojePage() {
                                 setErroCancelar(null);
                                 setACancelar(booking);
                               }}
-                              className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ivory-muted transition-colors hover:border-danger hover:text-danger"
+                              className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ink-muted transition-colors hover:border-danger hover:text-danger"
                             >
                               <CalendarX size={14} /> Cancelar
                             </button>
@@ -771,7 +771,7 @@ export default function PainelHojePage() {
                           {booking.status === "completed" && !liquidacao.coberto && (
                             <button
                               onClick={() => setACorrigir(booking)}
-                              className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ivory-muted transition-colors hover:border-gold hover:text-gold-light"
+                              className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ink-muted transition-colors hover:border-gold hover:text-gold-strong"
                             >
                               <CreditCard size={14} /> Corrigir pagamento
                             </button>
@@ -784,7 +784,7 @@ export default function PainelHojePage() {
                           {booking.status === "completed" && (
                             <button
                               onClick={() => setAEstornar(booking)}
-                              className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ivory-muted transition-colors hover:border-gold hover:text-gold-light"
+                              className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ink-muted transition-colors hover:border-gold hover:text-gold-strong"
                             >
                               <RotateCcw size={14} /> Devolver
                             </button>
@@ -846,7 +846,7 @@ export default function PainelHojePage() {
           assinaturaDoFechamento ? "Concluir atendimento" : "Como o cliente pagou?"
         }
       >
-        <p className="mb-4 text-sm text-ivory-muted">
+        <p className="mb-4 text-sm text-ink-muted">
           {aFechar?.clientName} · {aFechar ? formatBRL(aFechar.value) : ""}
         </p>
 
@@ -865,10 +865,10 @@ export default function PainelHojePage() {
         {assinaturaDoFechamento && (
           <div className="mb-5 flex flex-col gap-3">
             <div className="rounded-xl border border-border bg-surface-raised px-3 py-2.5">
-              <p className="text-sm text-ivory">
+              <p className="text-sm text-ink">
                 Mensalista · {assinaturaDoFechamento.planName}
               </p>
-              <p className="mt-0.5 text-xs text-ivory-muted">
+              <p className="mt-0.5 text-xs text-ink-muted">
                 {termosDoPlano(assinaturaDoFechamento)}
               </p>
             </div>
@@ -877,7 +877,7 @@ export default function PainelHojePage() {
               type="button"
               disabled={salvando}
               onClick={() => void concluirCom(null)}
-              className="flex min-h-16 cursor-pointer items-center justify-center gap-2 rounded-xl border border-gold/50 bg-gold/10 text-sm font-medium text-gold-light transition-colors hover:border-gold hover:bg-gold/15"
+              className="flex min-h-16 cursor-pointer items-center justify-center gap-2 rounded-xl border border-gold/50 bg-gold/10 text-sm font-medium text-gold-strong transition-colors hover:border-gold hover:bg-gold/15"
             >
               <Check size={16} /> Concluir sem cobrar
             </button>
@@ -886,13 +886,13 @@ export default function PainelHojePage() {
                 Prometer aqui seria afirmar um fato que ainda não existe: a
                 cobertura é gravada na conclusão, pelo servidor, com a cota do
                 mês na mão. */}
-            <p className="text-xs text-ivory-muted">
+            <p className="text-xs text-ink-muted">
               Quem decide se o plano cobre este atendimento é o fechamento, com a
               cota do mês. Se a cota já tiver acabado, ele entra como avulso — a
               agenda mostra o motivo, e aí a cobrança é com você.
             </p>
 
-            <p className="mt-1 text-xs uppercase tracking-wider text-ivory-muted">
+            <p className="mt-1 text-xs uppercase tracking-wider text-ink-muted">
               Ou registre a cobrança
             </p>
           </div>
@@ -905,7 +905,7 @@ export default function PainelHojePage() {
               type="button"
               disabled={salvando}
               onClick={() => void concluirCom(metodo)}
-              className="flex min-h-16 cursor-pointer items-center justify-center rounded-xl border border-border text-sm font-medium text-ivory transition-colors hover:border-gold hover:bg-gold/10 hover:text-gold-light"
+              className="flex min-h-16 cursor-pointer items-center justify-center rounded-xl border border-border text-sm font-medium text-ink transition-colors hover:border-gold hover:bg-gold/10 hover:text-gold-strong"
             >
               {paymentMethodLabel[metodo]}
             </button>
@@ -916,7 +916,7 @@ export default function PainelHojePage() {
             {erroAoFechar}
           </p>
         )}
-        <p className="mt-4 text-xs text-ivory-muted">
+        <p className="mt-4 text-xs text-ink-muted">
           A taxa da maquininha é registrada com o valor de hoje e não muda
           depois. Ajuste em Configurações.
         </p>
@@ -932,11 +932,11 @@ export default function PainelHojePage() {
         onClose={() => setFaltaDe(null)}
         title="Marcar falta?"
       >
-        <p className="mb-3 text-sm text-ivory">
+        <p className="mb-3 text-sm text-ink">
           {faltaDe?.clientName} · {faltaDe?.time} ·{" "}
           {faltaDe ? formatBRL(faltaDe.value) : ""}
         </p>
-        <p className="mb-5 text-sm text-ivory-muted">
+        <p className="mb-5 text-sm text-ink-muted">
           O valor não entra como receita do dia, e o horário continua ocupado na
           agenda — foi reservado e ninguém mais pôde usá-lo. Se ele aparecer
           depois, é só concluir o atendimento normalmente.
@@ -969,12 +969,12 @@ export default function PainelHojePage() {
         onClose={() => !cancelando && setACancelar(null)}
         title="Cancelar este horário?"
       >
-        <p className="mb-3 text-sm text-ivory">
+        <p className="mb-3 text-sm text-ink">
           {aCancelar?.clientName} · {aCancelar?.time} ·{" "}
           {aCancelar ? formatBRL(aCancelar.value) : ""}
         </p>
-        <p className="mb-2 text-sm text-ivory-muted">{devolucao?.label}</p>
-        <p className="mb-5 text-sm text-ivory-muted">
+        <p className="mb-2 text-sm text-ink-muted">{devolucao?.label}</p>
+        <p className="mb-5 text-sm text-ink-muted">
           O horário volta a ficar livre na agenda e sai da previsão do dia. O
           cliente é avisado pelo WhatsApp em seguida.
         </p>
@@ -1114,13 +1114,13 @@ function ItemDeAcao({
     item.severity === "critical"
       ? "text-danger"
       : item.severity === "warning"
-        ? "text-gold-light"
-        : "text-ivory-muted";
+        ? "text-gold-strong"
+        : "text-ink-muted";
 
   const cabecalho = (
     <>
-      <p className="text-sm text-ivory">{item.title}</p>
-      <p className="mt-0.5 text-xs text-ivory-muted">{item.reason}</p>
+      <p className="text-sm text-ink">{item.title}</p>
+      <p className="mt-0.5 text-xs text-ink-muted">{item.reason}</p>
     </>
   );
 
@@ -1156,11 +1156,11 @@ function ItemDeAcao({
       <AlertCircle size={18} className={`mt-0.5 shrink-0 ${tom}`} />
       <div className="min-w-0 flex-1">
         {cabecalho}
-        <p className="mt-1.5 text-xs font-medium text-gold-light">
+        <p className="mt-1.5 text-xs font-medium text-gold-strong">
           {item.actionLabel}
         </p>
       </div>
-      <ChevronRight size={16} className="mt-0.5 shrink-0 text-ivory-muted" />
+      <ChevronRight size={16} className="mt-0.5 shrink-0 text-ink-muted" />
     </Card>
   );
 

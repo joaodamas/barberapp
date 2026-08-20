@@ -42,7 +42,7 @@ export default async function PainelDashboardLayout({
     <AuthGuard requireOwner>
       <a
         href="#conteudo"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-xl focus:bg-gold focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-ivory"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-xl focus:bg-gold focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-ink"
       >
         Pular para o conteúdo
       </a>
@@ -57,10 +57,10 @@ export default async function PainelDashboardLayout({
             <Link href="/painel" className="flex items-center gap-2.5">
               <Image src={brand.logo} alt="" width={32} height={32} priority />
               <div className="leading-tight">
-                <p className="font-display text-sm uppercase tracking-wider text-ivory">
+                <p className="font-display text-sm uppercase tracking-wider text-ink">
                   {brand.shortName}
                 </p>
-                <p className="text-[11px] text-ivory-muted">{brand.panelLabel}</p>
+                <p className="text-[11px] text-ink-muted">{brand.panelLabel}</p>
               </div>
             </Link>
           </header>

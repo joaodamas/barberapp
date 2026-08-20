@@ -109,8 +109,8 @@ export function CorrigirPagamento(params: {
     >
       <div className="flex flex-col gap-3">
         <div className="rounded-xl border border-border bg-surface-raised px-3 py-2.5">
-          <p className="text-xs text-ivory-muted">Registrado hoje</p>
-          <p className="text-sm text-ivory">
+          <p className="text-xs text-ink-muted">Registrado hoje</p>
+          <p className="text-sm text-ink">
             {params.metodoAtual
               ? paymentMethodLabel[params.metodoAtual]
               : /* O caso 1, dito com as palavras do que aconteceu. "A pagar no
@@ -121,7 +121,7 @@ export function CorrigirPagamento(params: {
           </p>
         </div>
 
-        <p className="text-xs uppercase tracking-wider text-ivory-muted">
+        <p className="text-xs uppercase tracking-wider text-ink-muted">
           Como o cliente pagou de verdade
         </p>
 
@@ -135,8 +135,8 @@ export function CorrigirPagamento(params: {
               onClick={() => setEscolhido(metodo)}
               className={
                 escolhido === metodo
-                  ? "flex min-h-16 cursor-pointer items-center justify-center rounded-xl border border-gold bg-gold/15 text-sm font-medium text-gold-light"
-                  : "flex min-h-16 cursor-pointer items-center justify-center rounded-xl border border-border text-sm font-medium text-ivory transition-colors hover:border-gold hover:bg-gold/10 hover:text-gold-light"
+                  ? "flex min-h-16 cursor-pointer items-center justify-center rounded-xl border border-gold bg-gold/15 text-sm font-medium text-gold-strong"
+                  : "flex min-h-16 cursor-pointer items-center justify-center rounded-xl border border-border text-sm font-medium text-ink transition-colors hover:border-gold hover:bg-gold/10 hover:text-gold-strong"
               }
             >
               {paymentMethodLabel[metodo]}
@@ -148,8 +148,8 @@ export function CorrigirPagamento(params: {
             Concluir é o gesto mais repetido do dia e acontece com o cliente na
             frente; corrigir mexe em dinheiro já registrado, e é a única das
             duas que ninguém deveria acionar sem querer. */}
-        <div className="rounded-xl border border-border bg-surface-raised/60 p-3 text-xs text-ivory-muted">
-          <p className="mb-1 font-semibold text-ivory">O que vai ser registrado</p>
+        <div className="rounded-xl border border-border bg-surface-raised/60 p-3 text-xs text-ink-muted">
+          <p className="mb-1 font-semibold text-ink">O que vai ser registrado</p>
           <p>· O pagamento e o atendimento passam a dizer a mesma coisa</p>
           <p>· O valor recebido não muda — {formatBRL(params.valor)} continua sendo o bruto</p>
           <p>· Fica registrado quem corrigiu, quando, e o que mudou</p>

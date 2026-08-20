@@ -138,9 +138,9 @@ export default function PerfilPage() {
               onClick={() => setOpenMenu(key)}
               className="flex items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-surface-raised md:px-6 md:py-4"
             >
-              <Icon size={18} className="text-gold-light" />
-              <span className="flex-1 text-sm text-ivory md:text-base">{label}</span>
-              <ChevronRight size={16} className="text-ivory-muted" />
+              <Icon size={18} className="text-gold-strong" />
+              <span className="flex-1 text-sm text-ink md:text-base">{label}</span>
+              <ChevronRight size={16} className="text-ink-muted" />
             </button>
           ))}
         </Card>
@@ -154,20 +154,20 @@ export default function PerfilPage() {
         <section aria-labelledby="resumo-cliente">
           <h2
             id="resumo-cliente"
-            className="mb-2 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm"
+            className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm"
           >
             Seu histórico
           </h2>
           <Card className="grid grid-cols-2 gap-3 md:p-6">
             <div className="flex flex-col gap-0.5">
-              <p className="font-display text-2xl font-semibold text-ivory">{totalVisits}</p>
-              <p className="text-xs text-ivory-muted">atendimentos no total</p>
+              <p className="font-display text-2xl font-semibold text-ink">{totalVisits}</p>
+              <p className="text-xs text-ink-muted">atendimentos no total</p>
             </div>
             <div className="flex flex-col gap-0.5">
-              <p className="font-display text-2xl font-semibold text-gold-light">
+              <p className="font-display text-2xl font-semibold text-gold-strong">
                 {formatBRL(totalSpent)}
               </p>
-              <p className="text-xs text-ivory-muted">investido na barbearia</p>
+              <p className="text-xs text-ink-muted">investido na barbearia</p>
             </div>
           </Card>
         </section>
@@ -175,24 +175,24 @@ export default function PerfilPage() {
         <section aria-labelledby="meu-plano">
           <h2
             id="meu-plano"
-            className="mb-2 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm"
+            className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm"
           >
             Meu plano
           </h2>
           <Card className="flex flex-col gap-3 border-gold/30 bg-gradient-to-br from-surface to-surface-raised md:p-6">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gold/15 text-gold-light">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gold/15 text-gold-strong">
                 <Sparkles size={18} />
               </div>
               <div>
-                <p className="text-sm font-medium text-ivory md:text-base">
+                <p className="text-sm font-medium text-ink md:text-base">
                   Planos de mensalista
                 </p>
                 {/* O preço saiu daqui: era "a partir de R$ 149/mês" cravado no
                     código, e a barbearia com plano de R$ 89 — ou sem plano
                     nenhum — anunciava 149 ao cliente. Quem sabe o preço é a
                     tela de Planos, que lê o catálogo. */}
-                <p className="text-xs text-ivory-muted md:text-sm">
+                <p className="text-xs text-ink-muted md:text-sm">
                   Corte quantas vezes quiser por um valor fixo no mês.
                 </p>
               </div>
@@ -232,16 +232,16 @@ export default function PerfilPage() {
       >
         {openMenu === "dados" && (
           <div className="flex flex-col gap-3">
-            <label className="flex flex-col gap-1 text-xs text-ivory-muted">
+            <label className="flex flex-col gap-1 text-xs text-ink-muted">
               Nome
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder={user?.displayName ?? "Seu nome"}
-                className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
+                className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ink"
               />
             </label>
-            <label className="flex flex-col gap-1 text-xs text-ivory-muted">
+            <label className="flex flex-col gap-1 text-xs text-ink-muted">
               Celular com WhatsApp
               <input
                 type="tel"
@@ -250,18 +250,18 @@ export default function PerfilPage() {
                 value={phone}
                 onChange={(e) => setPhone(mascararWhatsapp(e.target.value))}
                 placeholder="(11) 99999-9999"
-                className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
+                className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ink"
               />
             </label>
-            <label className="flex flex-col gap-1 text-xs text-ivory-muted">
+            <label className="flex flex-col gap-1 text-xs text-ink-muted">
               E-mail
               <input
                 value={user?.email ?? ""}
                 disabled
-                className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ivory-muted"
+                className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink-muted"
               />
             </label>
-            <p className="text-xs text-ivory-muted">
+            <p className="text-xs text-ink-muted">
               O e-mail é o identificador da sua conta e não pode ser alterado por aqui.
             </p>
             {erroPerfil && (
@@ -275,10 +275,10 @@ export default function PerfilPage() {
         {openMenu === "plano" && (
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-3 rounded-xl border border-border bg-surface-raised px-4 py-3">
-              <Sparkles size={18} className="shrink-0 text-gold-light" />
+              <Sparkles size={18} className="shrink-0 text-gold-strong" />
               <div>
-                <p className="text-sm text-ivory">Planos de mensalista</p>
-                <p className="text-xs text-ivory-muted">
+                <p className="text-sm text-ink">Planos de mensalista</p>
+                <p className="text-xs text-ink-muted">
                   Hoje você paga por atendimento avulso. A assinatura é
                   combinada direto com a barbearia.
                 </p>
@@ -286,16 +286,16 @@ export default function PerfilPage() {
             </div>
             <div className="flex flex-col gap-1 rounded-xl border border-border px-4 py-3 text-sm">
               <div className="flex justify-between">
-                <span className="text-ivory-muted">Você já investiu</span>
-                <span className="text-ivory">{formatBRL(totalSpent)}</span>
+                <span className="text-ink-muted">Você já investiu</span>
+                <span className="text-ink">{formatBRL(totalSpent)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-ivory-muted">Em</span>
-                <span className="text-ivory">{totalVisits} atendimentos</span>
+                <span className="text-ink-muted">Em</span>
+                <span className="text-ink">{totalVisits} atendimentos</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-ivory-muted">Fidelidade</span>
-                <span className="text-ivory">
+                <span className="text-ink-muted">Fidelidade</span>
+                <span className="text-ink">
                   {loyalty.stamps}/{loyalty.goal} carimbos
                 </span>
               </div>
@@ -309,7 +309,7 @@ export default function PerfilPage() {
              — e não havia WhatsApp cadastrado nem envio. Preferência que não
              persiste é pior que preferência ausente: a pessoa desliga
              "promoções", continua recebendo, e deixa de confiar no resto. */
-          <div className="flex flex-col gap-3 text-sm text-ivory-muted">
+          <div className="flex flex-col gap-3 text-sm text-ink-muted">
             <p>
               Hoje a {barbershop.name} fala com você pelo WhatsApp que está no
               seu cadastro — confirmação do horário e avisos sobre o
@@ -323,15 +323,15 @@ export default function PerfilPage() {
         )}
 
         {openMenu === "politica" && (
-          <div className="flex flex-col gap-3 text-sm text-ivory-muted">
+          <div className="flex flex-col gap-3 text-sm text-ink-muted">
             <p>
-              <strong className="text-ivory">
+              <strong className="text-ink">
                 Até {politica.fullRefundHours}h antes:
               </strong>{" "}
               cancelamento com 100% de devolução do valor pago.
             </p>
             <p>
-              <strong className="text-ivory">
+              <strong className="text-ink">
                 Entre {politica.fullRefundHours}h e{" "}
                 {politica.partialRefundHours}h antes:
               </strong>{" "}
@@ -339,7 +339,7 @@ export default function PerfilPage() {
               devolvemos o restante.
             </p>
             <p>
-              <strong className="text-ivory">
+              <strong className="text-ink">
                 Menos de {politica.partialRefundHours}h antes:
               </strong>{" "}
               não há devolução — o horário dificilmente é reocupado em cima da hora.
@@ -357,7 +357,7 @@ export default function PerfilPage() {
 
         {openMenu === "ajuda" && (
           <div className="flex flex-col gap-3">
-            <p className="text-sm text-ivory-muted">
+            <p className="text-sm text-ink-muted">
               Precisa resolver algo que o app não cobre? Fale direto com a barbearia.
             </p>
             <a
@@ -372,8 +372,8 @@ export default function PerfilPage() {
                 Ligar para a barbearia
               </Button>
             </a>
-            <div className="rounded-xl border border-border px-4 py-3 text-xs text-ivory-muted">
-              <p className="text-ivory">{barbershop.name}</p>
+            <div className="rounded-xl border border-border px-4 py-3 text-xs text-ink-muted">
+              <p className="text-ink">{barbershop.name}</p>
               <p>{barbershop.address}</p>
               <p>{barbershop.instagram}</p>
             </div>

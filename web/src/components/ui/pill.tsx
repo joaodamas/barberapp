@@ -44,10 +44,10 @@ type Tone = "gold" | "success" | "danger" | "neutral";
  * carrega o significado — cor nenhuma responde sozinha "pago" ou "atrasado".
  */
 const tones: Record<Tone, string> = {
-  gold: "bg-surface-raised text-gold-light border-gold/50",
+  gold: "bg-surface-raised text-gold-strong border-gold/50",
   success: "bg-surface-raised text-success border-success/50",
   danger: "bg-surface-raised text-danger border-danger/50",
-  neutral: "bg-surface-raised text-ivory-muted border-border",
+  neutral: "bg-surface-raised text-ink-muted border-border",
 };
 
 export function Pill({

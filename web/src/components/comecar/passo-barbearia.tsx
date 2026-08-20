@@ -87,8 +87,8 @@ export function PassoBarbearia({
       />
 
       <fieldset className="flex flex-col gap-2">
-        <legend className="text-sm font-medium text-ivory">Cor de destaque</legend>
-        <p className="text-xs text-ivory-muted">
+        <legend className="text-sm font-medium text-ink">Cor de destaque</legend>
+        <p className="text-xs text-ink-muted">
           A cor dos botões e destaques. O resto do visual é fixo, para o texto continuar legível.
         </p>
         <div className="flex flex-wrap gap-2 pt-1">
@@ -102,10 +102,10 @@ export function PassoBarbearia({
               style={{ backgroundColor: c.hex }}
               className={
                 "flex h-11 w-11 items-center justify-center rounded-xl border-2 transition-transform " +
-                (cor === c.hex ? "border-ivory scale-105" : "border-transparent")
+                (cor === c.hex ? "border-ink scale-105" : "border-transparent")
               }
             >
-              {cor === c.hex && <span className="text-xs font-bold text-ivory">✓</span>}
+              {cor === c.hex && <span className="text-xs font-bold text-ink">✓</span>}
             </button>
           ))}
         </div>
@@ -132,17 +132,17 @@ function Campo({
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-sm font-medium text-ivory">
-        {label} {required && <span className="text-gold-light">*</span>}
+      <label htmlFor={id} className="text-sm font-medium text-ink">
+        {label} {required && <span className="text-gold-strong">*</span>}
       </label>
-      <p className="text-xs text-ivory-muted">{dica}</p>
+      <p className="text-xs text-ink-muted">{dica}</p>
       <input
         id={id}
         value={value}
         inputMode={inputMode}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="rounded-xl border border-border bg-surface-raised px-4 py-3 text-sm text-ivory"
+        className="rounded-xl border border-border bg-surface-raised px-4 py-3 text-sm text-ink"
       />
     </div>
   );

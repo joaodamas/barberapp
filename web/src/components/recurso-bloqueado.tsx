@@ -40,8 +40,8 @@ export function RecursoBloqueado({
   return (
     <div className="flex flex-col gap-6 pt-1 md:gap-10 md:pt-2">
       <div>
-        <p className="text-sm text-ivory-muted md:text-base">Plano</p>
-        <h1 className="text-xl text-ivory md:text-4xl md:tracking-tight">{titulo}</h1>
+        <p className="text-sm text-ink-muted md:text-base">Plano</p>
+        <h1 className="text-xl text-ink md:text-4xl md:tracking-tight">{titulo}</h1>
       </div>
 
       {/* Era a TERCEIRA cópia da mesma composição — círculo, título, descrição,
@@ -68,7 +68,7 @@ export function RecursoBloqueado({
           ) : (
             /* Sem número configurado o botão não aparece: um controle que não
                faz nada é pior que a ausência dele. */
-            <p className="max-w-md text-xs text-ivory-muted">
+            <p className="max-w-md text-xs text-ink-muted">
               Fale com quem cuida da sua conta na plataforma para liberar.
             </p>
           )

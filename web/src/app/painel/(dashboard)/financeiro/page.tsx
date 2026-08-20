@@ -100,8 +100,8 @@ export default function FinanceiroPage() {
     <div className="flex flex-col gap-8 pt-1 md:gap-12 md:pt-2">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-sm text-ivory-muted md:text-base">Fechamento de {rotuloDoMes(mes)}</p>
-          <h1 className="text-xl text-ivory md:text-4xl md:tracking-tight">Financeiro</h1>
+          <p className="text-sm text-ink-muted md:text-base">Fechamento de {rotuloDoMes(mes)}</p>
+          <h1 className="text-xl text-ink md:text-4xl md:tracking-tight">Financeiro</h1>
         </div>
         {/* Dizia "Fechamento do mês" e levava à tela que o menu chama "Quanto
             sobrou" — o terceiro nome para o mesmo destino, e o mais confuso
@@ -187,7 +187,7 @@ export default function FinanceiroPage() {
         {apuracao.ok("pontoDeEquilibrio") && (
         <Card className="flex flex-col gap-2 md:p-6">
           <div className="flex items-center justify-between text-sm md:text-base">
-            <span className="text-ivory-muted">
+            <span className="text-ink-muted">
               {equilibrioAtingido
                 ? `Ponto de equilíbrio no dia ${r.breakEvenDay} de ${r.diasNoMes}`
                 : "Ponto de equilíbrio não atingido no mês"}
@@ -216,7 +216,7 @@ export default function FinanceiroPage() {
             {/* O número ao lado da barra não é enfeite: sem ele, "quanto do
                 custo já foi coberto" existe só como comprimento — e comprimento
                 é exatamente o que a versão anterior errava. */}
-            <span className="shrink-0 text-xs text-ivory-muted">
+            <span className="shrink-0 text-xs text-ink-muted">
               {formatPctPtBR(coberturaDoCustoPct, 0)} do custo coberto
             </span>
           </div>
@@ -238,7 +238,7 @@ export default function FinanceiroPage() {
         )}
 
         <div>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm">
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
             De onde vem o dinheiro
           </h3>
           <Card className="flex flex-col gap-3 md:p-6">
@@ -249,11 +249,11 @@ export default function FinanceiroPage() {
             {revenueBreakdown.map((item, i) => (
               <div key={item.label} className="flex flex-col gap-1.5">
                 <div className="flex items-center justify-between text-sm">
-                  <span className={item.deducao ? "text-ivory-muted" : "text-ivory"}>
+                  <span className={item.deducao ? "text-ink-muted" : "text-ink"}>
                     {item.label}
                   </span>
                   <span
-                    className={`font-medium ${item.deducao ? "text-danger" : "text-ivory"}`}
+                    className={`font-medium ${item.deducao ? "text-danger" : "text-ink"}`}
                   >
                     {formatBRL(item.value)} · {formatPctPtBR(item.pct, 0)}
                   </span>
@@ -275,7 +275,7 @@ export default function FinanceiroPage() {
 
         <div>
           <div className="mb-2 flex items-center justify-between">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
               Taxas por método
             </h3>
             <div className="flex gap-1 rounded-lg border border-border bg-surface p-0.5">
@@ -284,7 +284,7 @@ export default function FinanceiroPage() {
                   key={g.id}
                   onClick={() => setGatewayId(g.id)}
                   className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                    g.id === gatewayId ? "bg-gold text-ivory" : "text-ivory-muted hover:text-ivory"
+                    g.id === gatewayId ? "bg-gold text-ink" : "text-ink-muted hover:text-ink"
                   }`}
                 >
                   {g.name}
@@ -295,12 +295,12 @@ export default function FinanceiroPage() {
           <Card className="flex flex-col gap-3 md:p-6">
             {gateway.fees.map((f) => (
               <div key={f.method} className="flex items-center justify-between text-sm">
-                <span className="text-ivory-muted">{f.method}</span>
+                <span className="text-ink-muted">{f.method}</span>
                 {/* `0.99% · 1.99% · 3.15% · 8.5%` — ponto decimal em quatro
                     linhas empilhadas, e a última com uma casa entre vizinhas de
                     duas, o que desalinhava a coluna. Duas casas fixas porque é
                     tabela de taxa: elas se comparam entre si. */}
-                <span className="font-medium text-ivory">{formatPctPtBR(f.pct, 2)}</span>
+                <span className="font-medium text-ink">{formatPctPtBR(f.pct, 2)}</span>
               </div>
             ))}
             {/* R1.1 · a promessa de versionamento caiu, e este texto era um dos
@@ -310,7 +310,7 @@ export default function FinanceiroPage() {
                 e não muda depois." A taxa é CONGELADA no fato quando ele nasce,
                 e a correção de pagamento aplica a tabela vigente hoje — não há
                 vigência por data em lugar nenhum do produto. */}
-            <p className="border-t border-border pt-2 text-xs text-ivory-muted">
+            <p className="border-t border-border pt-2 text-xs text-ink-muted">
               Referência de mercado, não o que você paga. A taxa que entra nos
               seus números é a que você cadastra em Configurações: ela é
               registrada no atendimento no momento em que ele é concluído e não
@@ -320,7 +320,7 @@ export default function FinanceiroPage() {
         </div>
 
         <div>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm">
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
             Relatórios detalhados
           </h3>
           {/* Os quatro rótulos são os do MENU, palavra por palavra. Três
@@ -369,7 +369,7 @@ export default function FinanceiroPage() {
 
       {/* ---- Seção: Comercial ---- */}
       <section className="flex flex-col gap-5 pb-2 md:gap-6">
-        <SectionHeader dot="bg-gold-light" title="Comercial" subtitle="Mensalistas e loja" />
+        <SectionHeader dot="bg-gold-strong" title="Comercial" subtitle="Mensalistas e loja" />
 
         <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-4">
           <KpiTile
@@ -427,8 +427,8 @@ function SectionHeader({ dot, title, subtitle }: { dot: string; title: string; s
   return (
     <div className="flex items-baseline gap-2.5">
       <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${dot}`} aria-hidden />
-      <h2 className="font-display text-lg text-ivory md:text-2xl">{title}</h2>
-      <span className="text-sm text-ivory-muted md:text-base">· {subtitle}</span>
+      <h2 className="font-display text-lg text-ink md:text-2xl">{title}</h2>
+      <span className="text-sm text-ink-muted md:text-base">· {subtitle}</span>
     </div>
   );
 }
@@ -449,16 +449,16 @@ function QuickLinkCard({
   return (
     <Link href={href}>
       <Card interactive className="flex items-center gap-3 md:p-5">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gold/10 text-gold-light">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gold/10 text-gold-strong">
           <Icon size={18} />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-ivory">{label}</p>
-          <p className="truncate text-xs text-ivory-muted">{caption}</p>
+          <p className="text-sm font-medium text-ink">{label}</p>
+          <p className="truncate text-xs text-ink-muted">{caption}</p>
         </div>
         <div className="flex shrink-0 items-center gap-1 text-right">
-          <span className="font-display text-sm font-semibold text-gold-light">{value}</span>
-          <ArrowRight size={14} className="text-ivory-muted" />
+          <span className="font-display text-sm font-semibold text-gold-strong">{value}</span>
+          <ArrowRight size={14} className="text-ink-muted" />
         </div>
       </Card>
     </Link>

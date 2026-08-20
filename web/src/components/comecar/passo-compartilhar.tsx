@@ -47,7 +47,7 @@ export function PassoCompartilhar({
     <div className="flex flex-col gap-5">
       <div className="flex flex-col items-center gap-3 rounded-2xl border border-gold/30 bg-gold/5 p-5">
         <QrCode value={link} />
-        <p className="text-center text-xs text-ivory-muted">
+        <p className="text-center text-xs text-ink-muted">
           Imprima e deixe no balcão ou no espelho.
         </p>
       </div>
@@ -105,12 +105,12 @@ function Bloco({
   return (
     <div className="flex flex-col gap-2">
       <div>
-        <p className="text-sm font-medium text-ivory">{titulo}</p>
-        <p className="text-xs text-ivory-muted">{dica}</p>
+        <p className="text-sm font-medium text-ink">{titulo}</p>
+        <p className="text-xs text-ink-muted">{dica}</p>
       </div>
       <div
         className={
-          "rounded-xl border border-border bg-surface-raised px-4 py-3 text-sm text-ivory " +
+          "rounded-xl border border-border bg-surface-raised px-4 py-3 text-sm text-ink " +
           (multilinha ? "whitespace-pre-wrap" : "truncate")
         }
       >

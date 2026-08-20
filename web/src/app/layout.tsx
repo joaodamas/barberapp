@@ -117,7 +117,7 @@ export default async function RootLayout({
           layouts (login, comecar, offline) precisa do próprio
           `overflow-y-auto`, senão herda a trava e não desce — foi o que
           aconteceu com o onboarding, que ficou com o botão inalcançável. */}
-      <body className="min-h-full flex flex-col bg-bg text-ivory md:h-full md:overflow-hidden">
+      <body className="min-h-full flex flex-col bg-canvas text-ink md:h-full md:overflow-hidden">
         <TenantProvider tenant={tenant} indisponivel={estado === "indisponivel"}>
           <AuthProvider>{children}</AuthProvider>
         </TenantProvider>

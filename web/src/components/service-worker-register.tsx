@@ -129,11 +129,11 @@ export function ServiceWorkerRegister() {
       role="status"
       className="safe-bottom fixed inset-x-0 bottom-0 z-50 mx-auto flex w-full max-w-md items-center gap-3 border-t border-border bg-surface px-4 py-3 shadow-lg md:bottom-4 md:right-4 md:left-auto md:mx-0 md:max-w-sm md:rounded-2xl md:border"
     >
-      <p className="flex-1 text-sm text-ivory">Nova versão disponível.</p>
+      <p className="flex-1 text-sm text-ink">Nova versão disponível.</p>
       <button
         onClick={atualizar}
         disabled={atualizando}
-        className="min-h-11 rounded-xl bg-gold px-4 text-sm font-semibold text-ivory transition-colors hover:bg-gold-hover disabled:opacity-60"
+        className="min-h-11 rounded-xl bg-gold px-4 text-sm font-semibold text-ink transition-colors hover:bg-gold-hover disabled:opacity-60"
       >
         {atualizando ? "Atualizando…" : "Atualizar"}
       </button>
