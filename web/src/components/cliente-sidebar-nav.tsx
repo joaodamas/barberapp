@@ -14,7 +14,7 @@ export function ClienteSidebarNav() {
   const { brand } = useTenant();
 
   return (
-    <aside className="hidden shrink-0 bg-surface/60 md:flex md:h-full md:w-64 md:flex-col md:overflow-y-auto md:border-r md:border-border md:shadow-[8px_0_32px_-24px_rgba(0,0,0,0.8)]">
+    <aside className="hidden shrink-0 bg-surface/60 md:flex md:h-full md:w-64 md:flex-col md:overflow-hidden md:border-r md:border-border md:shadow-[8px_0_32px_-24px_rgba(0,0,0,0.8)]">
       <Link href="/" className="flex items-center gap-3 px-6 pb-6 pt-8">
         <Image src={brand.logo} alt="" width={38} height={38} priority />
         <div className="leading-tight">
@@ -29,7 +29,7 @@ export function ClienteSidebarNav() {
 
       <div className="mx-6 mb-6 h-px bg-gradient-to-r from-border via-border to-transparent" />
 
-      <nav className="flex flex-1 flex-col gap-1 px-4">
+      <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-4 pb-2">
         {clienteNavItems.map((item) => {
           /* A mesma comparação estava copiada nas três navegações, cada uma
              com a sua exceção de raiz escrita à mão. Agora a regra mora em

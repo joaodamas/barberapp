@@ -22,7 +22,13 @@ export function PainelSidebarNav() {
   const { features } = useAcesso();
 
   return (
-    <aside className="hidden shrink-0 bg-surface/60 md:flex md:h-full md:w-64 md:flex-col md:overflow-y-auto md:border-r md:border-border md:shadow-[8px_0_32px_-24px_rgba(0,0,0,0.8)]">
+    /* `overflow-hidden` no aside e rolagem no <nav>, e não o contrário.
+       Com `overflow-y-auto` na coluna inteira, o menu crescido empurrava o
+       rodapé de identidade para fora da área visível: no painel do dono ele
+       aparecia cortado ao meio, com "Painel do dono" pela metade e o botão de
+       sair inalcançável. Agora só a lista de navegação rola, e quem é dono do
+       espaço restante é ela — o rodapé fica sempre ancorado embaixo. */
+    <aside className="hidden shrink-0 bg-surface/60 md:flex md:h-full md:w-64 md:flex-col md:overflow-hidden md:border-r md:border-border md:shadow-[8px_0_32px_-24px_rgba(0,0,0,0.8)]">
       <Link
         href="/painel"
         className="flex items-center gap-3 px-6 pb-6 pt-8"
@@ -40,7 +46,7 @@ export function PainelSidebarNav() {
 
       <div className="mx-6 mb-6 h-px bg-gradient-to-r from-border via-border to-transparent" />
 
-      <nav className="flex flex-1 flex-col gap-1 px-4">
+      <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-4 pb-2">
         {painelNavItems.map((item) => {
           /* A comparação era feita aqui, à mão, e valia só enquanto todo filho
              morasse debaixo do pai. Agora mora em `itemAtivo`, que também olha
@@ -128,7 +134,9 @@ export function PainelSidebarNav() {
         })}
       </nav>
 
-      <SidebarUserFooter caption={brand.panelLabel} fallbackName={brand.name} />
+      <div className="shrink-0">
+        <SidebarUserFooter caption={brand.panelLabel} fallbackName={brand.name} />
+      </div>
     </aside>
   );
 }

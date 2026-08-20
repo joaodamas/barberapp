@@ -5,6 +5,7 @@ import { Search, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
+import { EditorDePlanos } from "@/components/editor-de-planos";
 import { Pill } from "@/components/ui/pill";
 import { formatBRL, formatDatePtBR, toISODate } from "@/lib/format";
 import { contar } from "@/lib/plural";
@@ -50,6 +51,7 @@ export function GerirMensalistas({ competencia }: { competencia: string }) {
   const hoje = toISODate(new Date());
 
   const [contratando, setContratando] = useState(false);
+  const [editandoPlanos, setEditandoPlanos] = useState(false);
   const [busca, setBusca] = useState("");
   const [cliente, setCliente] = useState<Doc<ClientDoc> | null>(null);
   const [planoId, setPlanoId] = useState<string | null>(null);
@@ -171,6 +173,13 @@ export function GerirMensalistas({ competencia }: { competencia: string }) {
           <UserPlus size={16} />
           Novo mensalista
         </Button>
+        {/* Sem plano no catálogo não há o que contratar, e até 20/08 o produto
+            mandava o dono "falar com quem cuida da sua conta na plataforma"
+            para cadastrar um. A porta fica ao lado da contratação porque é aqui
+            que a falta aparece. */}
+        <Button variant="secondary" onClick={() => setEditandoPlanos(true)}>
+          Planos
+        </Button>
         <Button variant="secondary" onClick={gerarFaturas}>
           Emitir mensalidades de {rotuloDoMes(competencia)}
         </Button>
@@ -277,6 +286,8 @@ export function GerirMensalistas({ competencia }: { competencia: string }) {
           </div>
         )}
       </Card>
+
+      <EditorDePlanos open={editandoPlanos} onClose={() => setEditandoPlanos(false)} />
 
       {/* ---- Contratar ---- */}
       <Modal

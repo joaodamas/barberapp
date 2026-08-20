@@ -195,7 +195,7 @@ function MensalConteudo() {
           title="Nenhum mensalista ainda"
           description={
             statusDosPlanos === "pronto" && planosAtivos.length === 0
-              ? "Mensalista é o cliente que paga todo mês e volta sem você precisar chamar — é a receita que entra na semana em que a barbearia esvazia. Para contratar o primeiro, seus planos precisam estar cadastrados; fale com quem cuida da sua conta na plataforma."
+              ? "Mensalista é o cliente que paga todo mês e volta sem você precisar chamar — é a receita que entra na semana em que a barbearia esvazia. Para contratar o primeiro, cadastre um plano em “Planos”, aqui em cima."
               : "Mensalista é o cliente que paga todo mês e volta sem você precisar chamar — é a receita que entra na semana em que a barbearia esvazia. Use “Novo mensalista”, aqui em cima, para contratar o primeiro."
           }
         />

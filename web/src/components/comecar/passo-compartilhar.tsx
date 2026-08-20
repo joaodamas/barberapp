@@ -18,8 +18,11 @@ export function PassoCompartilhar({
   saving,
 }: {
   tenant: Tenant;
-  onSubmit: (data?: Record<string, unknown>) => void;
-  saving: boolean;
+  /* Opcionais: no onboarding existe um "pronto, ir para o painel"; no painel
+   * não há para onde avançar — o dono já chegou. Sem eles, o bloco final some
+   * e o resto (link, mensagem, WhatsApp, QR) é idêntico nos dois lugares. */
+  onSubmit?: (data?: Record<string, unknown>) => void;
+  saving?: boolean;
 }) {
   const link = tenantUrl(tenant.slug);
   const [copiado, setCopiado] = useState<string | null>(null);
@@ -80,9 +83,11 @@ export function PassoCompartilhar({
         </a>
       </Bloco>
 
-      <Button onClick={() => onSubmit()} disabled={saving}>
-        {saving ? "Finalizando…" : "Pronto, ir para o painel"}
-      </Button>
+      {onSubmit && (
+        <Button onClick={() => onSubmit()} disabled={saving}>
+          {saving ? "Finalizando…" : "Pronto, ir para o painel"}
+        </Button>
+      )}
     </div>
   );
 }

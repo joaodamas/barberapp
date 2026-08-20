@@ -1,7 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
 import { AuthGuard } from "@/components/auth-guard";
-import { DemoBanner } from "@/components/demo-banner";
 import { redirect } from "next/navigation";
 import { getTenant, isPlatformRoot } from "@/lib/tenant-server";
 import { ClienteBottomNav } from "@/components/cliente-bottom-nav";
@@ -29,7 +28,6 @@ export default async function ClienteLayout({
         >
           Pular para o conteúdo
         </a>
-        <DemoBanner />
       <div className="mx-auto flex min-h-full w-full max-w-md flex-1 flex-col md:h-full md:max-w-none md:flex-row md:overflow-hidden">
         <ClienteSidebarNav />
         <div className="flex min-h-full w-full flex-1 flex-col md:h-full md:overflow-hidden">
