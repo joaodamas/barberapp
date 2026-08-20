@@ -21,10 +21,10 @@ type Variant = "primary" | "secondary" | "ghost" | "danger";
 
 const variants: Record<Variant, string> = {
   primary:
-    "bg-gold text-ivory font-semibold hover:bg-gold-hover active:scale-[0.98]",
+    "bg-gold text-ink font-semibold hover:bg-gold-hover active:scale-[0.98]",
   secondary:
-    "bg-surface-raised text-ivory border border-border hover:border-gold/60",
-  ghost: "text-ivory-muted hover:text-ivory",
+    "bg-surface-raised text-ink border border-border hover:border-gold/60",
+  ghost: "text-ink-muted hover:text-ink",
   // Branco sobre `--color-danger` dá 5.57:1, e 4.65:1 no hover a 90% — a tinta
   // do hover CLAREIA o vermelho, então é o hover que define o piso, não o
   // estado de repouso. Medido em `contraste-de-tokens.test.ts`.

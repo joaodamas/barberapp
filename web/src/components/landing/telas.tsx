@@ -27,19 +27,19 @@ export function AgendaDoDia() {
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-surface shadow-[var(--shadow-lg)]">
       <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
-        <p className="text-xs font-semibold uppercase tracking-wider text-ivory-muted">
+        <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
           Agenda do dia
         </p>
-        <p className="font-display text-sm text-ivory">R$ 255,00 previstos</p>
+        <p className="font-display text-sm text-ink">R$ 255,00 previstos</p>
       </div>
       <table className="w-full text-sm">
         <tbody>
           {linhas.map((l) => (
             <tr key={l.hora} className="border-b border-border/60 last:border-0">
-              <td className="whitespace-nowrap px-5 py-3 font-display text-gold-light">{l.hora}</td>
-              <td className="px-2 py-3 text-ivory">{l.cliente}</td>
-              <td className="hidden px-2 py-3 text-ivory-muted sm:table-cell">{l.servico}</td>
-              <td className="whitespace-nowrap px-2 py-3 text-right text-ivory">{l.valor}</td>
+              <td className="whitespace-nowrap px-5 py-3 font-display text-gold-strong">{l.hora}</td>
+              <td className="px-2 py-3 text-ink">{l.cliente}</td>
+              <td className="hidden px-2 py-3 text-ink-muted sm:table-cell">{l.servico}</td>
+              <td className="whitespace-nowrap px-2 py-3 text-right text-ink">{l.valor}</td>
               <td className="px-5 py-3 text-right">
                 <span
                   className={
@@ -47,8 +47,8 @@ export function AgendaDoDia() {
                     (l.situacao === "Concluído"
                       ? "bg-success/10 text-success"
                       : l.situacao === "Confirmado"
-                        ? "bg-gold/10 text-gold-light"
-                        : "bg-surface-raised text-ivory-muted")
+                        ? "bg-gold/10 text-gold-strong"
+                        : "bg-surface-raised text-ink-muted")
                   }
                 >
                   {l.situacao}
@@ -77,31 +77,31 @@ export function AgendaDoDia() {
  */
 export function ResumoDoMes() {
   const linhas = [
-    { rotulo: "Faturamento", valor: "R$ 12.469", tom: "text-ivory" },
-    { rotulo: "Comissão dos barbeiros", valor: "− R$ 4.612", tom: "text-ivory-muted" },
-    { rotulo: "Produto e maquininha", valor: "− R$ 641", tom: "text-ivory-muted" },
-    { rotulo: "Despesa fixa", valor: "− R$ 4.087", tom: "text-ivory-muted" },
-    { rotulo: "Imposto (Simples)", valor: "− R$ 188", tom: "text-ivory-muted" },
+    { rotulo: "Faturamento", valor: "R$ 12.469", tom: "text-ink" },
+    { rotulo: "Comissão dos barbeiros", valor: "− R$ 4.612", tom: "text-ink-muted" },
+    { rotulo: "Produto e maquininha", valor: "− R$ 641", tom: "text-ink-muted" },
+    { rotulo: "Despesa fixa", valor: "− R$ 4.087", tom: "text-ink-muted" },
+    { rotulo: "Imposto (Simples)", valor: "− R$ 188", tom: "text-ink-muted" },
   ];
   return (
     <div className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-5 shadow-[var(--shadow-md)]">
-      <p className="text-xs font-semibold uppercase tracking-wider text-ivory-muted">
+      <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
         Resultado do mês
       </p>
       <div className="flex flex-col gap-2">
         {linhas.map((l) => (
           <div key={l.rotulo} className="flex items-baseline justify-between text-sm">
-            <span className="text-ivory-muted">{l.rotulo}</span>
+            <span className="text-ink-muted">{l.rotulo}</span>
             <span className={l.tom}>{l.valor}</span>
           </div>
         ))}
       </div>
       <div className="mt-1 flex items-baseline justify-between border-t border-border pt-3">
-        <span className="text-sm text-ivory">Sobrou</span>
+        <span className="text-sm text-ink">Sobrou</span>
         <span className="font-display text-2xl text-success">R$ 2.941</span>
       </div>
-      <p className="text-xs text-ivory-muted">
-        Ponto de equilíbrio no <strong className="text-ivory">dia 18</strong> — a
+      <p className="text-xs text-ink-muted">
+        Ponto de equilíbrio no <strong className="text-ink">dia 18</strong> — a
         partir dele, o mês vira lucro.
       </p>
     </div>
@@ -118,10 +118,10 @@ export function ProjecaoCurta() {
   return (
     <div className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-5 shadow-[var(--shadow-md)]">
       <div className="flex items-baseline justify-between">
-        <p className="text-xs font-semibold uppercase tracking-wider text-ivory-muted">
+        <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
           Projeção de caixa
         </p>
-        <p className="font-display text-lg text-ivory">R$ 5.240</p>
+        <p className="font-display text-lg text-ink">R$ 5.240</p>
       </div>
       <LineChart
         height={120}
@@ -129,7 +129,7 @@ export function ProjecaoCurta() {
         label="Saldo acumulado projetado para os próximos 20 dias."
         data={dados}
       />
-      <p className="text-xs text-ivory-muted">
+      <p className="text-xs text-ink-muted">
         A linha tracejada é o zero. Você vê o dia em que o caixa vira antes de
         ele virar.
       </p>
@@ -154,19 +154,19 @@ export function MapaDeCalor() {
 
   return (
     <div className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-5 shadow-[var(--shadow-md)]">
-      <p className="text-xs font-semibold uppercase tracking-wider text-ivory-muted">
+      <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
         Ocupação por dia e horário
       </p>
       <div className="flex gap-2">
         <div className="flex flex-col gap-1 pt-[18px]">
           {dias.map((d) => (
-            <span key={d} className="h-5 text-[10px] leading-5 text-ivory-muted">{d}</span>
+            <span key={d} className="h-5 text-[10px] leading-5 text-ink-muted">{d}</span>
           ))}
         </div>
         <div className="flex-1">
           <div className="mb-1 flex gap-1">
             {horas.map((h) => (
-              <span key={h} className="flex-1 text-center text-[10px] text-ivory-muted">{h}</span>
+              <span key={h} className="flex-1 text-center text-[10px] text-ink-muted">{h}</span>
             ))}
           </div>
           <div className="flex flex-col gap-1">
@@ -189,7 +189,7 @@ export function MapaDeCalor() {
           </div>
         </div>
       </div>
-      <p className="text-xs text-ivory-muted">
+      <p className="text-xs text-ink-muted">
         Sábado às 10h lota. Quarta às 12h está vazia — é ali que uma promoção
         rende.
       </p>
@@ -206,15 +206,15 @@ export function EquipeResumo() {
   ];
   return (
     <div className="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-5 shadow-[var(--shadow-md)]">
-      <p className="text-xs font-semibold uppercase tracking-wider text-ivory-muted">
+      <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
         Equipe no mês
       </p>
       {barbeiros.map((b) => (
         <div key={b.nome} className="flex flex-col gap-1.5">
           <div className="flex items-baseline justify-between text-sm">
-            <span className="text-ivory">{b.nome}</span>
-            <span className="text-ivory-muted">
-              {b.atendimentos} atendimentos · <span className="text-ivory">{b.valor}</span>
+            <span className="text-ink">{b.nome}</span>
+            <span className="text-ink-muted">
+              {b.atendimentos} atendimentos · <span className="text-ink">{b.valor}</span>
             </span>
           </div>
           <div className="h-1.5 overflow-hidden rounded-full bg-surface-raised">

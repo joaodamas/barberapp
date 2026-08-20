@@ -61,9 +61,9 @@ export default function HorariosPage() {
   return (
     <div className="flex flex-col gap-6 pt-1 md:gap-10 md:pt-2">
       <header className="flex flex-col gap-1">
-        <p className="text-sm text-ivory-muted">Quando você abre</p>
-        <h1 className="font-display text-3xl text-ivory md:text-4xl">Horários</h1>
-        <p className="max-w-2xl text-sm text-ivory-muted">
+        <p className="text-sm text-ink-muted">Quando você abre</p>
+        <h1 className="font-display text-3xl text-ink md:text-4xl">Horários</h1>
+        <p className="max-w-2xl text-sm text-ink-muted">
           É esta grade que o cliente vê no app. Horário que não está aqui não
           aparece para ele — e não entra na conta de ocupação do dia.
         </p>
@@ -90,7 +90,7 @@ export default function HorariosPage() {
           </p>
         )}
         {salvando && (
-          <p className="flex items-center gap-2 text-sm text-ivory-muted">
+          <p className="flex items-center gap-2 text-sm text-ink-muted">
             <Loader2 className="size-4 animate-spin" aria-hidden />
             Salvando…
           </p>
@@ -98,15 +98,15 @@ export default function HorariosPage() {
       </Card>
 
       <Card className="flex flex-col gap-2">
-        <p className="text-sm font-medium text-ivory">O que está valendo agora</p>
-        <p className="text-sm text-ivory-muted">
+        <p className="text-sm font-medium text-ink">O que está valendo agora</p>
+        <p className="text-sm text-ink-muted">
           {contar(diasAbertos, "dia", "dias")} por semana ·{" "}
           {tenant.schedule.opensAt}–{tenant.schedule.closesAt} ·{" "}
           {tenant.schedule.slotMinutes} min por horário ·{" "}
-          <span className="text-ivory">{horariosPorDia}</span> horários por
+          <span className="text-ink">{horariosPorDia}</span> horários por
           barbeiro, por dia.
         </p>
-        <p className="text-xs text-ivory-muted">
+        <p className="text-xs text-ink-muted">
           Serviço mais curto que o intervalo continua ocupando o horário inteiro:
           um corte de 15 min numa grade de 30 gasta meia hora de cadeira.
         </p>

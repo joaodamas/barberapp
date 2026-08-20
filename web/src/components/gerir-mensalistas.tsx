@@ -136,33 +136,33 @@ export function GerirMensalistas({ competencia }: { competencia: string }) {
       {/* ---- Faturado × recebido, separados ---- */}
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 md:gap-4">
         <Card className="flex flex-col gap-1 p-3 md:p-5">
-          <p className="text-[11px] uppercase tracking-wide text-ivory-muted">Faturado</p>
-          <p className="font-display text-lg font-semibold text-ivory md:text-2xl">
+          <p className="text-[11px] uppercase tracking-wide text-ink-muted">Faturado</p>
+          <p className="font-display text-lg font-semibold text-ink md:text-2xl">
             {formatBRL(resumo.faturado)}
           </p>
-          <p className="text-[11px] text-ivory-muted">
+          <p className="text-[11px] text-ink-muted">
             {contar(resumo.quantidade, "mensalidade", "mensalidades")} em{" "}
             {rotuloDoMes(competencia)}
           </p>
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:p-5">
-          <p className="text-[11px] uppercase tracking-wide text-ivory-muted">Recebido</p>
+          <p className="text-[11px] uppercase tracking-wide text-ink-muted">Recebido</p>
           <p className="font-display text-lg font-semibold text-success md:text-2xl">
             {formatBRL(resumo.recebido)}
           </p>
           {/* A frase que separa o contratado do realizado, sem exigir que o
               dono conheça a modelagem. */}
-          <p className="text-[11px] text-ivory-muted">
+          <p className="text-[11px] text-ink-muted">
             {contar(resumo.pagas, "confirmada", "confirmadas")} — o resto ainda é
             cobrança
           </p>
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:p-5">
-          <p className="text-[11px] uppercase tracking-wide text-ivory-muted">Em aberto</p>
-          <p className="font-display text-lg font-semibold text-ivory md:text-2xl">
+          <p className="text-[11px] uppercase tracking-wide text-ink-muted">Em aberto</p>
+          <p className="font-display text-lg font-semibold text-ink md:text-2xl">
             {formatBRL(resumo.emAberto)}
           </p>
-          <p className="text-[11px] text-ivory-muted">
+          <p className="text-[11px] text-ink-muted">
             {resumo.quantidade - resumo.pagas} a receber
           </p>
         </Card>
@@ -197,13 +197,13 @@ export function GerirMensalistas({ competencia }: { competencia: string }) {
           /* Estado vazio diz QUAL período está sendo visto — a lição de P1-1.
              "Nenhuma mensalidade ainda" seria falso: pode haver de outro mês. */
           <div className="p-6 text-center">
-            <p className="text-sm text-ivory">
+            <p className="text-sm text-ink">
               Nenhuma mensalidade em {rotuloDoMes(competencia)}
             </p>
             {/* Dizia o que é e de qual mês, e parava aí. Faltava a outra
                 metade: o botão que resolve está logo acima e o vazio não o
                 mencionava. */}
-            <p className="mt-1 text-xs text-ivory-muted">
+            <p className="mt-1 text-xs text-ink-muted">
               Toque em &quot;Emitir mensalidades de {rotuloDoMes(competencia)}&quot;
               para gerar a cobrança de cada mensalista ativo.
             </p>
@@ -211,7 +211,7 @@ export function GerirMensalistas({ competencia }: { competencia: string }) {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-surface-raised text-[11px] uppercase tracking-wide text-ivory-muted">
+              <thead className="bg-surface-raised text-[11px] uppercase tracking-wide text-ink-muted">
                 <tr>
                   <th className="px-4 py-2 text-left md:px-6">Cliente</th>
                   <th className="px-4 py-2 text-left">Plano</th>
@@ -228,9 +228,9 @@ export function GerirMensalistas({ competencia }: { competencia: string }) {
                     clientes.find((c) => c.id === f.clientId)?.name ?? "Cliente";
                   return (
                     <tr key={f.id} className="border-b border-border/60 last:border-0">
-                      <td className="px-4 py-3 text-ivory md:px-6">{nome}</td>
-                      <td className="px-4 py-3 text-ivory-muted">{f.planName}</td>
-                      <td className="whitespace-nowrap px-4 py-3 text-ivory-muted">
+                      <td className="px-4 py-3 text-ink md:px-6">{nome}</td>
+                      <td className="px-4 py-3 text-ink-muted">{f.planName}</td>
+                      <td className="whitespace-nowrap px-4 py-3 text-ink-muted">
                         {formatDatePtBR(f.dueDate)}
                       </td>
                       <td className="px-4 py-3">
@@ -249,7 +249,7 @@ export function GerirMensalistas({ competencia }: { competencia: string }) {
                           <Pill tone="neutral">Em aberto</Pill>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-right text-ivory md:px-6">
+                      <td className="px-4 py-3 text-right text-ink md:px-6">
                         {formatBRL(f.amount)}
                       </td>
                       <td className="px-4 py-3 text-right">
@@ -308,12 +308,12 @@ export function GerirMensalistas({ competencia }: { competencia: string }) {
       >
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <p className="text-[11px] uppercase tracking-wide text-ivory-muted">Cliente</p>
+            <p className="text-[11px] uppercase tracking-wide text-ink-muted">Cliente</p>
             {cliente ? (
               <div className="flex items-center justify-between gap-2 rounded-xl border border-gold/60 bg-gold/5 px-3 py-2">
                 <div className="min-w-0">
-                  <p className="truncate text-sm text-ivory">{cliente.name}</p>
-                  <p className="text-[11px] text-ivory-muted">
+                  <p className="truncate text-sm text-ink">{cliente.name}</p>
+                  <p className="text-[11px] text-ink-muted">
                     {cliente.whatsapp ? mascararWhatsapp(cliente.whatsapp) : "sem WhatsApp"}
                   </p>
                 </div>
@@ -324,12 +324,12 @@ export function GerirMensalistas({ competencia }: { competencia: string }) {
             ) : (
               <>
                 <div className="flex items-center gap-2 rounded-xl border border-border bg-surface px-3">
-                  <Search size={14} className="text-ivory-muted" />
+                  <Search size={14} className="text-ink-muted" />
                   <input
                     value={busca}
                     onChange={(e) => setBusca(e.target.value)}
                     placeholder="Nome ou WhatsApp"
-                    className="min-h-11 flex-1 bg-transparent text-sm text-ivory placeholder:text-ivory-muted"
+                    className="min-h-11 flex-1 bg-transparent text-sm text-ink placeholder:text-ink-muted"
                   />
                 </div>
                 {encontrados.map((c) => (
@@ -339,14 +339,14 @@ export function GerirMensalistas({ competencia }: { competencia: string }) {
                     onClick={() => setCliente(c)}
                     className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-left transition-colors hover:border-gold/60"
                   >
-                    <span className="text-sm text-ivory">{c.name}</span>
-                    <span className="text-[11px] text-ivory-muted">
+                    <span className="text-sm text-ink">{c.name}</span>
+                    <span className="text-[11px] text-ink-muted">
                       {c.whatsapp ? mascararWhatsapp(c.whatsapp) : "—"}
                     </span>
                   </button>
                 ))}
                 {clientes.length === 0 && (
-                  <p className="text-xs text-ivory-muted">
+                  <p className="text-xs text-ink-muted">
                     Nenhum cliente cadastrado. Um cadastro nasce quando você marca um
                     atendimento.
                   </p>
@@ -356,7 +356,7 @@ export function GerirMensalistas({ competencia }: { competencia: string }) {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <p className="text-[11px] uppercase tracking-wide text-ivory-muted">Plano</p>
+            <p className="text-[11px] uppercase tracking-wide text-ink-muted">Plano</p>
             <div className="flex flex-wrap gap-2">
               {planosAtivos.map((p) => (
                 <button
@@ -367,12 +367,12 @@ export function GerirMensalistas({ competencia }: { competencia: string }) {
                   className={
                     "rounded-xl border px-3 py-2 text-left text-xs transition-colors " +
                     (planoId === p.id
-                      ? "border-gold bg-gold/10 text-ivory"
-                      : "border-border text-ivory-muted hover:border-gold/60")
+                      ? "border-gold bg-gold/10 text-ink"
+                      : "border-border text-ink-muted hover:border-gold/60")
                   }
                 >
                   <span className="block">{p.name}</span>
-                  <span className="block text-[11px] text-ivory-muted">
+                  <span className="block text-[11px] text-ink-muted">
                     {formatBRL(p.price)}/mês
                   </span>
                 </button>
@@ -384,7 +384,7 @@ export function GerirMensalistas({ competencia }: { competencia: string }) {
                 achava, e ficava sem saber se o erro era dele.
                 Ver o STOP em `docs/VOCABULARIO.md`. */}
             {planosAtivos.length === 0 && (
-              <p className="text-xs text-ivory-muted">
+              <p className="text-xs text-ink-muted">
                 Nenhum plano ativo — sem plano não há o que contratar. Fale com
                 quem cuida da sua conta na plataforma para cadastrar os seus.
               </p>
@@ -392,7 +392,7 @@ export function GerirMensalistas({ competencia }: { competencia: string }) {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <p className="text-[11px] uppercase tracking-wide text-ivory-muted">
+            <p className="text-[11px] uppercase tracking-wide text-ink-muted">
               Vence todo dia
             </p>
             <input
@@ -403,11 +403,11 @@ export function GerirMensalistas({ competencia }: { competencia: string }) {
               onChange={(e) =>
                 setDiaVencimento(Math.min(Math.max(Number(e.target.value) || 1, 1), 31))
               }
-              className="min-h-11 w-24 rounded-xl border border-border bg-surface px-3 text-sm text-ivory"
+              className="min-h-11 w-24 rounded-xl border border-border bg-surface px-3 text-sm text-ink"
             />
             {/* Dizer o que acontece no caso estranho, antes que ele aconteça. */}
             {diaVencimento > 28 && (
-              <p className="text-[11px] text-ivory-muted">
+              <p className="text-[11px] text-ink-muted">
                 Em fevereiro, cobra no último dia do mês.
               </p>
             )}
@@ -445,7 +445,7 @@ export function GerirMensalistas({ competencia }: { competencia: string }) {
               {erroDoRecebimento}
             </p>
           )}
-          <p className="text-[11px] text-ivory-muted">
+          <p className="text-[11px] text-ink-muted">
             O meio de pagamento fica gravado na mensalidade e não é alterado depois.
           </p>
         </div>

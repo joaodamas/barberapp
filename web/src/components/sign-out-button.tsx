@@ -23,7 +23,7 @@ export function SignOutButton({
     <button
       onClick={handleSignOut}
       className={cn(
-        "text-sm text-ivory-muted transition-colors hover:text-ivory",
+        "text-sm text-ink-muted transition-colors hover:text-ink",
         className
       )}
     >

@@ -184,12 +184,12 @@ export default function DespesasPage() {
 
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-sm text-ivory-muted md:text-base">
+          <p className="text-sm text-ink-muted md:text-base">
             {naoApurado
               ? `Lançamentos de ${rotuloDoMes(mes)} não apurados`
               : `${contar(resumo.lancamentos, "lançamento", "lançamentos")} em ${rotuloDoMes(mes)}`}
           </p>
-          <h1 className="text-xl text-ivory md:text-3xl md:tracking-tight">Despesas</h1>
+          <h1 className="text-xl text-ink md:text-3xl md:tracking-tight">Despesas</h1>
         </div>
         {/* Caixa alta no meio da frase é convenção de inglês. O resto do painel
             escreve "Marcar atendimento", "Adicionar produto", "Lançar
@@ -207,52 +207,52 @@ export default function DespesasPage() {
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-4">
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-5">
           <div className="flex items-center gap-1.5">
-            <CheckSquare size={12} className="text-gold-light" />
-            <p className="text-[11px] uppercase tracking-wide text-ivory-muted md:text-xs">Lançamentos</p>
+            <CheckSquare size={12} className="text-gold-strong" />
+            <p className="text-[11px] uppercase tracking-wide text-ink-muted md:text-xs">Lançamentos</p>
           </div>
-          <p className="font-display text-lg font-semibold text-ivory md:text-2xl">
+          <p className="font-display text-lg font-semibold text-ink md:text-2xl">
             {naoApurado ? NAO_APURADO : resumo.lancamentos}
           </p>
           {/* A legenda continua sendo o RECORTE — "em Agosto de 2026" é
               verdade com ou sem leitura. O motivo aparece uma vez só, na linha
               da tabela: repeti-lo nos quatro cartões transformaria a
               explicação em ruído e empurraria a tabela para fora da tela. */}
-          <p className="text-[11px] text-ivory-muted md:text-xs">em {rotuloDoMes(mes)}</p>
+          <p className="text-[11px] text-ink-muted md:text-xs">em {rotuloDoMes(mes)}</p>
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-5">
           <div className="flex items-center gap-1.5">
             <DollarSign size={12} className="text-danger" />
-            <p className="text-[11px] uppercase tracking-wide text-ivory-muted md:text-xs">Total no mês</p>
+            <p className="text-[11px] uppercase tracking-wide text-ink-muted md:text-xs">Total no mês</p>
           </div>
-          <p className="font-display text-lg font-semibold text-ivory md:text-2xl">
+          <p className="font-display text-lg font-semibold text-ink md:text-2xl">
             {naoApurado ? NAO_APURADO : formatBRL(total)}
           </p>
-          <p className="text-[11px] text-ivory-muted md:text-xs">{rotuloDoMes(mes)}</p>
+          <p className="text-[11px] text-ink-muted md:text-xs">{rotuloDoMes(mes)}</p>
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-5">
           <div className="flex items-center gap-1.5">
-            <Repeat size={12} className="text-gold-light" />
-            <p className="text-[11px] uppercase tracking-wide text-ivory-muted md:text-xs">Recorrentes</p>
+            <Repeat size={12} className="text-gold-strong" />
+            <p className="text-[11px] uppercase tracking-wide text-ink-muted md:text-xs">Recorrentes</p>
           </div>
-          <p className="font-display text-lg font-semibold text-ivory md:text-2xl">
+          <p className="font-display text-lg font-semibold text-ink md:text-2xl">
             {naoApurado ? NAO_APURADO : formatBRL(recurringTotal)}
           </p>
-          <p className="text-[11px] text-ivory-muted md:text-xs">
+          <p className="text-[11px] text-ink-muted md:text-xs">
             {naoApurado ? `em ${rotuloDoMes(mes)}` : "por mês"}
           </p>
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-5">
           <div className="flex items-center gap-1.5">
-            <Tag size={12} className="text-gold-light" />
-            <p className="text-[11px] uppercase tracking-wide text-ivory-muted md:text-xs">Maior categoria</p>
+            <Tag size={12} className="text-gold-strong" />
+            <p className="text-[11px] uppercase tracking-wide text-ink-muted md:text-xs">Maior categoria</p>
           </div>
           {/* O `—` deste cartão era o mais enganoso dos quatro: ele já é o
               placeholder de "não houve categoria", então erro e vazio ficavam
               literalmente indistinguíveis, sem nem a diferença entre 0 e nada. */}
-          <p className="font-display text-lg font-semibold text-ivory md:text-xl">
+          <p className="font-display text-lg font-semibold text-ink md:text-xl">
             {naoApurado ? NAO_APURADO : topCategory.category}
           </p>
-          <p className="text-[11px] text-ivory-muted md:text-xs">
+          <p className="text-[11px] text-ink-muted md:text-xs">
             {naoApurado
               ? `em ${rotuloDoMes(mes)}`
               : `${formatBRL(topCategory.value)} em ${rotuloDoMes(mes)}`}
@@ -263,7 +263,7 @@ export default function DespesasPage() {
       <Card className="table-scroll overflow-x-auto p-0">
         <table className="w-full min-w-[720px] text-sm">
           <thead>
-            <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ivory-muted">
+            <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ink-muted">
               <th className="px-4 py-3 font-medium md:px-6">Data</th>
               <th className="px-4 py-3 font-medium">Descrição</th>
               <th className="px-4 py-3 font-medium">Fornecedor</th>
@@ -276,7 +276,7 @@ export default function DespesasPage() {
           <tbody>
             {status === "carregando" && (
               <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-sm text-ivory-muted md:px-6">
+                <td colSpan={7} className="px-4 py-10 text-center text-sm text-ink-muted md:px-6">
                   <span className="inline-block h-4 w-40 animate-pulse rounded bg-surface-raised" />
                 </td>
               </tr>
@@ -297,7 +297,7 @@ export default function DespesasPage() {
                     Faltava a outra metade do contrato de estado vazio: o que
                     FAZER para sair dele. O botão existe no topo da tela; o vazio
                     é que não o mencionava. */}
-                <td colSpan={7} className="px-4 py-10 text-center text-sm text-ivory-muted md:px-6">
+                <td colSpan={7} className="px-4 py-10 text-center text-sm text-ink-muted md:px-6">
                   Nenhuma despesa lançada em {rotuloDoMes(mes)}. Use &quot;Nova
                   despesa&quot; para registrar aluguel, luz e fornecedores — é o
                   que falta para o resultado do mês ser verdade.
@@ -309,10 +309,10 @@ export default function DespesasPage() {
                 key={e.id}
                 className="border-b border-border/60 transition-colors last:border-0 hover:bg-surface-raised/60"
               >
-                <td className="whitespace-nowrap px-4 py-3 text-ivory-muted md:px-6">
+                <td className="whitespace-nowrap px-4 py-3 text-ink-muted md:px-6">
                   {formatDateShortPtBR(e.date)}
                 </td>
-                <td className="px-4 py-3 text-ivory">
+                <td className="px-4 py-3 text-ink">
                   {e.description}
                   {e.recurring && (
                     <Pill tone="gold" className="ml-2">
@@ -320,10 +320,10 @@ export default function DespesasPage() {
                     </Pill>
                   )}
                 </td>
-                <td className="px-4 py-3 text-ivory-muted">{e.supplier}</td>
-                <td className="px-4 py-3 text-gold-light">{e.category}</td>
-                <td className="px-4 py-3 text-ivory-muted">{e.payment}</td>
-                <td className="whitespace-nowrap px-4 py-3 text-right font-medium text-ivory">
+                <td className="px-4 py-3 text-ink-muted">{e.supplier}</td>
+                <td className="px-4 py-3 text-gold-strong">{e.category}</td>
+                <td className="px-4 py-3 text-ink-muted">{e.payment}</td>
+                <td className="whitespace-nowrap px-4 py-3 text-right font-medium text-ink">
                   {formatBRL(e.value)}
                 </td>
                 <td className="px-4 py-3 md:px-6">
@@ -331,14 +331,14 @@ export default function DespesasPage() {
                     <button
                       aria-label="Editar"
                       onClick={() => openEditModal(e)}
-                      className="flex h-11 w-11 items-center justify-center md:h-8 md:w-8 rounded-lg text-ivory-muted/70 transition-colors hover:bg-surface-raised hover:text-ivory"
+                      className="flex h-11 w-11 items-center justify-center md:h-8 md:w-8 rounded-lg text-ink-muted/70 transition-colors hover:bg-surface-raised hover:text-ink"
                     >
                       <Pencil size={13} />
                     </button>
                     <button
                       aria-label="Excluir"
                       onClick={() => setPendingDelete(e)}
-                      className="flex h-11 w-11 items-center justify-center md:h-8 md:w-8 rounded-lg text-ivory-muted/70 transition-colors hover:bg-danger/10 hover:text-danger"
+                      className="flex h-11 w-11 items-center justify-center md:h-8 md:w-8 rounded-lg text-ink-muted/70 transition-colors hover:bg-danger/10 hover:text-danger"
                     >
                       <Trash2 size={13} />
                     </button>
@@ -349,13 +349,13 @@ export default function DespesasPage() {
           </tbody>
           <tfoot>
             <tr className="border-t border-border">
-              <td className="px-4 py-3 text-xs uppercase tracking-wide text-ivory-muted md:px-6" colSpan={5}>
+              <td className="px-4 py-3 text-xs uppercase tracking-wide text-ink-muted md:px-6" colSpan={5}>
                 Total do mês
               </td>
               {/* O rodapé era o quinto zero da tela e o mais autoritário
                   deles: "TOTAL DO MÊS R$ 0,00" fecha a tabela como se a soma
                   tivesse sido conferida linha a linha. */}
-              <td className="whitespace-nowrap px-4 py-3 text-right font-display font-semibold text-ivory">
+              <td className="whitespace-nowrap px-4 py-3 text-right font-display font-semibold text-ink">
                 {naoApurado ? NAO_APURADO : formatBRL(total)}
               </td>
               <td className="md:px-6" />
@@ -381,22 +381,22 @@ export default function DespesasPage() {
         }
       >
         <div className="grid gap-4 md:grid-cols-2">
-          <label className="flex flex-col gap-1 text-xs text-ivory-muted md:col-span-2">
+          <label className="flex flex-col gap-1 text-xs text-ink-muted md:col-span-2">
             Descrição *
             <input
               value={form.description}
               onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
               placeholder="Ex: Aluguel do salão, conta de energia"
-              className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
+              className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ink"
             />
           </label>
 
-          <label className="flex flex-col gap-1 text-xs text-ivory-muted">
+          <label className="flex flex-col gap-1 text-xs text-ink-muted">
             Categoria *
             <select
               value={form.category}
               onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
-              className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
+              className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ink"
             >
               {expenseCategories.map((c) => (
                 <option key={c} value={c}>
@@ -406,17 +406,17 @@ export default function DespesasPage() {
             </select>
           </label>
 
-          <label className="flex flex-col gap-1 text-xs text-ivory-muted">
+          <label className="flex flex-col gap-1 text-xs text-ink-muted">
             Fornecedor / Beneficiário
             <input
               value={form.supplier}
               onChange={(e) => setForm((f) => ({ ...f, supplier: e.target.value }))}
               placeholder="Ex: Imobiliária, concessionária"
-              className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
+              className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ink"
             />
           </label>
 
-          <label className="flex flex-col gap-1 text-xs text-ivory-muted">
+          <label className="flex flex-col gap-1 text-xs text-ink-muted">
             Valor (R$) *
             <input
               type="number"
@@ -425,28 +425,28 @@ export default function DespesasPage() {
               value={form.value}
               onChange={(e) => setForm((f) => ({ ...f, value: e.target.value }))}
               placeholder="0"
-              className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
+              className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ink"
             />
           </label>
 
-          <label className="flex flex-col gap-1 text-xs text-ivory-muted">
+          <label className="flex flex-col gap-1 text-xs text-ink-muted">
             Data
             <input
               type="date"
               value={form.date}
               onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
-              className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
+              className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ink"
             />
           </label>
 
-          <label className="flex flex-col gap-1 text-xs text-ivory-muted">
+          <label className="flex flex-col gap-1 text-xs text-ink-muted">
             Forma de pagamento
             <select
               value={form.payment}
               onChange={(e) =>
                 setForm((f) => ({ ...f, payment: e.target.value as ExpensePaymentMethod }))
               }
-              className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
+              className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ink"
             >
               {PAYMENT_METHODS.map((p) => (
                 <option key={p} value={p}>
@@ -456,7 +456,7 @@ export default function DespesasPage() {
             </select>
           </label>
 
-          <label className="flex items-center gap-2 text-sm text-ivory md:col-span-2">
+          <label className="flex items-center gap-2 text-sm text-ink md:col-span-2">
             <input
               type="checkbox"
               checked={form.recurring}
@@ -466,14 +466,14 @@ export default function DespesasPage() {
             Recorrente (repete todo mês — entra como custo fixo no resultado)
           </label>
 
-          <label className="flex flex-col gap-1 text-xs text-ivory-muted md:col-span-2">
+          <label className="flex flex-col gap-1 text-xs text-ink-muted md:col-span-2">
             Observações
             <textarea
               value={form.observations}
               onChange={(e) => setForm((f) => ({ ...f, observations: e.target.value }))}
               placeholder="Notas internas sobre este lançamento (opcional)"
               rows={2}
-              className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
+              className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ink"
             />
           </label>
 
@@ -505,7 +505,7 @@ export default function DespesasPage() {
           </>
         }
       >
-        <p className="text-sm text-ivory-muted">
+        <p className="text-sm text-ink-muted">
           {pendingDelete
             ? `${formatBRL(pendingDelete.value)} · ${pendingDelete.category} · ${formatDateShortPtBR(pendingDelete.date)}`
             : ""}

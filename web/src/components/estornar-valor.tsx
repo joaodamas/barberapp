@@ -128,14 +128,14 @@ export function EstornarValor(params: {
              cinquenta centavos"), e "R$ 1,00 foram devolvidos" está errado.
              Raro não é o mesmo que impossível: um estorno parcial de R$ 1,00
              chega lá. */
-          <p className="text-xs text-gold-light">
+          <p className="text-xs text-gold-strong">
             {formatBRL(jaEstornado)} já{" "}
             {plural(jaEstornado, "foi devolvido", "foram devolvidos")}.{" "}
             {plural(resta, "Resta", "Restam")} {formatBRL(resta)}.
           </p>
         )}
 
-        <label className="flex flex-col gap-1 text-xs text-ivory-muted">
+        <label className="flex flex-col gap-1 text-xs text-ink-muted">
           Quanto devolver
           <input
             type="number"
@@ -144,7 +144,7 @@ export function EstornarValor(params: {
             step="0.01"
             value={valor}
             onChange={(e) => setValorDigitado(e.target.value)}
-            className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
+            className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ink"
           />
         </label>
         {pedido > resta && (
@@ -153,7 +153,7 @@ export function EstornarValor(params: {
           </p>
         )}
 
-        <label className="flex flex-col gap-1 text-xs text-ivory-muted">
+        <label className="flex flex-col gap-1 text-xs text-ink-muted">
           Por que está devolvendo *
           <input
             value={motivo}
@@ -163,12 +163,12 @@ export function EstornarValor(params: {
                 ? "Ex.: cliente não gostou do corte"
                 : "Ex.: cancelou no meio do mês"
             }
-            className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
+            className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ink"
           />
         </label>
 
-        <div className="rounded-xl border border-border bg-surface-raised/60 p-3 text-xs text-ivory-muted">
-          <p className="mb-1 font-semibold text-ivory">O que vai ser registrado</p>
+        <div className="rounded-xl border border-border bg-surface-raised/60 p-3 text-xs text-ink-muted">
+          <p className="mb-1 font-semibold text-ink">O que vai ser registrado</p>
           <p>· Devolução de {formatBRL(pedido)} ao cliente</p>
           {params.origem === "servico" ? (
             <p>· A comissão do barbeiro NÃO muda — o atendimento aconteceu</p>

@@ -69,8 +69,8 @@ export function PassoHorarios({
     <div className="grid gap-6 md:grid-cols-[1fr_200px]">
       <div className="flex flex-col gap-5">
         <fieldset className="flex flex-col gap-2">
-          <legend className="text-sm font-medium text-ivory">Dias de funcionamento</legend>
-          <p className="text-xs text-ivory-muted">Toque para desmarcar os dias em que você não abre.</p>
+          <legend className="text-sm font-medium text-ink">Dias de funcionamento</legend>
+          <p className="text-xs text-ink-muted">Toque para desmarcar os dias em que você não abre.</p>
           <div className="flex flex-wrap gap-2 pt-1">
             {DIAS.map((d) => {
               const ativo = weekdays.includes(d.n);
@@ -87,8 +87,8 @@ export function PassoHorarios({
                   className={
                     "min-h-11 min-w-11 rounded-xl border px-3 text-sm font-medium transition-colors " +
                     (ativo
-                      ? "border-gold bg-gold text-ivory"
-                      : "border-border text-ivory-muted hover:text-ivory")
+                      ? "border-gold bg-gold text-ink"
+                      : "border-border text-ink-muted hover:text-ink")
                   }
                 >
                   {d.label}
@@ -103,7 +103,7 @@ export function PassoHorarios({
           <Hora id="fecha" label="Fecha" value={closesAt} onChange={setClosesAt} />
         </div>
 
-        <label className="flex items-center gap-2 text-sm text-ivory">
+        <label className="flex items-center gap-2 text-sm text-ink">
           <input
             type="checkbox"
             checked={temIntervalo}
@@ -121,17 +121,17 @@ export function PassoHorarios({
         )}
 
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="slot" className="text-sm font-medium text-ivory">
+          <label htmlFor="slot" className="text-sm font-medium text-ink">
             Intervalo entre atendimentos
           </label>
-          <p className="text-xs text-ivory-muted">
+          <p className="text-xs text-ink-muted">
             De quanto em quanto tempo os horários aparecem para o cliente.
           </p>
           <select
             id="slot"
             value={slotMinutes}
             onChange={(e) => setSlotMinutes(Number(e.target.value))}
-            className="rounded-xl border border-border bg-surface-raised px-4 py-3 text-sm text-ivory"
+            className="rounded-xl border border-border bg-surface-raised px-4 py-3 text-sm text-ink"
           >
             {[15, 20, 30, 45, 60].map((v) => (
               <option key={v} value={v}>{v} minutos</option>
@@ -156,7 +156,7 @@ export function PassoHorarios({
       </div>
 
       <aside className="flex flex-col gap-2 rounded-xl border border-border bg-surface-raised/60 p-4">
-        <p className="text-xs font-semibold uppercase tracking-wide text-ivory-muted">
+        <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
           O cliente vai ver
         </p>
         {grade.length === 0 ? (
@@ -165,19 +165,19 @@ export function PassoHorarios({
           </p>
         ) : (
           <>
-            <p className="font-display text-2xl text-gold-light">{grade.length}</p>
-            <p className="text-xs text-ivory-muted">horários por dia</p>
+            <p className="font-display text-2xl text-gold-strong">{grade.length}</p>
+            <p className="text-xs text-ink-muted">horários por dia</p>
             <div className="mt-1 flex flex-wrap gap-1">
               {grade.slice(0, 12).map((h) => (
                 <span
                   key={h}
-                  className="rounded-md border border-border px-1.5 py-0.5 text-[11px] text-ivory"
+                  className="rounded-md border border-border px-1.5 py-0.5 text-[11px] text-ink"
                 >
                   {h}
                 </span>
               ))}
               {grade.length > 12 && (
-                <span className="px-1 py-0.5 text-[11px] text-ivory-muted">
+                <span className="px-1 py-0.5 text-[11px] text-ink-muted">
                   +{grade.length - 12}
                 </span>
               )}
@@ -194,13 +194,13 @@ function Hora({
 }: { id: string; label: string; value: string; onChange: (v: string) => void }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-sm font-medium text-ivory">{label}</label>
+      <label htmlFor={id} className="text-sm font-medium text-ink">{label}</label>
       <input
         id={id}
         type="time"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="rounded-xl border border-border bg-surface-raised px-4 py-3 text-sm text-ivory"
+        className="rounded-xl border border-border bg-surface-raised px-4 py-3 text-sm text-ink"
       />
     </div>
   );

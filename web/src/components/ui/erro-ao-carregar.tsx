@@ -68,12 +68,12 @@ export function ErroAoCarregar({
     >
       <div className="flex items-center gap-2">
         <AlertTriangle size={16} className="shrink-0 text-danger" />
-        <p className="text-sm text-ivory">Não foi possível carregar {oQue}.</p>
+        <p className="text-sm text-ink">Não foi possível carregar {oQue}.</p>
       </div>
       {/* Permissão e conexão pedem ações diferentes de quem está lendo — e essa
           diferença agora é dita, em vez de deixada como "ou" para o dono
           resolver. Ver `lib/erro-de-leitura.ts`. */}
-      <p className="text-xs text-ivory-muted">{explicacao}</p>
+      <p className="text-xs text-ink-muted">{explicacao}</p>
       {/* Sem retry quando recarregar não pode funcionar: um botão que promete
           uma saída inexistente é pior que botão nenhum. O dono clica três
           vezes, conclui que o produto quebrou, e a causa real nunca chega. */}
@@ -122,8 +122,8 @@ export function LinhaDeErro({
   return (
     <tr>
       <td colSpan={colSpan} role="alert" className="px-4 py-10 text-center md:px-6">
-        <p className="text-sm text-ivory">Não foi possível carregar {oQue}.</p>
-        <p className="mt-1 text-xs text-ivory-muted">{explicacao}</p>
+        <p className="text-sm text-ink">Não foi possível carregar {oQue}.</p>
+        <p className="mt-1 text-xs text-ink-muted">{explicacao}</p>
         {temRetry && (
           <Button
             variant="ghost"

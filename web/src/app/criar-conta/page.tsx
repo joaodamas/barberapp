@@ -141,18 +141,18 @@ export default function CriarContaPage() {
 
   if (estado === "carregando") {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-bg">
-        <Loader2 className="h-8 w-8 animate-spin text-gold-light" />
+      <div className="flex min-h-screen items-center justify-center bg-canvas">
+        <Loader2 className="h-8 w-8 animate-spin text-gold-strong" />
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center bg-bg px-4 py-8 md:py-14">
+    <div className="flex min-h-screen flex-col items-center bg-canvas px-4 py-8 md:py-14">
       <div className="flex w-full max-w-lg flex-col gap-6">
         <header className="flex flex-col items-center gap-2 text-center">
-          <h1 className="text-2xl text-ivory md:text-3xl">Crie sua barbearia</h1>
-          <p className="max-w-md text-sm text-ivory-muted">
+          <h1 className="text-2xl text-ink md:text-3xl">Crie sua barbearia</h1>
+          <p className="max-w-md text-sm text-ink-muted">
             Sete dias para testar tudo, sem cartão. Em poucos minutos seus
             clientes já conseguem agendar pelo link.
           </p>
@@ -160,7 +160,7 @@ export default function CriarContaPage() {
 
         {estado === "precisa-entrar" && (
           <Card className="flex flex-col items-center gap-4 py-10 text-center">
-            <p className="max-w-sm text-sm text-ivory">
+            <p className="max-w-sm text-sm text-ink">
               Primeiro entre com sua conta. É ela que vai ser a dona da
               barbearia.
             </p>
@@ -172,12 +172,12 @@ export default function CriarContaPage() {
 
         {estado === "precisa-verificar" && (
           <Card className="flex flex-col items-center gap-4 py-10 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gold/10 text-gold-light">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gold/10 text-gold-strong">
               <MailCheck size={22} aria-hidden />
             </div>
             <div className="max-w-sm">
-              <p className="text-sm font-medium text-ivory">Confirme seu e-mail</p>
-              <p className="mt-1 text-xs text-ivory-muted">
+              <p className="text-sm font-medium text-ink">Confirme seu e-mail</p>
+              <p className="mt-1 text-xs text-ink-muted">
                 Enviamos um link para <strong>{user?.email}</strong>. O endereço da
                 barbearia é definitivo, e a confirmação é o que impede alguém de
                 registrar nomes em massa.
@@ -207,7 +207,7 @@ export default function CriarContaPage() {
             />
 
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="slug" className="text-sm text-ivory">
+              <label htmlFor="slug" className="text-sm text-ink">
                 Endereço do seu app
               </label>
               <div className="flex items-center gap-1.5 rounded-xl border border-border bg-surface-raised px-3 py-2.5">
@@ -220,10 +220,10 @@ export default function CriarContaPage() {
                   }}
                   placeholder="barbearia-do-ze"
                   aria-describedby="slug-ajuda"
-                  className="min-w-0 flex-1 bg-transparent text-sm text-ivory outline-none"
+                  className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none"
                 />
-                <span className="shrink-0 text-xs text-ivory-muted">.{ROOT_DOMAIN}</span>
-                {checando && <Loader2 size={14} className="shrink-0 animate-spin text-ivory-muted" />}
+                <span className="shrink-0 text-xs text-ink-muted">.{ROOT_DOMAIN}</span>
+                {checando && <Loader2 size={14} className="shrink-0 animate-spin text-ink-muted" />}
                 {!checando && slug && formato.available && disponivel === true && (
                   <Check size={16} className="shrink-0 text-success" aria-label="Disponível" />
                 )}
@@ -236,7 +236,7 @@ export default function CriarContaPage() {
                 className={`text-xs ${
                   slug && (!formato.available || disponivel === false)
                     ? "text-danger"
-                    : "text-ivory-muted"
+                    : "text-ink-muted"
                 }`}
               >
                 {slug && !formato.available
@@ -296,29 +296,29 @@ export default function CriarContaPage() {
                 num fluxo de 4 campos vira atrito que ninguém lê mesmo. O que
                 importa é o link estar aqui, antes do clique, e não escondido no
                 rodapé de outra página. */}
-            <p className="text-center text-xs text-ivory-muted">
+            <p className="text-center text-xs text-ink-muted">
               Ao criar a conta você concorda com os{" "}
-              <Link href="/termos" className="underline hover:text-ivory">
+              <Link href="/termos" className="underline hover:text-ink">
                 Termos de Uso
               </Link>{" "}
               e com a{" "}
-              <Link href="/privacidade" className="underline hover:text-ivory">
+              <Link href="/privacidade" className="underline hover:text-ink">
                 Política de Privacidade
               </Link>
               . Como os dados dos SEUS clientes são seus, os Termos explicam o
               que isso exige de você.
             </p>
 
-            <p className="text-center text-xs text-ivory-muted">
+            <p className="text-center text-xs text-ink-muted">
               Sem cartão. Ao fim dos 7 dias você escolhe um plano — seus dados
               continuam aqui de qualquer forma.
             </p>
           </Card>
         )}
 
-        <p className="text-center text-xs text-ivory-muted">
+        <p className="text-center text-xs text-ink-muted">
           Já tem uma barbearia por aqui?{" "}
-          <Link href="/login" className="underline hover:text-ivory">
+          <Link href="/login" className="underline hover:text-ink">
             Entrar
           </Link>
         </p>
@@ -341,7 +341,7 @@ function Campo({
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-sm text-ivory">
+      <label htmlFor={id} className="text-sm text-ink">
         {label}
       </label>
       <input
@@ -352,9 +352,9 @@ function Campo({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         aria-describedby={`${id}-dica`}
-        className="rounded-xl border border-border bg-surface-raised px-3 py-2.5 text-sm text-ivory"
+        className="rounded-xl border border-border bg-surface-raised px-3 py-2.5 text-sm text-ink"
       />
-      <p id={`${id}-dica`} className="text-xs text-ivory-muted">
+      <p id={`${id}-dica`} className="text-xs text-ink-muted">
         {dica}
       </p>
     </div>

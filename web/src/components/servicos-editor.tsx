@@ -145,8 +145,8 @@ export function EditorDeServicos({
   if (status === "erro") {
     return (
       <div className="flex flex-col items-start gap-3 rounded-xl border border-danger/30 bg-danger/5 p-4">
-        <p className="text-sm text-ivory">Não foi possível carregar seus serviços.</p>
-        <p className="text-xs text-ivory-muted">
+        <p className="text-sm text-ink">Não foi possível carregar seus serviços.</p>
+        <p className="text-xs text-ink-muted">
           Pode ser conexão ou permissão. O cardápio segue como está para quem já
           o viu — nada foi perdido.
         </p>
@@ -160,7 +160,7 @@ export function EditorDeServicos({
   return (
     <div className="flex flex-col gap-4">
       <div
-        className={`hidden gap-3 px-1 text-xs uppercase tracking-wide text-ivory-muted md:grid ${colunas}`}
+        className={`hidden gap-3 px-1 text-xs uppercase tracking-wide text-ink-muted md:grid ${colunas}`}
       >
         <span>Serviço</span>
         <span>Duração</span>
@@ -184,7 +184,7 @@ export function EditorDeServicos({
               onBlur={() => salvarLinha(s)}
               placeholder="Corte"
               className={`rounded-xl border border-border bg-surface-raised px-3 py-2.5 text-sm ${
-                oculto ? "text-ivory-muted line-through" : "text-ivory"
+                oculto ? "text-ink-muted line-through" : "text-ink"
               }`}
             />
             <div className="flex items-center gap-2">
@@ -196,9 +196,9 @@ export function EditorDeServicos({
                 value={s.durationMin}
                 onChange={(e) => atualizar(s.id, "durationMin", e.target.value)}
                 onBlur={() => salvarLinha(s)}
-                className="w-full rounded-xl border border-border bg-surface-raised px-3 py-2.5 text-sm text-ivory"
+                className="w-full rounded-xl border border-border bg-surface-raised px-3 py-2.5 text-sm text-ink"
               />
-              <span className="text-xs text-ivory-muted md:hidden">min</span>
+              <span className="text-xs text-ink-muted md:hidden">min</span>
             </div>
             {/* O preço mostra R$ e as duas casas — o campo cru exibia "100" e
                 "15", e um cardápio de barbearia não se lê assim. O "R$" fica
@@ -210,7 +210,7 @@ export function EditorDeServicos({
                 que não fazem sentido em dinheiro. A vírgula é como se digita
                 preço em português, e `atualizar` já normaliza para ponto. */}
             <div className="flex items-center gap-1.5 rounded-xl border border-border bg-surface-raised px-3 py-2.5 focus-within:border-gold/40">
-              <span aria-hidden className="text-sm text-ivory-muted">
+              <span aria-hidden className="text-sm text-ink-muted">
                 R$
               </span>
               <input
@@ -225,7 +225,7 @@ export function EditorDeServicos({
                   salvarLinha(s);
                 }}
                 placeholder="0,00"
-                className="w-full bg-transparent text-sm text-ivory outline-none"
+                className="w-full bg-transparent text-sm text-ink outline-none"
               />
             </div>
 
@@ -244,7 +244,7 @@ export function EditorDeServicos({
                 onClick={() => alternarVisibilidade(s)}
                 className={`flex h-11 w-11 items-center justify-center rounded-xl transition-colors ${
                   oculto
-                    ? "text-ivory-muted hover:bg-surface-raised hover:text-ivory"
+                    ? "text-ink-muted hover:bg-surface-raised hover:text-ink"
                     : "text-success hover:bg-success/10"
                 }`}
               >
@@ -256,7 +256,7 @@ export function EditorDeServicos({
               type="button"
               aria-label={`Remover ${s.name || "serviço sem nome"}`}
               onClick={() => setAExcluir(s)}
-              className="flex h-11 w-11 items-center justify-center rounded-xl text-ivory-muted transition-colors hover:bg-danger/10 hover:text-danger"
+              className="flex h-11 w-11 items-center justify-center rounded-xl text-ink-muted transition-colors hover:bg-danger/10 hover:text-danger"
             >
               <Trash2 size={16} />
             </button>
@@ -267,7 +267,7 @@ export function EditorDeServicos({
       <button
         type="button"
         onClick={adicionar}
-        className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-dashed border-border text-sm text-ivory-muted transition-colors hover:border-gold/50 hover:text-ivory"
+        className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-dashed border-border text-sm text-ink-muted transition-colors hover:border-gold/50 hover:text-ink"
       >
         <Plus size={16} /> Adicionar serviço
       </button>
@@ -291,10 +291,10 @@ export function EditorDeServicos({
           </>
         }
       >
-        <p className="text-sm text-ivory">
+        <p className="text-sm text-ink">
           Excluir <strong>{aExcluir?.name || "este serviço"}</strong> do cardápio?
         </p>
-        <p className="mt-2 text-xs text-ivory-muted">
+        <p className="mt-2 text-xs text-ink-muted">
           As reservas já feitas continuam como estão. Se a ideia é só tirar do app
           por um tempo, ocultar preserva o histórico e é reversível num clique.
         </p>

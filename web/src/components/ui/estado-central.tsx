@@ -62,15 +62,15 @@ export function EstadoCentral({
 }) {
   return (
     <Card className={cn("flex flex-col items-center gap-4 py-12 text-center md:py-16", className)}>
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gold/10 text-gold-light">
+      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gold/10 text-gold-strong">
         <Icon size={22} aria-hidden />
       </div>
 
       {/* `max-w-md` limita a LINHA, não o cartão: texto centrado que atravessa
           um monitor de 27" perde o começo da linha seguinte a cada quebra. */}
       <div className="flex max-w-md flex-col gap-1.5">
-        <p className="text-sm font-medium text-ivory md:text-base">{titulo}</p>
-        <p className="text-xs leading-relaxed text-ivory-muted md:text-sm">{descricao}</p>
+        <p className="text-sm font-medium text-ink md:text-base">{titulo}</p>
+        <p className="text-xs leading-relaxed text-ink-muted md:text-sm">{descricao}</p>
       </div>
 
       {acao}

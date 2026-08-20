@@ -113,13 +113,13 @@ const AA_TEXTO = 4.5;
 const AA_NAO_TEXTO = 3;
 
 /**
- * As três superfícies do painel, porque elas empilham: `bg` é a página,
+ * As três superfícies do painel, porque elas empilham: `canvas` é a página,
  * `surface` é o cartão, `surface-raised` é o realce dentro do cartão. Um token
- * de texto precisa sobreviver às três — hoje o mesmo `text-ivory-muted` é usado
+ * de texto precisa sobreviver às três — hoje o mesmo `text-ink-muted` é usado
  * nas três sem ninguém escolher.
  */
 const superficies = (): Array<[string, string]> => [
-  ["página", token("bg")],
+  ["página", token("canvas")],
   ["cartão", token("surface")],
   ["realce", token("surface-raised")],
 ];
@@ -127,11 +127,11 @@ const superficies = (): Array<[string, string]> => [
 describe("contraste dos tokens — WCAG AA", () => {
   for (const [onde, fundo] of superficies()) {
     it(`texto principal sobre ${onde}`, () => {
-      expect(contraste(token("ivory"), fundo)).toBeGreaterThanOrEqual(AA_TEXTO);
+      expect(contraste(token("ink"), fundo)).toBeGreaterThanOrEqual(AA_TEXTO);
     });
 
     it(`texto secundário sobre ${onde}`, () => {
-      expect(contraste(token("ivory-muted"), fundo)).toBeGreaterThanOrEqual(AA_TEXTO);
+      expect(contraste(token("ink-muted"), fundo)).toBeGreaterThanOrEqual(AA_TEXTO);
     });
 
     it(`valor positivo sobre ${onde}`, () => {
@@ -143,12 +143,12 @@ describe("contraste dos tokens — WCAG AA", () => {
     });
 
     it(`destaque dourado sobre ${onde}`, () => {
-      expect(contraste(token("gold-light"), fundo)).toBeGreaterThanOrEqual(AA_TEXTO);
+      expect(contraste(token("gold-strong"), fundo)).toBeGreaterThanOrEqual(AA_TEXTO);
     });
   }
 
   /**
-   * Botão primário: `bg-gold text-ivory`.
+   * Botão primário: `bg-gold text-ink`.
    *
    * `--color-gold` é o ÚNICO token que a barbearia sobrescreve em tempo de
    * execução (`lib/tenant.ts`). O teste trava o padrão da plataforma; o valor
@@ -157,11 +157,11 @@ describe("contraste dos tokens — WCAG AA", () => {
    * contorno de controle, fundo de etiqueta — pode depender deste token.
    */
   it("botão primário: texto sobre o dourado", () => {
-    expect(contraste(token("ivory"), token("gold"))).toBeGreaterThanOrEqual(AA_TEXTO);
+    expect(contraste(token("ink"), token("gold"))).toBeGreaterThanOrEqual(AA_TEXTO);
   });
 
   it("botão primário em hover: o hover precisa CLAREAR, não escurecer", () => {
-    expect(contraste(token("ivory"), token("gold-hover"))).toBeGreaterThanOrEqual(AA_TEXTO);
+    expect(contraste(token("ink"), token("gold-hover"))).toBeGreaterThanOrEqual(AA_TEXTO);
     expect(luminancia(token("gold-hover"))).toBeGreaterThan(luminancia(token("gold")));
   });
 
@@ -196,10 +196,10 @@ describe("contraste dos tokens — WCAG AA", () => {
    * depender do dourado que cada barbearia escolhe.
    */
   const etiquetas: Array<[string, string]> = [
-    ["dourada", "gold-light"],
+    ["dourada", "gold-strong"],
     ["positiva", "success"],
     ["negativa", "danger"],
-    ["neutra", "ivory-muted"],
+    ["neutra", "ink-muted"],
   ];
 
   for (const [nome, cor] of etiquetas) {
@@ -224,8 +224,8 @@ describe("contraste dos tokens — WCAG AA", () => {
    */
   it("cartão de erro: as duas linhas sobre a tinta vermelha", () => {
     const fundo = tinta(token("danger"), 0.05, token("surface"));
-    expect(contraste(token("ivory"), fundo)).toBeGreaterThanOrEqual(AA_TEXTO);
-    expect(contraste(token("ivory-muted"), fundo)).toBeGreaterThanOrEqual(AA_TEXTO);
+    expect(contraste(token("ink"), fundo)).toBeGreaterThanOrEqual(AA_TEXTO);
+    expect(contraste(token("ink-muted"), fundo)).toBeGreaterThanOrEqual(AA_TEXTO);
     expect(contraste(token("danger"), fundo)).toBeGreaterThanOrEqual(AA_NAO_TEXTO);
   });
 
@@ -235,9 +235,9 @@ describe("contraste dos tokens — WCAG AA", () => {
    * ao tentar salvar — que é a pior hora de descobrir qualquer coisa.
    */
   it("aviso de modo leitura: texto e link sobre a tinta dourada", () => {
-    const fundo = tinta(token("gold"), 0.1, token("bg"));
-    expect(contraste(token("ivory"), fundo)).toBeGreaterThanOrEqual(AA_TEXTO);
-    expect(contraste(token("gold-light"), fundo)).toBeGreaterThanOrEqual(AA_TEXTO);
+    const fundo = tinta(token("gold"), 0.1, token("canvas"));
+    expect(contraste(token("ink"), fundo)).toBeGreaterThanOrEqual(AA_TEXTO);
+    expect(contraste(token("gold-strong"), fundo)).toBeGreaterThanOrEqual(AA_TEXTO);
   });
 
   /**

@@ -47,8 +47,8 @@ export default function PlanosPage() {
   return (
     <div className="flex flex-col gap-5 pt-1 md:gap-8 md:pt-2">
       <div>
-        <p className="text-sm text-ivory-muted md:text-base">Mensalistas</p>
-        <h1 className="text-xl text-ivory md:text-4xl md:tracking-tight">Planos</h1>
+        <p className="text-sm text-ink-muted md:text-base">Mensalistas</p>
+        <h1 className="text-xl text-ink md:text-4xl md:tracking-tight">Planos</h1>
       </div>
 
       {status === "carregando" && <LoadingRows rows={3} />}
@@ -93,20 +93,20 @@ export default function PlanosPage() {
                   )}
 
                   <div>
-                    <p className="text-ivory md:text-lg">{plan.name}</p>
-                    <p className="text-xs text-ivory-muted md:text-sm">
+                    <p className="text-ink md:text-lg">{plan.name}</p>
+                    <p className="text-xs text-ink-muted md:text-sm">
                       {plan.description}
                     </p>
                   </div>
 
                   <div className="flex items-baseline gap-2">
-                    <span className="font-display text-2xl font-semibold text-gold-light md:text-4xl">
+                    <span className="font-display text-2xl font-semibold text-gold-strong md:text-4xl">
                       {formatBRL(plan.price)}
                     </span>
-                    <span className="text-xs text-ivory-muted md:text-sm">/mês</span>
+                    <span className="text-xs text-ink-muted md:text-sm">/mês</span>
                   </div>
 
-                  <p className="text-xs text-ivory-muted md:text-sm">
+                  <p className="text-xs text-ink-muted md:text-sm">
                     {plan.unlimited ? (
                       <>
                         A partir da {visitasParaCompensar}ª visita no mês o plano
@@ -142,7 +142,7 @@ export default function PlanosPage() {
                       </Button>
                     </a>
                   ) : (
-                    <p className="text-xs text-ivory-muted md:mt-2">
+                    <p className="text-xs text-ink-muted md:mt-2">
                       Fale com a {tenant.brand.name} no balcão para assinar.
                     </p>
                   )}
@@ -154,8 +154,8 @@ export default function PlanosPage() {
           {/* O texto diz o que de fato acontece. O anterior prometia "cobrança
               automática todo mês" e "lembrete no WhatsApp antes do vencimento",
               e não havia cobrança nem lembrete. */}
-          <Card className="flex flex-col gap-2 text-sm text-ivory-muted md:max-w-2xl md:p-6">
-            <p className="text-xs font-semibold uppercase tracking-wider text-ivory-muted">
+          <Card className="flex flex-col gap-2 text-sm text-ink-muted md:max-w-2xl md:p-6">
+            <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
               Como funciona
             </p>
             <p>

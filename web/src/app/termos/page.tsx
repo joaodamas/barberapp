@@ -54,7 +54,7 @@ export default function TermosPage() {
       <Secao n={3} titulo="Teste e planos">
         <ul className="flex list-disc flex-col gap-1.5 pl-5">
           <li>
-            O período de teste dura <strong className="text-ivory">7 dias</strong>,
+            O período de teste dura <strong className="text-ink">7 dias</strong>,
             com todos os recursos liberados e sem cartão.
           </li>
           <li>
@@ -71,9 +71,9 @@ export default function TermosPage() {
       <Secao n={4} titulo="Se o pagamento atrasar, você não perde a agenda">
         <p>
           Vencido o teste ou atrasada a mensalidade, a conta entra em{" "}
-          <strong className="text-ivory">modo leitura</strong>: você continua
+          <strong className="text-ink">modo leitura</strong>: você continua
           vendo tudo — agenda, clientes, financeiro e histórico — e{" "}
-          <strong className="text-ivory">
+          <strong className="text-ink">
             seus clientes continuam agendando normalmente pelo link
           </strong>
           . O que fica bloqueado é editar.
@@ -103,7 +103,7 @@ export default function TermosPage() {
       <Secao n={6} titulo="Disponibilidade e limites">
         <p>
           Trabalhamos para manter o sistema no ar, mas{" "}
-          <strong className="text-ivory">
+          <strong className="text-ink">
             não prometemos funcionamento ininterrupto
           </strong>
           . Pode haver manutenção, falha de terceiro de quem dependemos ou
@@ -124,7 +124,7 @@ export default function TermosPage() {
         </p>
         <ul className="flex list-disc flex-col gap-2 pl-5">
           <li>
-            <strong className="text-ivory">
+            <strong className="text-ink">
               Você é o CONTROLADOR dos dados dos seus clientes.
             </strong>{" "}
             É você quem decide coletar nome, telefone e histórico, para que usar
@@ -132,19 +132,19 @@ export default function TermosPage() {
             você.
           </li>
           <li>
-            <strong className="text-ivory">O CorteHub é o OPERADOR.</strong>{" "}
+            <strong className="text-ink">O CorteHub é o OPERADOR.</strong>{" "}
             Tratamos esses dados apenas seguindo suas instruções e para fazer o
             sistema funcionar. Não usamos para finalidade própria, não vendemos e
             não compartilhamos com outra barbearia.
           </li>
         </ul>
         <p>Disso decorrem obrigações concretas de cada lado.</p>
-        <p className="text-ivory">Cabe a você</p>
+        <p className="text-ink">Cabe a você</p>
         <ul className="flex list-disc flex-col gap-1.5 pl-5">
           <li>
             Ter base legal para tratar os dados dos seus clientes e informá-los —
             no mínimo apontando a{" "}
-            <Link href="/privacidade" className="text-gold-light underline underline-offset-2">
+            <Link href="/privacidade" className="text-gold-strong underline underline-offset-2">
               Política de Privacidade
             </Link>
             .
@@ -158,7 +158,7 @@ export default function TermosPage() {
             informada — marketing sem consentimento, por exemplo.
           </li>
         </ul>
-        <p className="text-ivory">Cabe a nós</p>
+        <p className="text-ink">Cabe a nós</p>
         <ul className="flex list-disc flex-col gap-1.5 pl-5">
           <li>Manter medidas de segurança e o isolamento entre barbearias.</li>
           <li>
@@ -180,7 +180,7 @@ export default function TermosPage() {
         <p>
           O conteúdo que você cadastra continua seu. Enquanto a conta existir,
           você pode extraí-lo; encerrada a conta, há{" "}
-          <strong className="text-ivory">30 dias</strong> para exportar antes da
+          <strong className="text-ink">30 dias</strong> para exportar antes da
           exclusão.
         </p>
         <p>

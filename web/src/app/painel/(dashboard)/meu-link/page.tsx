@@ -32,9 +32,9 @@ export default function MeuLinkPage() {
   return (
     <div className="flex flex-col gap-6 pt-1 md:gap-10 md:pt-2">
       <header className="flex flex-col gap-1">
-        <p className="text-sm text-ivory-muted">Divulgação</p>
-        <h1 className="font-display text-3xl text-ivory md:text-4xl">Meu link</h1>
-        <p className="max-w-2xl text-sm text-ivory-muted">
+        <p className="text-sm text-ink-muted">Divulgação</p>
+        <h1 className="font-display text-3xl text-ink md:text-4xl">Meu link</h1>
+        <p className="max-w-2xl text-sm text-ink-muted">
           É por aqui que seu cliente marca sozinho, vê os horários livres e
           escolhe o que der certo — sem te chamar no WhatsApp para perguntar.
         </p>

@@ -51,15 +51,15 @@ export const metadata: Metadata = {
  */
 export default function LandingPage() {
   return (
-    <div className="min-h-screen overflow-y-auto bg-bg">
+    <div className="min-h-screen overflow-y-auto bg-canvas">
       {/* ---------------------------------------------------------------- */}
       {/* Topo                                                              */}
       {/* ---------------------------------------------------------------- */}
       <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-6 md:px-8">
-        <AssinaturaCorteHub className="text-ivory" />
+        <AssinaturaCorteHub className="text-ink" />
         <Link
           href="/login"
-          className="text-sm text-ivory-muted transition-colors hover:text-ivory"
+          className="text-sm text-ink-muted transition-colors hover:text-ink"
         >
           Entrar
         </Link>
@@ -71,18 +71,18 @@ export default function LandingPage() {
       <section className="mx-auto w-full max-w-6xl px-5 pb-16 pt-8 md:px-8 md:pb-28 md:pt-16">
         <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_1fr] lg:gap-16">
           <Reveal>
-            <p className="mb-5 text-sm text-gold-light">Para donos de barbearia</p>
+            <p className="mb-5 text-sm text-gold-strong">Para donos de barbearia</p>
             {/* `text-balance` evita a linha órfã de uma palavra, que é o que
                 mais denuncia título grande mal quebrado. */}
-            <h1 className="text-balance font-brand text-4xl leading-[1.05] tracking-tight text-ivory sm:text-5xl md:text-6xl">
+            <h1 className="text-balance font-brand text-4xl leading-[1.05] tracking-tight text-ink sm:text-5xl md:text-6xl">
               <RevealPalavras texto="Você sabe quanto faturou." />
               <br />
               <RevealPalavras
                 texto="Sabe quanto sobrou?"
-                className="text-gold-light"
+                className="text-gold-strong"
               />
             </h1>
-            <p className="mt-6 max-w-lg text-base leading-relaxed text-ivory-muted md:text-lg">
+            <p className="mt-6 max-w-lg text-base leading-relaxed text-ink-muted md:text-lg">
               Agenda que o cliente usa sozinho, e um financeiro que desconta
               comissão, aluguel e imposto para mostrar o que é seu de verdade.
             </p>
@@ -90,7 +90,7 @@ export default function LandingPage() {
             <div className="mt-9 flex flex-wrap items-center gap-4">
               <Link
                 href="/criar-conta"
-                className="group inline-flex min-h-12 items-center gap-2 rounded-xl bg-gold px-6 font-semibold text-ivory transition-colors hover:bg-gold-hover"
+                className="group inline-flex min-h-12 items-center gap-2 rounded-xl bg-gold px-6 font-semibold text-ink transition-colors hover:bg-gold-hover"
               >
                 Testar 7 dias
                 <ArrowRight
@@ -98,7 +98,7 @@ export default function LandingPage() {
                   className="transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none"
                 />
               </Link>
-              <span className="text-sm text-ivory-muted">
+              <span className="text-sm text-ink-muted">
                 Sem cartão. Sem taxa de instalação.
               </span>
             </div>
@@ -128,7 +128,7 @@ export default function LandingPage() {
       <section className="border-y border-border bg-surface/60">
         <div className="mx-auto w-full max-w-6xl px-5 py-16 md:px-8 md:py-24">
           <Reveal>
-            <h2 className="max-w-2xl text-balance font-brand text-2xl leading-tight text-ivory md:text-4xl">
+            <h2 className="max-w-2xl text-balance font-brand text-2xl leading-tight text-ink md:text-4xl">
               A conta que quase nenhuma barbearia faz
             </h2>
           </Reveal>
@@ -155,12 +155,12 @@ export default function LandingPage() {
               },
             ].map((item, i) => (
               <Reveal key={item.titulo} delay={i * 90}>
-                <div className="h-full bg-bg p-6 md:p-8">
-                  <p className="font-display text-3xl text-gold-light md:text-4xl">
+                <div className="h-full bg-canvas p-6 md:p-8">
+                  <p className="font-display text-3xl text-gold-strong md:text-4xl">
                     {item.numero}
                   </p>
-                  <p className="mt-1 text-sm font-medium text-ivory">{item.titulo}</p>
-                  <p className="mt-3 text-sm leading-relaxed text-ivory-muted">
+                  <p className="mt-1 text-sm font-medium text-ink">{item.titulo}</p>
+                  <p className="mt-3 text-sm leading-relaxed text-ink-muted">
                     {item.texto}
                   </p>
                 </div>
@@ -176,11 +176,11 @@ export default function LandingPage() {
       <section className="mx-auto w-full max-w-6xl px-5 py-16 md:px-8 md:py-28">
         <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-20">
           <Reveal>
-            <p className="text-sm text-gold-light">Projeção de caixa</p>
-            <h2 className="mt-3 text-balance font-brand text-2xl leading-tight text-ivory md:text-4xl">
+            <p className="text-sm text-gold-strong">Projeção de caixa</p>
+            <h2 className="mt-3 text-balance font-brand text-2xl leading-tight text-ink md:text-4xl">
               O dia em que o caixa vira, antes de virar
             </h2>
-            <p className="mt-5 max-w-md leading-relaxed text-ivory-muted">
+            <p className="mt-5 max-w-md leading-relaxed text-ink-muted">
               A projeção junta os horários já marcados, a cobrança dos
               mensalistas e as contas fixas de cada dia. Onde a linha cruza o
               zero, é ali que falta dinheiro — com semanas de antecedência para
@@ -192,8 +192,8 @@ export default function LandingPage() {
                 "Diz quanto do número é estimativa — e quanto é horário marcado",
                 "Ponto de equilíbrio calculado do seu custo real",
               ].map((t) => (
-                <li key={t} className="flex items-start gap-2.5 text-sm text-ivory-muted">
-                  <Check size={16} className="mt-0.5 shrink-0 text-gold-light" />
+                <li key={t} className="flex items-start gap-2.5 text-sm text-ink-muted">
+                  <Check size={16} className="mt-0.5 shrink-0 text-gold-strong" />
                   {t}
                 </li>
               ))}
@@ -227,13 +227,13 @@ export default function LandingPage() {
             </Reveal>
 
             <Reveal delay={100}>
-              <p className="text-sm text-gold-light">De onde veio</p>
-              <p className="mt-5 text-balance font-brand text-xl leading-snug text-ivory md:text-3xl">
+              <p className="text-sm text-gold-strong">De onde veio</p>
+              <p className="mt-5 text-balance font-brand text-xl leading-snug text-ink md:text-3xl">
                 O CorteHub nasceu dentro de{" "}
-                <span className="text-gold-light">uma barbearia só</span>, para
+                <span className="text-gold-strong">uma barbearia só</span>, para
                 resolver o problema de um barbeiro só.
               </p>
-              <p className="mt-5 max-w-xl leading-relaxed text-ivory-muted">
+              <p className="mt-5 max-w-xl leading-relaxed text-ink-muted">
                 Cada tela aqui existe porque alguém perdeu dinheiro sem ela — a
                 falta que ninguém somou, a comissão calculada sobre o preço
                 errado, o mês que fechou no vermelho sem aviso. Não somos os
@@ -254,7 +254,7 @@ export default function LandingPage() {
       {/* ---------------------------------------------------------------- */}
       <section className="mx-auto w-full max-w-6xl px-5 py-16 md:px-8 md:py-24">
         <Reveal>
-          <h2 className="max-w-xl text-balance font-brand text-2xl leading-tight text-ivory md:text-4xl">
+          <h2 className="max-w-xl text-balance font-brand text-2xl leading-tight text-ink md:text-4xl">
             Três telas que a sua planilha não tem
           </h2>
         </Reveal>
@@ -263,11 +263,11 @@ export default function LandingPage() {
           {/* Equipe */}
           <div className="grid items-center gap-8 lg:grid-cols-2 lg:gap-16">
             <Reveal>
-              <p className="text-sm text-gold-light">Equipe</p>
-              <h3 className="mt-2 text-balance font-brand text-xl leading-snug text-ivory md:text-3xl">
+              <p className="text-sm text-gold-strong">Equipe</p>
+              <h3 className="mt-2 text-balance font-brand text-xl leading-snug text-ink md:text-3xl">
                 Três cadeiras não viram conflito de horário
               </h3>
-              <p className="mt-4 max-w-md leading-relaxed text-ivory-muted">
+              <p className="mt-4 max-w-md leading-relaxed text-ink-muted">
                 Cada barbeiro tem a própria agenda, jornada, serviços e comissão.
                 O cliente escolhe com quem quer cortar — e quando você contrata
                 alguém, a conta não aumenta.
@@ -301,11 +301,11 @@ export default function LandingPage() {
           {/* Números */}
           <div className="grid items-center gap-8 lg:grid-cols-2 lg:gap-16">
             <Reveal className="lg:order-2">
-              <p className="text-sm text-gold-light">Números da operação</p>
-              <h3 className="mt-2 text-balance font-brand text-xl leading-snug text-ivory md:text-3xl">
+              <p className="text-sm text-gold-strong">Números da operação</p>
+              <h3 className="mt-2 text-balance font-brand text-xl leading-snug text-ink md:text-3xl">
                 O horário vazio aparece antes de você sentir
               </h3>
-              <p className="mt-4 max-w-md leading-relaxed text-ivory-muted">
+              <p className="mt-4 max-w-md leading-relaxed text-ink-muted">
                 Mapa de calor por dia e horário, taxa de ocupação, recorrência de
                 cliente e os serviços que mais rendem. É onde você descobre qual
                 promoção fazer, e quando.
@@ -332,8 +332,8 @@ export default function LandingPage() {
               "Cancelamento e remarcação com política",
               "Encaixe com aprovação do barbeiro",
             ].map((t) => (
-              <p key={t} className="flex items-start gap-2 text-sm text-ivory-muted">
-                <Check size={15} className="mt-0.5 shrink-0 text-gold-light" />
+              <p key={t} className="flex items-start gap-2 text-sm text-ink-muted">
+                <Check size={15} className="mt-0.5 shrink-0 text-gold-strong" />
                 {t}
               </p>
             ))}
@@ -348,10 +348,10 @@ export default function LandingPage() {
         <div className="mx-auto w-full max-w-6xl px-5 py-14 md:px-8 md:py-16">
           <Reveal>
             <div className="flex flex-col gap-3 md:flex-row md:items-baseline md:justify-between">
-              <h2 className="text-balance font-brand text-xl leading-tight text-ivory md:text-2xl">
+              <h2 className="text-balance font-brand text-xl leading-tight text-ink md:text-2xl">
                 O que ainda não está pronto
               </h2>
-              <p className="max-w-md text-sm leading-relaxed text-ivory-muted">
+              <p className="max-w-md text-sm leading-relaxed text-ink-muted">
                 Você recebe sem pagar mais por isso. Está aqui porque preferimos
                 dizer do que você descobrir sozinho.
               </p>
@@ -366,8 +366,8 @@ export default function LandingPage() {
             ].map(([titulo, texto], i) => (
               <Reveal key={titulo} delay={i * 80}>
                 <div className="flex flex-col gap-1.5 border-t border-gold/30 pt-3">
-                  <p className="text-sm font-medium text-ivory">{titulo}</p>
-                  <p className="text-sm leading-relaxed text-ivory-muted">{texto}</p>
+                  <p className="text-sm font-medium text-ink">{titulo}</p>
+                  <p className="text-sm leading-relaxed text-ink-muted">{texto}</p>
                 </div>
               </Reveal>
             ))}
@@ -380,10 +380,10 @@ export default function LandingPage() {
       {/* ---------------------------------------------------------------- */}
       <section className="mx-auto w-full max-w-6xl px-5 py-16 md:px-8 md:py-28">
         <Reveal>
-          <h2 className="text-balance font-brand text-2xl leading-tight text-ivory md:text-4xl">
+          <h2 className="text-balance font-brand text-2xl leading-tight text-ink md:text-4xl">
             Preço por barbearia, não por barbeiro
           </h2>
-          <p className="mt-4 max-w-xl leading-relaxed text-ivory-muted">
+          <p className="mt-4 max-w-xl leading-relaxed text-ink-muted">
             Contratar alguém não aumenta sua conta. E não existe taxa de
             instalação — se o sistema precisa de instalação paga, ele não é
             simples.
@@ -405,12 +405,12 @@ export default function LandingPage() {
                     : "border-border bg-surface/60")
                 }
               >
-                <p className="text-sm font-medium text-ivory">{p.nome}</p>
-                <p className="font-display text-3xl text-ivory">
+                <p className="text-sm font-medium text-ink">{p.nome}</p>
+                <p className="font-display text-3xl text-ink">
                   R$ {p.preco}
-                  <span className="text-base text-ivory-muted">/mês</span>
+                  <span className="text-base text-ink-muted">/mês</span>
                 </p>
-                <p className="text-sm leading-relaxed text-ivory-muted">{p.texto}</p>
+                <p className="text-sm leading-relaxed text-ink-muted">{p.texto}</p>
               </div>
             </Reveal>
           ))}
@@ -423,16 +423,16 @@ export default function LandingPage() {
       <section className="border-t border-border">
         <div className="mx-auto w-full max-w-3xl px-5 py-20 text-center md:px-8 md:py-28">
           <Reveal>
-            <h2 className="text-balance font-brand text-3xl leading-tight text-ivory md:text-5xl">
+            <h2 className="text-balance font-brand text-3xl leading-tight text-ink md:text-5xl">
               Sete dias para ver o seu próprio número
             </h2>
-            <p className="mx-auto mt-5 max-w-md leading-relaxed text-ivory-muted">
+            <p className="mx-auto mt-5 max-w-md leading-relaxed text-ink-muted">
               Cadastre seus serviços e horários em poucos minutos. No fim da
               primeira semana você já sabe quanto sobrou.
             </p>
             <Link
               href="/criar-conta"
-              className="group mt-9 inline-flex min-h-12 items-center gap-2 rounded-xl bg-gold px-7 font-semibold text-ivory transition-colors hover:bg-gold-hover"
+              className="group mt-9 inline-flex min-h-12 items-center gap-2 rounded-xl bg-gold px-7 font-semibold text-ink transition-colors hover:bg-gold-hover"
             >
               Começar agora
               <ArrowRight
@@ -445,14 +445,14 @@ export default function LandingPage() {
       </section>
 
       <footer className="border-t border-border">
-        <div className="mx-auto flex w-full max-w-6xl flex-col gap-3 px-5 py-8 text-xs text-ivory-muted md:flex-row md:items-center md:justify-between md:px-8">
-          <AssinaturaCorteHub className="text-ivory" />
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-3 px-5 py-8 text-xs text-ink-muted md:flex-row md:items-center md:justify-between md:px-8">
+          <AssinaturaCorteHub className="text-ink" />
           <span>Feito para quem corta cabelo e precisa saber de dinheiro.</span>
           <span className="flex gap-4">
-            <Link href="/privacidade" className="underline-offset-2 hover:text-ivory hover:underline">
+            <Link href="/privacidade" className="underline-offset-2 hover:text-ink hover:underline">
               Privacidade
             </Link>
-            <Link href="/termos" className="underline-offset-2 hover:text-ivory hover:underline">
+            <Link href="/termos" className="underline-offset-2 hover:text-ink hover:underline">
               Termos
             </Link>
           </span>

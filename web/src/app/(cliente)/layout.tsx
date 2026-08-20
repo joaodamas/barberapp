@@ -24,7 +24,7 @@ export default async function ClienteLayout({
             antes de chegar ao conteúdo. */}
         <a
           href="#conteudo"
-          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-xl focus:bg-gold focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-ivory"
+          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-xl focus:bg-gold focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-ink"
         >
           Pular para o conteúdo
         </a>
@@ -34,7 +34,7 @@ export default async function ClienteLayout({
           <header className="safe-top flex items-center gap-2.5 px-4 pb-3 pt-4 md:hidden">
             <Link href="/" className="flex items-center gap-2.5">
               <Image src={brand.logo} alt="" width={32} height={32} priority />
-              <span className="font-display text-sm uppercase tracking-wider text-ivory">
+              <span className="font-display text-sm uppercase tracking-wider text-ink">
                 {brand.shortName}
               </span>
             </Link>

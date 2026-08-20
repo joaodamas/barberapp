@@ -33,9 +33,9 @@ export function AvisoDeTrial({ tenant }: { tenant: Tenant }) {
   return (
     <div
       role="status"
-      className="flex items-center justify-center gap-2 border-b border-gold/30 bg-gold/10 px-4 py-2 text-center text-[11px] text-ivory md:text-xs"
+      className="flex items-center justify-center gap-2 border-b border-gold/30 bg-gold/10 px-4 py-2 text-center text-[11px] text-ink md:text-xs"
     >
-      <Clock size={13} className="shrink-0 text-gold-light" aria-hidden />
+      <Clock size={13} className="shrink-0 text-gold-strong" aria-hidden />
       <span>
         {dias === 1 ? (
           <>

@@ -119,11 +119,11 @@ export function Modal({
       >
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
-            <h2 id={`${id}-titulo`} className="text-lg font-semibold text-ivory">
+            <h2 id={`${id}-titulo`} className="text-lg font-semibold text-ink">
               {title}
             </h2>
             {description && (
-              <p id={`${id}-descricao`} className="mt-0.5 text-sm text-ivory-muted">
+              <p id={`${id}-descricao`} className="mt-0.5 text-sm text-ink-muted">
                 {description}
               </p>
             )}
@@ -134,7 +134,7 @@ export function Modal({
           <button
             aria-label={`Fechar ${title}`}
             onClick={onClose}
-            className="alvo-toque flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-lg text-ivory-muted transition-colors hover:bg-surface-raised hover:text-ivory md:h-8 md:w-8"
+            className="alvo-toque flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-surface-raised hover:text-ink md:h-8 md:w-8"
           >
             <X size={16} />
           </button>

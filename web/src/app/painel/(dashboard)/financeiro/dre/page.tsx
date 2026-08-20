@@ -310,29 +310,29 @@ function DreConteudo() {
               "Demonstração de resultado" fica no subtítulo — quem conhece o
               termo o reconhece, e quem não conhece não precisa dele para
               entender a tela. */}
-          <h1 className="text-xl text-ivory md:text-3xl md:tracking-tight">Quanto sobrou</h1>
-          <p className="text-xs text-ivory-muted md:text-sm">
+          <h1 className="text-xl text-ink md:text-3xl md:tracking-tight">Quanto sobrou</h1>
+          <p className="text-xs text-ink-muted md:text-sm">
             Demonstração de resultado — o que entrou, o que custou e o que
             sobrou no mês
           </p>
         </div>
-        <div className="flex items-center gap-1 text-sm text-ivory-muted">
+        <div className="flex items-center gap-1 text-sm text-ink-muted">
           <button
             aria-label="Mês anterior"
             disabled={monthOffset >= 11}
             onClick={() => setMonthOffset((o) => Math.min(o + 1, 11))}
-            className="flex h-11 w-11 items-center justify-center md:h-8 md:w-8 rounded-lg transition-colors hover:bg-surface-raised hover:text-ivory disabled:cursor-not-allowed disabled:opacity-30"
+            className="flex h-11 w-11 items-center justify-center md:h-8 md:w-8 rounded-lg transition-colors hover:bg-surface-raised hover:text-ink disabled:cursor-not-allowed disabled:opacity-30"
           >
             <ChevronLeft size={16} />
           </button>
-          <span className="min-w-32 text-center font-medium text-ivory">
+          <span className="min-w-32 text-center font-medium text-ink">
             {rotuloDoMes(mes)}
           </span>
           <button
             aria-label="Próximo mês"
             disabled={monthOffset <= 0}
             onClick={() => setMonthOffset((o) => Math.max(o - 1, 0))}
-            className="flex h-11 w-11 items-center justify-center md:h-8 md:w-8 rounded-lg transition-colors hover:bg-surface-raised hover:text-ivory disabled:cursor-not-allowed disabled:opacity-30"
+            className="flex h-11 w-11 items-center justify-center md:h-8 md:w-8 rounded-lg transition-colors hover:bg-surface-raised hover:text-ink disabled:cursor-not-allowed disabled:opacity-30"
           >
             <ChevronRight size={16} />
           </button>
@@ -413,13 +413,13 @@ function DreConteudo() {
       {receita.mensalistas > 0 && (
         <Card className="flex flex-col gap-1 text-sm md:p-6">
           <div className="flex items-baseline justify-between">
-            <span className="text-ivory">Receita contratada</span>
-            <span className="font-display text-lg text-ivory-muted">
+            <span className="text-ink">Receita contratada</span>
+            <span className="font-display text-lg text-ink-muted">
               {formatBRL(receita.mensalistas)}
             </span>
           </div>
-          <p className="text-xs leading-relaxed text-ivory-muted">
-            Mensalidades de planos ativos. <strong className="text-ivory">Não entra</strong>{" "}
+          <p className="text-xs leading-relaxed text-ink-muted">
+            Mensalidades de planos ativos. <strong className="text-ink">Não entra</strong>{" "}
             no resultado nem no imposto acima: o sistema ainda não cobra
             mensalidade, então não tem como saber se ela foi paga. Quando a
             cobrança existir, o valor recebido passa a compor a receita.
@@ -457,11 +457,11 @@ function DreConteudo() {
           tone="danger"
         />
         <div className="mt-1 flex items-center justify-between border-t border-border pt-2">
-          <span className="text-ivory">(=) Custo Variável Total</span>
-          <span className="text-ivory">{formatBRL(custoVariavelTotal)}</span>
+          <span className="text-ink">(=) Custo Variável Total</span>
+          <span className="text-ink">{formatBRL(custoVariavelTotal)}</span>
         </div>
         <div className="flex items-center justify-between border-t border-border pt-2 font-semibold">
-          <span className="text-ivory">(=) Margem de Contribuição</span>
+          <span className="text-ink">(=) Margem de Contribuição</span>
           {apuracao.ok("margemDeContribuicao") ? (
             <span className={signTone(margemContribuicao) === "success" ? "text-success" : "text-danger"}>
               {formatPctPtBR(margemContribuicaoPct)} · {formatBRL(margemContribuicao)}
@@ -496,37 +496,37 @@ function DreConteudo() {
             pagamento de barbeiro é comissão, e vive no custo variável. */}
         {payroll > 0 && (
           <div className="flex items-center justify-between py-1.5 pl-5">
-            <span className="text-ivory-muted">
+            <span className="text-ink-muted">
               (−) Salário fixo <span className="text-xs">(quem não recebe por comissão)</span>
             </span>
             <span className="font-medium text-danger">{formatBRL(payroll)}</span>
           </div>
         )}
         <div className="mt-1 flex items-center justify-between border-t border-border pt-2">
-          <span className="text-ivory">(=) Custo Fixo Total</span>
+          <span className="text-ink">(=) Custo Fixo Total</span>
           {apuracao.ok("custoFixo") ? (
-            <span className="text-ivory">{formatBRL(custoFixoTotal)}</span>
+            <span className="text-ink">{formatBRL(custoFixoTotal)}</span>
           ) : (
             <NaoApurado faltando={apuracao.faltando("custoFixo")} />
           )}
         </div>
         <div className="mt-1 flex items-center justify-between border-t border-border pt-2">
-          <span className="text-ivory">(=) Resultado antes de impostos</span>
+          <span className="text-ink">(=) Resultado antes de impostos</span>
           {apuracao.ok("resultado") ? (
-            <span className="text-ivory">{formatBRL(r.resultBeforeTax)}</span>
+            <span className="text-ink">{formatBRL(r.resultBeforeTax)}</span>
           ) : (
             <NaoApurado faltando={apuracao.faltando("resultado")} />
           )}
         </div>
         <div className="flex items-center justify-between py-1.5 pl-5">
-          <span className="text-ivory-muted">
+          <span className="text-ink-muted">
             (−) Impostos{" "}
             <span className="text-xs">(Simples, {dreTaxRatePct}% sobre o faturamento)</span>
           </span>
           <span className="font-medium text-danger">{formatBRL(r.tax)}</span>
         </div>
         <div className="flex items-center justify-between border-t border-border pt-3">
-          <span className="font-semibold text-ivory">Resultado do Mês</span>
+          <span className="font-semibold text-ink">Resultado do Mês</span>
           {apuracao.ok("resultado") ? (
             <span
               className={`font-display font-semibold md:text-lg ${
@@ -548,11 +548,11 @@ function DreConteudo() {
       {apuracao.ok("resultado") && (
       <Card className="flex flex-col gap-4 md:p-6">
         <div>
-          <h4 className="flex items-center gap-1.5 text-sm font-semibold text-ivory md:text-base">
-            <SlidersHorizontal size={14} className="text-gold-light" />
+          <h4 className="flex items-center gap-1.5 text-sm font-semibold text-ink md:text-base">
+            <SlidersHorizontal size={14} className="text-gold-strong" />
             Simulação de cenário de crescimento
           </h4>
-          <p className="text-xs text-ivory-muted md:text-sm">
+          <p className="text-xs text-ink-muted md:text-sm">
             O custo variável escala proporcionalmente com a receita; o custo
             fixo permanece igual — assim você vê o impacto real na margem
             antes de investir em crescimento.
@@ -560,9 +560,9 @@ function DreConteudo() {
         </div>
 
         <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-between text-xs text-ivory-muted md:text-sm">
+          <div className="flex items-center justify-between text-xs text-ink-muted md:text-sm">
             <span>Variação de faturamento</span>
-            <span className="font-semibold text-gold-light">
+            <span className="font-semibold text-gold-strong">
               {scenarioPct > 0 ? "+" : ""}
               {scenarioPct}%
             </span>
@@ -576,7 +576,7 @@ function DreConteudo() {
             onChange={(e) => setScenarioPct(Number(e.target.value))}
             className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-surface-raised accent-gold"
           />
-          <div className="flex justify-between text-[11px] text-ivory-muted">
+          <div className="flex justify-between text-[11px] text-ink-muted">
             <span>-50%</span>
             <span>0%</span>
             <span>+100%</span>
@@ -586,7 +586,7 @@ function DreConteudo() {
         <div className="table-scroll overflow-x-auto">
           <table className="w-full min-w-[480px] text-sm">
             <thead>
-              <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ivory-muted">
+              <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ink-muted">
                 <th className="pb-2 font-medium">Indicador</th>
                 <th className="pb-2 text-right font-medium">Atual</th>
                 <th className="pb-2 text-right font-medium">Cenário simulado</th>
@@ -631,8 +631,8 @@ function DreConteudo() {
 function NaoApurado({ faltando }: { faltando: readonly FonteFinanceira[] }) {
   return (
     <span className="text-right">
-      <span className="font-medium text-ivory-muted">{NAO_APURADO}</span>
-      <span className="block text-xs text-ivory-muted">{porQueNaoApurou(faltando)}</span>
+      <span className="font-medium text-ink-muted">{NAO_APURADO}</span>
+      <span className="block text-xs text-ink-muted">{porQueNaoApurou(faltando)}</span>
     </span>
   );
 }
@@ -674,15 +674,15 @@ function ExpandableGroup({
         type="button"
         onClick={() => !naoApurado && toggle(groupKey)}
         disabled={naoApurado}
-        className="flex w-full items-center justify-between py-1.5 text-left transition-colors hover:text-ivory disabled:cursor-default"
+        className="flex w-full items-center justify-between py-1.5 text-left transition-colors hover:text-ink disabled:cursor-default"
       >
-        <span className={`flex items-center gap-1.5 ${strong ? "font-semibold text-ivory" : "text-ivory"}`}>
+        <span className={`flex items-center gap-1.5 ${strong ? "font-semibold text-ink" : "text-ink"}`}>
           {naoApurado ? (
             <span className="inline-block w-3.5 shrink-0" />
           ) : (
             <ChevronDown
               size={14}
-              className={`text-ivory-muted transition-transform ${isOpen ? "" : "-rotate-90"}`}
+              className={`text-ink-muted transition-transform ${isOpen ? "" : "-rotate-90"}`}
             />
           )}
           {label}
@@ -730,7 +730,7 @@ function DreDetailRow({
           type="button"
           onClick={() => hasChildren && toggle(item.key)}
           disabled={!hasChildren}
-          className={`flex items-center gap-1.5 text-left text-ivory-muted ${hasChildren ? "hover:text-ivory" : ""}`}
+          className={`flex items-center gap-1.5 text-left text-ink-muted ${hasChildren ? "hover:text-ink" : ""}`}
         >
           {hasChildren ? (
             <ChevronDown
@@ -781,12 +781,12 @@ function ScenarioRow({
   const isGood = invert ? diff <= 0 : diff >= 0;
   return (
     <tr className="border-b border-border/60 last:border-0">
-      <td className={`py-2 ${strong ? "font-semibold text-ivory" : "text-ivory"}`}>{label}</td>
-      <td className="py-2 text-right text-ivory-muted">{formatBRL(atual)}</td>
-      <td className={`py-2 text-right ${strong ? "font-semibold text-ivory" : "text-ivory"}`}>
+      <td className={`py-2 ${strong ? "font-semibold text-ink" : "text-ink"}`}>{label}</td>
+      <td className="py-2 text-right text-ink-muted">{formatBRL(atual)}</td>
+      <td className={`py-2 text-right ${strong ? "font-semibold text-ink" : "text-ink"}`}>
         {formatBRL(simulado)}
       </td>
-      <td className={`py-2 text-right ${isZero ? "text-ivory-muted" : isGood ? "text-success" : "text-danger"}`}>
+      <td className={`py-2 text-right ${isZero ? "text-ink-muted" : isGood ? "text-success" : "text-danger"}`}>
         {isZero ? "—" : `${diff > 0 ? "+" : ""}${formatBRL(diff)}`}
       </td>
     </tr>

@@ -272,17 +272,17 @@ export default function AgendarPage() {
         {step > 1 && step < 4 && (
           <button
             onClick={() => setStep((s) => (s - 1) as Step)}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-ivory-muted transition-colors hover:border-gold/60 hover:text-ivory md:h-10 md:w-10"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted transition-colors hover:border-gold/60 hover:text-ink md:h-10 md:w-10"
             aria-label="Voltar"
           >
             <ChevronLeft size={18} />
           </button>
         )}
         <div>
-          <p className="text-xs uppercase tracking-wider text-ivory-muted md:text-sm">
+          <p className="text-xs uppercase tracking-wider text-ink-muted md:text-sm">
             Passo {step} de 4
           </p>
-          <h1 className="text-xl text-ivory md:text-3xl md:tracking-tight">{STEP_LABELS[step]}</h1>
+          <h1 className="text-xl text-ink md:text-3xl md:tracking-tight">{STEP_LABELS[step]}</h1>
         </div>
       </div>
 
@@ -327,13 +327,13 @@ export default function AgendarPage() {
                 }
               >
                 <div>
-                  <p className="text-sm text-ivory">{service.name}</p>
-                  <p className="text-xs text-ivory-muted">
+                  <p className="text-sm text-ink">{service.name}</p>
+                  <p className="text-xs text-ink-muted">
                     {service.durationMin} min
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <p className="text-sm font-semibold text-gold-light">
+                  <p className="text-sm font-semibold text-gold-strong">
                     {service.priceFrom && "a partir de "}
                     {formatBRL(service.price)}
                   </p>
@@ -341,7 +341,7 @@ export default function AgendarPage() {
                     className={
                       "flex h-6 w-6 items-center justify-center rounded-full border " +
                       (checked
-                        ? "border-gold bg-gold text-ivory"
+                        ? "border-gold bg-gold text-ink"
                         : "border-border text-transparent")
                     }
                   >
@@ -360,7 +360,7 @@ export default function AgendarPage() {
               única opção é atrito — o servidor preenche sozinho. */}
           {barbeirosAtivos.length > 1 && (
             <div className="flex flex-col gap-2">
-              <p className="text-xs font-semibold uppercase tracking-wider text-ivory-muted">
+              <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
                 Com quem você quer cortar
               </p>
               <div className="flex gap-2 overflow-x-auto pb-1">
@@ -384,8 +384,8 @@ export default function AgendarPage() {
                         className={
                           "min-h-11 shrink-0 cursor-pointer rounded-xl border px-4 text-sm transition-colors " +
                           (ativo
-                            ? "border-gold bg-gold text-ivory"
-                            : "border-border text-ivory-muted hover:border-gold/50 hover:text-ivory")
+                            ? "border-gold bg-gold text-ink"
+                            : "border-border text-ink-muted hover:border-gold/50 hover:text-ink")
                         }
                       >
                         {b.name}
@@ -411,8 +411,8 @@ export default function AgendarPage() {
                   className={
                     "flex min-w-14 shrink-0 flex-col items-center gap-1 rounded-xl border px-3 py-2 transition-colors disabled:cursor-not-allowed disabled:opacity-35 " +
                     (active
-                      ? "border-gold bg-gold/10 text-gold-light"
-                      : "border-border text-ivory-muted")
+                      ? "border-gold bg-gold/10 text-gold-strong"
+                      : "border-border text-ink-muted")
                   }
                 >
                   <span className="text-[11px] uppercase">
@@ -430,7 +430,7 @@ export default function AgendarPage() {
           </div>
 
           {estadoDaLista === "dia-fechado" ? (
-            <Card className="py-8 text-center text-sm text-ivory-muted">
+            <Card className="py-8 text-center text-sm text-ink-muted">
               A barbearia não abre neste dia. Escolha outra data.
             </Card>
           ) : estadoDaLista === "escolher-profissional" ? (
@@ -438,7 +438,7 @@ export default function AgendarPage() {
              * por ele: qual barbeiro seria o padrão da casa é decisão de quem
              * opera, não do agendamento. O que a tela pode fazer é PEDIR, em
              * vez de responder por uma pergunta que não fez. */
-            <Card className="flex flex-col gap-2 py-6 text-center text-sm text-ivory-muted">
+            <Card className="flex flex-col gap-2 py-6 text-center text-sm text-ink-muted">
               <span>Escolha com quem você quer cortar.</span>
               <span className="text-xs">
                 Os horários livres mudam conforme o profissional — por isso a
@@ -448,7 +448,7 @@ export default function AgendarPage() {
           ) : estadoDaLista === "carregando" ? (
             <LoadingRows rows={3} />
           ) : estadoDaLista === "sem-horario" ? (
-            <Card className="flex flex-col gap-2 py-6 text-center text-sm text-ivory-muted">
+            <Card className="flex flex-col gap-2 py-6 text-center text-sm text-ink-muted">
               <span>
                 {barbeiroEscolhido?.name} não tem horário livre de{" "}
                 {totalDuration} min neste dia.
@@ -475,8 +475,8 @@ export default function AgendarPage() {
                   className={
                     "flex flex-col items-center rounded-xl border py-2.5 text-sm transition-colors " +
                     (active
-                      ? "border-gold bg-gold text-ivory"
-                      : "border-border text-ivory")
+                      ? "border-gold bg-gold text-ink"
+                      : "border-border text-ink")
                   }
                 >
                   {slot.time}
@@ -491,14 +491,14 @@ export default function AgendarPage() {
       {step === 3 && (
         <div className="flex flex-col gap-4 pb-24">
           <Card className="flex flex-col gap-2 md:p-6">
-            <p className="text-sm text-ivory md:text-base">
+            <p className="text-sm text-ink md:text-base">
               {selectedServices.map((s) => s.name).join(" + ")}
             </p>
             {/* `capitalize` põe maiúscula em TODA palavra, e em português isso
                 produz "Quarta-Feira, 19 De Agosto Às 14:00 · 30 Min" — mês,
                 preposição e a abreviação de minuto, que é invariável. Só a
                 primeira letra da frase sobe. */}
-            <p className="text-xs text-ivory-muted first-letter:uppercase">
+            <p className="text-xs text-ink-muted first-letter:uppercase">
               {selectedDay?.date.toLocaleDateString("pt-BR", {
                 weekday: "long",
                 day: "2-digit",
@@ -507,8 +507,8 @@ export default function AgendarPage() {
               às {selectedSlot?.time} · {totalDuration} min
             </p>
             <div className="flex items-center justify-between border-t border-border pt-2 text-sm">
-              <span className="text-ivory-muted">Total</span>
-              <span className="font-semibold text-gold-light">
+              <span className="text-ink-muted">Total</span>
+              <span className="font-semibold text-gold-strong">
                 {formatBRL(totalPrice)}
               </span>
             </div>
@@ -519,7 +519,7 @@ export default function AgendarPage() {
               não existia, toda reserva nascia sem número e o dono descobria o
               cliente só quando ele aparecia — ou não aparecia. */}
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="cliente-whatsapp" className="text-xs uppercase tracking-wider text-ivory-muted">
+            <label htmlFor="cliente-whatsapp" className="text-xs uppercase tracking-wider text-ink-muted">
               Seu WhatsApp
             </label>
             <input
@@ -533,9 +533,9 @@ export default function AgendarPage() {
               onChange={(e) => setWhatsapp(mascararWhatsapp(e.target.value))}
               aria-invalid={whatsapp.length > 0 && !whatsappOk}
               aria-describedby="ajuda-whatsapp"
-              className="min-h-12 rounded-xl border border-border bg-surface px-4 text-sm text-ivory outline-none focus-visible:ring-2 focus-visible:ring-gold"
+              className="min-h-12 rounded-xl border border-border bg-surface px-4 text-sm text-ink outline-none focus-visible:ring-2 focus-visible:ring-gold"
             />
-            <p id="ajuda-whatsapp" className="text-xs text-ivory-muted">
+            <p id="ajuda-whatsapp" className="text-xs text-ink-muted">
               {whatsapp.length > 0 && !whatsappOk
                 ? "Faltam dígitos — informe DDD e número."
                 : `É por aqui que ${tenant.brand.name} confirma seu horário e avisa se algo mudar.`}
@@ -547,7 +547,7 @@ export default function AgendarPage() {
               houver gateway. Oferecer uma escolha que não existe é pior que não
               oferecer escolha — agora a tela afirma o que de fato acontece, e
               quem informa COMO o cliente pagou é o balcão, no fechamento. */}
-          <p className="text-xs uppercase tracking-wider text-ivory-muted">
+          <p className="text-xs uppercase tracking-wider text-ink-muted">
             Pagamento
           </p>
           {/* D2 · quem tem plano não recebe a mesma frase de quem não tem.
@@ -558,12 +558,12 @@ export default function AgendarPage() {
               coberto: a cota do mês é decidida no fechamento. */}
           {minhaAssinatura ? (
             <Card className="flex items-start gap-3 bg-surface-raised">
-              <Store size={16} className="mt-0.5 shrink-0 text-gold-light" />
+              <Store size={16} className="mt-0.5 shrink-0 text-gold-strong" />
               <div>
-                <p className="text-sm text-ivory">
+                <p className="text-sm text-ink">
                   Você é mensalista · {minhaAssinatura.planName}
                 </p>
-                <p className="mt-0.5 text-xs text-ivory-muted">
+                <p className="mt-0.5 text-xs text-ink-muted">
                   Seu plano: {termosDoPlano(minhaAssinatura).toLowerCase()}. O
                   que estiver incluído não é cobrado de novo no salão —{" "}
                   {tenant.brand.name} confirma no atendimento. O que passar do
@@ -573,10 +573,10 @@ export default function AgendarPage() {
             </Card>
           ) : (
             <Card className="flex items-start gap-3 bg-surface-raised">
-              <Store size={16} className="mt-0.5 shrink-0 text-gold-light" />
+              <Store size={16} className="mt-0.5 shrink-0 text-gold-strong" />
               <div>
-                <p className="text-sm text-ivory">Você paga no salão</p>
-                <p className="mt-0.5 text-xs text-ivory-muted">
+                <p className="text-sm text-ink">Você paga no salão</p>
+                <p className="mt-0.5 text-xs text-ink-muted">
                   Sua reserva é confirmada agora, sem cobrança. No dia, pague{" "}
                   {formatBRL(totalPrice)} como preferir — Pix, dinheiro ou
                   maquininha.
@@ -598,8 +598,8 @@ export default function AgendarPage() {
             * servidor não aplicaria — `cancelBooking` decide por
             * `policies.cancellation`. É o mesmo defeito que o painel do dono já
             * tinha corrigido, e que aqui, do lado de quem paga, tinha ficado. */}
-          <Card className="flex gap-2 bg-surface-raised text-xs text-ivory-muted">
-            <Clock size={14} className="mt-0.5 shrink-0 text-gold-light" />
+          <Card className="flex gap-2 bg-surface-raised text-xs text-ink-muted">
+            <Clock size={14} className="mt-0.5 shrink-0 text-gold-strong" />
             <p>
               Cancelamento até {politicaCancelamento.fullRefundHours}h antes:
               100% de volta. Entre {politicaCancelamento.fullRefundHours}h e{" "}
@@ -614,10 +614,10 @@ export default function AgendarPage() {
 
       {step === 4 && (
         <div className="flex flex-col items-center gap-4 pt-8 text-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gold/15 text-gold-light">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gold/15 text-gold-strong">
             <Check size={30} />
           </div>
-          <h2 className="text-lg text-ivory">Reserva confirmada!</h2>
+          <h2 className="text-lg text-ink">Reserva confirmada!</h2>
           {/* A tela dizia "seu horário está garantido" sem dizer QUAL.
             *
             * O passo 4 é a última coisa que o cliente vê antes de fechar o
@@ -627,10 +627,10 @@ export default function AgendarPage() {
             * em "Ver minhas reservas". Confirmar é repetir o que foi
             * combinado, não anunciar que algo foi combinado. */}
           <Card className="w-full max-w-xs bg-surface-raised text-left">
-            <p className="text-sm text-ivory">
+            <p className="text-sm text-ink">
               {selectedServices.map((s) => s.name).join(" + ")}
             </p>
-            <p className="mt-0.5 text-xs text-ivory-muted first-letter:uppercase">
+            <p className="mt-0.5 text-xs text-ink-muted first-letter:uppercase">
               {selectedDay?.date.toLocaleDateString("pt-BR", {
                 weekday: "long",
                 day: "2-digit",
@@ -639,14 +639,14 @@ export default function AgendarPage() {
               às {selectedSlot?.time}
             </p>
             {barbeirosAtivos.length > 1 && barbeiroEscolhido && (
-              <p className="mt-0.5 text-xs text-ivory-muted">
+              <p className="mt-0.5 text-xs text-ink-muted">
                 com {barbeiroEscolhido.name}
               </p>
             )}
           </Card>
           {/* "Não esqueça: R$ 50,00" é a última coisa que o mensalista lê antes
               de sair da tela, e era a que ele levava para o balcão. */}
-          <p className="max-w-xs text-sm text-ivory-muted">
+          <p className="max-w-xs text-sm text-ink-muted">
             {minhaAssinatura
               ? "Seu horário está garantido. O que estiver incluído no seu plano não é cobrado no dia."
               : `Seu horário está garantido. Não esqueça: ${formatBRL(totalPrice)} no salão no dia do atendimento.`}
@@ -658,9 +658,9 @@ export default function AgendarPage() {
       )}
 
       {step < 4 && (
-        <div className="fixed inset-x-0 bottom-16 z-10 mx-auto w-full max-w-md border-t border-border bg-bg/95 px-4 py-3 backdrop-blur safe-bottom md:hidden">
+        <div className="fixed inset-x-0 bottom-16 z-10 mx-auto w-full max-w-md border-t border-border bg-canvas/95 px-4 py-3 backdrop-blur safe-bottom md:hidden">
           <div className="mb-2 flex items-center justify-between text-sm">
-            <span className="text-ivory-muted">
+            <span className="text-ink-muted">
               {/* O `(s)` é o produto se recusando a concordar e devolvendo a
                   conta para quem lê — `UI-UX-GUIDELINES` §9. A regra mora em
                   `lib/plural`, e "min" fica invariável de propósito. */}
@@ -669,7 +669,7 @@ export default function AgendarPage() {
                 : "Selecione ao menos um serviço"}
             </span>
             {totalPrice > 0 && (
-              <span className="font-semibold text-gold-light">
+              <span className="font-semibold text-gold-strong">
                 {formatBRL(totalPrice)}
               </span>
             )}
@@ -686,10 +686,10 @@ export default function AgendarPage() {
               fica no passo da CONFIRMAÇÃO, imediatamente antes do ato que grava
               o dado — no rodapé de outra tela, ninguém leria. */}
           {step === 3 && (
-            <p className="text-center text-[11px] leading-relaxed text-ivory-muted">
+            <p className="text-center text-[11px] leading-relaxed text-ink-muted">
               Ao confirmar, seu nome e WhatsApp ficam com {tenant.brand.name} para
               gerenciar este atendimento.{" "}
-              <Link href="/privacidade" className="underline hover:text-ivory">
+              <Link href="/privacidade" className="underline hover:text-ink">
                 Como seus dados são tratados
               </Link>
               .
@@ -701,7 +701,7 @@ export default function AgendarPage() {
 
       {step < 4 && (
         <Card className="hidden md:sticky md:top-6 md:col-start-2 md:flex md:flex-col md:gap-4 md:p-6">
-          <p className="text-xs font-semibold uppercase tracking-wider text-ivory-muted">
+          <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
             Resumo da reserva
           </p>
 
@@ -709,21 +709,21 @@ export default function AgendarPage() {
             <div className="flex flex-col gap-2 border-b border-border pb-4">
               {selectedServices.map((s) => (
                 <div key={s.id} className="flex items-center justify-between text-sm">
-                  <span className="text-ivory">{s.name}</span>
-                  <span className="text-ivory-muted">{formatBRL(s.price)}</span>
+                  <span className="text-ink">{s.name}</span>
+                  <span className="text-ink-muted">{formatBRL(s.price)}</span>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="border-b border-border pb-4 text-sm text-ivory-muted">
+            <p className="border-b border-border pb-4 text-sm text-ink-muted">
               Selecione ao menos um serviço pra ver o resumo aqui.
             </p>
           )}
 
           {step >= 2 && selectedSlot && (
             <div className="flex flex-col gap-1 border-b border-border pb-4 text-sm">
-              <span className="text-ivory-muted">Dia e horário</span>
-              <span className="block text-ivory first-letter:uppercase">
+              <span className="text-ink-muted">Dia e horário</span>
+              <span className="block text-ink first-letter:uppercase">
                 {selectedDay?.date.toLocaleDateString("pt-BR", {
                   weekday: "long",
                   day: "2-digit",
@@ -740,23 +740,23 @@ export default function AgendarPage() {
               ruído. */}
           {step >= 2 && barbeirosAtivos.length > 1 && barbeiroEscolhido && (
             <div className="flex items-center justify-between border-b border-border pb-4 text-sm">
-              <span className="text-ivory-muted">Profissional</span>
-              <span className="text-ivory">{barbeiroEscolhido.name}</span>
+              <span className="text-ink-muted">Profissional</span>
+              <span className="text-ink">{barbeiroEscolhido.name}</span>
             </div>
           )}
 
           {step === 3 && (
             <div className="flex items-center justify-between border-b border-border pb-4 text-sm">
-              <span className="text-ivory-muted">Pagamento</span>
-              <span className="text-ivory">No salão</span>
+              <span className="text-ink-muted">Pagamento</span>
+              <span className="text-ink">No salão</span>
             </div>
           )}
 
           <div className="flex items-center justify-between text-sm">
-            <span className="text-ivory-muted">
+            <span className="text-ink-muted">
               {totalDuration > 0 ? `${totalDuration} min` : "Duração"}
             </span>
-            <span className="font-display text-lg font-semibold text-gold-light">
+            <span className="font-display text-lg font-semibold text-gold-strong">
               {formatBRL(totalPrice)}
             </span>
           </div>
@@ -770,10 +770,10 @@ export default function AgendarPage() {
           </Button>
 
           {step === 3 && (
-            <p className="text-center text-[11px] leading-relaxed text-ivory-muted">
+            <p className="text-center text-[11px] leading-relaxed text-ink-muted">
               Ao confirmar, seu nome e WhatsApp ficam com {tenant.brand.name}{" "}
               para gerenciar este atendimento.{" "}
-              <Link href="/privacidade" className="underline hover:text-ivory">
+              <Link href="/privacidade" className="underline hover:text-ink">
                 Como seus dados são tratados
               </Link>
               .

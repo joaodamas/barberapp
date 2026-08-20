@@ -236,7 +236,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-6 overflow-y-auto bg-bg px-4 py-10 md:h-full">
+    <div className="flex min-h-screen flex-col items-center justify-center gap-6 overflow-y-auto bg-canvas px-4 py-10 md:h-full">
       {/* A marca só é afirmada quando o produto TEM certeza de qual é.
 
           Com o Firestore fora, `resolverTenant` devolve o tenant padrão e esta
@@ -250,8 +250,8 @@ export default function LoginPage() {
           funcionando — quem cai aqui é o Firestore, não o Auth. */}
       {indisponivel ? (
         <div className="flex max-w-sm flex-col items-center gap-2 text-center">
-          <h1 className="font-display text-xl text-ivory">Entre com sua conta</h1>
-          <p className="text-sm text-ivory-muted">
+          <h1 className="font-display text-xl text-ink">Entre com sua conta</h1>
+          <p className="text-sm text-ink-muted">
             Não consegui confirmar de qual barbearia é este endereço — pode ser a
             conexão. Você ainda pode entrar; seus dados continuam onde estavam.
           </p>
@@ -259,8 +259,8 @@ export default function LoginPage() {
       ) : (
         <div className="flex flex-col items-center gap-2 text-center">
           <Image src={brand.logo} alt="" width={56} height={56} priority />
-          <h1 className="font-display text-xl text-ivory">{brand.name}</h1>
-          <p className="text-sm text-ivory-muted">Entre com sua conta</p>
+          <h1 className="font-display text-xl text-ink">{brand.name}</h1>
+          <p className="text-sm text-ink-muted">Entre com sua conta</p>
         </div>
       )}
 
@@ -280,8 +280,8 @@ export default function LoginPage() {
               className={
                 "flex-1 rounded-lg py-2 text-sm font-medium transition-colors " +
                 (method === m
-                  ? "bg-gold text-ivory"
-                  : "text-ivory-muted hover:text-ivory")
+                  ? "bg-gold text-ink"
+                  : "text-ink-muted hover:text-ink")
               }
             >
               {m === "phone" ? "Celular" : "E-mail"}
@@ -299,7 +299,7 @@ export default function LoginPage() {
                 handleSendCode();
               }}
             >
-              <label htmlFor="login-phone" className="text-xs font-medium text-ivory-muted">
+              <label htmlFor="login-phone" className="text-xs font-medium text-ink-muted">
                 Celular com WhatsApp
               </label>
               <input
@@ -311,7 +311,7 @@ export default function LoginPage() {
                 placeholder="(11) 99999-9999"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                className="rounded-xl border border-border bg-surface px-4 py-3 text-sm text-ivory outline-none focus-visible:ring-2 focus-visible:ring-gold"
+                className="rounded-xl border border-border bg-surface px-4 py-3 text-sm text-ink outline-none focus-visible:ring-2 focus-visible:ring-gold"
               />
               <Button
                 type="submit"
@@ -329,7 +329,7 @@ export default function LoginPage() {
                 handleVerifyCode();
               }}
             >
-              <label htmlFor="login-code" className="text-xs font-medium text-ivory-muted">
+              <label htmlFor="login-code" className="text-xs font-medium text-ink-muted">
                 Código recebido por SMS
               </label>
               <input
@@ -341,7 +341,7 @@ export default function LoginPage() {
                 placeholder="000000"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
-                className="rounded-xl border border-border bg-surface px-4 py-3 text-center text-lg tracking-[0.5em] text-ivory outline-none focus-visible:ring-2 focus-visible:ring-gold"
+                className="rounded-xl border border-border bg-surface px-4 py-3 text-center text-lg tracking-[0.5em] text-ink outline-none focus-visible:ring-2 focus-visible:ring-gold"
               />
               <Button type="submit" className="mt-1" disabled={busy || code.length < 6}>
                 Confirmar
@@ -352,7 +352,7 @@ export default function LoginPage() {
                   setPhoneStep("phone");
                   setError(null);
                 }}
-                className="text-xs text-ivory-muted transition-colors hover:text-ivory"
+                className="text-xs text-ink-muted transition-colors hover:text-ink"
               >
                 Usar outro número
               </button>
@@ -367,7 +367,7 @@ export default function LoginPage() {
             }}
           >
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="login-email" className="text-xs font-medium text-ivory-muted">
+              <label htmlFor="login-email" className="text-xs font-medium text-ink-muted">
                 E-mail
               </label>
               <input
@@ -378,11 +378,11 @@ export default function LoginPage() {
                 placeholder="voce@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="rounded-xl border border-border bg-surface px-4 py-3 text-sm text-ivory outline-none focus-visible:ring-2 focus-visible:ring-gold"
+                className="rounded-xl border border-border bg-surface px-4 py-3 text-sm text-ink outline-none focus-visible:ring-2 focus-visible:ring-gold"
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="login-password" className="text-xs font-medium text-ivory-muted">
+              <label htmlFor="login-password" className="text-xs font-medium text-ink-muted">
                 Senha
               </label>
               <input
@@ -393,7 +393,7 @@ export default function LoginPage() {
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="rounded-xl border border-border bg-surface px-4 py-3 text-sm text-ivory outline-none focus-visible:ring-2 focus-visible:ring-gold"
+                className="rounded-xl border border-border bg-surface px-4 py-3 text-sm text-ink outline-none focus-visible:ring-2 focus-visible:ring-gold"
               />
             </div>
             <Button type="submit" disabled={busy || !email || password.length < 6}>
@@ -407,7 +407,7 @@ export default function LoginPage() {
                   setError(null);
                   setNotice(null);
                 }}
-                className="text-gold-light transition-opacity hover:opacity-80"
+                className="text-gold-strong transition-opacity hover:opacity-80"
               >
                 {emailMode === "criar" ? "Já tenho conta" : "Criar uma conta"}
               </button>
@@ -416,7 +416,7 @@ export default function LoginPage() {
                   type="button"
                   onClick={handlePasswordReset}
                   disabled={busy}
-                  className="text-ivory-muted transition-colors hover:text-ivory disabled:opacity-40"
+                  className="text-ink-muted transition-colors hover:text-ink disabled:opacity-40"
                 >
                   Esqueci a senha
                 </button>
@@ -436,7 +436,7 @@ export default function LoginPage() {
           </p>
         )}
 
-        <div className="flex items-center gap-3 text-xs text-ivory-muted">
+        <div className="flex items-center gap-3 text-xs text-ink-muted">
           <div className="h-px flex-1 bg-border" />
           ou
           <div className="h-px flex-1 bg-border" />

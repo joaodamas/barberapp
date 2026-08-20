@@ -70,19 +70,19 @@ export default function FluxoCaixaPage() {
 
       <div>
         {/* A tela não dizia de que mês eram os números. */}
-        <p className="text-sm text-ivory-muted md:text-base">
+        <p className="text-sm text-ink-muted md:text-base">
           Histórico diário · {rotuloDoMes(mes)}
         </p>
         {/* "Fluxo de Caixa" com C maiúsculo, contra "Fluxo de caixa" no menu,
             no bloqueio de plano e no atalho do Resumo. É a mesma classe de
             defeito de "DRE Gerencial", num tamanho menor: três pontos
             escreviam de um jeito e a tela de destino do outro. */}
-        <h1 className="text-xl text-ivory md:text-3xl md:tracking-tight">Fluxo de caixa</h1>
+        <h1 className="text-xl text-ink md:text-3xl md:tracking-tight">Fluxo de caixa</h1>
         {/* A legenda anterior dizia "só o que entra pelo balcão — mensalidades
             aparecem no Financeiro". Virou falsa na Rodada 3.2: a mensalidade
             paga gera pagamento e ENTRA aqui, e o fluxo passou a ter saídas.
             Deixar a frase seria afirmar o que não é. */}
-        <p className="mt-1 text-xs text-ivory-muted md:text-sm">
+        <p className="mt-1 text-xs text-ink-muted md:text-sm">
           O dinheiro que entrou e saiu da conta, pelo valor líquido — a taxa da
           maquininha já vem descontada, como no extrato. Não é o mesmo que o
           resultado do mês: comprar estoque tira dinheiro hoje e vira custo só
@@ -137,15 +137,15 @@ export default function FluxoCaixaPage() {
           pior que não conferir — as parcelas visíveis não somariam o "Saiu". */}
       {apuracao.ok("caixaDoMes") && fluxo.saidas > 0 && (
         <div>
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm">
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
             Para onde o dinheiro foi
           </h2>
           <Card className="flex flex-col divide-y divide-border p-0">
             {SAIDAS_DO_FLUXO.filter((o) => fluxo.porOrigem[o.chave] < 0).map((o) => (
               <div key={o.chave} className="flex items-center justify-between px-3 py-2.5 md:px-4">
                 <div className="min-w-0">
-                  <p className="text-sm text-ivory">{o.label}</p>
-                  <p className="text-[11px] text-ivory-muted">{o.explicacao}</p>
+                  <p className="text-sm text-ink">{o.label}</p>
+                  <p className="text-[11px] text-ink-muted">{o.explicacao}</p>
                 </div>
                 <span className="shrink-0 font-display text-sm font-semibold text-danger">
                   − {formatBRL(-fluxo.porOrigem[o.chave])}
@@ -177,8 +177,8 @@ export default function FluxoCaixaPage() {
       {dailyCashHistory.length > 0 && (
         <Card className="flex flex-col gap-3">
           <div className="flex items-baseline justify-between">
-            <p className="text-sm font-medium text-ivory">Entrada por dia</p>
-            <p className="font-display text-lg text-ivory">{formatBRL(total)}</p>
+            <p className="text-sm font-medium text-ink">Entrada por dia</p>
+            <p className="font-display text-lg text-ink">{formatBRL(total)}</p>
           </div>
           {/* Trinta linhas de tabela não mostram o formato do mês: onde estão os
               picos, quais dias morreram. Uma barra por dia mostra. */}
@@ -196,7 +196,7 @@ export default function FluxoCaixaPage() {
       <Card className="table-scroll overflow-x-auto p-0">
         <table className="w-full min-w-[640px] text-sm">
           <thead>
-            <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ivory-muted">
+            <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ink-muted">
               <th className="px-4 py-3 font-medium md:px-6">Dia</th>
               <th className="px-4 py-3 text-right font-medium">Atendimentos</th>
               <th className="px-4 py-3 text-right font-medium">Ticket médio</th>
@@ -213,17 +213,17 @@ export default function FluxoCaixaPage() {
                 key={d.date}
                 className="border-b border-border/60 transition-colors last:border-0 hover:bg-surface-raised/60"
               >
-                <td className="whitespace-nowrap px-4 py-2.5 text-ivory md:px-6">
+                <td className="whitespace-nowrap px-4 py-2.5 text-ink md:px-6">
                   {formatWeekdayAndDay(d.date)}
                 </td>
-                <td className="px-4 py-2.5 text-right text-ivory-muted">{d.appointments}</td>
-                <td className="px-4 py-2.5 text-right text-ivory-muted">
+                <td className="px-4 py-2.5 text-right text-ink-muted">{d.appointments}</td>
+                <td className="px-4 py-2.5 text-right text-ink-muted">
                   {formatBRL(safeDiv(d.total, d.appointments))}
                 </td>
-                <td className="px-4 py-2.5 text-right text-ivory-muted">{formatBRL(d.pix)}</td>
-                <td className="px-4 py-2.5 text-right text-ivory-muted">{formatBRL(d.cartao)}</td>
-                <td className="px-4 py-2.5 text-right text-ivory-muted">{formatBRL(d.dinheiro)}</td>
-                <td className="whitespace-nowrap px-4 py-2.5 text-right font-medium text-ivory">
+                <td className="px-4 py-2.5 text-right text-ink-muted">{formatBRL(d.pix)}</td>
+                <td className="px-4 py-2.5 text-right text-ink-muted">{formatBRL(d.cartao)}</td>
+                <td className="px-4 py-2.5 text-right text-ink-muted">{formatBRL(d.dinheiro)}</td>
+                <td className="whitespace-nowrap px-4 py-2.5 text-right font-medium text-ink">
                   {formatBRL(d.total)}
                 </td>
                 <td className="px-4 py-2.5 md:px-6">
@@ -239,17 +239,17 @@ export default function FluxoCaixaPage() {
           </tbody>
           <tfoot>
             <tr className="border-t border-border font-medium">
-              <td className="px-4 py-3 text-xs uppercase tracking-wide text-ivory-muted md:px-6">
+              <td className="px-4 py-3 text-xs uppercase tracking-wide text-ink-muted md:px-6">
                 Total
               </td>
-              <td className="px-4 py-3 text-right text-ivory">{totalAppointments}</td>
-              <td className="px-4 py-3 text-right text-ivory">
+              <td className="px-4 py-3 text-right text-ink">{totalAppointments}</td>
+              <td className="px-4 py-3 text-right text-ink">
                 {formatBRL(safeDiv(total, totalAppointments))}
               </td>
-              <td className="px-4 py-3 text-right text-ivory">{formatBRL(totals.pix)}</td>
-              <td className="px-4 py-3 text-right text-ivory">{formatBRL(totals.cartao)}</td>
-              <td className="px-4 py-3 text-right text-ivory">{formatBRL(totals.dinheiro)}</td>
-              <td className="whitespace-nowrap px-4 py-3 text-right font-display font-semibold text-ivory">
+              <td className="px-4 py-3 text-right text-ink">{formatBRL(totals.pix)}</td>
+              <td className="px-4 py-3 text-right text-ink">{formatBRL(totals.cartao)}</td>
+              <td className="px-4 py-3 text-right text-ink">{formatBRL(totals.dinheiro)}</td>
+              <td className="whitespace-nowrap px-4 py-3 text-right font-display font-semibold text-ink">
                 {formatBRL(total)}
               </td>
               <td className="md:px-6" />

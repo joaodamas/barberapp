@@ -135,7 +135,7 @@ export function EntradaDeEstoque({
       <div className="flex flex-col gap-4">
         <div className="grid grid-cols-2 gap-3">
           <label className="flex flex-col gap-1.5">
-            <span className="text-[11px] uppercase tracking-wide text-ivory-muted">
+            <span className="text-[11px] uppercase tracking-wide text-ink-muted">
               Quantidade
             </span>
             <input
@@ -144,11 +144,11 @@ export function EntradaDeEstoque({
               value={quantidade}
               onChange={(e) => setQuantidade(e.target.value.replace(/\D/g, ""))}
               placeholder="10"
-              className="min-h-11 rounded-xl border border-border bg-surface px-3 text-sm text-ivory"
+              className="min-h-11 rounded-xl border border-border bg-surface px-3 text-sm text-ink"
             />
           </label>
           <label className="flex flex-col gap-1.5">
-            <span className="text-[11px] uppercase tracking-wide text-ivory-muted">
+            <span className="text-[11px] uppercase tracking-wide text-ink-muted">
               Custo por unidade
             </span>
             <input
@@ -156,25 +156,25 @@ export function EntradaDeEstoque({
               value={custo}
               onChange={(e) => setCusto(e.target.value.replace(/[^\d.,]/g, ""))}
               placeholder="18,00"
-              className="min-h-11 rounded-xl border border-border bg-surface px-3 text-sm text-ivory"
+              className="min-h-11 rounded-xl border border-border bg-surface px-3 text-sm text-ink"
             />
           </label>
         </div>
 
         <label className="flex flex-col gap-1.5">
-          <span className="text-[11px] uppercase tracking-wide text-ivory-muted">
+          <span className="text-[11px] uppercase tracking-wide text-ink-muted">
             Fornecedor <span className="normal-case tracking-normal">(opcional)</span>
           </span>
           <input
             value={fornecedor}
             onChange={(e) => setFornecedor(e.target.value)}
             placeholder="Distribuidora"
-            className="min-h-11 rounded-xl border border-border bg-surface px-3 text-sm text-ivory"
+            className="min-h-11 rounded-xl border border-border bg-surface px-3 text-sm text-ink"
           />
         </label>
 
         <div className="flex flex-col gap-1.5">
-          <span className="text-[11px] uppercase tracking-wide text-ivory-muted">
+          <span className="text-[11px] uppercase tracking-wide text-ink-muted">
             Como você pagou <span className="normal-case tracking-normal">(opcional)</span>
           </span>
           <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
@@ -187,8 +187,8 @@ export function EntradaDeEstoque({
                 className={
                   "min-h-11 rounded-xl border text-sm transition-colors " +
                   (metodo === m
-                    ? "border-gold bg-gold/10 text-ivory"
-                    : "border-border text-ivory-muted hover:border-gold/60")
+                    ? "border-gold bg-gold/10 text-ink"
+                    : "border-border text-ink-muted hover:border-gold/60")
                 }
               >
                 {paymentMethodLabel[m]}
@@ -200,17 +200,17 @@ export function EntradaDeEstoque({
         {valido && (
           <div className="flex flex-col gap-1 rounded-xl border border-border bg-surface-raised p-3">
             <div className="flex items-baseline justify-between">
-              <span className="text-xs text-ivory-muted">Total da compra</span>
-              <span className="font-display text-lg font-semibold text-ivory">
+              <span className="text-xs text-ink-muted">Total da compra</span>
+              <span className="font-display text-lg font-semibold text-ink">
                 {formatBRL(total)}
               </span>
             </div>
-            <p className="text-[11px] text-ivory-muted">
+            <p className="text-[11px] text-ink-muted">
               Estoque: {estoqueAtual} → {estoqueAtual + qtd} un.
             </p>
             {custoDepois !== custoAtual && (
               /* Explica a mudança antes que ela pareça defeito. */
-              <p className="text-[11px] text-ivory-muted">
+              <p className="text-[11px] text-ink-muted">
                 Custo médio: {formatBRL(custoAtual)} → {formatBRL(custoDepois)} — a média
                 entre o que já estava na prateleira e esta compra.
               </p>

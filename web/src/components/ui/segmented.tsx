@@ -73,8 +73,8 @@ export function Segmented<T extends string>({
               // min-h-11: alvo de toque de 44px, o dono usa isso em pé no salão.
               "min-h-11 flex-1 cursor-pointer rounded-lg px-3 text-sm font-medium transition-colors",
               ativo
-                ? "bg-gold text-ivory"
-                : "text-ivory-muted hover:bg-surface-raised hover:text-ivory"
+                ? "bg-gold text-ink"
+                : "text-ink-muted hover:bg-surface-raised hover:text-ink"
             )}
           >
             {o.label}

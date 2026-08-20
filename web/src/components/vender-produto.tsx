@@ -168,7 +168,7 @@ export function VenderProduto({ aoVender }: { aoVender?: () => void }) {
       {/* ---- Produtos ---- */}
       <section className="flex flex-col gap-2">
         <div className="flex items-baseline justify-between">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
             Vender
           </h2>
           {produtos.length > 0 && disponiveis.length === 0 && (
@@ -178,7 +178,7 @@ export function VenderProduto({ aoVender }: { aoVender?: () => void }) {
 
         {disponiveis.length === 0 ? (
           <Card className="p-4">
-            <p className="text-sm text-ivory-muted">
+            <p className="text-sm text-ink-muted">
               {produtos.length === 0
                 ? "Cadastre um produto abaixo para começar a vender."
                 : "Nenhum produto com estoque. Registre a reposição para voltar a vender."}
@@ -198,8 +198,8 @@ export function VenderProduto({ aoVender }: { aoVender?: () => void }) {
                   }
                 >
                   <div className="min-w-0">
-                    <p className="truncate text-sm text-ivory">{p.name}</p>
-                    <p className="text-xs text-ivory-muted">
+                    <p className="truncate text-sm text-ink">{p.name}</p>
+                    <p className="text-xs text-ink-muted">
                       {formatBRL(p.price ?? 0)} · estoque {p.stock ?? 0}
                     </p>
                   </div>
@@ -223,7 +223,7 @@ export function VenderProduto({ aoVender }: { aoVender?: () => void }) {
                       >
                         <Minus size={16} />
                       </Button>
-                      <span className="w-8 text-center font-display text-base text-ivory">
+                      <span className="w-8 text-center font-display text-base text-ink">
                         {qtd}
                       </span>
                       <Button
@@ -248,24 +248,24 @@ export function VenderProduto({ aoVender }: { aoVender?: () => void }) {
       {linhas.length > 0 && (
         <Card className="flex flex-col gap-4 p-4">
           <div className="flex items-baseline justify-between">
-            <span className="text-sm text-ivory-muted">
+            <span className="text-sm text-ink-muted">
               {totalItens} {totalItens === 1 ? "produto" : "produtos"}
             </span>
-            <span className="font-display text-xl font-semibold text-ivory">
+            <span className="font-display text-xl font-semibold text-ink">
               {formatBRL(totalValor)}
             </span>
           </div>
 
           {/* Cliente — opcional, e a tela diz isso */}
           <div className="flex flex-col gap-1.5">
-            <p className="text-[11px] uppercase tracking-wide text-ivory-muted">
+            <p className="text-[11px] uppercase tracking-wide text-ink-muted">
               Cliente <span className="normal-case tracking-normal">(opcional)</span>
             </p>
             {cliente ? (
               <div className="flex items-center justify-between gap-2 rounded-xl border border-gold/60 bg-gold/5 px-3 py-2">
                 <div className="min-w-0">
-                  <p className="truncate text-sm text-ivory">{cliente.name}</p>
-                  <p className="text-[11px] text-ivory-muted">
+                  <p className="truncate text-sm text-ink">{cliente.name}</p>
+                  <p className="text-[11px] text-ink-muted">
                     {cliente.whatsapp ? mascararWhatsapp(cliente.whatsapp) : "sem WhatsApp"}
                   </p>
                 </div>
@@ -276,13 +276,13 @@ export function VenderProduto({ aoVender }: { aoVender?: () => void }) {
             ) : buscando ? (
               <div className="flex flex-col gap-1.5">
                 <div className="flex items-center gap-2 rounded-xl border border-border bg-surface px-3">
-                  <Search size={14} className="text-ivory-muted" />
+                  <Search size={14} className="text-ink-muted" />
                   <input
                     autoFocus
                     value={busca}
                     onChange={(e) => setBusca(e.target.value)}
                     placeholder="Nome ou WhatsApp"
-                    className="min-h-11 flex-1 bg-transparent text-sm text-ivory placeholder:text-ivory-muted"
+                    className="min-h-11 flex-1 bg-transparent text-sm text-ink placeholder:text-ink-muted"
                   />
                 </div>
                 {encontrados.map((c) => (
@@ -295,14 +295,14 @@ export function VenderProduto({ aoVender }: { aoVender?: () => void }) {
                     }}
                     className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-left transition-colors hover:border-gold/60"
                   >
-                    <span className="text-sm text-ivory">{c.name}</span>
-                    <span className="text-[11px] text-ivory-muted">
+                    <span className="text-sm text-ink">{c.name}</span>
+                    <span className="text-[11px] text-ink-muted">
                       {c.whatsapp ? mascararWhatsapp(c.whatsapp) : "—"}
                     </span>
                   </button>
                 ))}
                 {busca && encontrados.length === 0 && (
-                  <p className="px-1 text-xs text-ivory-muted">
+                  <p className="px-1 text-xs text-ink-muted">
                     Ninguém com esse nome ou número. A venda pode ser registrada sem cliente.
                   </p>
                 )}
@@ -317,7 +317,7 @@ export function VenderProduto({ aoVender }: { aoVender?: () => void }) {
           {/* Vendedor — define de quem é a comissão */}
           {ativos.length > 1 && (
             <div className="flex flex-col gap-1.5">
-              <p className="text-[11px] uppercase tracking-wide text-ivory-muted">
+              <p className="text-[11px] uppercase tracking-wide text-ink-muted">
                 Quem vendeu <span className="normal-case tracking-normal">(opcional)</span>
               </p>
               <div className="flex flex-wrap gap-1.5">
@@ -330,8 +330,8 @@ export function VenderProduto({ aoVender }: { aoVender?: () => void }) {
                     className={
                       "min-h-11 rounded-xl border px-3 text-sm transition-colors " +
                       (vendedorId === b.id
-                        ? "border-gold bg-gold/10 text-ivory"
-                        : "border-border text-ivory-muted hover:border-gold/60")
+                        ? "border-gold bg-gold/10 text-ink"
+                        : "border-border text-ink-muted hover:border-gold/60")
                     }
                   >
                     {b.name}
@@ -341,7 +341,7 @@ export function VenderProduto({ aoVender }: { aoVender?: () => void }) {
               {/* Diz a consequência de deixar em branco, em vez de deixar o dono
                   descobrir no acerto do fim do mês. */}
               {!vendedorId && (
-                <p className="text-[11px] text-ivory-muted">
+                <p className="text-[11px] text-ink-muted">
                   Sem indicar quem vendeu, a venda não gera comissão.
                 </p>
               )}
@@ -350,7 +350,7 @@ export function VenderProduto({ aoVender }: { aoVender?: () => void }) {
 
           {/* Pagamento — obrigatório, e o motivo está no comentário */}
           <div className="flex flex-col gap-1.5">
-            <p className="text-[11px] uppercase tracking-wide text-ivory-muted">Pagamento</p>
+            <p className="text-[11px] uppercase tracking-wide text-ink-muted">Pagamento</p>
             {/* Débito e crédito SEPARADOS, e não um "Cartão" só.
                 Juntá-los obrigaria a supor crédito no cálculo da taxa por
                 precaução, superestimando o custo do débito em 1,5 ponto — foi
@@ -370,8 +370,8 @@ export function VenderProduto({ aoVender }: { aoVender?: () => void }) {
                   className={
                     "min-h-11 rounded-xl border text-sm transition-colors " +
                     (metodo === m
-                      ? "border-gold bg-gold/10 text-ivory"
-                      : "border-border text-ivory-muted hover:border-gold/60")
+                      ? "border-gold bg-gold/10 text-ink"
+                      : "border-border text-ink-muted hover:border-gold/60")
                   }
                 >
                   {paymentMethodLabel[m]}
@@ -400,7 +400,7 @@ export function VenderProduto({ aoVender }: { aoVender?: () => void }) {
       {feito && linhas.length === 0 && (
         <Card className="flex items-center gap-3 border-success/40 bg-success/5 p-3">
           <Check size={18} className="shrink-0 text-success" />
-          <p className="text-sm text-ivory">
+          <p className="text-sm text-ink">
             Venda de {formatBRL(feito.valor)} registrada. O estoque já foi baixado.
           </p>
         </Card>

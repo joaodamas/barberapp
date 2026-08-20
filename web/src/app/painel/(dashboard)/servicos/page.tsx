@@ -39,8 +39,8 @@ export default function ServicosPage() {
     <div className="flex flex-col gap-6 pt-1 md:gap-10 md:pt-2">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-sm text-ivory-muted md:text-base">Catálogo</p>
-          <h1 className="text-xl text-ivory md:text-4xl md:tracking-tight">Serviços</h1>
+          <p className="text-sm text-ink-muted md:text-base">Catálogo</p>
+          <h1 className="text-xl text-ink md:text-4xl md:tracking-tight">Serviços</h1>
         </div>
         <Pill tone={ativos.length === 0 ? "danger" : "neutral"}>
           {ativos.length} no app
@@ -88,13 +88,13 @@ export default function ServicosPage() {
 
         <div className="flex flex-col gap-4">
           <Card className="flex flex-col gap-1 md:p-6">
-            <p className="text-[11px] uppercase tracking-wide text-ivory-muted md:text-xs">
+            <p className="text-[11px] uppercase tracking-wide text-ink-muted md:text-xs">
               Ticket médio do cardápio
             </p>
-            <p className="font-display text-lg font-semibold text-ivory md:text-2xl">
+            <p className="font-display text-lg font-semibold text-ink md:text-2xl">
               {formatBRL(ticketMedio)}
             </p>
-            <p className="text-[11px] text-ivory-muted md:text-xs">
+            <p className="text-[11px] text-ink-muted md:text-xs">
               Média simples {plural(ativos.length, "do", "dos")}{" "}
               {contar(ativos.length, "serviço", "serviços")}{" "}
               {plural(ativos.length, "visível", "visíveis")} — não é o que você
@@ -102,15 +102,15 @@ export default function ServicosPage() {
             </p>
           </Card>
 
-          <Card className="flex flex-col gap-2 text-xs text-ivory-muted md:p-6 md:text-sm">
-            <p className="font-medium text-ivory">Como isso afeta a agenda</p>
+          <Card className="flex flex-col gap-2 text-xs text-ink-muted md:p-6 md:text-sm">
+            <p className="font-medium text-ink">Como isso afeta a agenda</p>
             <p>
-              <strong className="text-ivory">Duração</strong> é o tempo que você
+              <strong className="text-ink">Duração</strong> é o tempo que você
               realmente leva, com a conversa. É ela que impede a agenda de marcar
               dois clientes em cima.
             </p>
             <p>
-              <strong className="text-ivory">Ocultar</strong> tira do app sem
+              <strong className="text-ink">Ocultar</strong> tira do app sem
               apagar o histórico — use para o serviço sazonal, em vez de excluir e
               recadastrar depois.
             </p>
@@ -136,7 +136,7 @@ function Aviso({ children, tom }: { children: React.ReactNode; tom: "danger" }) 
       }`}
     >
       <AlertTriangle size={18} className="mt-0.5 shrink-0 text-danger" />
-      <p className="text-sm text-ivory md:text-base">{children}</p>
+      <p className="text-sm text-ink md:text-base">{children}</p>
     </Card>
   );
 }

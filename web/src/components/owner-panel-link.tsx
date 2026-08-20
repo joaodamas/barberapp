@@ -20,7 +20,7 @@ export function OwnerPanelLink({ className }: { className?: string }) {
     <Link
       href="/painel"
       className={cn(
-        "flex items-center gap-3 rounded-xl border border-gold/30 bg-gold/5 px-3 py-2.5 text-sm font-medium text-gold-light transition-colors hover:bg-gold/10",
+        "flex items-center gap-3 rounded-xl border border-gold/30 bg-gold/5 px-3 py-2.5 text-sm font-medium text-gold-strong transition-colors hover:bg-gold/10",
         className
       )}
     >

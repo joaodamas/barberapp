@@ -5,21 +5,21 @@
    * `--color-gold` é sobrescrito por barbearia em tempo de execução (ver
    * `lib/tenant.ts`); o resto é da plataforma, para o contraste medido não
    * depender da cor que o lojista escolher. */
-  --color-bg: #ffffff;
+  --color-canvas: #ffffff;
   --color-surface: #f8f5ee;
   --color-surface-raised: #efe9dc;
   --color-border: #e1d8c5;
 
-  /* ATENÇÃO à nomenclatura: `ivory` é o texto quase preto e `gold-light` é
+  /* ATENÇÃO à nomenclatura: `ink` é o texto quase preto e `gold-strong` é
    * MAIS ESCURO que `gold` — existe para ter contraste como texto sobre fundo
    * claro. Não presuma pelo nome. */
   --color-gold: #b8863a;
-  --color-gold-light: #8c5f1e;
+  --color-gold-strong: #8c5f1e;
   /* Hover de superfície dourada: precisa CLAREAR, senão o texto escuro sobre
    * ela cai para 3.3:1 e reprova no WCAG AA. */
   --color-gold-hover: #c99a52;
-  --color-ivory: #17140f;
-  --color-ivory-muted: #6b6355;
+  --color-ink: #17140f;
+  --color-ink-muted: #6b6355;
 
   /* #4f8542 dava 4.41:1 sobre o fundo — reprovava AA por pouco. */
   --color-success: #43733a;
@@ -30,8 +30,8 @@
   --color-border: #e1d8c5;
   --color-border-strong: #a1937a;
 
-  --background: var(--color-bg);
-  --foreground: var(--color-ivory);
+  --background: var(--color-canvas);
+  --foreground: var(--color-ink);
 
   /* Elevation.
    *
@@ -59,16 +59,16 @@
 }
 
 @theme inline {
-  --color-bg: var(--color-bg);
+  --color-canvas: var(--color-canvas);
   --color-surface: var(--color-surface);
   --color-surface-raised: var(--color-surface-raised);
   --color-border: var(--color-border);
   --color-border-strong: var(--color-border-strong);
   --color-gold: var(--color-gold);
-  --color-gold-light: var(--color-gold-light);
+  --color-gold-strong: var(--color-gold-strong);
   --color-gold-hover: var(--color-gold-hover);
-  --color-ivory: var(--color-ivory);
-  --color-ivory-muted: var(--color-ivory-muted);
+  --color-ink: var(--color-ink);
+  --color-ink-muted: var(--color-ink-muted);
   --color-success: var(--color-success);
   --color-danger: var(--color-danger);
 
@@ -196,7 +196,7 @@ h1, h2, h3, h4, .font-display {
  *
  * 1. CONTRASTE. `--color-gold` sobre o cartão dá 2.96:1 e sobre a superfície
  *    de realce 2.49:1 — abaixo dos 3:1 que a WCAG 1.4.11 exige de indicador de
- *    foco. Passava só sobre a página branca (3.23:1). `--color-gold-light`
+ *    foco. Passava só sobre a página branca (3.23:1). `--color-gold-strong`
  *    entrega 5.57 / 5.11 / 4.60 nas três superfícies. É o token que já existe
  *    exatamente para isso: contraste sobre fundo claro.
  *
@@ -213,7 +213,7 @@ h1, h2, h3, h4, .font-display {
  * O brilho de 20px também sai: sombra colorida é anti-pattern declarado, e um
  * halo difuso é justamente o tipo de indicador que some sobre fundo creme. */
 :where(button, a, input, select, textarea):focus-visible {
-  outline: 2px solid var(--color-gold-light);
+  outline: 2px solid var(--color-gold-strong);
   outline-offset: 2px;
 }
 
@@ -256,21 +256,21 @@ h1, h2, h3, h4, .font-display {
  *
  *                        página     cartão     realce
  *   border-strong        3,01:1     2,77:1     2,49:1
- *   ivory-muted          5,93:1     5,45:1     4,90:1
+ *   ink-muted          5,93:1     5,45:1     4,90:1
  *
  * Passava só sobre a página branca — e campo de formulário no painel quase
  * nunca está sobre a página: está dentro de um `Card` ou de um diálogo, que são
  * cartão. Ou seja, o contorno reprovava justamente onde ele existe.
  *
  * A correção é estrutural e não mexe na paleta: aponta o papel para o token que
- * já entrega o contraste. `--color-ivory-muted` é a tinta do texto secundário —
+ * já entrega o contraste. `--color-ink-muted` é a tinta do texto secundário —
  * mesma família, mesmo peso de presença, e nenhuma cor nova no produto.
  * `--color-border-strong` segue onde 3:1 não é exigido, como a linha-guia que o
  * gráfico desenha sob o cursor. */
 input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
 select,
 textarea {
-  border-color: var(--color-ivory-muted);
+  border-color: var(--color-ink-muted);
 }
 
 /* Tabelas financeiras rolam na horizontal no celular (min-w de 480–720px).

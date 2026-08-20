@@ -66,7 +66,7 @@ export default function InicioPage() {
       <section aria-labelledby="proximo-agendamento" className="md:col-start-1 md:row-start-2">
         <h2
           id="proximo-agendamento"
-          className="mb-2 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:mb-3 md:text-sm"
+          className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted md:mb-3 md:text-sm"
         >
           Próximo agendamento
         </h2>
@@ -87,12 +87,12 @@ export default function InicioPage() {
         <Card className="flex flex-col gap-3 md:p-6">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <p className="text-ivory md:text-lg">
+              <p className="text-ink md:text-lg">
                 {bookingServices.map((s) => s.name).join(" + ")}
               </p>
               {/* `capitalize` sobe TODA palavra e em português produz
                   "Quarta-Feira, 19 De Agosto Às 14:00". Só a primeira. */}
-              <p className="text-sm text-ivory-muted first-letter:uppercase md:text-base">
+              <p className="text-sm text-ink-muted first-letter:uppercase md:text-base">
                 {formatDatePtBR(nextBooking.date)} às {nextBooking.time}
               </p>
             </div>
@@ -100,16 +100,16 @@ export default function InicioPage() {
           </div>
           <BarberPoleDivider />
           <div className="flex items-center justify-between text-sm md:text-base">
-            <span className="text-ivory-muted">
+            <span className="text-ink-muted">
               {nextBooking.paymentMethod ? "Valor pago" : "A pagar no salão"}
             </span>
-            <span className="font-display font-semibold text-ivory md:text-lg">
+            <span className="font-display font-semibold text-ink md:text-lg">
               {formatBRL(nextBooking.value)}
             </span>
           </div>
           <Link
             href="/reservas"
-            className="text-sm font-medium text-gold-light transition-opacity hover:opacity-80 md:text-base"
+            className="text-sm font-medium text-gold-strong transition-opacity hover:opacity-80 md:text-base"
           >
             Ver detalhes / reagendar →
           </Link>
@@ -122,34 +122,34 @@ export default function InicioPage() {
           interactive
           className="flex items-center gap-3 border-gold/30 bg-gradient-to-br from-surface to-surface-raised md:p-5"
         >
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gold/15 text-gold-light">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gold/15 text-gold-strong">
             <Sparkles size={18} />
           </div>
           <div className="flex-1">
-            <p className="text-sm font-medium text-ivory md:text-base">
+            <p className="text-sm font-medium text-ink md:text-base">
               Vire mensalista e economize
             </p>
-            <p className="text-xs text-ivory-muted md:text-sm">
+            <p className="text-xs text-ink-muted md:text-sm">
               Corte ilimitado a partir de R$ 149/mês
             </p>
           </div>
-          <ArrowRight size={16} className="shrink-0 text-ivory-muted" />
+          <ArrowRight size={16} className="shrink-0 text-ink-muted" />
         </Card>
       </Link>
 
       <section aria-labelledby="fidelidade" className="md:col-start-2 md:row-start-3">
         <h2
           id="fidelidade"
-          className="mb-2 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:mb-3 md:text-sm"
+          className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted md:mb-3 md:text-sm"
         >
           Fidelidade
         </h2>
         <Card className="flex flex-col gap-3 md:p-6">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-ivory md:text-base">
+            <p className="text-sm text-ink md:text-base">
               {loyalty.stamps} de {loyalty.goal} carimbos
             </p>
-            <p className="text-xs text-gold-light md:text-sm">
+            <p className="text-xs text-gold-strong md:text-sm">
               {loyalty.podeResgatar
                 ? `${loyalty.reward} liberado!`
                 : `faltam ${stampsLeft} para ${loyalty.reward}`}
@@ -173,13 +173,13 @@ export default function InicioPage() {
       <section aria-labelledby="localizacao" className="md:col-start-1 md:row-start-3">
         <h2
           id="localizacao"
-          className="mb-2 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:mb-3 md:text-sm"
+          className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted md:mb-3 md:text-sm"
         >
           {barbershop.name}
         </h2>
         <Card className="flex flex-col gap-3 md:p-6">
-          <div className="flex items-center gap-2 text-sm text-ivory-muted md:text-base">
-            <MapPin size={16} className="shrink-0 text-gold-light" />
+          <div className="flex items-center gap-2 text-sm text-ink-muted md:text-base">
+            <MapPin size={16} className="shrink-0 text-gold-strong" />
             {barbershop.address}
           </div>
           <div className="flex gap-2">

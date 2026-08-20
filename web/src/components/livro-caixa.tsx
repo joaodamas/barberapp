@@ -128,7 +128,7 @@ export function LivroCaixa({ competencia }: { competencia?: string }) {
   return (
     <section className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm">
+        <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
           <Wallet size={12} /> Livro caixa
         </h2>
         <Button variant="secondary" className="min-h-9 px-3 text-xs" onClick={abrir}>
@@ -138,7 +138,7 @@ export function LivroCaixa({ competencia }: { competencia?: string }) {
 
       {/* A frase que impede a conclusão errada. Sem ela, o dono olha uma lista
           sem as vendas do dia e acha que o sistema perdeu alguma coisa. */}
-      <p className="text-[11px] text-ivory-muted md:text-xs">
+      <p className="text-[11px] text-ink-muted md:text-xs">
         Só o dinheiro que se move sem outro registro por trás — sangria, troco,
         aporte, acerto de comissão e ajuste. Atendimentos, vendas e mensalidades
         já entram pelo próprio pagamento e não são lançados aqui.
@@ -148,25 +148,25 @@ export function LivroCaixa({ competencia }: { competencia?: string }) {
 
       <div className="grid grid-cols-3 gap-2">
         <Card className="flex flex-col gap-0.5 p-3">
-          <p className="text-[11px] uppercase tracking-wide text-ivory-muted">Entrou</p>
+          <p className="text-[11px] uppercase tracking-wide text-ink-muted">Entrou</p>
           <p className="font-display text-base font-semibold text-success md:text-xl">
             {formatBRL(resumo.entradas)}
           </p>
         </Card>
         <Card className="flex flex-col gap-0.5 p-3">
-          <p className="text-[11px] uppercase tracking-wide text-ivory-muted">Saiu</p>
+          <p className="text-[11px] uppercase tracking-wide text-ink-muted">Saiu</p>
           <p className="font-display text-base font-semibold text-danger md:text-xl">
             {formatBRL(resumo.saidas)}
           </p>
         </Card>
         <Card className="flex flex-col gap-0.5 p-3">
-          <p className="text-[11px] uppercase tracking-wide text-ivory-muted">Saldo</p>
-          <p className="font-display text-base font-semibold text-ivory md:text-xl">
+          <p className="text-[11px] uppercase tracking-wide text-ink-muted">Saldo</p>
+          <p className="font-display text-base font-semibold text-ink md:text-xl">
             {formatBRL(resumo.saldo)}
           </p>
           {/* Diz de que saldo se trata. "Saldo" sozinho seria lido como saldo do
               caixa inteiro, que esta tela não calcula. */}
-          <p className="text-[10px] text-ivory-muted">destes lançamentos</p>
+          <p className="text-[10px] text-ink-muted">destes lançamentos</p>
         </Card>
       </div>
 
@@ -180,11 +180,11 @@ export function LivroCaixa({ competencia }: { competencia?: string }) {
                 <ArrowUpRight size={16} className="shrink-0 text-danger" />
               )}
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm text-ivory">
+                <p className="truncate text-sm text-ink">
                   {ROTULO_DO_TIPO[e.kind]}
-                  <span className="text-ivory-muted"> · {e.reason}</span>
+                  <span className="text-ink-muted"> · {e.reason}</span>
                 </p>
-                <p className="truncate text-[11px] text-ivory-muted">
+                <p className="truncate text-[11px] text-ink-muted">
                   {formatDatePtBR(e.date)}
                   {e.paymentMethod && ` · ${paymentMethodLabel[e.paymentMethod]}`}
                   {e.staffId &&
@@ -221,7 +221,7 @@ export function LivroCaixa({ competencia }: { competencia?: string }) {
       >
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-1.5">
-            <p className="text-[11px] uppercase tracking-wide text-ivory-muted">O que foi</p>
+            <p className="text-[11px] uppercase tracking-wide text-ink-muted">O que foi</p>
             <div className="flex flex-wrap gap-1.5">
               {TIPOS.map((t) => (
                 <button
@@ -232,8 +232,8 @@ export function LivroCaixa({ competencia }: { competencia?: string }) {
                   className={
                     "min-h-11 rounded-xl border px-3 text-sm transition-colors " +
                     (tipo === t
-                      ? "border-gold bg-gold/10 text-ivory"
-                      : "border-border text-ivory-muted hover:border-gold/60")
+                      ? "border-gold bg-gold/10 text-ink"
+                      : "border-border text-ink-muted hover:border-gold/60")
                   }
                 >
                   {ROTULO_DO_TIPO[t]}
@@ -242,13 +242,13 @@ export function LivroCaixa({ competencia }: { competencia?: string }) {
             </div>
             {/* Explica o tipo escolhido. "Sangria" é vocabulário de quem já
                 trabalha com caixa; quem está começando não sabe. */}
-            <p className="text-[11px] text-ivory-muted">{EXPLICACAO_DO_TIPO[tipo]}</p>
+            <p className="text-[11px] text-ink-muted">{EXPLICACAO_DO_TIPO[tipo]}</p>
           </div>
 
           {/* Só o ajuste pergunta a direção — nos outros ela vem do tipo. */}
           {tipo === "ajuste" && (
             <div className="flex flex-col gap-1.5">
-              <p className="text-[11px] uppercase tracking-wide text-ivory-muted">
+              <p className="text-[11px] uppercase tracking-wide text-ink-muted">
                 Sobrou ou faltou
               </p>
               <div className="flex gap-1.5">
@@ -261,8 +261,8 @@ export function LivroCaixa({ competencia }: { competencia?: string }) {
                     className={
                       "min-h-11 flex-1 rounded-xl border px-3 text-sm transition-colors " +
                       (direcao === d
-                        ? "border-gold bg-gold/10 text-ivory"
-                        : "border-border text-ivory-muted hover:border-gold/60")
+                        ? "border-gold bg-gold/10 text-ink"
+                        : "border-border text-ink-muted hover:border-gold/60")
                     }
                   >
                     {d === "entrada" ? "Sobrou na gaveta" : "Faltou na gaveta"}
@@ -274,7 +274,7 @@ export function LivroCaixa({ competencia }: { competencia?: string }) {
 
           {tipo === "pagamento_comissao" && (
             <div className="flex flex-col gap-1.5">
-              <p className="text-[11px] uppercase tracking-wide text-ivory-muted">Para quem *</p>
+              <p className="text-[11px] uppercase tracking-wide text-ink-muted">Para quem *</p>
               <div className="flex flex-wrap gap-1.5">
                 {ativos.map((b) => (
                   <button
@@ -285,8 +285,8 @@ export function LivroCaixa({ competencia }: { competencia?: string }) {
                     className={
                       "min-h-11 rounded-xl border px-3 text-sm transition-colors " +
                       (staffId === b.id
-                        ? "border-gold bg-gold/10 text-ivory"
-                        : "border-border text-ivory-muted hover:border-gold/60")
+                        ? "border-gold bg-gold/10 text-ink"
+                        : "border-border text-ink-muted hover:border-gold/60")
                     }
                   >
                     {b.name}
@@ -295,14 +295,14 @@ export function LivroCaixa({ competencia }: { competencia?: string }) {
               </div>
               {/* Saída de caixa sem beneficiário seria dinheiro pago a ninguém. */}
               {!staffId && (
-                <p className="text-[11px] text-ivory-muted">
+                <p className="text-[11px] text-ink-muted">
                   Diga de quem é o acerto para registrar o pagamento.
                 </p>
               )}
             </div>
           )}
 
-          <label className="flex flex-col gap-1 text-xs text-ivory-muted">
+          <label className="flex flex-col gap-1 text-xs text-ink-muted">
             Quanto
             <input
               type="number"
@@ -311,12 +311,12 @@ export function LivroCaixa({ competencia }: { competencia?: string }) {
               value={valor}
               placeholder="0,00"
               onChange={(e) => setValor(e.target.value)}
-              className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
+              className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ink"
             />
           </label>
 
           <div className="flex flex-col gap-1.5">
-            <p className="text-[11px] uppercase tracking-wide text-ivory-muted">Como</p>
+            <p className="text-[11px] uppercase tracking-wide text-ink-muted">Como</p>
             <div className="grid grid-cols-4 gap-1.5">
               {PAYMENT_METHODS.map((m) => (
                 <button
@@ -327,8 +327,8 @@ export function LivroCaixa({ competencia }: { competencia?: string }) {
                   className={
                     "min-h-11 rounded-xl border px-2 text-xs transition-colors " +
                     (metodo === m
-                      ? "border-gold bg-gold/10 text-ivory"
-                      : "border-border text-ivory-muted hover:border-gold/60")
+                      ? "border-gold bg-gold/10 text-ink"
+                      : "border-border text-ink-muted hover:border-gold/60")
                   }
                 >
                   {paymentMethodLabel[m]}
@@ -337,13 +337,13 @@ export function LivroCaixa({ competencia }: { competencia?: string }) {
             </div>
           </div>
 
-          <label className="flex flex-col gap-1 text-xs text-ivory-muted">
+          <label className="flex flex-col gap-1 text-xs text-ink-muted">
             Por quê *
             <input
               value={motivo}
               onChange={(e) => setMotivo(e.target.value)}
               placeholder="Ex.: depósito no banco"
-              className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ivory"
+              className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ink"
             />
           </label>
 

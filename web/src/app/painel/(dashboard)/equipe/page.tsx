@@ -87,9 +87,9 @@ export default function EquipePage() {
   return (
     <div className="flex flex-col gap-6 pt-1 md:gap-8 md:pt-2">
       <div>
-        <p className="text-sm text-ivory-muted md:text-base">Quem atende</p>
-        <h1 className="text-xl text-ivory md:text-3xl md:tracking-tight">Equipe</h1>
-        <p className="mt-1 max-w-2xl text-xs text-ivory-muted md:text-sm">
+        <p className="text-sm text-ink-muted md:text-base">Quem atende</p>
+        <h1 className="text-xl text-ink md:text-3xl md:tracking-tight">Equipe</h1>
+        <p className="mt-1 max-w-2xl text-xs text-ink-muted md:text-sm">
           Com um barbeiro só, o cliente não escolhe nada — ele marca serviço e
           horário, como hoje. A partir do segundo, a escolha aparece sozinha no
           agendamento.
@@ -125,10 +125,10 @@ export default function EquipePage() {
                   const v = e.target.value.trim();
                   if (v && v !== b.name) salvar(b.id, "name", v);
                 }}
-                className="min-h-11 flex-1 rounded-xl border border-border bg-surface-raised px-4 text-sm text-ivory outline-none focus-visible:ring-2 focus-visible:ring-gold"
+                className="min-h-11 flex-1 rounded-xl border border-border bg-surface-raised px-4 text-sm text-ink outline-none focus-visible:ring-2 focus-visible:ring-gold"
               />
 
-              <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm text-ivory-muted">
+              <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm text-ink-muted">
                 <input
                   type="checkbox"
                   checked={b.active !== false}
@@ -149,7 +149,7 @@ export default function EquipePage() {
                     ? "A barbearia precisa de ao menos um barbeiro para receber reservas"
                     : undefined
                 }
-                className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-xl text-ivory-muted transition-colors hover:bg-danger/10 hover:text-danger disabled:cursor-not-allowed disabled:opacity-30"
+                className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-xl text-ink-muted transition-colors hover:bg-danger/10 hover:text-danger disabled:cursor-not-allowed disabled:opacity-30"
               >
                 <Trash2 size={16} />
               </button>
@@ -157,7 +157,7 @@ export default function EquipePage() {
 
             <div className="grid gap-4 md:grid-cols-[200px_1fr]">
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-ivory-muted">
+                <label className="text-xs font-medium text-ink-muted">
                   Comissão dele
                 </label>
                 <div className="flex items-center gap-2">
@@ -171,24 +171,24 @@ export default function EquipePage() {
                       const v = e.target.value.trim();
                       salvar(b.id, "commissionPct", v === "" ? null : Number(v));
                     }}
-                    className="min-h-11 w-24 rounded-xl border border-border bg-surface-raised px-3 text-sm text-ivory"
+                    className="min-h-11 w-24 rounded-xl border border-border bg-surface-raised px-3 text-sm text-ink"
                   />
                   {/* Dizia "% do lucro", e a base da comissão de serviço é o
                       valor do atendimento. O rótulo errado aqui vira discussão
                       com o barbeiro no dia do acerto. */}
-                  <span className="text-sm text-ivory-muted">% do atendimento</span>
+                  <span className="text-sm text-ink-muted">% do atendimento</span>
                 </div>
-                <p className="text-xs text-ivory-muted">
+                <p className="text-xs text-ink-muted">
                   Em branco usa o padrão da barbearia ({padraoDaCasa}%).
                 </p>
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-ivory-muted">
+                <label className="text-xs font-medium text-ink-muted">
                   Salário mensal
                 </label>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-ivory-muted">R$</span>
+                  <span className="text-sm text-ink-muted">R$</span>
                   <input
                     type="number"
                     min={0}
@@ -199,17 +199,17 @@ export default function EquipePage() {
                       const v = Math.max(Number(e.target.value) || 0, 0);
                       if (v !== (b.salary ?? 0)) salvar(b.id, "salary", v);
                     }}
-                    className="min-h-11 w-32 rounded-xl border border-border bg-surface-raised px-3 text-sm text-ivory"
+                    className="min-h-11 w-32 rounded-xl border border-border bg-surface-raised px-3 text-sm text-ink"
                   />
                 </div>
-                <p className="text-xs text-ivory-muted">
+                <p className="text-xs text-ink-muted">
                   Fixo, além da comissão. Entra como custo de folha no resultado
                   do mês — deixe em branco para quem trabalha só por comissão.
                 </p>
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-ivory-muted">
+                <label className="text-xs font-medium text-ink-muted">
                   O que ele faz
                 </label>
                 <div className="flex flex-wrap gap-2">
@@ -224,8 +224,8 @@ export default function EquipePage() {
                         className={
                           "min-h-11 cursor-pointer rounded-xl border px-3 text-sm transition-colors " +
                           (ativo
-                            ? "border-gold bg-gold/10 text-ivory"
-                            : "border-border text-ivory-muted hover:border-gold/50 hover:text-ivory")
+                            ? "border-gold bg-gold/10 text-ink"
+                            : "border-border text-ink-muted hover:border-gold/50 hover:text-ink")
                         }
                       >
                         {s.name}
@@ -233,7 +233,7 @@ export default function EquipePage() {
                     );
                   })}
                 </div>
-                <p className="text-xs text-ivory-muted">
+                <p className="text-xs text-ink-muted">
                   {/* "Atende 1 de 1 serviços" na barbearia que acabou de
                       entrar — e ela SEMPRE começa com um serviço só. Na forma
                       X de Y quem manda na concordância é Y. */}
@@ -247,7 +247,7 @@ export default function EquipePage() {
             {b.uid ? (
               <Pill tone="success">Tem acesso ao sistema</Pill>
             ) : (
-              <p className="text-xs text-ivory-muted">
+              <p className="text-xs text-ink-muted">
                 Sem acesso ao sistema — ele aparece na agenda, mas não entra no app.
               </p>
             )}
@@ -259,7 +259,7 @@ export default function EquipePage() {
         <button
           type="button"
           onClick={adicionar}
-          className="flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-border text-sm text-ivory-muted transition-colors hover:border-gold/50 hover:text-ivory"
+          className="flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-border text-sm text-ink-muted transition-colors hover:border-gold/50 hover:text-ink"
         >
           <UserPlus size={16} /> Adicionar barbeiro
         </button>
@@ -273,10 +273,10 @@ export default function EquipePage() {
 
       {ativos.length > 1 && (
         <Card className="flex flex-col gap-2 border-gold/30 bg-gold/5">
-          <p className="text-sm font-medium text-ivory">
+          <p className="text-sm font-medium text-ink">
             <Plus size={14} className="mr-1 inline" />O agendamento mudou
           </p>
-          <p className="text-xs text-ivory-muted">
+          <p className="text-xs text-ink-muted">
             Com {ativos.length} barbeiros atendendo, o cliente agora escolhe com
             quem quer cortar. E a capacidade da agenda multiplicou: sua taxa de
             ocupação vai cair mesmo sem o movimento cair — são mais horários

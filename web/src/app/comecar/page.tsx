@@ -61,8 +61,8 @@ export default function ComecarPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center overflow-y-auto bg-bg md:h-full">
-        <Loader2 className="h-8 w-8 animate-spin text-gold-light" />
+      <div className="flex min-h-screen items-center justify-center overflow-y-auto bg-canvas md:h-full">
+        <Loader2 className="h-8 w-8 animate-spin text-gold-strong" />
       </div>
     );
   }
@@ -105,15 +105,15 @@ export default function ComecarPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center overflow-y-auto bg-bg px-4 py-8 md:h-full md:py-14">
+    <div className="flex min-h-screen flex-col items-center overflow-y-auto bg-canvas px-4 py-8 md:h-full md:py-14">
       <div className="flex w-full max-w-2xl flex-col gap-6">
         <header className="flex flex-col items-center gap-2 text-center">
           <Image src={tenant.brand.logo} alt="" width={44} height={44} priority />
-          <p className="text-xs uppercase tracking-wider text-ivory-muted">
+          <p className="text-xs uppercase tracking-wider text-ink-muted">
             Passo {indice + 1} de {ONBOARDING_STEPS.length}
           </p>
-          <h1 className="text-2xl text-ivory md:text-3xl">{meta.titulo}</h1>
-          <p className="max-w-md text-sm text-ivory-muted">{meta.porque}</p>
+          <h1 className="text-2xl text-ink md:text-3xl">{meta.titulo}</h1>
+          <p className="max-w-md text-sm text-ink-muted">{meta.porque}</p>
         </header>
 
         <div className="flex gap-1.5" role="progressbar" aria-valuenow={indice + 1} aria-valuemin={1} aria-valuemax={4}>
@@ -151,7 +151,7 @@ export default function ComecarPage() {
           </Button>
         )}
 
-        <p className="text-center text-xs text-ivory-muted">
+        <p className="text-center text-xs text-ink-muted">
           <Check size={12} className="mr-1 inline text-success" />
           Salvamos a cada passo. Pode fechar e voltar depois.
         </p>

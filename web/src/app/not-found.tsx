@@ -30,11 +30,11 @@ import Link from "next/link";
  */
 export default function NaoEncontrado() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-6 bg-bg px-4 py-16 text-center">
+    <main className="flex min-h-screen flex-col items-center justify-center gap-6 bg-canvas px-4 py-16 text-center">
       <div className="flex flex-col items-center gap-3">
         <p className="font-display text-5xl text-border-strong">404</p>
-        <h1 className="font-display text-xl text-ivory">Esta página não existe</h1>
-        <p className="max-w-sm text-sm text-ivory-muted">
+        <h1 className="font-display text-xl text-ink">Esta página não existe</h1>
+        <p className="max-w-sm text-sm text-ink-muted">
           O endereço pode ter mudado de nome ou o link estar antigo. Nada foi
           perdido — seus dados continuam onde estavam.
         </p>
@@ -43,13 +43,13 @@ export default function NaoEncontrado() {
       <div className="flex flex-wrap items-center justify-center gap-3">
         <Link
           href="/"
-          className="inline-flex min-h-11 items-center rounded-xl bg-gold px-5 text-sm font-semibold text-ivory transition-colors hover:bg-gold-hover"
+          className="inline-flex min-h-11 items-center rounded-xl bg-gold px-5 text-sm font-semibold text-ink transition-colors hover:bg-gold-hover"
         >
           Ir para o início
         </Link>
         <Link
           href="/painel"
-          className="inline-flex min-h-11 items-center rounded-xl border border-border px-5 text-sm text-ivory transition-colors hover:bg-surface-raised"
+          className="inline-flex min-h-11 items-center rounded-xl border border-border px-5 text-sm text-ink transition-colors hover:bg-surface-raised"
         >
           Ir para o painel
         </Link>

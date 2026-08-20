@@ -33,14 +33,14 @@ export function PassoServicos({
     <div className="flex flex-col gap-4">
       <EditorDeServicos barbershopId={tenant.id} onChange={setServicos} />
 
-      <div className="rounded-xl border border-border bg-surface-raised/60 p-4 text-xs text-ivory-muted">
-        <p className="mb-1 font-medium text-ivory">Como preencher</p>
+      <div className="rounded-xl border border-border bg-surface-raised/60 p-4 text-xs text-ink-muted">
+        <p className="mb-1 font-medium text-ink">Como preencher</p>
         <p>
-          <strong className="text-ivory">Nome:</strong> como você chama no dia a dia. &quot;Corte +
+          <strong className="text-ink">Nome:</strong> como você chama no dia a dia. &quot;Corte +
           barba&quot; funciona melhor que &quot;Combo Premium&quot;.
         </p>
         <p>
-          <strong className="text-ivory">Duração:</strong> quanto tempo você realmente leva,
+          <strong className="text-ink">Duração:</strong> quanto tempo você realmente leva,
           incluindo a conversa. A agenda usa isso para não marcar dois clientes em cima.
         </p>
       </div>

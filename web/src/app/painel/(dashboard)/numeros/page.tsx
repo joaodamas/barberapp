@@ -53,7 +53,7 @@ function Delta({
 }) {
   const diff = current - previous;
   if (previous === 0 || Math.abs(diff) < 0.05) {
-    return <span className="text-[11px] text-ivory-muted md:text-xs">— vs. mês anterior</span>;
+    return <span className="text-[11px] text-ink-muted md:text-xs">— vs. mês anterior</span>;
   }
   const pctChange = (diff / previous) * 100;
   const isGood = invert ? diff < 0 : diff > 0;
@@ -102,28 +102,28 @@ export default function NumerosPage() {
     <div className="flex flex-col gap-6 pt-1 md:gap-10 md:pt-2">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-sm text-ivory-muted md:text-base">Seu mês</p>
-          <h1 className="text-xl text-ivory md:text-4xl md:tracking-tight">Números</h1>
+          <p className="text-sm text-ink-muted md:text-base">Seu mês</p>
+          <h1 className="text-xl text-ink md:text-4xl md:tracking-tight">Números</h1>
         </div>
 
         <div className="flex flex-col gap-2 md:items-end">
-          <div className="flex items-center gap-1 text-sm text-ivory-muted">
+          <div className="flex items-center gap-1 text-sm text-ink-muted">
             <button
               aria-label="Mês anterior"
               disabled={Math.abs(offset) >= 11}
               onClick={() => setOffset((o) => Math.max(o - 1, -11))}
-              className="flex h-11 w-11 items-center justify-center md:h-8 md:w-8 rounded-lg transition-colors hover:bg-surface-raised hover:text-ivory disabled:opacity-30 disabled:hover:bg-transparent"
+              className="flex h-11 w-11 items-center justify-center md:h-8 md:w-8 rounded-lg transition-colors hover:bg-surface-raised hover:text-ink disabled:opacity-30 disabled:hover:bg-transparent"
             >
               <ChevronLeft size={16} />
             </button>
-            <span className="min-w-36 text-center font-medium text-ivory">
+            <span className="min-w-36 text-center font-medium text-ink">
               {rotuloDoMes(mes)}
             </span>
             <button
               aria-label="Próximo mês"
               onClick={() => setOffset((o) => Math.min(o + 1, 0))}
               disabled={offset >= 0}
-              className="flex h-11 w-11 items-center justify-center md:h-8 md:w-8 rounded-lg transition-colors hover:bg-surface-raised hover:text-ivory disabled:opacity-30 disabled:hover:bg-transparent"
+              className="flex h-11 w-11 items-center justify-center md:h-8 md:w-8 rounded-lg transition-colors hover:bg-surface-raised hover:text-ink disabled:opacity-30 disabled:hover:bg-transparent"
             >
               <ChevronRight size={16} />
             </button>
@@ -148,8 +148,8 @@ export default function NumerosPage() {
       <>
       <div className="grid grid-cols-2 gap-2 md:grid-cols-5 md:gap-4">
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-6">
-          <p className="text-[11px] uppercase text-ivory-muted md:text-xs md:tracking-wide">Faturamento</p>
-          <p className="font-display text-lg font-semibold text-gold-light md:text-2xl">
+          <p className="text-[11px] uppercase text-ink-muted md:text-xs md:tracking-wide">Faturamento</p>
+          <p className="font-display text-lg font-semibold text-gold-strong md:text-2xl">
             {apuracao.valor("faturamento", formatBRL(kpis.revenue))}
           </p>
           {apuracao.ok("faturamento") && (
@@ -157,8 +157,8 @@ export default function NumerosPage() {
           )}
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-6">
-          <p className="text-[11px] uppercase text-ivory-muted md:text-xs md:tracking-wide">Atendimentos</p>
-          <p className="font-display text-lg font-semibold text-ivory md:text-2xl">
+          <p className="text-[11px] uppercase text-ink-muted md:text-xs md:tracking-wide">Atendimentos</p>
+          <p className="font-display text-lg font-semibold text-ink md:text-2xl">
             {apuracao.valor("atendimentos", String(kpis.appointments))}
           </p>
           {apuracao.ok("atendimentos") && (
@@ -166,8 +166,8 @@ export default function NumerosPage() {
           )}
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-6">
-          <p className="text-[11px] uppercase text-ivory-muted md:text-xs md:tracking-wide">Ticket médio</p>
-          <p className="font-display text-lg font-semibold text-ivory md:text-2xl">
+          <p className="text-[11px] uppercase text-ink-muted md:text-xs md:tracking-wide">Ticket médio</p>
+          <p className="font-display text-lg font-semibold text-ink md:text-2xl">
             {apuracao.valor("ticketMedio", formatBRL(avgTicket))}
           </p>
           {apuracao.ok("ticketMedio") && (
@@ -175,12 +175,12 @@ export default function NumerosPage() {
           )}
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-6">
-          <p className="text-[11px] uppercase text-ivory-muted md:text-xs md:tracking-wide">Ocupação</p>
+          <p className="text-[11px] uppercase text-ink-muted md:text-xs md:tracking-wide">Ocupação</p>
           {/* A17 · exibia `0%` no mês com UM atendimento, e o mapa de calor
               logo abaixo dizia "100% de ocupação" naquele horário. O motor
               passou a devolver uma casa decimal e `formatPctPtBR` garante que
               um valor diferente de zero nunca saia como zero. */}
-          <p className="font-display text-lg font-semibold text-ivory md:text-2xl">
+          <p className="font-display text-lg font-semibold text-ink md:text-2xl">
             {apuracao.valor("ocupacao", formatPctPtBR(kpis.occupancyPct))}
           </p>
           {apuracao.ok("ocupacao") && (
@@ -193,8 +193,8 @@ export default function NumerosPage() {
               mesmo fato, na mesma tela. O produto inteiro diz falta: o botão
               da agenda ("Não veio"), o diálogo ("Marcar falta?") e o motor do
               Action Center ("Marcar falta"). */}
-          <p className="text-[11px] uppercase text-ivory-muted md:text-xs md:tracking-wide">Taxa de falta</p>
-          <p className="font-display text-lg font-semibold text-ivory md:text-2xl">
+          <p className="text-[11px] uppercase text-ink-muted md:text-xs md:tracking-wide">Taxa de falta</p>
+          <p className="font-display text-lg font-semibold text-ink md:text-2xl">
             {apuracao.valor("taxaDeFalta", formatPctPtBR(kpis.noShowPct))}
           </p>
           {apuracao.ok("taxaDeFalta") && (
@@ -205,19 +205,19 @@ export default function NumerosPage() {
 
       <div className="grid gap-4 md:grid-cols-2 md:gap-8">
         <section>
-          <h2 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:mb-3 md:text-sm">
+          <h2 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-ink-muted md:mb-3 md:text-sm">
             <Scissors size={12} /> Top serviços
           </h2>
           <Card className="flex flex-col gap-3 md:gap-4 md:p-6">
             {periodServices.map((s) => (
               <div key={s.name} className="flex items-center justify-between text-sm md:text-base">
                 <div>
-                  <p className="text-ivory">{s.name}</p>
-                  <p className="text-xs text-ivory-muted md:text-sm">
+                  <p className="text-ink">{s.name}</p>
+                  <p className="text-xs text-ink-muted md:text-sm">
                     {contar(s.count, "atendimento", "atendimentos")}
                   </p>
                 </div>
-                <span className="font-display font-medium text-gold-light">
+                <span className="font-display font-medium text-gold-strong">
                   {formatBRL(s.revenue)}
                 </span>
               </div>
@@ -226,7 +226,7 @@ export default function NumerosPage() {
         </section>
 
         <section>
-          <h2 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:mb-3 md:text-sm">
+          <h2 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-ink-muted md:mb-3 md:text-sm">
             <UserX size={12} /> Recorrência de clientes
           </h2>
           <Card className="flex flex-col gap-3 md:gap-4 md:p-6">
@@ -235,8 +235,8 @@ export default function NumerosPage() {
               return (
                 <div key={c.name} className="flex items-center justify-between gap-2 text-sm md:text-base">
                   <div className="min-w-0">
-                    <p className="truncate text-ivory">{c.name}</p>
-                    <p className="truncate text-xs text-ivory-muted md:text-sm">
+                    <p className="truncate text-ink">{c.name}</p>
+                    <p className="truncate text-xs text-ink-muted md:text-sm">
                       {contar(c.visits, "visita", "visitas")} · última há{" "}
                       {c.lastVisitDaysAgo}d (costuma voltar a cada {c.avgIntervalDays}d)
                     </p>
@@ -252,7 +252,7 @@ export default function NumerosPage() {
       </div>
 
       <section>
-        <h2 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:mb-3 md:text-sm">
+        <h2 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-ink-muted md:mb-3 md:text-sm">
           <Flame size={12} /> Mapa de calor · dia × horário
         </h2>
         <Card className="overflow-x-auto md:p-6">
@@ -266,20 +266,20 @@ export default function NumerosPage() {
             {hourlyHeatmap.hours.map((h) => (
               <span
                 key={h}
-                className="text-center text-[11px] uppercase text-ivory-muted md:text-xs"
+                className="text-center text-[11px] uppercase text-ink-muted md:text-xs"
               >
                 {h}
               </span>
             ))}
             {hourlyHeatmap.days.map((day, i) => (
               <Fragment key={day}>
-                <span className="text-xs text-ivory-muted md:text-sm">{day}</span>
+                <span className="text-xs text-ink-muted md:text-sm">{day}</span>
                 {hourlyHeatmap.values[i].map((pct, j) => {
                   // A ocupação já vem calculada das reservas do período.
                   return (
                     <div
                       key={`${day}-${j}`}
-                      className={`flex h-9 items-center justify-center rounded-lg text-xs font-medium text-ivory transition-colors md:h-12 md:text-sm ${heatColor(pct)}`}
+                      className={`flex h-9 items-center justify-center rounded-lg text-xs font-medium text-ink transition-colors md:h-12 md:text-sm ${heatColor(pct)}`}
                     >
                       {pct}%
                     </div>
@@ -299,12 +299,12 @@ export default function NumerosPage() {
            * Nenhuma palavra foi perdida na mudança: o dia, a hora e os dois
            * percentuais continuam escritos. O que sumiu foi um cartão que
            * repetia a grade em prosa em vez de explicá-la. */}
-          <div className="mt-3 flex flex-col gap-1 border-t border-border pt-3 text-xs text-ivory-muted">
+          <div className="mt-3 flex flex-col gap-1 border-t border-border pt-3 text-xs text-ink-muted">
             <p>
               Mais dourado = horário mais cheio. Os claros são as brechas para
               promover.
             </p>
-            <p className="text-ivory">
+            <p className="text-ink">
               {peak.day} às {peak.hour} é o horário mais cheio do período —{" "}
               {peak.pct}% de ocupação.
             </p>
@@ -321,7 +321,7 @@ export default function NumerosPage() {
         {/* "Insights" é a outra palavra em inglês da tela, e o rótulo mais de
             sistema do painel: descreve COMO o texto foi produzido em vez de
             dizer o que ele responde. */}
-        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:mb-3 md:text-sm">
+        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted md:mb-3 md:text-sm">
           O que os números dizem
         </h2>
         {/* Uma coluna, e não duas: o insight de pico/brecha foi para o rodapé
@@ -330,14 +330,14 @@ export default function NumerosPage() {
             um vão do lado — que lê como bloco faltando, não como espaço. */}
         <div className="flex flex-col gap-2 md:gap-4">
           <Card className="flex flex-col gap-1 md:gap-2 md:p-6">
-            <p className="text-sm text-ivory md:text-base">
+            <p className="text-sm text-ink md:text-base">
               A taxa de falta {kpis.noShowPct <= prevKpis.noShowPct ? "caiu" : "subiu"} de{" "}
               {prevKpis.noShowPct}% para {kpis.noShowPct}% —{" "}
               {contar(periodNoShow.noShowCount, "falta", "faltas")} e{" "}
               {contar(periodNoShow.lateCancelCount, "cancelamento tardio", "cancelamentos tardios")}{" "}
               em {contar(periodNoShow.totalBookings, "agendamento", "agendamentos")}.
             </p>
-            <p className="text-xs text-ivory-muted md:text-sm">
+            <p className="text-xs text-ink-muted md:text-sm">
               A confirmação por WhatsApp no dia continua sendo o maior fator de
               redução.
             </p>
