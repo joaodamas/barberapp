@@ -29,6 +29,7 @@ const rotasDoPainel = [
   "/painel/financeiro/dre",
   "/painel/financeiro/fluxo-caixa",
   "/painel/financeiro/projecao",
+  "/painel/horarios",
   "/painel/loja",
   "/painel/mensal",
   "/painel/numeros",

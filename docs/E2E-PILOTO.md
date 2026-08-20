@@ -63,18 +63,75 @@ começa, e é a parte menos exercitada do produto.
 
 ---
 
-# 4 · Resultado da execução
+# 4 · Resultado da execução — 20/08
 
-_Preenchido durante a execução de 20/08._
+Executado com a bancada local, barbearia semeada, sessão de dono ativa.
 
 ## Roteiro do dono
 
-_(a preencher)_
+| # | Passo | | O que se viu |
+|---|---|---|---|
+| 1 | Cadastra barbeiro | 🟢 | "Bruno Teste" salvo com `commissionPct: null`. A promessa do D1 — *"em branco usa o padrão da barbearia (40%)"* — é verdadeira |
+| — | *(o mesmo passo)* | 🟡 | O documento nasce **vazio no clique**, antes do nome, e não há botão nem confirmação de salvamento. Clicar e desistir deixa um barbeiro sem nome |
+| 2 | Cadastra serviço | 🟢 | "Pezinho · 15 min · R$ 20". E o produto **avisou sozinho** enquanto o preço estava zerado: *"1 serviço visível com preço zerado: o cliente consegue agendar sem pagar nada"* |
+| 3 | Cadastra cliente | 🟢 | Não existe cadastro manual, **por desenho**: *"o cadastro nasce sozinho quando você marca um atendimento. Você não precisa cadastrar ninguém à mão"* |
+| 4 | Cria plano | 🔴/🔵 | **`plans` é lido por todos e escrito por ninguém.** Barbearia nova nasce sem plano de mensalidade e não há caminho para criar. Bloqueia **se** mensalidade entrar no piloto — ver §5 |
+| 5 | Agenda | 🟢 | "Pezinho" e "Bruno Teste" chegaram ao balcão. Capacidade subiu de 36 → 54 com o 3º barbeiro, como a tela de Equipe avisou que aconteceria |
+| 6-7 | Conclui e recebe | 🟢 | **D1 provado no barbeiro novo**: campo em branco → `commissionPct: 40`, comissão R$ 8,00 sobre R$ 20,00 |
+| — | **Jornada da barbearia** | 🔴→✅ | **Nenhuma tela escrevia `schedule`.** Corrigido nesta rodada — ver §6 |
+| 8-11 | Caixa, comissão, fechamento, histórico | ⏸ | Não executados: o E2E parou no 🔴 da jornada, conforme a regra |
 
 ## Roteiro do cliente
 
-_(a preencher)_
+| # | Passo | | O que se viu |
+|---|---|---|---|
+| 1-2 | Acessa e escolhe serviço | 🟢 | Passo 1 de 4, os 5 serviços com preço e duração, "Pezinho" incluído |
+| 3 | Escolhe horário | 🟢 | **Dom e Seg aparecem como "fechado"** — a folga configurada no painel chegou aqui. Horários de 15 em 15, de 14:00 a 19:45 (fecha 20:00). E o N7 se confirma: *"os horários livres mudam conforme o profissional — por isso a lista aparece depois da escolha"* |
+| 4-6 | Agenda, confirmação, acompanha | ⏸ | Não executados nesta rodada |
 
-## Classificação final
+---
 
-_(a preencher)_
+# 5 · A pergunta que decide o segundo 🔴
+
+**A mensalidade faz parte do piloto do O Siqueira?**
+
+É fato de negócio, não de código — só o dono responde.
+
+- **Sim** → criar/configurar plano é 🔴 e precisa sair antes do piloto.
+- **Não** → `plans` vira 🔵 e não se gasta tempo agora.
+
+O motor de mensalista está inteiro (contratar, faturar, cobrir, cota, D2, D-3).
+Falta só a porta de entrada do catálogo.
+
+---
+
+# 6 · O 🔴 da jornada — encontrado e fechado
+
+**O sintoma:** toda barbearia ficava presa em seg–sáb, 09:00–19:00, almoço
+12:00–14:00, horários de 30 em 30. Quem abre às 10h, fecha às 20h ou folga na
+segunda **oferecia ao cliente horários que não atende**.
+
+**A causa:** o modelo (`TenantSchedule`) existia desde a fundação, o onboarding
+tinha o passo `"horarios"` e o componente `PassoHorarios` estava pronto — mas
+nenhuma tela do painel escrevia `schedule`. Depois do onboarding, a jornada
+virava imutável.
+
+**A correção:** `/painel/horarios` reaproveita o componente do onboarding, com o
+rótulo do botão parametrizado. Duplicar a tela criaria duas fontes para a mesma
+regra — o defeito que este repositório mais corrigiu.
+
+**Provado na tela**, mudando O Siqueira para ter–sáb, 10:00–20:00, slots de 15:
+
+```
+painel  → "5 dias por semana · 10:00–20:00 · 15 min · 36 horários por barbeiro"
+painel  → 107 horários livres (era 53)
+cliente → DOM 23 fechado · SEG 24 fechado
+cliente → 14:00 14:15 14:30 14:45 … 19:45
+```
+
+Dois testes de convenção da casa pegaram erros meus no caminho, e os dois
+estavam certos: `concordancia.test.ts` recusou o ternário `"dia" : "dias"`
+(existe `contar()` em `lib/plural.ts`) e `navegacao.test.ts` exigiu a rota nova
+na lista de telas — a guarda vale nas duas direções, tela órfã e link morto.
+
+788 web · typecheck · lint.

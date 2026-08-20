@@ -186,6 +186,7 @@ export const painelNavItems: NavItem[] = [
     icon: Settings,
     children: [
       { href: "/painel/configuracoes", label: "Taxas e regras" },
+      { href: "/painel/horarios", label: "Horários" },
       { href: "/painel/servicos", label: "Serviços" },
       { href: "/painel/equipe", label: "Equipe" },
     ],

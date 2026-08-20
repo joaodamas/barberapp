@@ -42,10 +42,16 @@ export function PassoHorarios({
   tenant,
   onSubmit,
   saving,
+  /* O onboarding avança para o próximo passo; o painel salva e fica.
+   * Mesma tela, duas frases — o rótulo é a única coisa que muda. */
+  rotuloAcao = "Continuar",
+  rotuloSalvando = "Salvando…",
 }: {
   tenant: Tenant;
   onSubmit: (data: Record<string, unknown>) => void;
   saving: boolean;
+  rotuloAcao?: string;
+  rotuloSalvando?: string;
 }) {
   const [weekdays, setWeekdays] = useState<number[]>(tenant.schedule.weekdays);
   const [opensAt, setOpensAt] = useState(tenant.schedule.opensAt);
@@ -145,7 +151,7 @@ export function PassoHorarios({
           }
           disabled={!valido || saving}
         >
-          {saving ? "Salvando…" : "Continuar"}
+          {saving ? rotuloSalvando : rotuloAcao}
         </Button>
       </div>
 
