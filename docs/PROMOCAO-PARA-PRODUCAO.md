@@ -93,14 +93,41 @@ fato financeiro, em vez de uma cópia própria. Muda o comportamento nos estados
 de cancelamento, e para melhor: o carimbo passa a nascer e morrer pelo mesmo
 critério do pagamento.
 
-## 2.3 · A pergunta que esta análise NÃO responde
+## 2.3 · A pergunta foi respondida — leitura de produção, 20/08
 
-**Existem dados em `axon-barber`?** Se houver `bookings` reais, os triggers novos
-passam a agir sobre eles na próxima transição de status. Se a base estiver vazia
-ou só com dados de teste, o risco é zero.
+Autorizada pelo dono, **somente leitura**, contagem estrutural sem nenhum dado
+pessoal:
 
-Não verifiquei: exige acesso a produção, e isso é decisão do dono. **É a
-informação que falta para dimensionar o único risco médio desta promoção.**
+```
+axon-barber · 1 barbearia
+
+ZE8iNGVKp3l7OqZFJbqF   slug: osiqueira   criada: 2026-08-03
+    bookings: 1   {"confirmed": 1}
+    payments: 0 · commissions: 0 · clients: 0 · subscriptions: 0
+    >> em aberto (podem virar completed):  1
+    >> já concluídos (podem ser revertidos): 0
+```
+
+**O risco dos triggers cai a praticamente zero.** Não existe um único pagamento
+ou comissão materializado em produção para ser reescrito, e nenhum booking
+`completed` para ser revertido. O trigger novo não tem sobre o que agir
+retroativamente.
+
+O único booking está em `confirmed`. Se alguém o concluir depois do deploy, ele
+passa pelo caminho de **primeira conclusão** — sem `cicloFinanceiro`, portanto
+idêntico ao comportamento antigo, acrescido das correções desta rodada.
+
+### ⚠️ E um achado que muda o último passo do plano
+
+**A barbearia do Siqueira JÁ EXISTE em produção**, criada em **03/08/2026**, com
+o slug `osiqueira` — o mesmo que o `ROOT_DOMAIN` resolve.
+
+Então o passo final não é *provisionar*: é **configurar a que já está lá**. Isso
+importa porque `politicasIniciais()` (D1) só roda no **provisionamento**, e essa
+barbearia nasceu **antes** dele existir. Vale conferir, depois do deploy, se
+`policies.commissionSplit` está preenchido nela — se não estiver,
+`padraoDaCasa()` cai no fallback de 40%, que é o valor certo, mas por caminho
+diferente do que uma barbearia nova teria.
 
 ---
 
