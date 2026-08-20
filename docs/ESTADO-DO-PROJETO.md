@@ -1,6 +1,7 @@
 # Estado do projeto — CorteHub / JP Barber
 
-> **20/08/2026** · `hardening/p0-2026-08-17` em `3f460e2` · consolidado com o João.
+> **20/08/2026** · `hardening/p0-2026-08-17` · consolidado com o João e mantido
+> ao longo da rodada — do gate do R1 ao E2E do piloto.
 >
 > Substitui `STATUS-ATUAL.md` (12/08) como fotografia de referência. Aquele
 > documento descreve um repositório que já não existe: foi escrito antes do
@@ -38,7 +39,8 @@ produtiva.
 | **R1** — correção de pagamento | ✅ **FECHADO** — Gate P0 executado na tela em 20/08, 9 passos e 9 cenários | `a9c5eca` · `GATE-P0-R1-EXECUTADO.md` |
 | **P1-7** — comissão do atendimento reconcluído | ✅ **FECHADO e provado em execução** — ver §4.2.1 | `financial-events.ts` · `comissoes.ts` |
 | **LGPD técnica** | 🟡 política, termos, links, exclusão e 11 testes; pendência jurídica | — |
-| **Suíte** | ✅ 781 web · 471 functions · 33 emulador; typecheck, lint e build limpos | — |
+| **Jornada da barbearia** | ✅ `/painel/horarios` — o dono define dias, abre/fecha, intervalo e `slotMinutes` | `7d394d2` |
+| **Suíte** | ✅ **788 web · 500 functions · 847 no `test:tudo`**; typecheck, lint e build limpos | — |
 
 **D1–D4 não bloqueiam mais nada.** É a correção mais importante ao registro
 anterior, que os tratava como bloqueio ativo.
