@@ -1,6 +1,8 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { diaDaSemanaNoFuso, hojeNoFuso, instanteNoFuso, localeDoDocumento } from "./locale";
+import { horarioDisponivel, janelasOcupadas, podeRemarcar } from "./agenda";
+import { resolverCliente, type OrigemDoCliente } from "./clients";
 
 /**
  * Criação de reserva.
@@ -71,6 +73,27 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
     );
   }
 
+  /* Encaixe saiu da proposta em 17/08.
+   *
+   * Ele existia como pedido sobre um horário ocupado, e perdeu o caminho no dia
+   * em que a disponibilidade passou a vir de `availableSlots` — que devolve só
+   * os horários LIVRES. A tela seguiu anunciando "peça um encaixe nos horários
+   * em vermelho" para horários que nunca apareciam, o painel manteve uma seção
+   * que nunca receberia nada, e o template de WhatsApp ficou esperando um
+   * documento que ninguém criava.
+   *
+   * A decisão foi remover em vez de reativar: encaixe é conversa de WhatsApp,
+   * e o dono resolve pela agenda quando quiser. O servidor recusa
+   * explicitamente para que a ausência seja uma resposta, e não um silêncio —
+   * e para que uma tela antiga em cache não crie reserva num estado que o
+   * produto não sabe mais operar. */
+  if (isFitIn) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Encaixe não é mais feito pelo app. Fale com a barbearia pelo WhatsApp."
+    );
+  }
+
   const db = getFirestore();
   const shopRef = db.doc(`barbershops/${barbershopId}`);
 
@@ -78,13 +101,120 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
   if (!shopSnap.exists) throw new HttpsError("not-found", "Barbearia não encontrada.");
 
   const shop = shopSnap.data() ?? {};
-  const schedule = shop.schedule ?? {};
   const policies = shop.policies ?? {};
 
   /* Fuso da barbearia, não do servidor. A função roda em UTC: numa barbearia em
    * Dublin, `new Date("2026-08-04T15:00:00")` erra por uma hora e em São Paulo
    * por três — o bastante para recusar horário válido ou aceitar um que passou. */
   const locale = localeDoDocumento(shop);
+
+  const pedido = await validarPedido({
+    shopRef,
+    shop,
+    locale,
+    serviceIds,
+    date,
+    time,
+    staffId: request.data?.staffId,
+    exigirAntecedencia: true,
+  });
+
+  const { staffId, value, durationMin, nomes, slotMinutes, duracaoDaReserva } = pedido;
+  const status = "confirmed";
+
+  /* ---- Grava checando conflito na mesma transação ---- */
+  const bookingId = await gravarComTravaDeHorario({
+    db,
+    shopRef,
+    clientId: uid,
+    staffId,
+    date,
+    time,
+    duracaoDaReserva,
+    slotMinutes,
+    maxAtivas: policies.booking?.maxActivePerClient ?? 3,
+    hojeNaBarbearia: hojeNoFuso(locale.timeZone),
+    /* G3 · o cadastro nasce com a reserva.
+     *
+     * `origin: "app"` porque este caminho é o do cliente autenticado — quem
+     * chega no balcão entra por `createBookingAtCounter`, e a diferença entre os
+     * dois é justamente o que o `origin` registra.
+     *
+     * O id resolvido é o próprio `uid`, então `documento.clientId` não muda de
+     * valor: esta ligação acrescenta o cadastro sem redefinir nada. */
+    cliente: {
+      barbershopId,
+      uid,
+      name: request.data?.clientName ?? request.auth?.token.name,
+      whatsapp: request.data?.clientWhatsapp,
+      origin: "app",
+    },
+    documento: {
+      clientId: uid,
+      staffId,
+      staffName: pedido.staffName,
+      clientName: String(request.data?.clientName ?? request.auth?.token.name ?? "Cliente"),
+      clientWhatsapp: String(request.data?.clientWhatsapp ?? "").replace(/\D/g, ""),
+      serviceIds,
+      serviceNames: nomes,
+      date,
+      time,
+      durationMin,
+      value,
+      paymentOrigin: "in_person",
+      /* Desconhecido até o fechamento. Nulo explícito, e não campo ausente:
+       * ausência é ambígua entre "não pagou" e "campo antigo". */
+      paymentMethod: null,
+      status,
+      requestedAt: FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
+    },
+  });
+
+  return { bookingId, value, status, durationMin, staffId };
+});
+
+/* ================================================================== */
+/* Validação compartilhada pelos dois caminhos de criação             */
+/* ================================================================== */
+
+export type PedidoValidado = {
+  staffId: string;
+  staffName: string;
+  value: number;
+  durationMin: number;
+  nomes: string[];
+  slotMinutes: number;
+  duracaoDaReserva: number;
+};
+
+/**
+ * Tudo que precisa ser verdade antes de disputar um horário.
+ *
+ * Extraída quando D13 acrescentou o segundo caminho de criação. Duplicá-la lá
+ * teria recriado o padrão que esta auditoria mais encontrou — **duas fontes
+ * para a mesma pergunta, e a correção aplicada só numa delas**: foi assim que
+ * `slotsForDate` e `availableSlots` divergiram, e que a política de cancelamento
+ * ficou cravada numa tela e configurável na outra.
+ *
+ * Nada aqui mudou de comportamento. O único parâmetro novo é
+ * `exigirAntecedencia`, e ele existe porque a regra tem um destinatário: ela
+ * impede o CLIENTE de marcar às 14:55 um horário de 15:00 que o barbeiro não
+ * veria a tempo. No balcão, quem marca é quem vai atender.
+ */
+export async function validarPedido(params: {
+  shopRef: FirebaseFirestore.DocumentReference;
+  shop: FirebaseFirestore.DocumentData;
+  locale: { timeZone: string };
+  serviceIds: string[];
+  date: string;
+  time: string;
+  staffId?: string;
+  exigirAntecedencia: boolean;
+}): Promise<PedidoValidado> {
+  const { shopRef, shop, locale, serviceIds, date, time } = params;
+  const schedule = shop.schedule ?? {};
+  const policies = shop.policies ?? {};
 
   /* ---- Qual barbeiro ----
    *
@@ -103,7 +233,7 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
     );
   }
 
-  let staffId = String(request.data?.staffId ?? "");
+  let staffId = String(params.staffId ?? "");
   if (!staffId) {
     if (equipe.size > 1) {
       throw new HttpsError("invalid-argument", "Escolha com qual barbeiro você quer cortar.");
@@ -144,17 +274,35 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
     );
   }
 
-  /* ---- Antecedência mínima ---- */
-  const minutosMinimos: number = policies.booking?.minAdvanceMinutes ?? 60;
+  /* ---- Antecedência ---- */
   const inicio = instanteNoFuso(date, time, locale.timeZone);
-  if (inicio.getTime() - Date.now() < minutosMinimos * 60_000) {
+  if (params.exigirAntecedencia) {
+    const minutosMinimos: number = policies.booking?.minAdvanceMinutes ?? 60;
+    if (inicio.getTime() - Date.now() < minutosMinimos * 60_000) {
+      throw new HttpsError(
+        "failed-precondition",
+        `Reservas precisam de ao menos ${minutosMinimos} minutos de antecedência.`
+      );
+    }
+  } else if (date < hojeNoFuso(locale.timeZone)) {
+    /* Sem antecedência mínima o balcão pode marcar "agora" e um horário mais
+     * cedo do MESMO dia — o atendimento que já começou, ou o que o dono está
+     * lançando no fim do expediente.
+     *
+     * Dia anterior continua barrado: lançar atendimento de ontem move receita
+     * entre competências, e o fato financeiro é congelado na conclusão. Isso é
+     * decisão de modelo, e o modelo não muda nesta rodada. */
     throw new HttpsError(
       "failed-precondition",
-      `Reservas precisam de ao menos ${minutosMinimos} minutos de antecedência.`
+      "Não dá para marcar em um dia que já passou."
     );
   }
 
   /* ---- Preço e duração vêm do catálogo, nunca do cliente ---- */
+  if (!Array.isArray(serviceIds) || serviceIds.length === 0) {
+    throw new HttpsError("invalid-argument", "Escolha pelo menos um serviço.");
+  }
+
   const servicos = await Promise.all(
     serviceIds.map((id) => shopRef.collection("services").doc(String(id)).get())
   );
@@ -172,12 +320,331 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
     nomes.push(String(s.name ?? ""));
   }
 
-  const status = isFitIn ? "fit_in_requested" : "confirmed";
+  /* Grade da jornada: do barbeiro quando ele tem uma, senão da loja. É a
+   * duração assumida para reserva antiga, gravada antes de `durationMin`
+   * existir. */
+  const slotMinutes: number =
+    Number(jornadaDele?.slotMinutes) || Number(schedule.slotMinutes) || 30;
 
-  /* ---- Grava checando conflito na mesma transação ---- */
+  /* Serviço cadastrado sem duração ocuparia ZERO minuto e não bloquearia nada —
+   * a janela seria vazia e toda reserva seguinte caberia dentro dela. A grade é
+   * o mínimo defensável. */
+  const duracaoDaReserva = durationMin > 0 ? durationMin : slotMinutes;
+
+  return {
+    staffId,
+    staffName: String(barbeiro.get("name") ?? ""),
+    value,
+    durationMin,
+    nomes,
+    slotMinutes,
+    duracaoDaReserva,
+  };
+}
+
+/* ================================================================== */
+/* D13 · a reserva que nasce no BALCÃO                                */
+/* ================================================================== */
+
+type ReservaNoBalcaoInput = {
+  barbershopId: string;
+  staffId?: string;
+  serviceIds: string[];
+  date: string;
+  time: string;
+  /** Cadastro existente escolhido pelo dono. Quando vem, manda sobre o resto. */
+  clientId?: string;
+  clientName?: string;
+  clientWhatsapp?: string;
+};
+
+/**
+ * O dono marca um atendimento para quem chegou no balcão ou ligou.
+ *
+ * ## Por que precisa existir
+ *
+ * O produto tinha **um único caminho de criação de reserva**: o app do cliente
+ * autenticado. Uma barbearia recebe a maior parte dos horários por telefone e
+ * por quem entra pela porta — e para essas pessoas não havia como marcar. O
+ * blueprint prevê o cliente sem conta (`uid: null`) e nunca descreveu por onde a
+ * reserva dele nasceria. Era a diferença entre uma agenda self-service e uma
+ * plataforma de gestão.
+ *
+ * ## O que ela NÃO duplica
+ *
+ * Tudo que protege a agenda continua vindo do mesmo lugar: `validarPedido` é a
+ * mesma checagem de barbeiro, serviço, jornada e catálogo do `createBooking`, e
+ * a gravação passa por `gravarComTravaDeHorario` — a mesma transação, a mesma
+ * janela de ocupação, a mesma trava de concorrência exercida por
+ * `booking-concorrencia.test.ts`.
+ *
+ * Duplicar a validação aqui recriaria o padrão que esta auditoria mais
+ * encontrou: **duas fontes para a mesma pergunta, e a correção aplicada só numa
+ * delas.**
+ *
+ * ## As duas diferenças deliberadas
+ *
+ * 1. **Quem chama** é `owner` ou `staff` daquela barbearia, não um cliente
+ *    qualquer. É o que permite gravar reserva em nome de outra pessoa sem
+ *    reabrir o buraco que `createBooking` fecha ao usar sempre o próprio uid.
+ * 2. **Não há antecedência mínima.** A regra existe para o cliente não marcar
+ *    às 14:55 um horário de 15:00 que o barbeiro não veria a tempo. No balcão
+ *    quem marca é justamente quem vai atender, e recusar "agora" tornaria o
+ *    caminho inútil no caso mais comum: a pessoa já está na cadeira.
+ *
+ * ## O que ela deliberadamente não faz
+ *
+ * **Não recebe pagamento.** O fluxo termina em reserva confirmada; o pagamento
+ * acontece na conclusão, como em qualquer outra. Pagamento antecipado saiu do
+ * produto por decisão de 17/08, e reintroduzi-lo aqui de carona seria trazer de
+ * volta pela porta lateral o que D14 acabou de tirar da frente.
+ */
+export const createBookingAtCounter = onCall<ReservaNoBalcaoInput>(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Entre na sua conta.");
+
+  const { barbershopId, serviceIds, date, time } = request.data ?? {};
+  if (!barbershopId) throw new HttpsError("invalid-argument", "Barbearia não informada.");
+
+  /* A guarda que separa este caminho do `createBooking`: só quem toca a loja
+   * marca em nome de outra pessoa. Sem ela, qualquer autenticado criaria reserva
+   * com o nome que quisesse — e o teto por cliente deixaria de significar algo,
+   * porque bastaria inventar um cadastro novo a cada vez. */
+  const papel = (request.auth?.token.barbershops as Record<string, string> | undefined)?.[
+    barbershopId
+  ];
+  if (papel !== "owner" && papel !== "staff") {
+    throw new HttpsError(
+      "permission-denied",
+      "Só quem trabalha na barbearia marca pelo balcão."
+    );
+  }
+
+  const db = getFirestore();
+  const shopRef = db.doc(`barbershops/${barbershopId}`);
+  const shopSnap = await shopRef.get();
+  if (!shopSnap.exists) throw new HttpsError("not-found", "Barbearia não encontrada.");
+
+  const shop = shopSnap.data() ?? {};
+  const locale = localeDoDocumento(shop);
+  const policies = shop.policies ?? {};
+
+  const pedido = await validarPedido({
+    shopRef,
+    shop,
+    locale,
+    serviceIds,
+    date,
+    time,
+    staffId: request.data?.staffId,
+    /* A única validação dispensada, e o porquê está no cabeçalho. O passado
+     * continua barrado: `validarPedido` recusa data anterior a hoje. */
+    exigirAntecedencia: false,
+  });
+
+  const nome = String(request.data?.clientName ?? "").trim();
+  const whatsapp = String(request.data?.clientWhatsapp ?? "").replace(/\D/g, "");
+  const escolhido = String(request.data?.clientId ?? "").trim();
+
+  /* Cliente novo precisa de nome. Sem ele a agenda mostra "Cliente" em todas as
+   * linhas e o dono não sabe quem é quem — que é o problema que D13 resolve. */
+  if (!escolhido && !nome) {
+    throw new HttpsError("invalid-argument", "Informe o nome de quem vai ser atendido.");
+  }
+
+  /* ---- Cadastro escolhido na lista: usa o que existe, não cria outro ---- */
+  if (escolhido) {
+    const clienteSnap = await shopRef.collection("clients").doc(escolhido).get();
+    if (!clienteSnap.exists) {
+      throw new HttpsError("not-found", "Esse cliente não está mais cadastrado.");
+    }
+    if (clienteSnap.get("active") === false) {
+      /* Cadastro fundido: marcar nele criaria histórico num registro que já foi
+       * substituído, e a reserva sumiria da ficha para onde a pessoa migrou. */
+      throw new HttpsError("failed-precondition", "Esse cadastro foi substituído por outro.");
+    }
+
+    const bookingId = await gravarComTravaDeHorario({
+      db,
+      shopRef,
+      clientId: escolhido,
+      staffId: pedido.staffId,
+      date,
+      time,
+      duracaoDaReserva: pedido.duracaoDaReserva,
+      slotMinutes: pedido.slotMinutes,
+      maxAtivas: policies.booking?.maxActivePerClient ?? 3,
+      hojeNaBarbearia: hojeNoFuso(locale.timeZone),
+      documento: documentoDaReserva({
+        clientId: escolhido,
+        clientName: String(clienteSnap.get("name") ?? nome ?? "Cliente"),
+        clientWhatsapp: String(clienteSnap.get("whatsapp") ?? whatsapp),
+        pedido,
+        date,
+        time,
+        serviceIds,
+        origem: "balcao",
+      }),
+    });
+
+    return {
+      bookingId,
+      clientId: escolhido,
+      value: pedido.value,
+      status: "confirmed",
+      durationMin: pedido.durationMin,
+      staffId: pedido.staffId,
+    };
+  }
+
+  /* ---- Cliente novo, ou reuso pelo WhatsApp ---- */
+  let clientIdFinal = "";
+  const bookingId = await gravarComTravaDeHorario({
+    db,
+    shopRef,
+    /* Placeholder: `gravarComTravaDeHorario` substitui pelo id que
+     * `resolverCliente` devolver, dentro da transação. */
+    clientId: "",
+    staffId: pedido.staffId,
+    date,
+    time,
+    duracaoDaReserva: pedido.duracaoDaReserva,
+    slotMinutes: pedido.slotMinutes,
+    maxAtivas: policies.booking?.maxActivePerClient ?? 3,
+    hojeNaBarbearia: hojeNoFuso(locale.timeZone),
+    cliente: {
+      barbershopId,
+      uid: null,
+      name: nome,
+      whatsapp,
+      origin: "balcao",
+    },
+    aoResolverCliente: (id) => {
+      clientIdFinal = id;
+    },
+    documento: documentoDaReserva({
+      clientId: "",
+      clientName: nome,
+      clientWhatsapp: whatsapp,
+      pedido,
+      date,
+      time,
+      serviceIds,
+      origem: "balcao",
+    }),
+  });
+
+  return {
+    bookingId,
+    clientId: clientIdFinal,
+    value: pedido.value,
+    status: "confirmed",
+    durationMin: pedido.durationMin,
+    staffId: pedido.staffId,
+  };
+});
+
+/** O documento da reserva, montado igual nos dois caminhos. */
+function documentoDaReserva(params: {
+  clientId: string;
+  clientName: string;
+  clientWhatsapp: string;
+  pedido: PedidoValidado;
+  date: string;
+  time: string;
+  serviceIds: string[];
+  origem: "app" | "balcao";
+}): Record<string, unknown> {
+  return {
+    clientId: params.clientId,
+    staffId: params.pedido.staffId,
+    staffName: params.pedido.staffName,
+    clientName: params.clientName || "Cliente",
+    clientWhatsapp: params.clientWhatsapp,
+    serviceIds: params.serviceIds,
+    serviceNames: params.pedido.nomes,
+    date: params.date,
+    time: params.time,
+    durationMin: params.pedido.durationMin,
+    value: params.pedido.value,
+    paymentOrigin: "in_person",
+    paymentMethod: null,
+    status: "confirmed",
+    /**
+     * De onde a reserva veio. O blueprint já previa `origin` no cliente; aqui
+     * ele fica também na reserva porque `bookings` é o registro histórico: saber
+     * que um atendimento nasceu no balcão precisa sobreviver a uma fusão de
+     * cadastro, que muda o cliente e não pode mudar o fato.
+     */
+    origin: params.origem,
+    requestedAt: FieldValue.serverTimestamp(),
+    createdAt: FieldValue.serverTimestamp(),
+  };
+}
+
+/**
+ * A parte da criação que **precisa** de transação: contar as reservas ativas do
+ * cliente, travar o horário e gravar — as três na mesma leitura consistente.
+ *
+ * Extraída do `onCall` pelo motivo de sempre neste projeto: dentro dele, isto
+ * só se exercia com emulador, autenticação e reserva semeada, e por isso a
+ * trava que impede dois clientes na mesma cadeira nunca tinha sido exercida
+ * sob concorrência real. Aqui ela é uma função com `db` injetável, e
+ * `__tests__/booking-concorrencia.test.ts` dispara N chamadas simultâneas
+ * contra o emulador.
+ */
+export async function gravarComTravaDeHorario(params: {
+  db: FirebaseFirestore.Firestore;
+  shopRef: FirebaseFirestore.DocumentReference;
+  clientId: string;
+  staffId: string;
+  date: string;
+  time: string;
+  duracaoDaReserva: number;
+  slotMinutes: number;
+  maxAtivas: number;
+  /** Hoje no fuso da barbearia — decide o que ainda conta como reserva ativa. */
+  hojeNaBarbearia: string;
+  documento: Record<string, unknown>;
+  /**
+   * Cadastro do cliente — G3.
+   *
+   * Resolvido DENTRO desta transação, e não antes dela: o cadastro e o
+   * atendimento nascem juntos ou não nascem. Um cliente gravado sem a reserva
+   * é cadastro fantasma; uma reserva apontando para cliente que não existe é
+   * pior — é referência quebrada num documento que o financeiro vai ler.
+   *
+   * Quando presente, o `clientId` do documento vem daqui, e não de `params`.
+   */
+  cliente?: {
+    uid: string | null;
+    name: unknown;
+    whatsapp: unknown;
+    origin: OrigemDoCliente;
+    barbershopId: string;
+  };
+  /**
+   * Recebe o id do cadastro assim que ele é resolvido, ainda dentro da
+   * transação. Quem chama precisa dele para devolver à tela — sem isso o painel
+   * não sabe qual cliente acabou de nascer, e uma segunda consulta por WhatsApp
+   * traria o cadastro errado quando dois homônimos compartilham número.
+   */
+  aoResolverCliente?: (clientId: string) => void;
+}): Promise<string> {
+  const { db, shopRef, date, time, staffId } = params;
   const bookingRef = shopRef.collection("bookings").doc();
 
   await db.runTransaction(async (tx) => {
+    /* ---- G3: o cliente, ainda na fase de LEITURA da transação ----
+     *
+     * Antes de qualquer outra leitura por comodidade de ordem, mas o que manda
+     * é a regra do Firestore: nenhuma leitura depois da primeira escrita. Por
+     * isso `resolverCliente` devolve o id e uma escrita pendente, que só roda
+     * lá embaixo junto com o `tx.set` da reserva. */
+    const cadastro = params.cliente
+      ? await resolverCliente({ tx, db, ...params.cliente })
+      : null;
+    if (cadastro) params.aoResolverCliente?.(cadastro.id);
     /* ---- Quantas este cliente já tem em aberto ----
      *
      * Sem teto, uma conta só ocupa a agenda inteira: são 60 dias de horizonte
@@ -189,12 +656,14 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
      * `where('clientId').where('date','>=')` exigiria índice composto, e um
      * índice faltando derruba a criação de reserva em produção. A quantidade
      * por cliente é pequena por natureza. */
-    const maxAtivas: number = policies.booking?.maxActivePerClient ?? 3;
-    const hoje = hojeNoFuso(locale.timeZone);
-    const minhas = await tx.get(shopRef.collection("bookings").where("clientId", "==", uid));
+    const { maxAtivas, hojeNaBarbearia } = params;
+    const clientId = cadastro?.id ?? params.clientId;
+    const minhas = await tx.get(
+      shopRef.collection("bookings").where("clientId", "==", clientId)
+    );
     const ativas = minhas.docs.filter((d) => {
       const b = d.data();
-      return EM_ABERTO.includes(b.status) && String(b.date) >= hoje;
+      return EM_ABERTO.includes(b.status) && String(b.date) >= hojeNaBarbearia;
     }).length;
 
     if (ativas >= maxAtivas) {
@@ -204,26 +673,37 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
       );
     }
 
-    /* Encaixe não disputa slot: ele existe justamente para pedir um horário
-     * já ocupado. Reserva normal, sim. */
-    if (!isFitIn) {
-      /* Conflito é por CADEIRA, não pela barbearia.
+    {
+      /* Conflito é por CADEIRA e por JANELA.
        *
-       * Antes bastava `date + time`: três barbeiros às 15h viravam conflito e
-       * dois terços da agenda sumiam. O filtro por `staffId` é em memória e não
-       * na query de propósito — três cláusulas de igualdade exigiriam índice
-       * composto, e índice faltando derruba a criação de reserva em produção. */
-      const conflitos = await tx.get(
-        shopRef
-          .collection("bookings")
-          .where("date", "==", date)
-          .where("time", "==", time)
+       * Por cadeira, porque antes bastava `date + time`: três barbeiros às 15h
+       * viravam conflito e dois terços da agenda sumiam. O filtro por `staffId`
+       * é em memória e não na query de propósito — três cláusulas de igualdade
+       * exigiriam índice composto, e índice faltando derruba a criação de
+       * reserva em produção.
+       *
+       * Por janela, porque `where("time","==",time)` só via o INSTANTE inicial:
+       * um atendimento das 15:00 às 16:00 não impedia outro às 15:30, e a
+       * transação que existe justamente para barrar isso não via conflito
+       * nenhum. A query passa a trazer o dia e a conta é a de `agenda.ts` — a
+       * mesma que o motor de horários usa, para as duas pontas não poderem
+       * discordar. */
+      const doDia = await tx.get(shopRef.collection("bookings").where("date", "==", date));
+
+      const ocupadas = janelasOcupadas(
+        doDia.docs
+          .filter((d) => d.data().staffId === staffId && OCUPAM_SLOT.includes(d.data().status))
+          .map((d) => ({ time: String(d.data().time), durationMin: d.data().durationMin })),
+        params.slotMinutes
       );
 
-      const ocupado = conflitos.docs.some(
-        (d) => d.data().staffId === staffId && OCUPAM_SLOT.includes(d.data().status)
-      );
-      if (ocupado) {
+      if (
+        !horarioDisponivel({
+          time,
+          durationMin: params.duracaoDaReserva,
+          ocupadas,
+        })
+      ) {
         throw new HttpsError(
           "already-exists",
           "Esse horário acabou de ser reservado. Escolha outro, por favor."
@@ -231,31 +711,13 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
       }
     }
 
-    tx.set(bookingRef, {
-      clientId: uid,
-      staffId,
-      staffName: String(barbeiro.get("name") ?? ""),
-      clientName: String(request.data?.clientName ?? request.auth?.token.name ?? "Cliente"),
-      clientWhatsapp: String(request.data?.clientWhatsapp ?? "").replace(/\D/g, ""),
-      serviceIds,
-      serviceNames: nomes,
-      date,
-      time,
-      durationMin,
-      value,
-      paymentOrigin: "in_person",
-      /* Desconhecido até o fechamento. Nulo explícito, e não campo ausente:
-       * ausência é ambígua entre "não pagou" e "campo antigo". */
-      paymentMethod: null,
-      status,
-      isFitIn: !!isFitIn,
-      requestedAt: FieldValue.serverTimestamp(),
-      createdAt: FieldValue.serverTimestamp(),
-    });
+    /* ---- FASE DE ESCRITA ---- */
+    cadastro?.gravar(tx);
+    tx.set(bookingRef, { ...params.documento, clientId: cadastro?.id ?? params.clientId });
   });
 
-  return { bookingId: bookingRef.id, value, status, durationMin, staffId };
-});
+  return bookingRef.id;
+}
 
 /**
  * Reagendamento pelo cliente.
@@ -335,17 +797,45 @@ export const rescheduleBooking = onCall<{
     );
   }
 
+  /* Teto de remarcações — P1-13.
+   *
+   * A tela do cliente anunciava "limite de 2 por reserva" a partir de um
+   * `useState` que zerava com F5, e o servidor nunca soube da regra. Bastava
+   * recarregar a página. A contagem passa a viver no documento, gravada dentro
+   * da mesma transação que move o horário: contar fora dela permitiria duas
+   * remarcações simultâneas passarem pelo mesmo teto. */
+  const limiteDeRemarcacoes: number = policies.reschedule?.maxPerBooking ?? 2;
+  if (!podeRemarcar({ contagem: booking.rescheduleCount, limite: limiteDeRemarcacoes, ehDono })) {
+    throw new HttpsError(
+      "failed-precondition",
+      `Esta reserva já foi remarcada ${limiteDeRemarcacoes} vezes. Fale com a barbearia.`
+    );
+  }
+
+  /* Mesma conta de janela do `createBooking` — remarcar não pode ser a porta
+   * dos fundos para a sobreposição que a criação passou a barrar. */
+  const slotMinutes: number = Number(schedule.slotMinutes) || 30;
+  const duracaoDaReserva = Number(booking.durationMin) || slotMinutes;
+
   await db.runTransaction(async (tx) => {
-    const conflitos = await tx.get(
-      shopRef.collection("bookings").where("date", "==", date).where("time", "==", time)
+    const doDia = await tx.get(shopRef.collection("bookings").where("date", "==", date));
+
+    const ocupadas = janelasOcupadas(
+      doDia.docs
+        /* A própria reserva sai da conta: ela é quem está se movendo, e
+         * compará-la consigo mesma recusaria toda remarcação para um horário
+         * que se sobreponha ao atual — inclusive adiantar em 15 minutos. */
+        .filter(
+          (d) =>
+            d.id !== bookingId &&
+            d.data().staffId === booking.staffId &&
+            OCUPAM_SLOT.includes(d.data().status)
+        )
+        .map((d) => ({ time: String(d.data().time), durationMin: d.data().durationMin })),
+      slotMinutes
     );
-    const ocupado = conflitos.docs.some(
-      (d) =>
-        d.id !== bookingId &&
-        d.data().staffId === booking.staffId &&
-        OCUPAM_SLOT.includes(d.data().status)
-    );
-    if (ocupado) {
+
+    if (!horarioDisponivel({ time, durationMin: duracaoDaReserva, ocupadas })) {
       throw new HttpsError(
         "already-exists",
         "Esse horário acabou de ser reservado. Escolha outro, por favor."
@@ -358,6 +848,11 @@ export const rescheduleBooking = onCall<{
       status: "confirmed",
       rescheduledFrom: { date: booking.date, time: booking.time },
       rescheduledAt: FieldValue.serverTimestamp(),
+      /* `increment` e não `contagem + 1`: o valor lido veio de antes da
+       * transação, e duas remarcações concorrentes gravariam o mesmo número.
+       * O contador é o que sustenta o limite — se ele erra, o limite não
+       * existe. */
+      rescheduleCount: FieldValue.increment(1),
     });
   });
 
@@ -441,6 +936,30 @@ export const cancelBooking = onCall<{ barbershopId: string; bookingId: string }>
 
     if (booking.clientId !== uid && !ehDono) {
       throw new HttpsError("permission-denied", "Essa reserva não é sua.");
+    }
+
+    /* Só cancela o que ainda está aberto.
+     *
+     * Esta guarda existia no `rescheduleBooking` e faltava aqui, e a diferença
+     * não era cosmética: cancelar uma reserva CONCLUÍDA a tira de `completed`,
+     * e o gatilho financeiro lê isso como conclusão desfeita — apagando
+     * `payments/pagamento_<id>` e `commissions/comissao_<id>`. O atendimento
+     * aconteceu, o dinheiro entrou na gaveta, e a receita sumia do DRE, do
+     * fluxo de caixa e do acerto do barbeiro. O carimbo de fidelidade ia junto.
+     *
+     * Quem podia disparar era o próprio cliente, com o id de uma reserva dele
+     * já atendida. A interface do painel só oferece o botão em reserva aberta —
+     * mas interface não é guarda.
+     *
+     * Desfazer uma conclusão é outro caminho (o dono reabre pelo painel), e
+     * devolver dinheiro de atendimento realizado é estorno, não cancelamento. */
+    if (!EM_ABERTO.includes(booking.status)) {
+      throw new HttpsError(
+        "failed-precondition",
+        booking.status === "completed"
+          ? "Esse atendimento já foi concluído e não pode ser cancelado. Fale com a barbearia."
+          : "Essa reserva não está mais aberta."
+      );
     }
 
     const { timeZone } = localeDoDocumento(shopSnap.data());

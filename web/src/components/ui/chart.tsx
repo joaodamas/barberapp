@@ -20,6 +20,23 @@ import { formatBRL } from "@/lib/format";
  * Acessibilidade: o gráfico é `aria-hidden`. Quem usa leitor de tela lê a
  * TABELA, que continua na página logo abaixo em todas as telas. Gráfico não
  * substitui tabela aqui; ele resume.
+ *
+ * ## Sem dado suficiente, devolve `null` — e isso é contrato, não descuido
+ *
+ * `LineChart` exige 2 pontos (uma linha entre um ponto só não existe) e
+ * `BarChart` exige 1. Abaixo disso os dois devolvem `null`, e é a TELA que
+ * decide o que aparece no lugar — normalmente um `EmptyState` dizendo o que
+ * fazer para que haja movimento.
+ *
+ * A alternativa seria o gráfico desenhar o próprio "sem dados". Fica errado:
+ * "a projeção precisa de histórico" e "ainda não houve venda hoje" são frases
+ * diferentes, e o componente que desenha eixo e barra não tem como saber qual
+ * das duas é a verdade. Um texto genérico no lugar seria pior que o silêncio.
+ *
+ * A consequência para quem consome: **guarde antes de renderizar.** Sem a
+ * guarda, a tela mostra um título com um vazio embaixo — que é exatamente a
+ * leitura de "quebrou". As três chamadas de hoje guardam
+ * (`cashProjection.length > 1`, `dailyCashHistory.length > 0`).
  */
 
 type Ponto = { label: string; value: number };

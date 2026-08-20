@@ -1,6 +1,11 @@
 import { safeDiv, toISODate } from "@/lib/format";
 import {
-  isReceived,
+  /* `isReceived` saiu daqui com o D2: "status conta como recebido" deixou de
+   * ser a pergunta certa quando o atendimento coberto pelo plano passou a ser
+   * concluído sem dinheiro. O predicado continua em `domain.ts`, com teste
+   * próprio, para quem precisar da pergunta de AGENDA — mas nenhum número
+   * financeiro sai mais dele. */
+  cobertoPeloPlano,
   isRevenue,
   monthOf,
   OCCUPIES_SLOT,
@@ -16,6 +21,15 @@ import {
 import type { Doc } from "@/lib/db/repository";
 import type { TenantPolicies } from "@/lib/tenant";
 import type { PaymentMethod } from "@/lib/types";
+import { dentroDoPeriodo, type Periodo } from "@/lib/analytics-periodo";
+import {
+  comissaoDeProduto,
+  custoDoVendido,
+  receitaDeMensalidade,
+  receitaDeProduto,
+  receitaDeServico,
+} from "@/lib/fontes-financeiras";
+import type { RefundDoc, SubscriptionInvoiceDoc } from "@/lib/domain";
 
 /**
  * Derivações financeiras a partir do dado bruto.
@@ -29,17 +43,14 @@ import type { PaymentMethod } from "@/lib/types";
  * tocar em Firestore. É o que as torna testáveis sem emulador.
  */
 
-export type Periodo = { inicio: string; fim: string };
+/* O recorte de período mora em `analytics-periodo.ts` desde a Rodada 3.2, para
+ * `fontes-financeiras.ts` poder usá-lo sem ciclo de import. Reexportado aqui
+ * porque dezenas de telas já importam daqui. */
+export { dentroDoPeriodo, mesPeriodo, type Periodo } from "@/lib/analytics-periodo";
 
-/** Primeiro e último dia de um mês `YYYY-MM`. */
-export function mesPeriodo(mes: string): Periodo {
-  const [ano, m] = mes.split("-").map(Number);
-  const ultimo = new Date(ano, m, 0).getDate();
-  return { inicio: `${mes}-01`, fim: `${mes}-${String(ultimo).padStart(2, "0")}` };
-}
-
-export function dentroDoPeriodo(data: string, periodo: Periodo) {
-  return data >= periodo.inicio && data <= periodo.fim;
+/** Arredonda ao centavo — nunca ao real. Ver D1/D5. */
+function centavos(v: number) {
+  return Math.round(v * 100) / 100;
 }
 
 /* ------------------------------------------------------------------ */
@@ -50,11 +61,36 @@ export type ReceitaDoMes = {
   servicos: number;
   encaixes: number;
   produtos: number;
+  /**
+   * MRR CONTRATADO — o retrato de `subscriptions` com status `ativo`.
+   *
+   * Continua fora de `bruta`: é contrato, não recebimento. Fica exposto para a
+   * tela mostrar à parte, com nome próprio.
+   */
   mensalistas: number;
+  /**
+   * Mensalidade REALIZADA — faturas efetivamente pagas no período (D20).
+   *
+   * Esta entra em `bruta`, porque tem lastro: existe uma fatura marcada como
+   * paga e, desde G1.6, um `PaymentDoc` com a taxa congelada.
+   *
+   * **Contratado projeta; realizado fatura.**
+   */
+  mensalidades: number;
   bruta: number;
-  /** O que entra pelo balcão — tudo menos mensalidade. */
+  /** O que entra pelo balcão. */
   caixa: number;
   atendimentos: number;
+  /** Quanto voltou ao cliente no período, somando as três origens (D22). */
+  estornos: number;
+  /**
+   * Quantos fatos caíram no fallback histórico.
+   *
+   * Torna a migração VISÍVEL. Sem isto, "a receita saiu dos pagamentos" e "a
+   * receita saiu do documento antigo" ficam indistinguíveis, e a reconciliação
+   * da 3.4 não teria como explicar uma divergência.
+   */
+  semFatoMaterializado: number;
 };
 
 export function receitaDoMes(params: {
@@ -64,66 +100,192 @@ export function receitaDoMes(params: {
   periodo: Periodo;
   /** Data de referência — decide se o retrato de mensalistas vale no período. */
   hoje?: Date;
+  /**
+   * Pagamentos congelados — Rodada 3.2.
+   *
+   * Quando existe um para o fato, o valor sai dele. Ausentes, cada linha cai no
+   * documento original: é o fallback histórico, e ele cobre os fatos anteriores
+   * à materialização automática.
+   *
+   * O fallback **não é uma segunda parcela somada**. A iteração é sobre o FATO,
+   * e o pagamento só substitui o valor — ver `fontes-financeiras.ts`.
+   */
+  payments?: Doc<PaymentDoc>[];
+  /** Devoluções do período. Reduzem a receita sem apagar o pagamento (D22). */
+  refunds?: Doc<RefundDoc>[];
+  /** Faturas de mensalidade. A PAGA é o que vira receita realizada (D20). */
+  invoices?: Doc<SubscriptionInvoiceDoc>[];
 }): ReceitaDoMes {
   const { bookings, movements, subscribers, periodo } = params;
+  const payments = params.payments ?? [];
+  const refunds = params.refunds ?? [];
+  const invoices = params.invoices ?? [];
 
-  const atendidos = bookings.filter(
-    (b) => isRevenue(b) && dentroDoPeriodo(b.date, periodo)
-  );
+  /* Cada linha itera sobre o próprio universo de fatos e escolhe a fonte por
+   * item. Nenhuma soma duas coleções — é o que garante que um atendimento não
+   * entre duas vezes quando o pagamento dele existe. */
+  const normais = receitaDeServico({ bookings, payments, refunds, periodo, apenasEncaixes: false });
+  const encaixados = receitaDeServico({ bookings, payments, refunds, periodo, apenasEncaixes: true });
+  const servico = receitaDeServico({ bookings, payments, refunds, periodo });
+  const produto = receitaDeProduto({ movements, payments, refunds, periodo });
+  const mensalidade = receitaDeMensalidade({ invoices, payments, refunds, periodo });
 
-  const servicos = atendidos.filter((b) => !b.isFitIn).reduce((s, b) => s + b.value, 0);
-  const encaixes = atendidos.filter((b) => b.isFitIn).reduce((s, b) => s + b.value, 0);
-
-  const produtos = movements
-    .filter((m) => m.kind === "venda" && dentroDoPeriodo(m.date, periodo))
-    .reduce((s, m) => s + m.value, 0);
-
-  /* Mensalidade é receita CONTRATADA, não realizada — e por isso fica fora da
-   * receita bruta.
+  /* MRR contratado — o retrato de HOJE, e por isso recortado pela data de
+   * referência. `SubscriberDoc` não guarda `createdAt` nem `canceledAt`: somar
+   * em qualquer período faria os 40 assinantes de hoje virarem receita de um
+   * janeiro que teve 5.
    *
-   * O único lastro de que este dinheiro entrou é alguém ter deixado o status
-   * como `ativo`. Não existe cobrança: `subscriptions` é flag de plano, e
-   * `subscription_invoices` não é escrita por ninguém. Somando isso em `bruta`,
-   * o produto AFIRMAVA um recebimento cuja evidência era uma caixinha marcada.
-   *
-   * O custo era concreto e triplo. No dia 1º o DRE já mostrava o mês inteiro de
-   * MRR como recebido, porque nada aqui olha `nextCharge`. O Simples Nacional
-   * incide sobre `bruta`, então o dono separava imposto sobre dinheiro que
-   * talvez não tivesse entrado. E a margem — o número que ele usa para decidir
-   * preço — subia junto.
-   *
-   * Um mensalista que parou de pagar seguia gerando receita até alguém lembrar
-   * de mudar o status à mão.
-   *
-   * `nextCharge` não resolveria: ele diz quando DEVERIA cobrar, não que foi
-   * pago. Trocaria uma afirmação sem evidência por outra. Quando existir
-   * cobrança de verdade — assinatura → cobrança → recebimento → confirmação —,
-   * a mensalidade recebida volta para `bruta` com lastro.
-   *
-   * Continua exposta em `mensalistas` para a tela mostrar à parte: o dono
-   * precisa enxergar o contratado, só não pode confundi-lo com o realizado.
-   *
-   * O recorte por período segue valendo pelo motivo antigo: `SubscriberDoc`
-   * guarda o estado de HOJE, sem `createdAt` nem `canceledAt`. Somar em
-   * qualquer período fazia o MRR atual aparecer em todo mês do histórico — 40
-   * assinantes de hoje viravam receita de um janeiro que teve 5. */
+   * Continua FORA de `bruta`. O que entra é `mensalidades`, que tem lastro de
+   * fatura paga — a decisão D20. */
   const referencia = toISODate(params.hoje ?? new Date());
   const mensalistas = dentroDoPeriodo(referencia, periodo)
     ? subscribers.filter((s) => s.status === "ativo").reduce((s, sub) => s + sub.price, 0)
     : 0;
 
-  const caixa = servicos + encaixes + produtos;
+  /* TODAS as linhas expõem o BRUTO, e o estorno é uma dedução única.
+   *
+   * Misturar bruto e líquido entre as linhas quebraria a soma da árvore — os
+   * filhos não fechariam com o cabeçalho, que é exatamente o D6/P1-2 que a
+   * Rodada 1 corrigiu. E descontar a devolução dentro da linha E de novo no
+   * total a subtrairia duas vezes.
+   *
+   * É também como um DRE de verdade se lê: receita bruta, deduções, receita
+   * líquida. */
+  const estornos = centavos(servico.estornada + produto.estornada + mensalidade.estornada);
+  const somaDasLinhas = centavos(
+    servico.bruta + produto.bruta + mensalidade.bruta
+  );
+  const caixa = centavos(somaDasLinhas - estornos);
 
   return {
-    servicos,
-    encaixes,
-    produtos,
-    /** CONTRATADA, não realizada. Fora de `bruta` de propósito. */
+    servicos: normais.bruta,
+    encaixes: encaixados.bruta,
+    produtos: produto.bruta,
     mensalistas,
+    mensalidades: mensalidade.bruta,
     caixa,
-    /** Receita REALIZADA: só o que tem lastro em atendimento ou venda. */
+    /** Receita REALIZADA: soma das linhas menos as devoluções. */
     bruta: caixa,
-    atendimentos: atendidos.length,
+    atendimentos: servico.quantidade,
+    estornos,
+    semFatoMaterializado:
+      servico.semFatoMaterializado +
+      produto.semFatoMaterializado +
+      mensalidade.semFatoMaterializado,
+  };
+}
+
+/**
+ * De onde vem a receita REALIZADA — a composição que as telas listam.
+ *
+ * Existia duas vezes, montada à mão em cada tela, e as duas discordavam: o
+ * Financeiro excluía mensalista e o DRE o incluía. No DRE isso quebrava a
+ * própria árvore — os filhos somavam 928 sob um cabeçalho de 680, e o dono que
+ * expandisse e somasse na mão não fechava.
+ *
+ * Mensalista fica de fora porque **não é receita realizada**: é contrato sem
+ * lastro de recebimento. Ele não some do produto — aparece com nome próprio,
+ * como receita contratada, e na projeção como cobrança futura. A regra, escrita:
+ * **contratado projeta, realizado fatura.**
+ *
+ * Linha zerada não entra: uma barbearia que não vende produto não precisa ver
+ * "Produtos (loja) · R$ 0,00" todo mês.
+ */
+export type LinhaDaReceita = {
+  label: string;
+  value: number;
+  /** Fatia sobre a receita BRUTA. Negativo na dedução. */
+  pct: number;
+  /** `true` na devolução: subtrai em vez de compor. */
+  deducao: boolean;
+};
+
+export function composicaoDaReceita(receita: ReceitaDoMes): LinhaDaReceita[] {
+  const entradas = [
+    { label: "Serviços avulsos", value: receita.servicos },
+    { label: "Produtos (loja)", value: receita.produtos },
+    { label: "Encaixes", value: receita.encaixes },
+    /* Mensalidade RECEBIDA entra na árvore desde a Rodada 3.2 (D20). O que
+     * continua fora é o MRR contratado, que não tem lastro de recebimento. */
+    { label: "Mensalidades recebidas", value: receita.mensalidades },
+  ].filter((item) => item.value > 0);
+
+  /* O denominador é o BRUTO — a soma das entradas —, não a receita líquida.
+   *
+   * Usar a líquida fazia as fatias somarem mais de 100% num mês com devolução:
+   * R$ 50 + R$ 90 + R$ 99 sobre R$ 194 dá 26% + 46% + 51% = 123%. E a linha de
+   * devolução aparecia com 0%, porque `safePct` clampa negativo — o dono via
+   * uma dedução de R$ 45,00 valendo zero por cento.
+   *
+   * É o D6/P1-2 na versão percentual: os filhos não fechavam o cabeçalho. */
+  const bruto = entradas.reduce((s, i) => s + i.value, 0);
+  const fatia = (v: number) => (bruto > 0 ? Math.round((v / bruto) * 100) : 0);
+
+  const linhas: LinhaDaReceita[] = entradas.map((i) => ({
+    ...i,
+    pct: fatia(i.value),
+    deducao: false,
+  }));
+
+  /* A devolução entra por último e com sinal, porque não é uma fatia da receita
+   * — é o que saiu dela. Escondê-la faria a soma das linhas não bater com a
+   * receita realizada logo acima. */
+  if (receita.estornos > 0) {
+    linhas.push({
+      label: "Devoluções",
+      value: -receita.estornos,
+      pct: -fatia(receita.estornos),
+      deducao: true,
+    });
+  }
+
+  return linhas;
+}
+
+/**
+ * Quanto o dia ainda pode render.
+ *
+ * Somava tudo que ocupa a agenda — e `no_show` ocupa, corretamente, porque a
+ * cadeira foi reservada e ninguém mais pôde usá-la. O efeito: depois de o dono
+ * marcar "não veio", o recebido caía para zero e a previsão continuava contando
+ * o valor. A barra mostrava 0% de um número que já se sabia que não viria.
+ *
+ * Previsão e ocupação respondem perguntas diferentes: uma é sobre dinheiro que
+ * ainda pode entrar, a outra sobre a cadeira que foi perdida. A falta continua
+ * ocupando; ela só deixa de ser prevista.
+ */
+export function previsaoDoDia(bookings: Doc<BookingDoc>[]) {
+  return bookings
+    .filter((b) => b.status !== "no_show" && OCCUPIES_SLOT.includes(b.status))
+    .reduce((soma, b) => soma + b.value, 0);
+}
+
+/**
+ * O resumo de despesas de um período.
+ *
+ * A tela somava TODAS as despesas já lançadas e rotulava "Total no mês" — o erro
+ * cresce a cada mês de uso, e no terceiro mostra o triplo do que o dono gastou.
+ */
+export function resumoDeDespesas(expenses: Doc<ExpenseDoc>[], periodo: Periodo) {
+  const doPeriodo = expenses.filter((e) => dentroDoPeriodo(e.date, periodo));
+
+  const porCategoria = new Map<string, number>();
+  for (const e of doPeriodo) {
+    porCategoria.set(e.category, (porCategoria.get(e.category) ?? 0) + e.value);
+  }
+
+  let maiorCategoria = { categoria: "—", valor: 0 };
+  for (const [categoria, valor] of porCategoria) {
+    if (valor > maiorCategoria.valor) maiorCategoria = { categoria, valor };
+  }
+
+  return {
+    lancamentos: doPeriodo.length,
+    total: doPeriodo.reduce((s, e) => s + e.value, 0),
+    recorrentes: doPeriodo.filter((e) => e.recurring).reduce((s, e) => s + e.value, 0),
+    maiorCategoria,
+    /** A lista já recortada, para a tabela não refazer o filtro. */
+    itens: doPeriodo,
   };
 }
 
@@ -136,13 +298,39 @@ export type DiaDeCaixa = {
   pix: number;
   cartao: number;
   dinheiro: number;
+  /**
+   * Recebido sem meio informado.
+   *
+   * Existe para o nulo não virar dinheiro. O servidor grava `paymentMethod:
+   * null` quando o atendimento é concluído sem dizer como o cliente pagou — e
+   * somar isso em espécie faz a coluna que o dono confere contra a gaveta
+   * afirmar algo que ninguém registrou.
+   */
+  naoInformado: number;
   total: number;
   appointments: number;
 };
 
+/**
+ * O caixa diário — agora a partir dos PAGAMENTOS.
+ *
+ * Lia `bookings.value` e `movements.value`, e jogava **toda venda de produto na
+ * coluna dinheiro** (D4) mesmo com o meio gravado no movimento desde G1.
+ *
+ * Passa a somar `payments`, pelo valor LÍQUIDO: é o que cai na conta, e é
+ * contra o extrato que o dono confere. Uma venda no crédito some da coluna
+ * dinheiro e aparece em cartão, com a taxa já descontada.
+ *
+ * `appointments` conta só a origem `servico` — é quantas cadeiras giraram, não
+ * quantos recebimentos houve. Somar venda e mensalidade ali inflaria o
+ * denominador do ticket médio, que é o defeito D2 entrando por outra porta.
+ *
+ * Mantém o formato `DiaDeCaixa` porque o gráfico e a tabela já o consomem. As
+ * SAÍDAS vivem em `fluxo-de-caixa.ts`, com estrutura própria: elas não cabem
+ * neste tipo, e forçá-las aqui misturaria duas perguntas diferentes.
+ */
 export function caixaDiario(params: {
-  bookings: Doc<BookingDoc>[];
-  movements: Doc<InventoryMovementDoc>[];
+  payments: Doc<PaymentDoc>[];
   periodo: Periodo;
 }): DiaDeCaixa[] {
   const porDia = new Map<string, DiaDeCaixa>();
@@ -150,32 +338,49 @@ export function caixaDiario(params: {
   const dia = (date: string) => {
     let d = porDia.get(date);
     if (!d) {
-      d = { date, pix: 0, cartao: 0, dinheiro: 0, total: 0, appointments: 0 };
+      d = { date, pix: 0, cartao: 0, dinheiro: 0, naoInformado: 0, total: 0, appointments: 0 };
       porDia.set(date, d);
     }
     return d;
   };
 
-  for (const b of params.bookings) {
-    if (!isRevenue(b) || !dentroDoPeriodo(b.date, params.periodo)) continue;
-    const d = dia(b.date);
-    /* Débito e crédito somam na coluna "cartão": o caixa diário responde por
-     * onde o dinheiro entrou no balcão, e as duas maquininhas são a mesma fila.
-     * A distinção existe onde importa — em `payments`, que congela a taxa de
-     * cada uma e alimenta o custo de adquirência no DRE. */
-    if (b.paymentMethod === "pix") d.pix += b.value;
-    else if (b.paymentMethod === "debit" || b.paymentMethod === "credit") d.cartao += b.value;
-    else d.dinheiro += b.value;
-    d.total += b.value;
-    d.appointments += 1;
+  for (const p of params.payments) {
+    if (!dentroDoPeriodo(p.date, params.periodo)) continue;
+
+    const d = dia(p.date);
+    const valor = Number(p.netAmount ?? p.grossAmount) || 0;
+
+    /* Débito e crédito somam em "cartão": o dono concilia com o extrato da
+     * maquininha, que é uma fila só. A distinção por instrumento vive em
+     * `payments`, onde a taxa de cada um está congelada.
+     *
+     * Método NULO vai para `naoInformado`, não para dinheiro.
+     *
+     * O `else` engolia o nulo e afirmava espécie. O servidor grava `null` DE
+     * PROPÓSITO quando o atendimento foi concluído sem informar como o cliente
+     * pagou — é "não sabemos", e a coluna dinheiro é justamente a que o dono
+     * confere contra a gaveta. Chamar de dinheiro o que não se sabe ser dinheiro
+     * é a primeira metade da régua sendo violada.
+     *
+     * `resumoDoFluxo` já classificava isso como "outros"; as duas leituras
+     * discordavam do mesmo pagamento, e o total fechava nas duas — que é o que
+     * escondia. */
+    if (p.paymentMethod === "pix") d.pix += valor;
+    else if (p.paymentMethod === "debit" || p.paymentMethod === "credit") d.cartao += valor;
+    else if (p.paymentMethod === "cash") d.dinheiro += valor;
+    else d.naoInformado += valor;
+
+    d.total = centavos(d.total + valor);
+
+    const origem = p.origin ?? (p.bookingId ? "servico" : undefined);
+    if (origem === "servico") d.appointments += 1;
   }
 
-  // Venda de produto entra no caixa do dia, sem contar como atendimento.
-  for (const m of params.movements) {
-    if (m.kind !== "venda" || !dentroDoPeriodo(m.date, params.periodo)) continue;
-    const d = dia(m.date);
-    d.dinheiro += m.value;
-    d.total += m.value;
+  for (const d of porDia.values()) {
+    d.pix = centavos(d.pix);
+    d.cartao = centavos(d.cartao);
+    d.dinheiro = centavos(d.dinheiro);
+    d.naoInformado = centavos(d.naoInformado);
   }
 
   return [...porDia.values()].sort((a, b) => a.date.localeCompare(b.date));
@@ -239,11 +444,30 @@ export function comissoesDeServico(params: {
   const acc = new Map<string, ComissaoDeBarbeiro>();
 
   /* Só as de serviço: a comissão de produto tem outra base — o lucro da venda,
-   * não o faturamento — e é somada separadamente. Sem este filtro, uma comissão
-   * de produto que compartilhasse `bookingId` entraria com a base errada. */
+   * não o faturamento — e é somada separadamente. Sem esse recorte, uma comissão
+   * de produto que compartilhasse `bookingId` entraria com a base errada.
+   *
+   * `origin` AUSENTE conta como serviço, e a tolerância não é cosmética.
+   *
+   * O campo só passou a ser gravado depois; todo `CommissionDoc` anterior a ele
+   * é de serviço, porque produto só virou fato na Rodada 3.1 — e produto aponta
+   * `movementId`, nunca `bookingId`. Exigir `origin` descartava esses
+   * documentos do mapa de congeladas, e o valor caía no fallback: derivado do
+   * `commissionPct` de HOJE.
+   *
+   * Ou seja, **o P1-7 continuava vivo em todo o histórico anterior à 3.1** —
+   * mudar o percentual de um barbeiro reescrevia o acerto de meses fechados.
+   * Achado pela bateria de regressão: mesmo documento, comissão congelada de
+   * R$ 30; com `origin` devolve 30, sem `origin` devolvia 60.
+   *
+   * `indexarPagamentos` já tratava exatamente este buraco em `payments`. A
+   * assimetria entre as duas camadas era o defeito. */
   const congelada = new Map(
     (params.commissions ?? [])
-      .filter((c) => c.origin === "servico" && dentroDoPeriodo(c.date, periodo))
+      .filter((c) => {
+        const origem = c.origin ?? (c.bookingId ? "servico" : undefined);
+        return origem === "servico" && dentroDoPeriodo(c.date, periodo);
+      })
       .map((c) => [c.bookingId, c])
   );
 
@@ -345,11 +569,23 @@ export function folhaMensal(staff: Doc<StaffDoc>[]) {
  * DRE debitava zero de taxa: numa barbearia que passa metade do faturamento no
  * crédito, some cerca de 1,5% do faturamento total do resultado.
  */
+/**
+ * Soma das taxas congeladas do período — ao CENTAVO, não ao real (D1/D5).
+ *
+ * Arredondava para real inteiro: R$ 7,85 virava R$ 8,00. Parece irrelevante e
+ * é sistemático — e sempre na mesma direção, porque o valor arredondado entra
+ * como CUSTO. Com 7,85 → 8,00 o lucro aparente cai; com 4,14 → 4,00 ele sobe.
+ * Em nenhum dos dois o número bate com o extrato da maquininha, que é onde o
+ * dono confere.
+ *
+ * A taxa individual já nasce ao centavo em `valoresDoPagamento`; era só a soma
+ * que perdia a precisão de volta.
+ */
 export function taxasDePagamento(
   payments: Doc<PaymentDoc>[],
   periodo: Periodo
 ) {
-  return Math.round(
+  return centavos(
     payments
       .filter((p) => dentroDoPeriodo(p.date, periodo))
       .reduce((soma, p) => soma + (p.feeAmount ?? 0), 0)
@@ -393,10 +629,17 @@ export function resultadoDoMes(params: {
     .filter((e) => !e.recurring && dentroDoPeriodo(e.date, periodo))
     .reduce((s, e) => s + e.value, 0);
 
-  // CMV = custo de compra do que foi vendido no período.
-  const cmv = movements
-    .filter((m) => m.kind === "compra" && dentroDoPeriodo(m.date, periodo))
-    .reduce((s, m) => s + m.value, 0);
+  /* CMV pelo custo do que foi VENDIDO — D3.
+   *
+   * Somava `kind === "compra"` do período. Num mês de reposição o lucro da loja
+   * despencava sem nada ter piorado; num mês sem reposição a margem aparecia
+   * perfeita. Pior: com D19 aberto **não havia compras a somar**, e o CMV era
+   * zero estrutural — o dono pagava comissão sobre o custo da mercadoria.
+   *
+   * Só é possível porque G1 congelou `unitCost` na venda. Compra de estoque
+   * deixa de ser custo do período e passa a ser saída de CAIXA, na 3.3. */
+  const custoVendido = custoDoVendido({ movements, periodo });
+  const cmv = custoVendido.total;
 
   /* Vem somado de `taxasDePagamento`, sobre os pagamentos CONGELADOS, e não
    * derivado das reservas com a taxa vigente hoje: mudar a taxa da maquininha
@@ -436,8 +679,25 @@ export function resultadoDoMes(params: {
         porBarbeiro: [] as ComissaoDeBarbeiro[],
       };
 
-  const lucroLoja = Math.max(receita.produtos - cmv, 0);
-  const commissionsLoja = Math.round((lucroLoja * padraoPct) / 100);
+  /* Comissão de produto a partir do FATO — P1-7.
+   *
+   * Era `lucroLoja × política de hoje`, recalculada a cada leitura: mudar o
+   * split em outubro reescrevia o acerto de setembro. Agora cada venda carrega
+   * a própria comissão, com o percentual do barbeiro congelado, e as linhas de
+   * estorno (negativas) entram na mesma soma sem que a fórmula precise saber
+   * que houve devolução.
+   *
+   * **Sem fallback**, e a ausência é deliberada: derivar aqui restauraria o
+   * P1-7 na porta de saída. Venda anterior à Rodada 3.1 fica com zero, o que é
+   * verdade — não havia comissão registrada.
+   *
+   * `lucroLoja` sumiu junto: ele existia só como base da comissão, e nenhuma
+   * tela o consome. Mantê-lo "para o caso de" deixaria uma derivação viva ao
+   * lado do fato, que é o convite para alguém voltar a usá-la. */
+  const commissionsLoja = comissaoDeProduto({
+    commissions: params.commissions ?? [],
+    periodo,
+  });
   const commissions = servico.total + commissionsLoja;
 
   /* Simples Nacional (Anexo III) incide sobre RECEITA BRUTA, e é devido mesmo
@@ -447,7 +707,11 @@ export function resultadoDoMes(params: {
    *
    * Fica fora de `variableCost` para a escada do DRE continuar legível, e a
    * identidade `grossRevenue − totalCost === result` segue valendo. */
-  const tax = Math.round((receita.bruta * policies.taxRatePct) / 100);
+  /* Ao CENTAVO, não ao real — D1/D5. R$ 40,80 virava R$ 41,00, e o número
+   * deixava de bater com a guia que o dono paga. Mesma correção da soma das
+   * taxas de maquininha, e pela mesma razão: o erro é pequeno, sistemático e
+   * some exatamente onde ele seria conferido. */
+  const tax = centavos((receita.bruta * policies.taxRatePct) / 100);
 
   const variableCost = cmv + gatewayFees + commissions;
   const contributionMargin = receita.bruta - variableCost;
@@ -491,6 +755,63 @@ export function resultadoDoMes(params: {
   };
 }
 
+/**
+ * O cenário "e se o faturamento variar X%" — A6.
+ *
+ * ## Por que ele mora no motor
+ *
+ * A conta era feita dentro de `dre/page.tsx`, ao lado da tabela. Com o slider
+ * em **0%** — ou seja, simulando exatamente o mês que a tela acabara de
+ * apresentar — a linha "Resultado do Mês" mostrava:
+ *
+ * ```
+ * atual  −R$ 556,80      cenário  −R$ 536,00      DIFERENÇA  +R$ 20,80
+ * ```
+ *
+ * Variação zero, R$ 20,80 de diferença. Duas causas somavam o valor: o cenário
+ * **não descontava imposto**, embora a linha se chamasse "Resultado do Mês" e
+ * fosse comparada contra o resultado COM imposto; e `Math.round` arredondava
+ * em reais onde o motor arredonda em centavos.
+ *
+ * A causa de fundo é a de sempre neste repositório: **duas contas para o mesmo
+ * número, e só a do motor sob teste**. É o mesmo defeito do detalhamento do
+ * CMV, que divergiu do próprio cabeçalho duas vezes pela mesma razão. Com a
+ * fórmula aqui, "cenário a 0% é igual ao mês" deixa de ser disciplina de quem
+ * edita a tela e passa a ser um teste.
+ *
+ * ## O que escala e o que não
+ *
+ * Receita e custo variável escalam com o fator; o custo fixo, por definição,
+ * não. O imposto é recalculado sobre a receita simulada porque o Simples
+ * incide sobre faturamento — congelá-lo faria o cenário de +50% mostrar uma
+ * sobra que o dono não teria.
+ */
+export function cenarioDeCrescimento(params: {
+  grossRevenue: number;
+  variableCost: number;
+  fixedCost: number;
+  /** Alíquota do Simples desta barbearia, em pontos percentuais. */
+  taxRatePct: number;
+  /** Variação de faturamento, em pontos percentuais. `0` reproduz o mês. */
+  variacaoPct: number;
+}) {
+  const fator = 1 + params.variacaoPct / 100;
+  const grossRevenue = centavos(params.grossRevenue * fator);
+  const variableCost = centavos(params.variableCost * fator);
+  const contributionMargin = centavos(grossRevenue - variableCost);
+  const tax = centavos((grossRevenue * params.taxRatePct) / 100);
+
+  return {
+    grossRevenue,
+    variableCost,
+    contributionMargin,
+    fixedCost: params.fixedCost,
+    tax,
+    /* A MESMA escada de `resultadoDoMes`: margem − fixo − imposto. */
+    result: centavos(contributionMargin - params.fixedCost - tax),
+  };
+}
+
 function breakEvenDayFor(receita: number, custo: number, diasNoMes: number) {
   if (receita <= 0) return null;
   const dia = Math.ceil(safeDiv(custo, receita / diasNoMes));
@@ -504,7 +825,10 @@ function breakEvenDayFor(receita: number, custo: number, diasNoMes: number) {
 export type Indicadores = {
   revenue: number;
   appointments: number;
+  /** Valor médio do ATENDIMENTO — só serviço, que é o que a cadeira produz. */
   avgTicket: number;
+  /** O mesmo atendimento, contando o que o cliente levou do balcão. */
+  avgTicketComProduto: number;
   occupancyPct: number;
   noShowPct: number;
   noShowCount: number;
@@ -524,11 +848,40 @@ export function indicadores(params: {
   const noShow = doPeriodo.filter((b) => b.status === "no_show");
   const cancelados = doPeriodo.filter((b) => b.status === "cancelled_by_client");
 
+  /* O ticket mede o ATENDIMENTO.
+   *
+   * Dividia `receita.bruta` — que inclui a venda de produto — pelo número de
+   * atendimentos de serviço: o numerador de uma grandeza sobre o denominador de
+   * outra. Numa massa de 8 atendimentos, dava R$ 85,00 onde o serviço médio é
+   * R$ 48,75, 74% maior. É o número com que o dono decide preço.
+   *
+   * O valor com produto não some: ganha nome próprio, porque quem vende bem no
+   * balcão precisa enxergar isso. São duas perguntas, e agora têm duas
+   * respostas. */
+  const receitaDeServico = params.receita.servicos + params.receita.encaixes;
+
   return {
     revenue: params.receita.bruta,
     appointments: params.receita.atendimentos,
-    avgTicket: Math.round(safeDiv(params.receita.bruta, params.receita.atendimentos)),
-    occupancyPct: Math.min(Math.round(safeDiv(ocupados.length, params.capacidade) * 100), 100),
+    avgTicket: Math.round(safeDiv(receitaDeServico, params.receita.atendimentos)),
+    avgTicketComProduto: Math.round(
+      safeDiv(params.receita.bruta, params.receita.atendimentos)
+    ),
+    /* Uma casa decimal, como `noShowPct` logo abaixo — e pelo mesmo motivo.
+     *
+     * `Math.round` em ponto percentual devolvia `0` para o mês com UM
+     * atendimento: a capacidade de uma jornada mensal passa de 400 horários, e
+     * 1/464 arredonda para zero. A tela Números exibia `OCUPAÇÃO 0%` com o
+     * mapa de calor logo abaixo dizendo "100% de ocupação" naquele horário —
+     * dois números da mesma tela, sobre o mesmo atendimento, um deles negando
+     * que ele existiu.
+     *
+     * O zero é o problema, não a imprecisão: "0%" é a única leitura que
+     * autoriza o dono a concluir que a cadeira ficou vazia o mês inteiro.
+     * `formatPctPtBR` fecha a outra metade, para o caso em que nem a décima
+     * salva. */
+    occupancyPct:
+      Math.min(Math.round(safeDiv(ocupados.length, params.capacidade) * 1000) / 10, 100),
     noShowPct: Math.round(safeDiv(noShow.length, doPeriodo.length) * 1000) / 10,
     noShowCount: noShow.length,
     lateCancelCount: cancelados.length,
@@ -547,8 +900,16 @@ export function topServicos(params: {
 
   for (const b of params.bookings) {
     if (!isRevenue(b) || !dentroDoPeriodo(b.date, params.periodo)) continue;
+    /* O atendimento coberto pelo plano CONTA mas não FATURA — D2.
+     *
+     * A tesourada aconteceu: excluir a linha inteira faria "serviços mais
+     * vendidos" subestimar quantos cortes a casa fez. Mas ela não trouxe
+     * receita de serviço: quem responde por ela é a mensalidade, e somar
+     * `b.value` aqui inflava o ranking com dinheiro que não entrou — o mesmo
+     * defeito que `receitaDeServico` já corrigia, sobrevivendo nesta leitura. */
+    const coberto = cobertoPeloPlano(b);
     // Combo de dois serviços rateia o valor entre eles.
-    const fatia = safeDiv(b.value, b.serviceIds.length);
+    const fatia = coberto ? 0 : safeDiv(b.value, b.serviceIds.length);
     for (const id of b.serviceIds) {
       const name = params.nomePorId.get(id) ?? id;
       const atual = acc.get(id) ?? { name, count: 0, revenue: 0 };
@@ -577,8 +938,18 @@ export function recorrenciaDeClientes(params: {
   for (const b of params.bookings) {
     if (!isRevenue(b)) continue;
     const atual = porCliente.get(b.clientId) ?? { name: b.clientName, datas: [], spent: 0 };
+    /* A VISITA conta sempre; o GASTO, só quando houve — D2.
+     *
+     * Recorrência é sobre quem volta, e o mensalista é justamente quem mais
+     * volta: tirar as datas dele destruiria a resposta que esta função existe
+     * para dar. Mas `spent` somava `b.value` de cortes que o plano absorveu,
+     * afirmando um gasto que não aconteceu naquele atendimento.
+     *
+     * ⚠️ `spent` é, portanto, "o que o cliente pagou em serviço avulso" — NÃO
+     * inclui a mensalidade dele, que vive em `invoices`. Um mensalista fiel
+     * pode aparecer com `spent` baixo e visitas altas, e isso é o fato. */
     atual.datas.push(b.date);
-    atual.spent += b.value;
+    if (!cobertoPeloPlano(b)) atual.spent += b.value;
     porCliente.set(b.clientId, atual);
   }
 
@@ -672,6 +1043,29 @@ function semanaDoAno(iso: string) {
 /* ------------------------------------------------------------------ */
 /* Projeção de caixa                                                   */
 /* ------------------------------------------------------------------ */
+
+/**
+ * Horizontes de projeção.
+ *
+ * Quanto mais longe, menos "previsão" e mais "modelo": ninguém marca corte
+ * para daqui a seis meses, então além de ~60 dias praticamente todo dia é
+ * estimativa em cima da média histórica por dia da semana. A tela precisa
+ * DIZER isso — projeção anual apresentada com a mesma confiança da mensal é
+ * número bonito que induz decisão errada.
+ *
+ * `dias` é a fonte única do horizonte: o mesmo valor alimenta o cálculo e o
+ * rótulo. A legenda da tela dizia "acumulado nos 30 dias" cravado, com este
+ * seletor de quatro opções logo acima — errada em três dos quatro casos, e o
+ * erro crescia com o horizonte (P1-14).
+ */
+export const HORIZONTES = {
+  mensal: { dias: 30, rotulo: "Mensal", porMes: false },
+  trimestral: { dias: 91, rotulo: "Trimestral", porMes: true },
+  semestral: { dias: 182, rotulo: "Semestral", porMes: true },
+  anual: { dias: 365, rotulo: "Anual", porMes: true },
+} as const;
+
+export type Horizonte = keyof typeof HORIZONTES;
 
 export type DiaProjetado = {
   date: string;
@@ -792,19 +1186,64 @@ export function estoqueBaixo(products: Doc<ProductDoc>[]) {
   return products.filter((p) => p.stock < p.minStock);
 }
 
-/** Caixa do dia por meio de pagamento — a tela Hoje. */
-export function caixaDoDia(bookings: Doc<BookingDoc>[]) {
-  const recebidas = bookings.filter(isReceived);
+/**
+ * Caixa do dia por meio de pagamento — a tela Hoje.
+ *
+ * ## Lê PAGAMENTO, não reserva — e é disso que dependia a correção
+ *
+ * A versão anterior somava `bookings.filter(isReceived)`: toda reserva
+ * concluída virava dinheiro, porque o único teste era o status. Isso estava
+ * certo enquanto "concluído" e "recebido" eram a mesma coisa. **Deixaram de
+ * ser** quando o D2 introduziu o atendimento coberto pelo plano.
+ *
+ * O sintoma, verificado na tela em 18/08: um mensalista do plano Ilimitado tem
+ * o corte concluído; o servidor faz o certo — grava `cobertura` e **não** cria
+ * `PaymentDoc`, porque dinheiro nenhum entrou. E o Hoje exibia
+ * `Recebido até agora R$ 50,00` e `Sem forma informada R$ 50,00`. O fato estava
+ * correto; a leitura inventava a entrada.
+ *
+ * A função irmã `caixaDiario` já lia pagamentos desde a 3.2. Esta ficou para
+ * trás, e o D31 lhe deu só metade da correção — ganhou a coluna que fecha a
+ * soma, manteve a fonte errada. Ler o pagamento resolve as duas coisas de uma
+ * vez, porque **a existência do `PaymentDoc` é a definição de "entrou"**:
+ * atendimento coberto não tem, então não aparece; venda e mensalidade têm,
+ * então aparecem, sem nenhuma regra nova sobre origem.
+ *
+ * ## `naoInformado` guarda um significado estreito, de propósito
+ *
+ * É **pagamento que existe e cuja forma não foi informada** — não é ausência de
+ * pagamento. A diferença não é sutil: o primeiro é dinheiro que entrou e
+ * precisa ser classificado; o segundo é dinheiro que não entrou. Confundi-los é
+ * exatamente o defeito que esta função acabou de deixar de ter.
+ *
+ * Somar o desconhecido em "dinheiro" continua sendo pior que a coluna própria:
+ * aquela é a que o dono confere contra a gaveta no fim do expediente.
+ *
+ * ## Bruto, e não líquido
+ *
+ * `grossAmount`, não `netAmount`. Esta tela responde "quanto passou pelo meu
+ * caixa hoje", que é o que o dono compara com a maquininha e a gaveta. O
+ * líquido — com a taxa já descontada, como no extrato — é a pergunta do Fluxo
+ * de Caixa, e as duas telas dizem qual é qual.
+ */
+export function caixaDoDia(payments: Doc<PaymentDoc>[]) {
+  const bruto = (p: Doc<PaymentDoc>) => Number(p.grossAmount) || 0;
   const soma = (metodos: PaymentMethod[]) =>
-    recebidas
-      .filter((b) => b.paymentMethod && metodos.includes(b.paymentMethod))
-      .reduce((s, b) => s + b.value, 0);
+    payments
+      .filter((p) => p.paymentMethod && metodos.includes(p.paymentMethod))
+      .reduce((s, p) => s + bruto(p), 0);
+
+  const pix = soma(["pix"]);
+  const cartao = soma(["debit", "credit"]);
+  const dinheiro = soma(["cash"]);
+  const total = payments.reduce((s, p) => s + bruto(p), 0);
 
   return {
-    pix: soma(["pix"]),
-    cartao: soma(["debit", "credit"]),
-    dinheiro: soma(["cash"]),
-    total: recebidas.reduce((s, b) => s + b.value, 0),
+    pix,
+    cartao,
+    dinheiro,
+    naoInformado: centavos(total - pix - cartao - dinheiro),
+    total,
   };
 }
 

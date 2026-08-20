@@ -8,7 +8,7 @@ import { DEFAULT_TENANT, slugFromHost, type Tenant } from "@/lib/tenant";
  * caminho de leitura e não no outro. */
 import { toTenant } from "@/lib/tenant-shape";
 
-/**
+/* ---------------------------------------------------------------------------
  * Resolve a barbearia do subdomínio, no servidor.
  *
  * Lê pela API REST do Firestore, com `fetch`, sem SDK nenhum. São dois
@@ -36,8 +36,64 @@ import { toTenant } from "@/lib/tenant-shape";
  * `cache()` do React deduplica a leitura DENTRO de uma mesma requisição: o
  * layout raiz, o `generateMetadata` e o manifest chamam `getTenant()` cada um
  * por sua conta, e sem isso seriam três leituras do Firestore por acesso.
+ * ------------------------------------------------------------------------- */
+/**
+ * Por que a resolução tem ESTADO, e não só um tenant — D30.
+ *
+ * `loadTenantBySlug` devolvia `null` para cinco situações diferentes, e
+ * `getTenant` transformava todas elas no MESMO `DEFAULT_TENANT`. O 404 de um
+ * subdomínio que não existe e o 503 do Firestore fora do ar chegavam
+ * indistinguíveis do outro lado — e o outro lado é `AuthGuard`, que compara o
+ * claim do dono com `tenant.id`.
+ *
+ * O caminho completo do defeito, reproduzido em `tenant-indisponivel.test.ts`:
+ *
+ * ```
+ * Firestore cai
+ *   → fetch lança
+ *   → loadTenantBySlug devolve null
+ *   → getTenant devolve DEFAULT_TENANT           id: "cortehub"
+ *   → AuthGuard lê claims.barbershops["cortehub"]  → undefined
+ *   → isOwner = false
+ *   → router.replace("/")                        o dono vai para a vitrine
+ * ```
+ *
+ * Ele estava logado, no painel, olhando o financeiro. O banco caiu e ele foi
+ * tratado como quem nunca teve conta. A camada de tenant traduziu **"não
+ * consegui carregar"** para **"você não pertence a este painel"**.
+ *
+ * A distinção que este tipo carrega é a correção: quem consome decide, e só
+ * pode decidir se souber a diferença.
  */
-export const getTenant = cache(async function getTenant(): Promise<Tenant> {
+export type EstadoDoTenant =
+  /** Achei a barbearia. */
+  | "resolvido"
+  /** O host não tem subdomínio de barbearia — domínio raiz, localhost, preview. */
+  | "sem-barbearia"
+  /** O Firestore respondeu, e a barbearia não existe (404) ou está corrompida. */
+  | "inexistente"
+  /** Não consegui perguntar: rede, 5xx, timeout, configuração ausente. */
+  | "indisponivel";
+
+export type ResolucaoDeTenant = {
+  estado: EstadoDoTenant;
+  /**
+   * Nunca é nulo. Em qualquer falha vem `DEFAULT_TENANT`, porque a vitrine
+   * pública precisa renderizar de qualquer jeito — o que muda é que agora o
+   * chamador sabe que aquilo é um substituto, e não a barbearia dele.
+   */
+  tenant: Tenant;
+};
+
+/**
+ * A resolução com o estado à mostra.
+ *
+ * Só o PAINEL precisa da distinção: é lá que existe um dono para expulsar. A
+ * vitrine pública continua degradando para `DEFAULT_TENANT` sem alarde, que é a
+ * decisão registrada em `loadTenantBySlug` — barbearia com a marca da
+ * plataforma é melhor que barbearia fora do ar.
+ */
+export const resolverTenant = cache(async function resolverTenant(): Promise<ResolucaoDeTenant> {
   const headerList = await headers();
 
   /* `x-forwarded-host` ANTES de `host`.
@@ -56,14 +112,18 @@ export const getTenant = cache(async function getTenant(): Promise<Tenant> {
 
   const slug = slugFromHost(host);
 
-  if (!slug) return DEFAULT_TENANT;
+  if (!slug) return { estado: "sem-barbearia", tenant: DEFAULT_TENANT };
 
-  const tenant = await loadTenantBySlug(slug);
-  if (!tenant) {
-    console.warn(`[tenant] subdomínio sem barbearia: ${slug}`);
-    return DEFAULT_TENANT;
-  }
-  return tenant;
+  return loadTenantBySlug(slug);
+});
+
+/**
+ * A barbearia do subdomínio. Assinatura e comportamento inalterados: quem só
+ * quer a marca — layout raiz, `generateMetadata`, manifest, vitrine — continua
+ * chamando isto e continua recebendo `DEFAULT_TENANT` quando a leitura falha.
+ */
+export const getTenant = cache(async function getTenant(): Promise<Tenant> {
+  return (await resolverTenant()).tenant;
 });
 
 /**
@@ -86,9 +146,17 @@ export const isPlatformRoot = cache(async function isPlatformRoot(): Promise<boo
  * cache de borda faz o render acontecer uma vez por barbearia — na prática são
  * duas leituras por barbearia a cada `s-maxage`, não por visita.
  */
-async function loadTenantBySlug(slug: string): Promise<Tenant | null> {
+async function loadTenantBySlug(slug: string): Promise<ResolucaoDeTenant> {
+  /* Configuração ausente NÃO é "a barbearia não existe".
+   *
+   * Sem `projectId` não houve pergunta nenhuma ao banco — e responder
+   * "inexistente" a uma pergunta que não foi feita é exatamente o erro que o
+   * D30 corrige, só que uma camada acima. */
   const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
-  if (!projectId) return null;
+  if (!projectId) {
+    console.error("[tenant] NEXT_PUBLIC_FIREBASE_PROJECT_ID ausente");
+    return indisponivel;
+  }
 
   /* Com o emulador ligado, ler daqui a PRODUÇÃO é pior que não ler nada.
    *
@@ -110,27 +178,73 @@ async function loadTenantBySlug(slug: string): Promise<Tenant | null> {
     const slugRes = await fetch(`${base}/slugs/${encodeURIComponent(slug)}`, {
       next: { revalidate: emEmulador ? 0 : 3600 },
     });
-    if (!slugRes.ok) return null;
+    if (!slugRes.ok) return classificarResposta(slug, "slugs", slugRes.status);
 
     const barbershopId = readString((await slugRes.json())?.fields?.barbershopId);
-    if (!barbershopId) return null;
+    /* O documento existe e está sem o campo. É dado quebrado, não banco fora
+     * do ar — permanente, e por isso "inexistente": recarregar não conserta. */
+    if (!barbershopId) {
+      console.warn(`[tenant] slug "${slug}" sem barbershopId`);
+      return inexistente;
+    }
 
     // A ficha muda quando o dono edita a marca: cinco minutos.
     const shopRes = await fetch(`${base}/barbershops/${barbershopId}`, {
       next: { revalidate: emEmulador ? 0 : 300 },
     });
-    if (!shopRes.ok) return null;
+    if (!shopRes.ok) return classificarResposta(slug, "barbershops", shopRes.status);
 
     const fields = (await shopRes.json())?.fields;
-    if (!fields) return null;
+    if (!fields) {
+      console.warn(`[tenant] ficha vazia em barbershops/${barbershopId}`);
+      return inexistente;
+    }
 
-    return toTenant(barbershopId, decode(fields) as Record<string, unknown>);
+    return {
+      estado: "resolvido",
+      tenant: toTenant(barbershopId, decode(fields) as Record<string, unknown>),
+    };
   } catch (error) {
-    // Barbearia fora do ar é pior que barbearia com a marca da plataforma:
-    // degrada em vez de derrubar, e o erro fica no log.
-    console.error(`[tenant] falha ao carregar "${slug}"`, error);
-    return null;
+    /* `fetch` só rejeita por rede: DNS, conexão recusada, timeout, socket
+     * derrubado no meio. Nenhuma dessas respostas é "a barbearia não existe" —
+     * é "não consegui perguntar". Era ESTE ramo que expulsava o dono.
+     *
+     * A vitrine pública continua degradando (o chamador é quem decide), e o
+     * erro continua no log. */
+    console.error(`[tenant] Firestore indisponível ao carregar "${slug}"`, error);
+    return indisponivel;
   }
+}
+
+/** Em falha, o substituto é sempre a marca da plataforma — nunca nada. */
+const indisponivel: ResolucaoDeTenant = { estado: "indisponivel", tenant: DEFAULT_TENANT };
+const inexistente: ResolucaoDeTenant = { estado: "inexistente", tenant: DEFAULT_TENANT };
+
+/**
+ * O código HTTP diz se a resposta é um FATO ou uma falha de infraestrutura.
+ *
+ * A régua é deliberadamente conservadora, porque os dois erros não custam o
+ * mesmo: tratar transitório como permanente expulsa o dono do produto (o D30);
+ * tratar permanente como transitório prende quem digitou um subdomínio errado
+ * numa tela de "tente de novo" que nunca vai funcionar. O segundo é pior, então
+ * só entra em `indisponivel` o que é INEQUIVOCAMENTE infraestrutura — 5xx e o
+ * 429 de excesso de chamadas. Todo o resto, incluindo 404 e 403, permanece
+ * permanente e mantém o comportamento de hoje.
+ */
+function classificarResposta(
+  slug: string,
+  colecao: string,
+  status: number
+): ResolucaoDeTenant {
+  if (status >= 500 || status === 429) {
+    console.error(`[tenant] ${colecao} respondeu ${status} para "${slug}"`);
+    return indisponivel;
+  }
+  /* Era aqui que o log mentia: dizia "subdomínio sem barbearia" para QUALQUER
+   * código, 503 incluído. Quem lesse o log de um incidente concluiria que o
+   * cliente tinha sumido do banco. */
+  console.warn(`[tenant] ${colecao} respondeu ${status} para "${slug}"`);
+  return inexistente;
 }
 
 /**

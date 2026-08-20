@@ -498,4 +498,35 @@ describe("a equipe", () => {
   it("🔒 o cliente não alcança comissão nenhuma", async () => {
     await assertFails(getDoc(doc(as(CLIENTE), `barbershops/${ALFA}/commissions`, "c1")));
   });
+
+  /* ---------------- livro caixa — D25 ---------------- */
+
+  it("o dono LÊ o próprio livro caixa", async () => {
+    await assertSucceeds(getDoc(doc(as(DONO_ALFA), `barbershops/${ALFA}/cash_entries`, "cx-1")));
+  });
+
+  it("🔒 nem o dono ESCREVE caixa direto — quem grava é o servidor", async () => {
+    /* A regra era `allow read, write: if isOwnerOf`, herdada de quando a
+     * coleção não tinha contrato nem uma única escrita. Com valor congelado,
+     * sinal derivado do tipo e idempotência por chave, escrita direta tornaria
+     * as três promessas falsas na primeira tela que gravasse por fora de
+     * `registrarMovimentoDeCaixa`.
+     *
+     * O `update` importa tanto quanto o `create`: "valor congelado" que aceita
+     * edição posterior não é congelado. */
+    await assertFails(
+      setDoc(doc(as(DONO_ALFA), `barbershops/${ALFA}/cash_entries`, "forjada"), {
+        kind: "sangria",
+        amount: -1000,
+      })
+    );
+    await assertFails(
+      updateDoc(doc(as(DONO_ALFA), `barbershops/${ALFA}/cash_entries`, "cx-1"), { amount: 99999 })
+    );
+  });
+
+  it("🔒 barbeiro e cliente não alcançam o livro caixa", async () => {
+    await assertFails(getDoc(doc(as(BARBEIRO_ALFA), `barbershops/${ALFA}/cash_entries`, "cx-1")));
+    await assertFails(getDoc(doc(as(CLIENTE), `barbershops/${ALFA}/cash_entries`, "cx-1")));
+  });
 });

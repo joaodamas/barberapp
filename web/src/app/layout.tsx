@@ -3,7 +3,7 @@ import localFont from "next/font/local";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
 import { AuthProvider } from "@/lib/auth-context";
 import { TenantProvider } from "@/lib/tenant-context";
-import { getTenant } from "@/lib/tenant-server";
+import { getTenant, resolverTenant } from "@/lib/tenant-server";
 import { tenantCssVars } from "@/lib/tenant";
 import "./globals.css";
 
@@ -92,7 +92,17 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const tenant = await getTenant();
+  /* O ESTADO da resolução, não só o resultado.
+   *
+   * `getTenant()` devolve `DEFAULT_TENANT` em qualquer falha, e continua certo
+   * para tudo que só quer marca — metadata, manifest, cor. O que faltava era o
+   * sinal de que aquilo é um substituto: sem ele, a tela de LOGIN exibia
+   * "CorteHub" e o logo da plataforma para um cliente de outra barbearia, e
+   * pedia a senha dele assim mesmo.
+   *
+   * Verificado em 18/08: mesma URL, Firestore no ar → "O Siqueira Barbearia";
+   * Firestore fora → "CorteHub". Nada mais mudava. */
+  const { estado, tenant } = await resolverTenant();
 
   return (
     <html
@@ -108,7 +118,7 @@ export default async function RootLayout({
           `overflow-y-auto`, senão herda a trava e não desce — foi o que
           aconteceu com o onboarding, que ficou com o botão inalcançável. */}
       <body className="min-h-full flex flex-col bg-bg text-ivory md:h-full md:overflow-hidden">
-        <TenantProvider tenant={tenant}>
+        <TenantProvider tenant={tenant} indisponivel={estado === "indisponivel"}>
           <AuthProvider>{children}</AuthProvider>
         </TenantProvider>
         <ServiceWorkerRegister />

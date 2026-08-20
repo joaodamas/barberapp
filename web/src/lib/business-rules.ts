@@ -148,11 +148,23 @@ if (commissionSplit.barberPct + commissionSplit.shopPct !== 100) {
   );
 }
 
-/** Decomposição de uma venda: quanto é comissão, imposto e sobra da barbearia. */
-export function splitSale(params: { price: number; cost: number }) {
+/**
+ * Decomposição de uma venda: quanto é comissão, imposto e sobra da barbearia.
+ *
+ * `barberPct` e `taxPct` vêm de quem chama — normalmente do tenant. As
+ * constantes acima são o padrão da PLATAFORMA, e usá-las direto na tela fazia a
+ * barbearia que combinou 50/50 ler 40% (P1-7). `??` e não `||`: 0% de comissão
+ * é escolha legítima, não campo vazio.
+ */
+export function splitSale(params: {
+  price: number;
+  cost: number;
+  barberPct?: number;
+  taxPct?: number;
+}) {
   const grossProfit = Math.max(params.price - params.cost, 0);
-  const commission = (grossProfit * commissionSplit.barberPct) / 100;
-  const tax = (grossProfit * taxRatePct) / 100;
+  const commission = (grossProfit * (params.barberPct ?? commissionSplit.barberPct)) / 100;
+  const tax = (grossProfit * (params.taxPct ?? taxRatePct)) / 100;
   return {
     grossProfit,
     commission,
@@ -194,9 +206,16 @@ export const expensePaymentMethods: ExpensePaymentMethod[] = [
 
 /**
  * Taxas de mercado por gateway, para comparação na tela de Financeiro.
- * Não é o que a barbearia paga — é referência. As taxas efetivas dela vão
- * viver em `/barbershops/{id}` quando o gateway entrar, versionadas por
- * vigência (PRD §5).
+ *
+ * Não é o que a barbearia paga — é referência, e nenhum cálculo a lê. As taxas
+ * efetivas dela vivem em `policies.paymentFees`.
+ *
+ * ⚠️ R1.1 · **não são versionadas por vigência.** A taxa é congelada no fato no
+ * momento em que ele nasce (`payments.ts` · `valoresDoPagamento`), e a correção
+ * de pagamento aplica a tabela vigente HOJE. Versionamento é frente futura, e a
+ * promessa dele foi retirada dos três lugares que a faziam — este comentário era
+ * um deles, e a tela de Financeiro afirmava a mesma coisa contradizendo o modal
+ * de conclusão, que já dizia a verdade.
  */
 export const paymentGateways = [
   {

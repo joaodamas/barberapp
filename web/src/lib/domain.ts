@@ -24,6 +24,20 @@ export type PlanDoc = {
   description: string;
   highlight?: boolean;
   unlimited?: boolean;
+  /**
+   * Quantos atendimentos o plano cobre por competência — D2.
+   *
+   * Ausente ou zero significa que o plano **não cobre atendimento nenhum**: é
+   * plano de DESCONTO, e a tela do cliente já o descrevia assim
+   * (*"~~R$ 50,00~~ no avulso · economize 20%"*) enquanto o `unlimited`
+   * descrevia o outro (*"a partir da 3ª visita o plano já compensa"*). O campo
+   * entra porque entre os dois não havia nada: um plano de 4 cortes/mês não era
+   * representável, e a cota que ele promete não tinha onde ser contada.
+   *
+   * ⚠️ Nenhuma tela do painel cria ou edita plano — `plans` só é lido. Enquanto
+   * isso não existir, este campo só chega ao documento por escrita direta.
+   */
+  servicesIncluded?: number | null;
   active: boolean;
 };
 
@@ -43,7 +57,13 @@ export type ProductDoc = {
  * o histórico é auditável e a regra pode mudar sem tornar o passado indecifrável.
  */
 export type CommissionDoc = {
-  bookingId: string;
+  /**
+   * De que fato veio. Ausente nas comissões anteriores à Rodada 3.1 — todas de
+   * serviço, que era a única materializada.
+   */
+  bookingId?: string;
+  /** Venda que originou a comissão de produto. */
+  movementId?: string;
   staffId: string;
   uid: string | null;
   staffName?: string | null;
@@ -55,9 +75,33 @@ export type CommissionDoc = {
   commissionAmount: number;
 };
 
-/** Pagamento recebido — escrito só pelo servidor. */
+/**
+ * Pagamento recebido — escrito só pelo servidor.
+ *
+ * Desde G1.6 nasce nas TRÊS origens, com a taxa congelada e id derivado do
+ * fato:
+ *
+ * ```
+ * pagamento_{bookingId}          serviço       conclusão do atendimento
+ * pagamento_venda_{movementId}   produto       dentro da transação da venda
+ * pagamento_fatura_{invoiceId}   mensalidade   ao marcar a fatura como paga
+ * ```
+ *
+ * Antes, só o serviço gerava pagamento — e como `gatewayFeesTotal` soma esta
+ * coleção, produto e mensalidade não debitavam taxa nenhuma no DRE mesmo com o
+ * `paymentMethod` gravado nos dois fatos (D7 · D21).
+ *
+ * A referência fica explícita em vez de um `refId` genérico: uma abstração que
+ * esconde a origem economiza um campo e cobra em toda consulta futura.
+ */
 export type PaymentDoc = {
+  /** De que fato o dinheiro veio. Ausente nos pagamentos anteriores a G1.6. */
+  origin?: "servico" | "produto" | "mensalidade";
   bookingId?: string;
+  /** Movimento de venda que originou o pagamento. */
+  movementId?: string;
+  /** Fatura de mensalidade que originou o pagamento. */
+  invoiceId?: string;
   subscriptionId?: string;
   clientId: string | null;
   date: string;
@@ -78,15 +122,177 @@ export type PaymentDoc = {
   netAmount: number;
 };
 
-/** Entrada e saída de estoque — alimenta o CMV do DRE. */
+/**
+ * Entrada e saída de estoque — alimenta o CMV do DRE.
+ *
+ * Escrito só pelo servidor desde G1: `registrarVendaDeProduto` grava o
+ * movimento e baixa o estoque na mesma transação. As regras negam escrita
+ * direta, porque as duas metades do fato precisam ser atômicas.
+ *
+ * ## O que os campos novos ainda NÃO mudam
+ *
+ * `unitCost`, `paymentMethod`, `clientId` e `bookingId` passaram a existir no
+ * fato, e `analytics.ts` **continua sem lê-los** — de propósito. O CMV ainda
+ * soma as compras do período (D3) e o caixa ainda joga toda venda em dinheiro
+ * (D4), agora sobre um documento que já sabe responder direito.
+ *
+ * É a posição deliberada em que G1 deixa o produto: **o fato está certo e
+ * algumas visões continuam erradas.** Corrigir as leituras aqui apagaria a
+ * evidência que a Rodada 3 precisa encontrar.
+ */
 export type InventoryMovementDoc = {
   productId: string;
   /** `compra` entra no CMV; `venda` entra na receita da loja. */
-  kind: "compra" | "venda";
+  kind: "compra" | "venda" | "ajuste" | "perda";
   quantity: number;
   /** Valor total do movimento, não unitário. */
   value: number;
   date: string;
+  /**
+   * Preço unitário praticado, CONGELADO na venda.
+   *
+   * Ausente nos movimentos anteriores a G1 — não havia como gravá-lo.
+   */
+  unitPrice?: number;
+  /**
+   * Custo unitário no instante da venda, CONGELADO.
+   *
+   * É o campo que vai sustentar o CMV por competência. Sem ele, o custo do
+   * vendido só se reconstrói a partir de `products.cost`, que é o custo de
+   * HOJE — e uma reposição mais cara reescreveria o lucro de meses fechados.
+   */
+  unitCost?: number;
+  /**
+   * Como o cliente pagou ESTA venda.
+   *
+   * Vivia fora do documento: a massa de teste precisava de um mapa paralelo
+   * (`MEIO_DA_VENDA`) para representar o que o modelo não sabia guardar. Era a
+   * premissa N12 como dívida.
+   */
+  paymentMethod?: PaymentMethod | null;
+  /** Quem levou. Nulo na venda de balcão sem cadastro — é caso normal. */
+  clientId?: string | null;
+  /** Atendimento a que a venda ficou casada, quando houver. */
+  bookingId?: string | null;
+  /**
+   * Quem vendeu — Rodada 3.1.
+   *
+   * Faltava, e a ausência só apareceu ao materializar a comissão de produto:
+   * `commissions.staffId` não tinha de onde sair. Nulo é caso legítimo — venda
+   * sem vendedor indicado não gera comissão.
+   */
+  staffId?: string | null;
+  /**
+   * A venda que este ajuste desfaz — D23.
+   *
+   * Presente só em `kind: "ajuste"` gerado por estorno. Sem ele, uma devolução
+   * é indistinguível de recontagem, quebra ou vencimento — e as duas mexem no
+   * resultado em direções opostas.
+   */
+  refundOf?: string;
+};
+
+/**
+ * O dinheiro que voltou — D22 / D23.
+ *
+ * Escrito só pelo servidor. A coleção existia em `paths.ts` e nas regras desde
+ * sempre, sem uma única escrita, leitura ou tipo.
+ *
+ * **O estorno não substitui o fato original: ele soma.** O `PaymentDoc` fica
+ * intacto, o movimento de venda fica intacto e a fatura paga continua paga.
+ * Corrigir histórico financeiro é acrescentar fatos, nunca apagá-los — senão o
+ * mês fechado passa a contar uma história que não explica a diferença.
+ *
+ * A taxa da maquininha **não volta**: o estorno devolve o bruto e grava
+ * `feeAmount: 0`. A perda aparece sozinha ao somar o pagamento com o estorno,
+ * sem que nenhuma leitura precise saber que houve devolução.
+ *
+ * Contrato e decisões em `functions/src/refunds.ts`.
+ */
+export type RefundDoc = {
+  origin: "servico" | "produto" | "mensalidade";
+  bookingId?: string;
+  movementId?: string;
+  invoiceId?: string;
+  /** O pagamento revertido. Explícito, para quem lê não reimplementar o id. */
+  paymentId: string;
+  clientId: string | null;
+  /** Quando o dinheiro voltou. */
+  date: string;
+  /** Quando o fato original aconteceu — competência usa esta, caixa usa `date`. */
+  originalDate: string;
+  reason: string;
+  paymentMethod: PaymentMethod | null;
+  grossAmount: number;
+  /** Sempre 0 — ver a nota sobre a taxa acima. */
+  feeAmount: number;
+  netAmount: number;
+  parcial: boolean;
+  /** Unidades devolvidas ao estoque. Só em produto. */
+  quantity?: number;
+};
+
+/**
+ * Livro caixa — D25.
+ *
+ * Escrito só pelo servidor. A regra do Firestore passou a recusar escrita
+ * direta na Rodada 3.1; antes era `write: if isOwnerOf`, herdado de quando a
+ * coleção não tinha contrato nem uma única escrita.
+ *
+ * ## O que entra aqui, e só isto
+ *
+ * > Movimento de caixa que **não possui outro fato econômico que o represente**.
+ *
+ * Atendimento, venda e mensalidade já têm `PaymentDoc`; compra tem
+ * `InventoryMovementDoc`; despesa tem `ExpenseDoc`. Nenhum deles gera
+ * lançamento aqui — se gerasse, o Fluxo de Caixa somaria o mesmo dinheiro duas
+ * vezes.
+ *
+ * Sobram os que não derivam de nada: sangria, troco inicial, aporte do dono,
+ * pagamento de comissão e ajuste de contagem. A exclusividade é garantida **por
+ * construção**: `kind` é um enum fechado que não contém as origens com fato
+ * próprio.
+ *
+ * Contrato e decisões em `functions/src/caixa.ts`.
+ */
+export type CashEntryDoc = {
+  kind: "sangria" | "troco_inicial" | "aporte" | "pagamento_comissao" | "ajuste";
+  direction: "entrada" | "saida";
+  /** ASSINADO: positivo entra, negativo sai. Somar dá o saldo, sem `switch`. */
+  amount: number;
+  date: string;
+  /** Por que existe. Sem isto o lançamento diz quanto e não o quê. */
+  reason: string;
+  paymentMethod: PaymentMethod;
+  /** Beneficiário, no pagamento de comissão. Nulo nos outros tipos. */
+  staffId: string | null;
+};
+
+/**
+ * O cliente da barbearia — G3.
+ *
+ * O id do documento **é o uid quando a pessoa tem conta no app**, e um id
+ * gerado quando não tem. Isso mantém `bookings.clientId` com o mesmo
+ * significado de sempre (o uid), e é o que permite as regras do Firestore
+ * continuarem comparando `clientId == request.auth.uid` sem alteração.
+ *
+ * Escrito só pelo servidor, dentro da transação que grava a reserva. Contrato e
+ * decisões em `functions/src/clients.ts`.
+ */
+export type ClientDoc = {
+  /** Conta no app. **Nulo para quem chega no balcão** — é o caso normal. */
+  uid: string | null;
+  name: string;
+  /** Só dígitos. Chave de deduplicação dentro da barbearia. */
+  whatsapp: string;
+  origin: "app" | "balcao" | "importacao";
+  active: boolean;
+  /**
+   * Para onde este cadastro foi fundido, quando a mesma pessoa voltou com conta
+   * no app. As reservas antigas continuam apontando para o cadastro antigo — o
+   * fato não se reescreve para arrumar o cadastro.
+   */
+  mergedInto?: string | null;
 };
 
 export type BookingDoc = {
@@ -107,6 +313,19 @@ export type BookingDoc = {
   date: string;
   /** `HH:mm`. */
   time: string;
+  /**
+   * Quanto o atendimento ocupa, em minutos — a soma dos serviços escolhidos.
+   *
+   * O servidor grava isto desde sempre (`functions/src/booking.ts`), e o tipo do
+   * front **não o declarava**. A ausência não era inofensiva: enquanto o campo
+   * não existe no contrato, nenhuma tela e nenhum cálculo do web podem
+   * considerá-lo — e foi assim que a duração ficou de fora da ocupação da agenda
+   * por tanto tempo, até o Gate A corrigi-la do lado do servidor.
+   *
+   * Opcional porque reserva anterior à introdução do campo não o tem; quem
+   * precisa da duração assume a grade da jornada, como faz `agenda.ts`.
+   */
+  durationMin?: number;
   status: BookingStatus;
   value: number;
   /** Onde o pagamento acontece. Decidido no agendamento. */
@@ -119,18 +338,173 @@ export type BookingDoc = {
   isFitIn?: boolean;
   /** Quando o encaixe foi pedido — base para o prazo de expiração. */
   requestedAt?: string;
+  /**
+   * Quantas vezes esta reserva já foi remarcada.
+   *
+   * Escrito só pelo servidor, com `increment`, dentro da transação que move o
+   * horário. A tela lê para dizer a verdade antes do toque; **quem aplica o
+   * limite é `rescheduleBooking`**, e não este campo.
+   *
+   * Vivia num `useState` que zerava com F5 — a tela anunciava um teto de 2 que
+   * bastava recarregar a página para contornar (P1-13).
+   *
+   * Opcional porque reserva anterior ao campo não o tem, e ausência vale zero:
+   * quem nunca remarcou pelo caminho que conta não pode começar no limite.
+   */
+  rescheduleCount?: number;
+  /**
+   * De onde a reserva veio — D13.
+   *
+   * Fica na RESERVA, e não só no cliente, porque `bookings` é o registro
+   * histórico: saber que um atendimento nasceu no balcão precisa sobreviver a
+   * uma fusão de cadastro, que muda o cliente e não pode mudar o fato.
+   *
+   * Ausente nas reservas anteriores ao campo — todas do app, que era o único
+   * caminho que existia.
+   */
+  origin?: "app" | "balcao" | "importacao";
+  /**
+   * Como o atendimento foi LIQUIDADO — D2.
+   *
+   * Escrito pelo servidor na conclusão, junto com a comissão e o pagamento, e
+   * congelado como eles. É o campo que faltava para o produto conseguir dizer
+   * "coberto pelo plano": antes, um mensalista do Ilimitado só tinha dois
+   * caminhos, e os dois corrompiam o resultado — **cobrar de novo** (o DRE de
+   * 18/08 mostrou `Serviços avulsos R$ 100,00` e `Mensalidades R$ 149,00` do
+   * mesmo cliente no mesmo dia) ou **não concluir o atendimento**, perdendo o
+   * registro operacional e deixando a agenda aberta para sempre.
+   *
+   * Fica na RESERVA, e não deduzido da existência de uma assinatura na hora da
+   * leitura, pela mesma razão de `origin` e de `commissionPct`: quem responde
+   * pelo passado é o fato, não o cadastro de hoje. Cancelar a assinatura em
+   * outubro não pode transformar em receita um corte que foi coberto em agosto.
+   *
+   * **Ausente = avulso**, e é o que todas as reservas anteriores ao campo são —
+   * o produto não tinha como cobrir nada. Mesma convenção de `origin` e
+   * `paymentOrigin`.
+   */
+  cobertura?: CoberturaDoAtendimento;
 };
 
+/**
+ * A liquidação do atendimento — D2.
+ *
+ * Responde, sem join, as cinco perguntas que o fato precisava responder e não
+ * respondia: foi pago normalmente, foi coberto pelo plano, qual plano, quanto
+ * virou receita e se sobrou cobrança.
+ *
+ * `valorCoberto` é o que o plano absorveu; a receita reconhecida do atendimento
+ * é `value − valorCoberto`. Guardar a PARCELA em vez de um booleano é a mesma
+ * decisão de `commissionBase` — o resultado sozinho não diz como se chegou
+ * nele, e o dia em que um plano cobrir parte do valor não exige campo novo.
+ */
+export type CoberturaDoAtendimento =
+  | {
+      tipo: "avulso";
+      /** Por que não foi coberto. É o que a tela precisa para explicar a cobrança. */
+      motivo:
+        | "sem_plano"
+        | "plano_inativo"
+        | "plano_nao_cobre"
+        | "cota_esgotada"
+        /* O plano cobriria, e o dono registrou cobrança mesmo assim — D-3. */
+        | "cobrado_no_balcao";
+      valorCoberto: 0;
+    }
+  | {
+      tipo: "plano";
+      subscriptionId: string;
+      planId: string;
+      /** CONGELADO: renomear o plano não reescreve o atendimento passado. */
+      planName: string;
+      /** `YYYY-MM` — qual mensalidade pagou por este corte. */
+      competencia: string;
+      valorCoberto: number;
+      /** Posição dentro da cota do mês. 3 de 4 é o que a tela mostra. */
+      usoNaCompetencia: number;
+      /** Cota do plano. Nulo é plano ilimitado — não há teto a exibir. */
+      cota: number | null;
+    };
+
+/** Este atendimento foi coberto pelo plano? Ausência é avulso — D2. */
+export function cobertoPeloPlano(booking: Pick<BookingDoc, "cobertura">) {
+  return booking.cobertura?.tipo === "plano";
+}
+
+/**
+ * O mensalista — G2.
+ *
+ * Escrito só pelo servidor (`criarMensalista`, `cancelarMensalista`). O plano é
+ * COPIADO, não referenciado: renomear ou reajustar o plano não pode reescrever
+ * o que o cliente contratou.
+ *
+ * **Uma assinatura não é receita realizada.** Ela é contrato. O fato financeiro
+ * nasce no pagamento da fatura — `SubscriptionInvoiceDoc` abaixo.
+ */
 export type SubscriberDoc = {
   clientId: string;
   name: string;
+  /** Igual a `name`; `name` existe porque as leituras ordenam por ele. */
+  clientName?: string;
   planId: string;
   planName: string;
   price: number;
+  /**
+   * A REGRA DE COBERTURA contratada, copiada do plano — D2.
+   *
+   * Copiada pela mesma razão que `price` e `planName` já eram: o dono transforma
+   * o plano "Ilimitado" em "4 cortes" em novembro e nenhum contrato assinado em
+   * agosto pode mudar por causa disso. Ler o plano na hora de decidir a
+   * cobertura faria exatamente isso — e faria retroativamente, porque a decisão
+   * acontece a cada atendimento.
+   *
+   * Ausentes nas assinaturas anteriores ao D2: valem como plano que não cobre,
+   * que é o comportamento que elas tiveram a vida inteira.
+   */
+  unlimited?: boolean;
+  servicesIncluded?: number | null;
   status: "ativo" | "suspenso" | "cancelado";
   /** ISO `YYYY-MM-DD`, ou vazio quando cancelado. */
-  nextCharge: string;
+  nextCharge?: string;
+  /** Dia do mês em que vence. 31 cobra no último dia de fevereiro. */
+  billingDay?: number;
+  startedAt?: string;
+  canceledAt?: string | null;
+  /**
+   * @deprecated Campo morto: a tela contava por estágio e ninguém nunca o
+   * gravou — os sete baldes mostravam zero para sempre. A régua passou a ser
+   * DERIVADA de `SubscriptionInvoiceDoc.dueDate`, que responde certo em
+   * qualquer data. Um estágio gravado ficaria velho no dia seguinte.
+   */
   dueStage?: "D-5" | "D-3" | "D-1" | "D0" | "D+1" | "D+3" | "D+5";
+};
+
+/**
+ * A fatura mensal do mensalista — G2.
+ *
+ * É o que faltava para a mensalidade ter lastro. Antes, "receita de mensalista"
+ * era derivada de uma caixinha marcada como `ativo`: o produto AFIRMAVA um
+ * recebimento cuja evidência era um status.
+ *
+ * `amount` e `competencia` são congelados na emissão; `paymentMethod` nasce no
+ * pagamento. Mesmo desenho de `unitCost` em G1 — reajustar o plano em outubro
+ * não pode alterar a fatura de setembro.
+ *
+ * A regra: **a fatura também não é receita realizada.** O pagamento dela é o
+ * fato financeiro, e como ele entra no resultado é decisão da Rodada 3.
+ */
+export type SubscriptionInvoiceDoc = {
+  subscriptionId: string;
+  clientId: string;
+  /** `YYYY-MM`. Resolve o MRR histórico que o estado de hoje não sabe responder. */
+  competencia: string;
+  dueDate: string;
+  /** CONGELADO na emissão. */
+  amount: number;
+  planName: string;
+  status: "aberta" | "paga" | "cancelada";
+  paidAt: string | null;
+  paymentMethod: PaymentMethod | null;
 };
 
 export type ExpenseDoc = {
@@ -219,7 +593,16 @@ export function saldoDeFidelidade(
   };
 }
 
-/** Taxa do gateway, versionada por vigência (PRD §5). */
+/**
+ * Taxa do gateway.
+ *
+ * ⚠️ Tipo ÓRFÃO: nada o grava e nada o lê. Ele descrevia um versionamento por
+ * vigência que o produto não tem — R1.1 decidiu que a taxa é congelada no fato
+ * quando ele nasce, e que a correção de pagamento usa a tabela vigente hoje.
+ * `validFrom` é o campo que sustentava a promessa, e por isso ela cai aqui
+ * junto com os outros dois lugares que a faziam. O tipo fica enquanto o gateway
+ * não entra; a afirmação de vigência, não.
+ */
 export type GatewayFeeDoc = {
   gateway: string;
   method: string;

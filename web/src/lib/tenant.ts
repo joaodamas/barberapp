@@ -111,12 +111,29 @@ export type TenantBookingPolicy = {
   [K in keyof typeof defaultBookingPolicy]: number;
 };
 
+/**
+ * O rateio desta barbearia — D1.
+ *
+ * Alargado do literal (`40`/`60`) para `number` porque o padrão da casa virou
+ * campo de tela, que é exatamente a condição que o comentário acima previa. Com
+ * o tipo literal, a barbearia que combinou 50/50 não conseguia sequer ser
+ * REPRESENTADA: o próprio teste de analytics precisava de um
+ * `as unknown as` para montar um split diferente de 40.
+ *
+ * O campo era lido por três telas e escrito por nenhuma. O dono lia "o padrão
+ * da barbearia (40%)" e não tinha onde mudar os 40.
+ */
+export type TenantCommissionSplit = {
+  barberPct: number;
+  shopPct: number;
+};
+
 export type TenantPolicies = {
   cancellation: typeof defaultCancellationPolicy;
   reschedule: typeof defaultReschedulePolicy;
   booking: TenantBookingPolicy;
   loyalty: typeof defaultLoyaltyPolicy;
-  commissionSplit: typeof defaultCommissionSplit;
+  commissionSplit: TenantCommissionSplit;
   /** Alíquota do Simples Nacional sobre a receita bruta, em %. */
   taxRatePct: number;
   /** Dias em que abre (0 = domingo). */
@@ -214,7 +231,23 @@ export type Tenant = {
   /** Fuso, moeda e formato. Decide QUE DIA é hoje e em que moeda o valor é. */
   locale: TenantLocale;
   policies: TenantPolicies;
+  /**
+   * O retrato do plano no documento. É o que o backend gravou na criação —
+   * **não** é a autoridade sobre o que está liberado hoje. Quem responde isso é
+   * `acessoDaBarbearia`, que parte do `plan`.
+   */
   features: TenantFeatures;
+  /**
+   * Liberação pontual, concedida por quem opera a plataforma.
+   *
+   * Só ADICIONA sobre o plano, nunca remove — e por isso é `Partial`. Existe
+   * separada de `features` porque as duas respondem perguntas diferentes:
+   * `features` é histórico ("com o que ela nasceu"), `featuresExtras` é
+   * decisão ("o que abrimos para ela além do plano"). Enquanto eram o mesmo
+   * campo, o retrato do trial no plano de cima virava liberação permanente e o
+   * downgrade não tinha efeito nenhum.
+   */
+  featuresExtras?: Partial<TenantFeatures>;
   schedule: TenantSchedule;
   trial: TenantTrial | null;
   onboarding: TenantOnboarding;
@@ -381,16 +414,35 @@ export function acessoDaBarbearia(tenant: Tenant, agora = new Date()): Acesso {
       : { podeEditar: true, features: ALL_FEATURES, motivo: null };
   }
 
-  /* Barbearia ativa: vale o plano contratado. `features` gravado no documento
-   * ainda tem a palavra final — é como o suporte libera algo pontualmente sem
-   * mexer no plano.
+  /* Barbearia ativa: vale o PLANO CONTRATADO, e só ele.
    *
-   * Sem `?? ALL_FEATURES`: o fallback generoso era o furo. Plano ausente ou
-   * escrito errado já virou `PLANO_DE_ENTRADA` na normalização. */
+   * Aqui havia `{ ...doPlano, ...tenant.features }`, e o spread do documento
+   * tinha a palavra final. A intenção era boa — o suporte libera algo
+   * pontualmente sem mexer no plano —, mas o efeito era o oposto do desejado,
+   * por causa de como as barbearias nascem: o trial roda no plano de cima, e
+   * `signUpBarbershop` grava `features: featuresFor("gestao")` no documento.
+   *
+   * Quando essa barbearia virasse `ativo` no plano Agenda, o `features` antigo
+   * sobreporia o do plano e ela manteria DRE, loja e mensalistas. O downgrade
+   * era silenciosamente ineficaz, e o produto não conseguiria cobrar pelo que
+   * separa um plano do outro. Ninguém perceberia: a tela continua funcionando.
+   *
+   * A liberação pontual continua possível, e agora é EXPLÍCITA: `featuresExtras`
+   * só ADICIONA, nunca remove, e existir no documento significa que alguém
+   * decidiu aquilo — diferente de `features`, que é só o retrato do plano no
+   * dia da criação. */
   const doPlano = FEATURES_POR_PLANO[tenant.plan];
+  const extras = tenant.featuresExtras ?? {};
+
   return {
     podeEditar: true,
-    features: { ...doPlano, ...tenant.features },
+    features: {
+      subscriptions: doPlano.subscriptions || extras.subscriptions === true,
+      store: doPlano.store || extras.store === true,
+      loyalty: doPlano.loyalty || extras.loyalty === true,
+      whatsapp: doPlano.whatsapp || extras.whatsapp === true,
+      advancedFinance: doPlano.advancedFinance || extras.advancedFinance === true,
+    },
     motivo: null,
   };
 }

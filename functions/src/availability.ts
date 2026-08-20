@@ -1,6 +1,7 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
 import { diaDaSemanaNoFuso, instanteNoFuso, localeDoDocumento } from "./locale";
+import { janelaLivre, janelasOcupadas, paraHora, paraMinutos } from "./agenda";
 
 /**
  * Horários livres de um dia.
@@ -30,13 +31,6 @@ const OCUPAM_SLOT = [
   "no_show",
 ];
 
-const paraMinutos = (hhmm: string) => {
-  const [h, m] = String(hhmm).split(":").map(Number);
-  return h * 60 + m;
-};
-const paraHora = (min: number) =>
-  `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
-
 type Jornada = {
   weekdays?: number[];
   opensAt?: string;
@@ -50,6 +44,20 @@ export const availableSlots = onCall<{
   date: string;
   staffId?: string;
   durationMin?: number;
+  /**
+   * Quem pergunta é o balcão — D13.
+   *
+   * Encontrado abrindo a tela, não lendo o código: com 15:55 no relógio, o
+   * primeiro horário oferecido ao dono era 17:00. O `createBookingAtCounter`
+   * aceita "agora" de propósito, mas a tela pedia os horários pela mesma porta
+   * do app do cliente e recebia a lista já filtrada pela antecedência mínima —
+   * o caso mais comum do balcão, a pessoa sentada na cadeira, não aparecia.
+   *
+   * O pedido é só um pedido: quem decide é a guarda logo abaixo, que confere o
+   * vínculo de quem chamou. Um cliente mandando `paraOBalcao: true` continua
+   * recebendo a lista dele.
+   */
+  paraOBalcao?: boolean;
 }>(async (request) => {
   const { barbershopId, date } = request.data ?? {};
   if (!barbershopId) throw new HttpsError("invalid-argument", "Barbearia não informada.");
@@ -88,16 +96,30 @@ export const availableSlots = onCall<{
   }
 
   const duracao = Math.max(Number(request.data?.durationMin) || jornada.slotMinutes, 5);
-  const minutosMinimos: number = policies.booking?.minAdvanceMinutes ?? 60;
+  /* A antecedência mínima protege o CLIENTE de marcar um horário que o barbeiro
+   * não veria a tempo. Quem está no balcão é justamente quem vai atender, então
+   * ela não se aplica — e a guarda é o vínculo no claim, nunca o parâmetro. */
+  const papel = (request.auth?.token.barbershops as Record<string, string> | undefined)?.[
+    barbershopId
+  ];
+  const ehDaCasa = papel === "owner" || papel === "staff";
+  const minutosMinimos: number =
+    request.data?.paraOBalcao && ehDaCasa ? 0 : (policies.booking?.minAdvanceMinutes ?? 60);
 
   /* Ocupação DESTE barbeiro. A query traz o dia inteiro e o filtro por barbeiro
    * é em memória — três igualdades exigiriam índice composto, e índice faltando
-   * derruba a tela em produção. */
+   * derruba a tela em produção.
+   *
+   * A ocupação é por JANELA, não por instante. Enquanto era um `Set` de
+   * horários de início, um atendimento das 15:00 às 16:00 marcava só "15:00" e
+   * as 15:30 continuavam sendo oferecidas — dois clientes na mesma cadeira,
+   * pelo caminho normal do produto. Ver `agenda.ts`. */
   const reservas = await shopRef.collection("bookings").where("date", "==", date).get();
-  const ocupados = new Set(
+  const ocupadas = janelasOcupadas(
     reservas.docs
       .filter((d) => d.get("staffId") === barbeiro.id && OCUPAM_SLOT.includes(d.get("status")))
-      .map((d) => String(d.get("time")))
+      .map((d) => ({ time: String(d.get("time")), durationMin: d.get("durationMin") })),
+    jornada.slotMinutes
   );
 
   const abre = paraMinutos(jornada.opensAt);
@@ -107,7 +129,10 @@ export const availableSlots = onCall<{
   const livres: string[] = [];
   for (let t = abre; t + duracao <= fecha; t += jornada.slotMinutes) {
     const hora = paraHora(t);
-    if (ocupados.has(hora)) continue;
+    /* O atendimento INTEIRO precisa estar livre, e não só o minuto em que ele
+     * começa: um corte de 30 min às 15:30 não cabe se o combo das 15:00 vai
+     * até as 16:00. */
+    if (!janelaLivre({ inicio: t, fim: t + duracao }, ocupadas)) continue;
 
     /* O atendimento inteiro precisa caber: um combo de 60 min não pode começar
      * 30 min antes do almoço nem 30 min antes de fechar. */

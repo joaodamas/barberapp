@@ -1,8 +1,8 @@
 "use client";
 
 import { Lock, MessageCircle } from "lucide-react";
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { EstadoCentral } from "@/components/ui/estado-central";
 import { useTenant } from "@/lib/tenant-context";
 import { hasPlatformContact, platformWhatsappUrl } from "@/lib/platform";
 
@@ -44,32 +44,36 @@ export function RecursoBloqueado({
         <h1 className="text-xl text-ivory md:text-4xl md:tracking-tight">{titulo}</h1>
       </div>
 
-      <Card className="flex flex-col items-center gap-4 py-12 text-center md:py-16">
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gold/10 text-gold-light">
-          <Lock size={22} aria-hidden />
-        </div>
-
-        <div className="flex max-w-md flex-col gap-2">
-          <p className="text-sm font-medium text-ivory md:text-base">
-            {titulo} não está no seu plano
-          </p>
-          <p className="text-xs text-ivory-muted md:text-sm">{oQueFaz}</p>
-          <p className="text-xs text-ivory-muted md:text-sm">{porQueVale}</p>
-        </div>
-
-        {hasPlatformContact() ? (
-          <a href={platformWhatsappUrl(mensagem)} target="_blank" rel="noopener noreferrer">
-            <Button>
-              <MessageCircle size={16} />
-              Falar sobre liberar
-            </Button>
-          </a>
-        ) : (
-          <p className="max-w-md text-xs text-ivory-muted">
-            Fale com quem cuida da sua conta na plataforma para liberar.
-          </p>
-        )}
-      </Card>
+      {/* Era a TERCEIRA cópia da mesma composição — círculo, título, descrição,
+          ação — com respiro e largura próprios que ninguém decidiu. Adotada na
+          integração: "não há nada aqui", "seu teste terminou" e "isso não está
+          no seu plano" agora chegam com o mesmo peso visual. */}
+      <EstadoCentral
+        icon={Lock}
+        titulo={`${titulo} não está no seu plano`}
+        descricao={
+          <>
+            {oQueFaz}
+            <span className="mt-1.5 block">{porQueVale}</span>
+          </>
+        }
+        acao={
+          hasPlatformContact() ? (
+            <a href={platformWhatsappUrl(mensagem)} target="_blank" rel="noopener noreferrer">
+              <Button>
+                <MessageCircle size={16} />
+                Falar sobre liberar
+              </Button>
+            </a>
+          ) : (
+            /* Sem número configurado o botão não aparece: um controle que não
+               faz nada é pior que a ausência dele. */
+            <p className="max-w-md text-xs text-ivory-muted">
+              Fale com quem cuida da sua conta na plataforma para liberar.
+            </p>
+          )
+        }
+      />
     </div>
   );
 }

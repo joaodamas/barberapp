@@ -1,4 +1,5 @@
 import type { Doc } from "@/lib/db/repository";
+import { cobertoPeloPlano } from "@/lib/domain";
 import type { BookingDoc, PaymentDoc, ServiceDoc } from "@/lib/domain";
 import type { TenantPaymentFees } from "@/lib/tenant";
 import { dentroDoPeriodo, type Periodo } from "@/lib/analytics";
@@ -36,14 +37,29 @@ export type ActionUrgency = 1 | 2 | 3;
 /**
  * O que o item faz quando acionado.
  *
- * `navegar` cobre o que se resolve em outra tela. `fecharAtendimento` e
- * `marcarFalta` existem porque a ação acontece na própria tela, num modal, e o
- * motor não pode conhecer React — ele declara a intenção e a tela sabe
- * executá-la.
+ * `navegar` cobre o que se resolve em outra tela. `fecharAtendimento`,
+ * `corrigirPagamento` e `marcarFalta` existem porque a ação acontece na própria
+ * tela, num modal, e o motor não pode conhecer React — ele declara a intenção e
+ * a tela sabe executá-la.
+ *
+ * ## Por que `corrigirPagamento` é uma intenção PRÓPRIA — R1
+ *
+ * Ela existia embutida em `fecharAtendimento`, e era o vazamento: o card do
+ * atendimento já concluído reabria o modal de CONCLUSÃO, que grava
+ * `bookings.paymentMethod` e mais nada. O card sumia porque `!b.paymentMethod`
+ * virava falso, e o `PaymentDoc` ficava com método nulo e taxa zero para
+ * sempre.
+ *
+ * Separar as duas não é organização: **concluir e corrigir são operações
+ * diferentes**. Concluir materializa um fato novo; corrigir altera um fato já
+ * materializado, e por isso passa pelo servidor, numa transação, com rastro.
+ * Reabrir `completed` é ainda a mesma superfície por onde o "Veio depois"
+ * opera, e as duas operações não podem compartilhar caminho.
  */
 export type ActionIntent =
   | { kind: "navegar"; href: string }
   | { kind: "fecharAtendimento"; bookingId: string }
+  | { kind: "corrigirPagamento"; bookingId: string }
   | { kind: "marcarFalta"; bookingId: string };
 
 export type ActionItem = {
@@ -99,7 +115,21 @@ const ORDEM_SEVERIDADE: Record<ActionSeverity, number> = {
  */
 export function fechamentosPendentes(bookings: Doc<BookingDoc>[]): ActionItem[] {
   return bookings
-    .filter((b) => b.status === "completed" && !b.paymentMethod)
+    /* Coberto pelo plano NÃO é pendência — é um desfecho completo.
+     *
+     * A regra era `completed && !paymentMethod`, e valia enquanto a ausência de
+     * método só podia significar esquecimento. O D2 criou um segundo motivo
+     * para o campo ser nulo: o atendimento que a mensalidade já pagou, onde o
+     * servidor deliberadamente não cria pagamento.
+     *
+     * Sem esta guarda, o produto abria um alerta CRÍTICO pedindo "Registrar
+     * pagamento" de dinheiro que não existe, e justificava com "a taxa da
+     * maquininha entra como zero" — sobre uma transação que nunca passou por
+     * maquininha nenhuma. Verificado na tela em 18/08.
+     *
+     * É a mesma distinção que `caixaDoDia` passou a fazer: ausência de
+     * pagamento e pagamento sem forma informada são coisas opostas. */
+    .filter((b) => b.status === "completed" && !b.paymentMethod && !cobertoPeloPlano(b))
     .map((b) => ({
       id: `fechamento-pendente:${b.id}`,
       severity: "critical" as const,
@@ -109,7 +139,15 @@ export function fechamentosPendentes(bookings: Doc<BookingDoc>[]): ActionItem[] 
       reason:
         "Sem a forma de pagamento, a taxa da maquininha entra como zero e o lucro do mês fica maior do que é.",
       actionLabel: "Registrar pagamento",
-      intent: { kind: "fecharAtendimento" as const, bookingId: b.id },
+      /* R1 · o card continua sendo o ALERTA do caso 1 — o atendimento que
+       * terminou sem método —, e passa a apontar para a porta de CORREÇÃO, que
+       * é a mesma que a linha do atendimento oferece.
+       *
+       * Antes ele apontava para `fecharAtendimento`, e ali estava o vazamento:
+       * o modal de conclusão gravava só `bookings.paymentMethod`, o card sumia
+       * por isso, e o `PaymentDoc` continuava nulo. O alerta some agora porque
+       * o PAGAMENTO existe, não porque a reserva foi preenchida. */
+      intent: { kind: "corrigirPagamento" as const, bookingId: b.id },
     }));
 }
 
@@ -330,32 +368,16 @@ export function semServicoCadastrado(params: {
   ];
 }
 
-/**
- * 4.3 — Encaixe aguardando resposta.
+/* 4.3 — Encaixe aguardando resposta: REMOVIDA em 17/08.
  *
- * O cliente pediu horário fora da grade e está esperando. Urgência 2: acontece
- * agora, mas não corrompe dado.
- */
-export function encaixesAguardando(bookings: Doc<BookingDoc>[]): ActionItem[] {
-  const pendentes = bookings.filter((b) => b.status === "fit_in_requested");
-  if (pendentes.length === 0) return [];
-
-  return [
-    {
-      id: "encaixe-aguardando",
-      severity: "critical",
-      urgency: 2,
-      confidence: "real",
-      title:
-        pendentes.length === 1
-          ? `${pendentes[0].clientName} pediu um encaixe`
-          : `${pendentes.length} pedidos de encaixe aguardando`,
-      reason: "Quem pede encaixe está decidindo agora se procura outro lugar.",
-      actionLabel: "Responder",
-      intent: { kind: "navegar", href: "/painel" },
-    },
-  ];
-}
+ * O encaixe saiu da proposta. Ele perdeu o caminho de criação quando a
+ * disponibilidade passou a vir de `availableSlots`, que devolve só horários
+ * livres — e esta regra ficou esperando um `fit_in_requested` que nenhum
+ * caminho do produto produzia. Uma regra do Action Center que nunca dispara é
+ * pior que ausência: ela sustenta a impressão de que o fluxo existe.
+ *
+ * Reserva antiga nesse estado continua legível (o status segue no modelo e na
+ * agenda do painel); o que não existe mais é o pedido. */
 
 /* ------------------------------------------------------------------ */
 /* Motor                                                               */
@@ -402,7 +424,6 @@ export function avaliarOperacao(estado: EstadoOperacional): ActionItem[] {
     ...(estado.todasAsReservas && estado.hoje
       ? desfechosEsquecidos({ todas: estado.todasAsReservas, hoje: estado.hoje })
       : []),
-    ...encaixesAguardando(estado.bookings),
     ...atendimentosAtrasados({
       bookings: estado.bookings,
       agora: estado.agora,

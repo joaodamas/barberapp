@@ -1,13 +1,18 @@
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { EstadoCentral } from "@/components/ui/estado-central";
 
 /**
  * Estado vazio que ensina, em vez de tabela em branco.
  *
  * Um tenant novo abre toda tela financeira sem nada. Mostrar "R$ 0,00" em toda
  * célula não diz o que fazer — e é a primeira impressão do produto.
+ *
+ * VAZIO é "eu li, e não há". Quando a leitura FALHOU, o componente é outro:
+ * `ErroAoCarregar`. Trocar um pelo outro é a afirmação falsa do D27 — a tela
+ * dizendo "nenhuma despesa em agosto" quando a verdade era "não consegui ler as
+ * despesas", e o dono concluindo que não gastou nada.
  */
 export function EmptyState({
   icon: Icon,
@@ -24,28 +29,44 @@ export function EmptyState({
   actionHref?: string;
   onAction?: () => void;
 }) {
-  const acao = actionLabel && (
-    <Button onClick={onAction}>{actionLabel}</Button>
-  );
+  // Sem rótulo não há ação. Antes, `actionHref` sozinho produzia um `<Link>`
+  // com o `false` do curto-circuito dentro: um link vazio, focável pelo
+  // teclado, que o leitor de tela anuncia como "link" sem dizer para onde vai.
+  const acao = actionLabel
+    ? actionHref
+      ? (
+          <Link href={actionHref}>
+            <Button>{actionLabel}</Button>
+          </Link>
+        )
+      : <Button onClick={onAction}>{actionLabel}</Button>
+    : undefined;
 
   return (
-    <Card className="flex flex-col items-center gap-3 py-12 text-center md:py-16">
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gold/10 text-gold-light">
-        <Icon size={22} aria-hidden />
-      </div>
-      <div className="max-w-sm">
-        <p className="text-sm font-medium text-ivory md:text-base">{title}</p>
-        <p className="mt-1 text-xs text-ivory-muted md:text-sm">{description}</p>
-      </div>
-      {actionHref ? <Link href={actionHref}>{acao}</Link> : acao}
-    </Card>
+    <EstadoCentral icon={Icon} titulo={title} descricao={description} acao={acao} />
   );
 }
 
+/**
+ * O que o esqueleto está esperando.
+ *
+ * `aria-label="Carregando"` dizia ao leitor de tela menos do que a tela dizia a
+ * quem enxerga: quem vê a página sabe, pela posição do bloco, que é a lista de
+ * despesas; quem ouve recebia só "carregando" e não sabia carregando o quê.
+ */
+function rotulo(oQue?: string) {
+  return oQue ? `Carregando ${oQue}` : "Carregando";
+}
+
 /** Esqueleto de carregamento — evita o pisca-vazio antes do dado chegar. */
-export function LoadingRows({ rows = 3 }: { rows?: number }) {
+export function LoadingRows({ rows = 3, oQue }: { rows?: number; oQue?: string }) {
   return (
-    <div className="flex flex-col gap-2" aria-busy="true" aria-label="Carregando">
+    <div
+      className="flex flex-col gap-2"
+      role="status"
+      aria-busy="true"
+      aria-label={rotulo(oQue)}
+    >
       {Array.from({ length: rows }).map((_, i) => (
         <div key={i} className="h-14 animate-pulse rounded-xl bg-surface-raised" />
       ))}
@@ -65,10 +86,23 @@ export function LoadingRows({ rows = 3 }: { rows?: number }) {
  * As larguras são desiguais de propósito: barra toda do mesmo tamanho parece
  * animação de espera; desigual parece texto carregando.
  */
-export function LoadingTable({ rows = 6, cols = 4 }: { rows?: number; cols?: number }) {
+export function LoadingTable({
+  rows = 6,
+  cols = 4,
+  oQue,
+}: {
+  rows?: number;
+  cols?: number;
+  oQue?: string;
+}) {
   const larguras = ["w-2/3", "w-1/2", "w-3/4", "w-2/5", "w-4/5", "w-1/3"];
   return (
-    <div className="flex flex-col gap-3" aria-busy="true" aria-label="Carregando">
+    <div
+      className="flex flex-col gap-3"
+      role="status"
+      aria-busy="true"
+      aria-label={rotulo(oQue)}
+    >
       <div className="flex gap-4 border-b border-border pb-3">
         {Array.from({ length: cols }).map((_, c) => (
           <div key={c} className="h-3 flex-1 animate-pulse rounded bg-surface-raised" />
@@ -92,25 +126,32 @@ export function LoadingTable({ rows = 6, cols = 4 }: { rows?: number; cols?: num
 }
 
 /**
- * Esqueleto de um cartão de número (KPI).
+ * Uma PALAVRA carregando, no meio de uma frase.
  *
- * Reserva a MESMA altura do cartão real. É isso que impede o salto: ocupar o
- * espaço antes de ter o que colocar nele.
+ * Não é o mesmo problema de `LoadingRows`: aqui a tela já está montada e falta
+ * um pedaço de texto — o primeiro nome no cumprimento, o total do mês no
+ * cabeçalho. Estava escrito à mão em três arquivos
+ * (`despesas`, `servicos-editor`, `welcome-heading`), sempre como
+ * `<span className="inline-block h-4 w-40 animate-pulse rounded bg-surface-raised" />`.
+ *
+ * O defeito que as três cópias tinham em comum: nenhuma marcação. Quem usa
+ * leitor de tela chegava num `<h1>` que simplesmente não tinha texto — nem o
+ * nome, nem um aviso de que ele está vindo. Silêncio no lugar de conteúdo lê
+ * como página quebrada, não como página carregando.
  */
-export function LoadingKpis({ count = 4 }: { count?: number }) {
+export function LoadingText({
+  largura = "w-32",
+  altura = "h-4",
+}: {
+  /** Classe de largura do Tailwind, aproximando o tamanho do texto esperado. */
+  largura?: string;
+  altura?: string;
+}) {
   return (
-    <div
-      className="grid grid-cols-2 gap-3 lg:grid-cols-4"
-      aria-busy="true"
+    <span
+      className={`inline-block animate-pulse rounded bg-surface-raised align-middle ${altura} ${largura}`}
+      role="status"
       aria-label="Carregando"
-    >
-      {Array.from({ length: count }).map((_, i) => (
-        <Card key={i} className="flex flex-col gap-2">
-          <div className="h-3 w-2/3 animate-pulse rounded bg-surface-raised" />
-          <div className="h-7 w-1/2 animate-pulse rounded bg-surface-raised" />
-          <div className="h-3 w-1/3 animate-pulse rounded bg-surface-raised" />
-        </Card>
-      ))}
-    </div>
+    />
   );
 }

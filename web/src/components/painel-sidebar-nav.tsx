@@ -5,13 +5,21 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Lock } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { painelNavItems } from "@/lib/nav-items";
+import { itemAtivo, painelNavItems, rotaAtiva } from "@/lib/nav-items";
 import { SidebarUserFooter } from "@/components/sidebar-user-footer";
-import { useTenant } from "@/lib/tenant-context";
+import { useAcesso, useTenant } from "@/lib/tenant-context";
 
 export function PainelSidebarNav() {
   const pathname = usePathname();
-  const { brand, features } = useTenant();
+  const { brand } = useTenant();
+  /* O cadeado precisa vir de `useAcesso`, não de `tenant.features` cru.
+     São duas respostas para a mesma pergunta e divergem justamente no caso que
+     importa: numa barbearia suspensa ou com trial vencido, `features` gravado
+     no documento continua dizendo `store: true`, e o menu mostrava Loja e
+     Mensalistas destrancadas enquanto a própria tela as bloqueava. É o defeito
+     que `tenant-context.tsx` descreve em `useFeature` — o menu era o que tinha
+     sobrado dele. */
+  const { features } = useAcesso();
 
   return (
     <aside className="hidden shrink-0 bg-surface/60 md:flex md:h-full md:w-64 md:flex-col md:overflow-y-auto md:border-r md:border-border md:shadow-[8px_0_32px_-24px_rgba(0,0,0,0.8)]">
@@ -34,9 +42,11 @@ export function PainelSidebarNav() {
 
       <nav className="flex flex-1 flex-col gap-1 px-4">
         {painelNavItems.map((item) => {
-          const active =
-            pathname === item.href ||
-            (item.href !== "/painel" && pathname.startsWith(`${item.href}/`));
+          /* A comparação era feita aqui, à mão, e valia só enquanto todo filho
+             morasse debaixo do pai. Agora mora em `itemAtivo`, que também olha
+             os filhos: sem isso, abrir Serviços — filho de Ajustes, mas fora do
+             prefixo `/painel/configuracoes` — apagaria o menu inteiro. */
+          const active = itemAtivo(item, pathname, painelNavItems);
           const Icon = item.icon;
           return (
             <div key={item.href}>
@@ -80,20 +90,34 @@ export function PainelSidebarNav() {
               {item.children && active && (
                 <div className="ml-[19px] mt-1 flex flex-col gap-0.5 border-l border-border pl-4">
                   {item.children.map((child) => {
-                    const childActive = pathname === child.href;
+                    /* Igualdade, e não prefixo: filho é folha. Por prefixo, o
+                       "Resumo" — que aponta para a rota do pai — ficaria aceso
+                       junto com "Quanto sobrou" em `/painel/financeiro/dre`, e
+                       o submenu mostraria dois lugares atuais ao mesmo tempo. */
+                    const childActive = rotaAtiva(child.href, pathname, true);
+                    const bloqueado = !!child.feature && !features[child.feature];
                     return (
                       <Link
                         key={child.href}
                         href={child.href}
                         aria-current={childActive ? "page" : undefined}
                         className={cn(
-                          "rounded-lg px-3 py-1.5 text-sm transition-colors duration-150",
+                          "flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm transition-colors duration-150",
                           childActive
                             ? "font-medium text-gold-light"
                             : "text-ivory-muted hover:text-ivory"
                         )}
                       >
                         {child.label}
+                        {/* Quatro das cinco telas de Financeiro exigem plano, e
+                            o menu não dizia: o dono descobria ao abrir. */}
+                        {bloqueado && (
+                          <Lock
+                            size={12}
+                            className="ml-auto shrink-0 text-ivory-muted/70"
+                            aria-label="Não incluído no seu plano"
+                          />
+                        )}
                       </Link>
                     );
                   })}

@@ -4,7 +4,7 @@ import { AuthGuard } from "@/components/auth-guard";
 import { DemoBanner } from "@/components/demo-banner";
 import { AvisoModoLeitura } from "@/components/ui/bloqueio-plano";
 import { AvisoDeTrial } from "@/components/acesso";
-import { getTenant } from "@/lib/tenant-server";
+import { resolverTenant } from "@/lib/tenant-server";
 import { TenantLive } from "@/lib/tenant-live";
 import { PainelBottomNav } from "@/components/painel-bottom-nav";
 import { PainelSidebarNav } from "@/components/painel-sidebar-nav";
@@ -14,7 +14,17 @@ export default async function PainelDashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const tenant = await getTenant();
+  /* D30 · o estado da resolução importa, não só o resultado.
+   *
+   * `getTenant()` devolvia o tenant padrão quando o Firestore não respondia, e
+   * o `AuthGuard` — lendo o claim do dono sob o id trocado — concluía que ele
+   * não pertencia àquele painel e o mandava para a vitrine. O dono perdia o
+   * produto inteiro com a mesma experiência de quem nunca teve conta.
+   *
+   * Ligado aqui, e não dentro do guard, porque este é o único componente de
+   * SERVIDOR entre a resolução e ele: o estado nasce no servidor e só chega ao
+   * cliente por prop. */
+  const { estado, tenant } = await resolverTenant();
   const { brand } = tenant;
 
   /* Não há corte de acesso aqui, e é decisão de produto: trial vencido e conta
@@ -29,7 +39,7 @@ export default async function PainelDashboardLayout({
    * alguém EDITA a ficha, e ver o valor antigo depois de salvar é a interface
    * mentindo sobre o que foi gravado. A vitrine pública segue cacheada. */
   return (
-    <TenantLive inicial={tenant}>
+    <TenantLive inicial={tenant} indisponivel={estado === "indisponivel"}>
     <AuthGuard requireOwner>
       <a
         href="#conteudo"

@@ -12,9 +12,12 @@ import {
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
-import { formatBRL } from "@/lib/format";
+import { formatBRL, formatPctPtBR } from "@/lib/format";
+import { apuracaoDe } from "@/lib/apuracao";
+import { contar } from "@/lib/plural";
 import { useFinanceiro, mesAtual, rotuloDoMes } from "@/lib/db/use-financeiro";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
+import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
 import type { StatusRecorrencia as ClientRecurrenceStatus } from "@/lib/analytics";
 
 function heatColor(pct: number) {
@@ -50,7 +53,7 @@ function Delta({
 }) {
   const diff = current - previous;
   if (previous === 0 || Math.abs(diff) < 0.05) {
-    return <span className="text-[11px] text-ivory-muted md:text-xs">— vs período anterior</span>;
+    return <span className="text-[11px] text-ivory-muted md:text-xs">— vs. mês anterior</span>;
   }
   const pctChange = (diff / previous) * 100;
   const isGood = invert ? diff < 0 : diff > 0;
@@ -62,7 +65,7 @@ function Delta({
       }`}
     >
       <Icon size={10} />
-      {Math.abs(pctChange).toFixed(0)}% vs período anterior
+      {Math.abs(pctChange).toFixed(0)}% vs. mês anterior
     </span>
   );
 }
@@ -74,6 +77,7 @@ export default function NumerosPage() {
   const mesAnterior = mesAtual(Math.abs(offset) + 1);
   const atual = useFinanceiro(mes);
   const anterior = useFinanceiro(mesAnterior);
+  const apuracao = apuracaoDe(atual.fontesIlegiveis);
 
   const kpis = atual.kpis;
   const prevKpis = anterior.kpis;
@@ -127,7 +131,8 @@ export default function NumerosPage() {
         </div>
       </div>
 
-      {atual.status === "carregando" && <LoadingRows rows={5} />}
+      {atual.status === "carregando" && <LoadingRows rows={5} oQue="seus números" />}
+      {atual.status === "erro" && <ErroAoCarregar oQue="seus números" erro={atual.erro} />}
 
       {semDados && (
         <EmptyState
@@ -145,37 +150,56 @@ export default function NumerosPage() {
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-6">
           <p className="text-[11px] uppercase text-ivory-muted md:text-xs md:tracking-wide">Faturamento</p>
           <p className="font-display text-lg font-semibold text-gold-light md:text-2xl">
-            {formatBRL(kpis.revenue)}
+            {apuracao.valor("faturamento", formatBRL(kpis.revenue))}
           </p>
-          <Delta current={kpis.revenue} previous={prevKpis.revenue} />
+          {apuracao.ok("faturamento") && (
+            <Delta current={kpis.revenue} previous={prevKpis.revenue} />
+          )}
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-6">
           <p className="text-[11px] uppercase text-ivory-muted md:text-xs md:tracking-wide">Atendimentos</p>
           <p className="font-display text-lg font-semibold text-ivory md:text-2xl">
-            {kpis.appointments}
+            {apuracao.valor("atendimentos", String(kpis.appointments))}
           </p>
-          <Delta current={kpis.appointments} previous={prevKpis.appointments} />
+          {apuracao.ok("atendimentos") && (
+            <Delta current={kpis.appointments} previous={prevKpis.appointments} />
+          )}
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-6">
           <p className="text-[11px] uppercase text-ivory-muted md:text-xs md:tracking-wide">Ticket médio</p>
           <p className="font-display text-lg font-semibold text-ivory md:text-2xl">
-            {formatBRL(avgTicket)}
+            {apuracao.valor("ticketMedio", formatBRL(avgTicket))}
           </p>
-          <Delta current={avgTicket} previous={prevAvgTicket} />
+          {apuracao.ok("ticketMedio") && (
+            <Delta current={avgTicket} previous={prevAvgTicket} />
+          )}
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-6">
           <p className="text-[11px] uppercase text-ivory-muted md:text-xs md:tracking-wide">Ocupação</p>
+          {/* A17 · exibia `0%` no mês com UM atendimento, e o mapa de calor
+              logo abaixo dizia "100% de ocupação" naquele horário. O motor
+              passou a devolver uma casa decimal e `formatPctPtBR` garante que
+              um valor diferente de zero nunca saia como zero. */}
           <p className="font-display text-lg font-semibold text-ivory md:text-2xl">
-            {kpis.occupancyPct}%
+            {apuracao.valor("ocupacao", formatPctPtBR(kpis.occupancyPct))}
           </p>
-          <Delta current={kpis.occupancyPct} previous={prevKpis.occupancyPct} />
+          {apuracao.ok("ocupacao") && (
+            <Delta current={kpis.occupancyPct} previous={prevKpis.occupancyPct} />
+          )}
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-6">
-          <p className="text-[11px] uppercase text-ivory-muted md:text-xs md:tracking-wide">Taxa de no-show</p>
+          {/* "no-show" é a única palavra em inglês do painel, e o cartão logo
+              abaixo já chamava a mesma coisa de "faltas" — dois nomes para o
+              mesmo fato, na mesma tela. O produto inteiro diz falta: o botão
+              da agenda ("Não veio"), o diálogo ("Marcar falta?") e o motor do
+              Action Center ("Marcar falta"). */}
+          <p className="text-[11px] uppercase text-ivory-muted md:text-xs md:tracking-wide">Taxa de falta</p>
           <p className="font-display text-lg font-semibold text-ivory md:text-2xl">
-            {kpis.noShowPct}%
+            {apuracao.valor("taxaDeFalta", formatPctPtBR(kpis.noShowPct))}
           </p>
-          <Delta current={kpis.noShowPct} previous={prevKpis.noShowPct} invert />
+          {apuracao.ok("taxaDeFalta") && (
+            <Delta current={kpis.noShowPct} previous={prevKpis.noShowPct} invert />
+          )}
         </Card>
       </div>
 
@@ -189,7 +213,9 @@ export default function NumerosPage() {
               <div key={s.name} className="flex items-center justify-between text-sm md:text-base">
                 <div>
                   <p className="text-ivory">{s.name}</p>
-                  <p className="text-xs text-ivory-muted md:text-sm">{s.count} atendimentos</p>
+                  <p className="text-xs text-ivory-muted md:text-sm">
+                    {contar(s.count, "atendimento", "atendimentos")}
+                  </p>
                 </div>
                 <span className="font-display font-medium text-gold-light">
                   {formatBRL(s.revenue)}
@@ -211,8 +237,8 @@ export default function NumerosPage() {
                   <div className="min-w-0">
                     <p className="truncate text-ivory">{c.name}</p>
                     <p className="truncate text-xs text-ivory-muted md:text-sm">
-                      {c.visits} visitas · última há {c.lastVisitDaysAgo}d (costuma voltar a cada{" "}
-                      {c.avgIntervalDays}d)
+                      {contar(c.visits, "visita", "visitas")} · última há{" "}
+                      {c.lastVisitDaysAgo}d (costuma voltar a cada {c.avgIntervalDays}d)
                     </p>
                   </div>
                   <Pill tone={meta.tone} className="shrink-0">
@@ -262,35 +288,54 @@ export default function NumerosPage() {
               </Fragment>
             ))}
           </div>
-          <p className="mt-3 border-t border-border pt-3 text-xs text-ivory-muted">
-            Mais dourado = horário mais cheio. Os claros são as brechas pra
-            promover.
-          </p>
-        </Card>
-      </section>
-
-      <section>
-        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:mb-3 md:text-sm">
-          Insights automáticos
-        </h2>
-        <div className="flex flex-col gap-2 md:grid md:grid-cols-2 md:gap-4">
-          <Card className="flex flex-col gap-1 md:gap-2 md:p-6">
-            <p className="text-sm text-ivory md:text-base">
+          {/* A leitura do mapa passou a morar NO mapa.
+           *
+           * Estas duas últimas frases eram um cartão à parte, na seção
+           * "Insights automáticos" logo abaixo — e imprimiam `peak.pct`, que é
+           * literalmente a maior célula da grade acima, já desenhada. O mesmo
+           * número, duas vezes, na mesma tela; e o rodapé daqui já dizia a
+           * versão genérica da mesma frase ("os claros são as brechas").
+           *
+           * Nenhuma palavra foi perdida na mudança: o dia, a hora e os dois
+           * percentuais continuam escritos. O que sumiu foi um cartão que
+           * repetia a grade em prosa em vez de explicá-la. */}
+          <div className="mt-3 flex flex-col gap-1 border-t border-border pt-3 text-xs text-ivory-muted">
+            <p>
+              Mais dourado = horário mais cheio. Os claros são as brechas para
+              promover.
+            </p>
+            <p className="text-ivory">
               {peak.day} às {peak.hour} é o horário mais cheio do período —{" "}
               {peak.pct}% de ocupação.
             </p>
-            <p className="text-xs text-ivory-muted md:text-sm">
+            <p>
               {idle.pct < 30
                 ? `${idle.day} às ${idle.hour} é a maior brecha (${idle.pct}%) — bom alvo para promoção.`
                 : "A agenda está distribuída: não há brecha evidente para promover."}
             </p>
-          </Card>
+          </div>
+        </Card>
+      </section>
+
+      <section>
+        {/* "Insights" é a outra palavra em inglês da tela, e o rótulo mais de
+            sistema do painel: descreve COMO o texto foi produzido em vez de
+            dizer o que ele responde. */}
+        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:mb-3 md:text-sm">
+          O que os números dizem
+        </h2>
+        {/* Uma coluna, e não duas: o insight de pico/brecha foi para o rodapé
+            do mapa de calor, que é o bloco dono daquele dado. Manter
+            `md:grid-cols-2` deixaria o cartão restante ocupando meia tela com
+            um vão do lado — que lê como bloco faltando, não como espaço. */}
+        <div className="flex flex-col gap-2 md:gap-4">
           <Card className="flex flex-col gap-1 md:gap-2 md:p-6">
             <p className="text-sm text-ivory md:text-base">
-              No-show {kpis.noShowPct <= prevKpis.noShowPct ? "caiu" : "subiu"} de{" "}
-              {prevKpis.noShowPct}% para {kpis.noShowPct}% — {periodNoShow.noShowCount} faltas
-              e {periodNoShow.lateCancelCount} cancelamentos tardios em{" "}
-              {periodNoShow.totalBookings} agendamentos.
+              A taxa de falta {kpis.noShowPct <= prevKpis.noShowPct ? "caiu" : "subiu"} de{" "}
+              {prevKpis.noShowPct}% para {kpis.noShowPct}% —{" "}
+              {contar(periodNoShow.noShowCount, "falta", "faltas")} e{" "}
+              {contar(periodNoShow.lateCancelCount, "cancelamento tardio", "cancelamentos tardios")}{" "}
+              em {contar(periodNoShow.totalBookings, "agendamento", "agendamentos")}.
             </p>
             <p className="text-xs text-ivory-muted md:text-sm">
               A confirmação por WhatsApp no dia continua sendo o maior fator de

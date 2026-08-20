@@ -7,6 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
 import { Modal } from "@/components/ui/modal";
 import { formatBRL, formatDateShortPtBR } from "@/lib/format";
+import { contar } from "@/lib/plural";
+import { NAO_APURADO } from "@/lib/apuracao";
+import { LinhaDeErro } from "@/components/ui/erro-ao-carregar";
+import { mesPeriodo, resumoDeDespesas } from "@/lib/analytics";
+import { mesAtual, rotuloDoMes } from "@/lib/db/use-financeiro";
 import {
   expenseCategories,
   expensePaymentMethods,
@@ -41,10 +46,25 @@ export default function DespesasPage() {
 
   /* Tempo real: o painel costuma ficar aberto o expediente inteiro num tablet,
    * e um lançamento feito no celular precisa aparecer aqui sem recarregar. */
-  const { items: expenses, status } = useShopCollection<Omit<Expense, "id">>("expenses", {
+  const { items: expenses, status, error } = useShopCollection<Omit<Expense, "id">>("expenses", {
     orderByField: "date",
     direction: "desc",
   });
+
+  /* D3 · sem leitura não há agregado.
+   *
+   * A tela mostrava, AO REDOR da mensagem de erro: cabeçalho "0 lançamentos",
+   * KPIs `0`, `R$ 0,00`, `R$ 0,00`, `—` e rodapé `TOTAL DO MÊS R$ 0,00`. O
+   * teste decisivo é que o estado vazio e o estado de erro produziam os
+   * QUATRO números idênticos — nenhum deles distinguia "não há despesa" de
+   * "não consegui ler as despesas", que são as duas conclusões opostas que o
+   * dono pode tirar desta tela.
+   *
+   * O D27 tinha acrescentado a mensagem ao corpo da tabela e parado aí. Ela
+   * ficou cercada pelos agregados, que continuaram afirmando zero em corpo
+   * maior — foi a correção reforçando o defeito, porque quem lê "0 lançamentos"
+   * no cabeçalho não procura explicação dentro da tabela. */
+  const naoApurado = status === "erro";
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -53,27 +73,22 @@ export default function DespesasPage() {
   /** Exclusão pedia confirmação em Reservas mas apagava lançamento num clique. */
   const [pendingDelete, setPendingDelete] = useState<Expense | null>(null);
 
-  // A ordenação vem do Firestore (`orderBy date desc`); o sort local existia
-  // porque a lista era um array fixo fora de ordem.
-  const sorted = expenses;
   const [saving, setSaving] = useState(false);
 
-  const total = expenses.reduce((s, e) => s + e.value, 0);
-  const recurringTotal = expenses
-    .filter((e) => e.recurring)
-    .reduce((s, e) => s + e.value, 0);
+  /* Os KPIs diziam "no mês" e somavam o HISTÓRICO INTEIRO — o erro crescia a
+   * cada mês de uso, e no terceiro mostrava o triplo do que o dono gastou. Um
+   * dos rótulos trazia "julho de 2026" cravado no código.
+   *
+   * O recorte agora é o mês exibido, e o rótulo diz qual é. */
+  const mes = mesAtual();
+  const resumo = useMemo(() => resumoDeDespesas(expenses, mesPeriodo(mes)), [expenses, mes]);
+  const total = resumo.total;
+  const recurringTotal = resumo.recorrentes;
+  const topCategory = { category: resumo.maiorCategoria.categoria, value: resumo.maiorCategoria.valor };
 
-  const topCategory = useMemo(() => {
-    const byCategory = new Map<string, number>();
-    for (const e of expenses) {
-      byCategory.set(e.category, (byCategory.get(e.category) ?? 0) + e.value);
-    }
-    let best = { category: "—", value: 0 };
-    for (const [category, value] of byCategory) {
-      if (value > best.value) best = { category, value };
-    }
-    return best;
-  }, [expenses]);
+  // A ordenação vem do Firestore (`orderBy date desc`); a lista já vem recortada
+  // pelo mês, para a tabela não repetir o filtro dos KPIs.
+  const sorted = resumo.itens;
 
   function openModal() {
     setEditingId(null);
@@ -157,7 +172,10 @@ export default function DespesasPage() {
    * a tela precisa dos mesmos dados para o caso liberado. */
   const acesso = useAcesso();
   if (!acesso.features.advancedFinance) {
-    return <BloqueioPlano titulo="Controle de despesas" descricao="Lance aluguel, luz, produtos e pró-labore uma vez e veja o lucro de verdade nas outras telas." />;
+    /* Dizia "Controle de despesas". O menu, o `h1` e o atalho do Resumo dizem
+       "Despesas": quem tem o plano vê um nome e quem não tem vê outro — e é
+       justamente quem não tem que está tentando descobrir o que é a tela. */
+    return <BloqueioPlano titulo="Despesas" descricao="Lance aluguel, luz, produtos e pró-labore uma vez e veja o lucro de verdade nas outras telas." />;
   }
 
   return (
@@ -167,48 +185,78 @@ export default function DespesasPage() {
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm text-ivory-muted md:text-base">
-            {expenses.length} lançamento(s) cadastrado(s)
+            {naoApurado
+              ? `Lançamentos de ${rotuloDoMes(mes)} não apurados`
+              : `${contar(resumo.lancamentos, "lançamento", "lançamentos")} em ${rotuloDoMes(mes)}`}
           </p>
           <h1 className="text-xl text-ivory md:text-3xl md:tracking-tight">Despesas</h1>
         </div>
+        {/* Caixa alta no meio da frase é convenção de inglês. O resto do painel
+            escreve "Marcar atendimento", "Adicionar produto", "Lançar
+            despesas" — este botão e o título do diálogo eram a exceção. */}
         <Button onClick={openModal}>
           <Plus size={16} />
-          Nova Despesa
+          Nova despesa
         </Button>
       </div>
 
+      {/* Com a leitura falhando, os quatro cartões dizem que não sabem — e a
+          legenda de cada um diz por quê. É a diferença que a tela não tinha:
+          "R$ 0,00 em agosto" e "não consegui ler agosto" ocupavam os mesmos
+          pixels. */}
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-4">
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-5">
           <div className="flex items-center gap-1.5">
             <CheckSquare size={12} className="text-gold-light" />
             <p className="text-[11px] uppercase tracking-wide text-ivory-muted md:text-xs">Lançamentos</p>
           </div>
-          <p className="font-display text-lg font-semibold text-ivory md:text-2xl">{expenses.length}</p>
-          <p className="text-[11px] text-ivory-muted md:text-xs">no mês atual</p>
+          <p className="font-display text-lg font-semibold text-ivory md:text-2xl">
+            {naoApurado ? NAO_APURADO : resumo.lancamentos}
+          </p>
+          {/* A legenda continua sendo o RECORTE — "em Agosto de 2026" é
+              verdade com ou sem leitura. O motivo aparece uma vez só, na linha
+              da tabela: repeti-lo nos quatro cartões transformaria a
+              explicação em ruído e empurraria a tabela para fora da tela. */}
+          <p className="text-[11px] text-ivory-muted md:text-xs">em {rotuloDoMes(mes)}</p>
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-5">
           <div className="flex items-center gap-1.5">
             <DollarSign size={12} className="text-danger" />
             <p className="text-[11px] uppercase tracking-wide text-ivory-muted md:text-xs">Total no mês</p>
           </div>
-          <p className="font-display text-lg font-semibold text-ivory md:text-2xl">{formatBRL(total)}</p>
-          <p className="text-[11px] text-ivory-muted md:text-xs">julho de 2026</p>
+          <p className="font-display text-lg font-semibold text-ivory md:text-2xl">
+            {naoApurado ? NAO_APURADO : formatBRL(total)}
+          </p>
+          <p className="text-[11px] text-ivory-muted md:text-xs">{rotuloDoMes(mes)}</p>
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-5">
           <div className="flex items-center gap-1.5">
             <Repeat size={12} className="text-gold-light" />
             <p className="text-[11px] uppercase tracking-wide text-ivory-muted md:text-xs">Recorrentes</p>
           </div>
-          <p className="font-display text-lg font-semibold text-ivory md:text-2xl">{formatBRL(recurringTotal)}</p>
-          <p className="text-[11px] text-ivory-muted md:text-xs">por mês</p>
+          <p className="font-display text-lg font-semibold text-ivory md:text-2xl">
+            {naoApurado ? NAO_APURADO : formatBRL(recurringTotal)}
+          </p>
+          <p className="text-[11px] text-ivory-muted md:text-xs">
+            {naoApurado ? `em ${rotuloDoMes(mes)}` : "por mês"}
+          </p>
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-5">
           <div className="flex items-center gap-1.5">
             <Tag size={12} className="text-gold-light" />
             <p className="text-[11px] uppercase tracking-wide text-ivory-muted md:text-xs">Maior categoria</p>
           </div>
-          <p className="font-display text-lg font-semibold text-ivory md:text-xl">{topCategory.category}</p>
-          <p className="text-[11px] text-ivory-muted md:text-xs">{formatBRL(topCategory.value)} no mês</p>
+          {/* O `—` deste cartão era o mais enganoso dos quatro: ele já é o
+              placeholder de "não houve categoria", então erro e vazio ficavam
+              literalmente indistinguíveis, sem nem a diferença entre 0 e nada. */}
+          <p className="font-display text-lg font-semibold text-ivory md:text-xl">
+            {naoApurado ? NAO_APURADO : topCategory.category}
+          </p>
+          <p className="text-[11px] text-ivory-muted md:text-xs">
+            {naoApurado
+              ? `em ${rotuloDoMes(mes)}`
+              : `${formatBRL(topCategory.value)} em ${rotuloDoMes(mes)}`}
+          </p>
         </Card>
       </div>
 
@@ -233,17 +281,26 @@ export default function DespesasPage() {
                 </td>
               </tr>
             )}
-            {status === "erro" && (
-              <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-sm text-danger md:px-6">
-                  Não foi possível carregar os lançamentos.
-                </td>
-              </tr>
-            )}
+            {/* O texto estava escrito à mão aqui, com o "ou" que o
+                `erro-de-leitura.ts` existe para eliminar: permissão e conexão
+                pedem ações diferentes, e esta era a última tela do financeiro
+                ainda perguntando isso ao dono. `LinhaDeErro` recebe o erro cru
+                e resolve — inclusive escondendo "Tentar de novo" quando
+                recarregar não pode funcionar. */}
+            {naoApurado && <LinhaDeErro oQue="os lançamentos" erro={error} colSpan={7} />}
             {status === "pronto" && sorted.length === 0 && (
               <tr>
+                {/* "ainda" valia quando a lista era o histórico inteiro. Com o
+                    recorte por mês, um mês vazio não significa que nunca houve
+                    despesa — e o dono precisa saber que está olhando um recorte,
+                    ou vai lançar de novo o que já lançou.
+                    Faltava a outra metade do contrato de estado vazio: o que
+                    FAZER para sair dele. O botão existe no topo da tela; o vazio
+                    é que não o mencionava. */}
                 <td colSpan={7} className="px-4 py-10 text-center text-sm text-ivory-muted md:px-6">
-                  Nenhuma despesa lançada ainda.
+                  Nenhuma despesa lançada em {rotuloDoMes(mes)}. Use &quot;Nova
+                  despesa&quot; para registrar aluguel, luz e fornecedores — é o
+                  que falta para o resultado do mês ser verdade.
                 </td>
               </tr>
             )}
@@ -295,8 +352,11 @@ export default function DespesasPage() {
               <td className="px-4 py-3 text-xs uppercase tracking-wide text-ivory-muted md:px-6" colSpan={5}>
                 Total do mês
               </td>
+              {/* O rodapé era o quinto zero da tela e o mais autoritário
+                  deles: "TOTAL DO MÊS R$ 0,00" fecha a tabela como se a soma
+                  tivesse sido conferida linha a linha. */}
               <td className="whitespace-nowrap px-4 py-3 text-right font-display font-semibold text-ivory">
-                {formatBRL(total)}
+                {naoApurado ? NAO_APURADO : formatBRL(total)}
               </td>
               <td className="md:px-6" />
             </tr>
@@ -307,7 +367,7 @@ export default function DespesasPage() {
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={editingId ? "Editar Despesa" : "Nova Despesa"}
+        title={editingId ? "Editar despesa" : "Nova despesa"}
         className="max-w-xl"
         footer={
           <>
@@ -403,7 +463,7 @@ export default function DespesasPage() {
               onChange={(e) => setForm((f) => ({ ...f, recurring: e.target.checked }))}
               className="h-4 w-4 rounded border-border accent-gold"
             />
-            Recorrente (repete todo mês — entra como custo fixo no DRE)
+            Recorrente (repete todo mês — entra como custo fixo no resultado)
           </label>
 
           <label className="flex flex-col gap-1 text-xs text-ivory-muted md:col-span-2">

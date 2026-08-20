@@ -1,3 +1,5 @@
+import { readFileSync, readdirSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   calcularEventoFinanceiro,
@@ -5,6 +7,7 @@ import {
   SEM_TAXA,
   taxaDoMetodo,
   type PaymentFees,
+  decidirEfeito,
 } from "../financial-events";
 
 /**
@@ -205,10 +208,26 @@ describe("atendimento concluído sem informar o método", () => {
   });
 });
 
-describe("o histórico não muda quando o cadastro muda", () => {
+describe("o CÁLCULO não muda quando o cadastro muda", () => {
   /* Este é o critério de aceite que originou o Bloco 1. Antes, a comissão era
    * lida de `staff.commissionPct` a cada leitura do DRE: renegociar em setembro
-   * reescrevia agosto. */
+   * reescrevia agosto.
+   *
+   * ⚠️ ATENÇÃO AO QUE ESTE BLOCO PROVA — E AO QUE NÃO PROVA.
+   *
+   * Ele se chamava "o histórico não muda quando o cadastro muda" e chama
+   * `calcularEventoFinanceiro` duas vezes, comparando duas variáveis locais.
+   * Isso demonstra que uma função pura não muta o objeto que já devolveu — o
+   * que é verdade trivial em JavaScript. Sobre o DOCUMENTO GRAVADO, que é o que
+   * o título antigo afirmava, ele nunca disse nada.
+   *
+   * O gate de 20/08 mediu o contrário na bancada com trigger real:
+   * `completed → no_show → completed` recriava `comissao_{bookingId}` lendo o
+   * cadastro de hoje, e R$ 20,00 viraram R$ 30,00 num atendimento passado. Um
+   * critério de aceite de bloco inteiro estava apoiado num teste que não
+   * testava o que dizia.
+   *
+   * O que o título prometia agora vive em `p1-7-comissao-do-ciclo.test.ts`. */
 
   it("alterar a comissão do barbeiro não altera o atendimento já concluído", () => {
     // Dia 1 — Rômulo a 40%, atendimento de R$ 50.
@@ -268,5 +287,124 @@ describe("o histórico não muda quando o cadastro muda", () => {
       padraoPct: 40, fees: TAXAS,
     };
     expect(calcularEventoFinanceiro(entrada)).toEqual(calcularEventoFinanceiro(entrada));
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* Gate A2 — o fato financeiro consolidado não pode ser destruído      */
+/* ------------------------------------------------------------------ */
+
+describe("o que uma mudança de status faz com o fato financeiro", () => {
+  it("concluir materializa", () => {
+    expect(decidirEfeito("confirmed", "completed")).toBe("materializar");
+    expect(decidirEfeito("confirmed_by_client", "completed")).toBe("materializar");
+    expect(decidirEfeito("no_show", "completed")).toBe("materializar");
+    expect(decidirEfeito("pending_payment", "completed")).toBe("materializar");
+  });
+
+  it("desfazer a conclusão para um estado operacional reverte", () => {
+    /* É a correção de quem concluiu a reserva errada: o atendimento não
+     * aconteceu, então comissão e pagamento têm de sumir junto. */
+    expect(decidirEfeito("completed", "confirmed")).toBe("reverter");
+    expect(decidirEfeito("completed", "confirmed_by_client")).toBe("reverter");
+    expect(decidirEfeito("completed", "pending_payment")).toBe("reverter");
+  });
+
+  it("marcar falta depois de concluir reverte — não houve receita", () => {
+    expect(decidirEfeito("completed", "no_show")).toBe("reverter");
+  });
+
+  it("CANCELAR um atendimento concluído NÃO destrói o fato", () => {
+    /* O defeito que isto fecha: `cancelBooking` não checava status, o cliente
+     * cancelava a própria reserva já atendida, e o gatilho apagava
+     * `payments` e `commissions`. O corte aconteceu, o dinheiro entrou na
+     * gaveta, e a receita sumia do DRE sem tela onde reencontrá-la.
+     *
+     * Devolver valor de atendimento realizado é ESTORNO — evento novo, não
+     * remoção do anterior. Histórico financeiro se corrige somando. */
+    expect(decidirEfeito("completed", "cancelled_by_client")).toBe("nada");
+    expect(decidirEfeito("completed", "cancelled_by_shop")).toBe("nada");
+    expect(decidirEfeito("completed", "expired")).toBe("nada");
+  });
+
+  it("mudança entre estados abertos não mexe em nada", () => {
+    expect(decidirEfeito("confirmed", "cancelled_by_client")).toBe("nada");
+    expect(decidirEfeito("fit_in_requested", "confirmed")).toBe("nada");
+    expect(decidirEfeito("confirmed", "no_show")).toBe("nada");
+  });
+
+  it("reprocessamento do gatilho com o mesmo status não faz nada", () => {
+    /* O Firestore reexecuta o gatilho em retry. `completed` → `completed` não
+     * pode reverter nem duplicar. */
+    expect(decidirEfeito("completed", "completed")).toBe("nada");
+    expect(decidirEfeito("confirmed", "confirmed")).toBe("nada");
+  });
+
+  it("status ausente não derruba a decisão", () => {
+    expect(decidirEfeito(undefined, "completed")).toBe("materializar");
+    expect(decidirEfeito("completed", undefined)).toBe("nada");
+    expect(decidirEfeito(undefined, undefined)).toBe("nada");
+  });
+});
+
+/**
+ * Toda escrita em `payments` diz de onde o dinheiro veio.
+ *
+ * Estrutural de propósito, e pelo mesmo motivo de `autorizacao-functions`: o
+ * campo faltando não quebra nenhum teste de valor, não aparece na suíte, e só
+ * é descoberto quando alguém abre o documento gravado — que foi exatamente
+ * como este defeito apareceu, durante a verificação em tela do estorno.
+ *
+ * `PaymentDoc.origin` existe desde G1.6 e é opcional só por causa dos
+ * documentos anteriores a ela. O gatilho de conclusão de atendimento nunca o
+ * gravou: o serviço, maior fonte de receita do produto, nascia sem origem. A
+ * Rodada 3.2 precisa separar receita por origem, e teria contado errado.
+ */
+describe("todo pagamento nasce dizendo de onde veio", () => {
+  const SRC = resolve(__dirname, "..");
+
+  /**
+   * Quem ESCREVE na coleção `payments`.
+   *
+   * A distinção entre ler e escrever importa: `refunds.ts` abre o pagamento
+   * original para conferir o saldo e nunca o altera. Uma primeira versão deste
+   * teste procurava só pela coleção e acusou esse arquivo — o teste estava
+   * errado, não o código.
+   */
+  function arquivosQueEscrevemPagamento(): string[] {
+    return readdirSync(SRC)
+      .filter((f) => f.endsWith(".ts"))
+      .filter((f) => {
+        const t = readFileSync(resolve(SRC, f), "utf8");
+        /* A referência aparece DENTRO de um `set(...)`, ou é uma ref nomeada
+         * que recebe `.set(`. Os dois padrões que o repositório usa hoje. */
+        return (
+          /set\([\s\S]{0,160}collection\("payments"\)/.test(t) ||
+          /pagamentoRef\.set\(/.test(t)
+        );
+      });
+  }
+
+  it("encontra os arquivos que gravam pagamento", () => {
+    /* Se a busca parar de achar, o teste abaixo passaria sobre conjunto vazio. */
+    expect(arquivosQueEscrevemPagamento().length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("cada um grava `origin`, direta ou indiretamente", () => {
+    for (const arquivo of arquivosQueEscrevemPagamento()) {
+      const texto = readFileSync(resolve(SRC, arquivo), "utf8");
+      /* Ou monta o documento pelo helper — que já grava `origin` —, ou escreve
+       * o campo à mão. Qualquer terceira forma é a que este teste recusa. */
+      const pelaFuncao = /documentoDePagamento\(/.test(texto);
+      const naMao = /origin:\s*"(servico|produto|mensalidade)"/.test(texto);
+      expect(pelaFuncao || naMao, `${arquivo} grava payments sem definir origin`).toBe(true);
+    }
+  });
+
+  it("a conclusão de atendimento grava `origin: \"servico\"`", () => {
+    /* O caso concreto que estava errado. Apontado pelo nome para não depender
+     * da varredura acima continuar encontrando o arquivo. */
+    const texto = readFileSync(resolve(SRC, "financial-events.ts"), "utf8");
+    expect(texto).toMatch(/origin:\s*"servico"/);
   });
 });

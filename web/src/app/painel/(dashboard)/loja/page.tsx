@@ -7,12 +7,19 @@ import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
 import { Modal } from "@/components/ui/modal";
 import { formatBRL } from "@/lib/format";
+import { contar } from "@/lib/plural";
 import { useProducts } from "@/lib/db/use-shop-data";
 import { useFeature, useTenant } from "@/lib/tenant-context";
 import { RecursoBloqueado } from "@/components/recurso-bloqueado";
+import { VenderProduto } from "@/components/vender-produto";
+import { EntradaDeEstoque } from "@/components/entrada-de-estoque";
+import { DesfazerVenda } from "@/components/desfazer-venda";
 import { createDoc } from "@/lib/db/repository";
+import type { Doc } from "@/lib/db/repository";
+import type { ProductDoc } from "@/lib/domain";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
-import { commissionSplit, splitSale, taxRatePct } from "@/lib/business-rules";
+import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
+import { splitSale } from "@/lib/business-rules";
 
 /* `profitPct` é margem sobre o PREÇO de venda (preço = custo ÷ (1 − m)), não
  * markup sobre o custo. 100% seria divisão por zero: limitamos e avisamos, em
@@ -46,19 +53,28 @@ export default function LojaPage() {
 }
 
 function LojaConteudo() {
-  const { id: barbershopId } = useTenant();
-  const { items: products, status } = useProducts();
+  const { id: barbershopId, policies } = useTenant();
+  /* P1-7 · do tenant, não da constante da plataforma.
+   *
+   * A tela de Equipe já lia daqui; a Loja continuava anunciando os 40% padrão
+   * a quem tinha combinado outro. A Rodada 3.1 tornou isso indefensável: a
+   * comissão de produto agora nasce congelada com o percentual DO BARBEIRO, e
+   * o simulador estava prometendo um número que venda nenhuma produzia. */
+  const padraoDaCasa = policies.commissionSplit.barberPct;
+  const impostoDaCasa = policies.taxRatePct;
+  const { items: products, status, error } = useProducts();
   const [simPrice, setSimPrice] = useState(45);
   const [simCost, setSimCost] = useState(18);
   const [modalOpen, setModalOpen] = useState(false);
+  const [aReceber, setAReceber] = useState<Doc<ProductDoc> | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [formError, setFormError] = useState<string | null>(null);
 
   const lowStock = products.filter((p) => p.stock < p.minStock);
 
   const simSplit = useMemo(
-    () => splitSale({ price: simPrice, cost: simCost }),
-    [simPrice, simCost]
+    () => splitSale({ price: simPrice, cost: simCost, barberPct: padraoDaCasa, taxPct: impostoDaCasa }),
+    [simPrice, simCost, padraoDaCasa, impostoDaCasa]
   );
 
   const preview = useMemo(() => {
@@ -67,9 +83,9 @@ function LojaConteudo() {
     const profitPct = Math.min(Math.max(rawPct, 0), MAX_PROFIT_PCT);
     const clamped = rawPct !== profitPct;
     const price = cost / (1 - profitPct / 100);
-    const split = splitSale({ price, cost });
+    const split = splitSale({ price, cost, barberPct: padraoDaCasa, taxPct: impostoDaCasa });
     return { cost, price, profitPct, clamped, ...split, netProfit: split.shopProfit };
-  }, [form.cost, form.profitPct]);
+  }, [form.cost, form.profitPct, padraoDaCasa, impostoDaCasa]);
 
   function openModal() {
     setForm(emptyForm);
@@ -114,12 +130,26 @@ function LojaConteudo() {
         </Button>
       </div>
 
+      {/* G1 · vender vem ANTES do catálogo.
+          O dono abre a Loja com alguém no balcão esperando, não para conferir
+          margem. Cadastrar produto é tarefa de quando a caixa chega; vender é
+          o gesto do dia — e o que ele faz primeiro precisa estar em cima. */}
+      <VenderProduto />
+
+      {/* D23 · logo abaixo de vender, porque é onde o erro é percebido.
+          Quem registrou a venda errada descobre segundos depois, ainda com o
+          cliente na frente — e não no fechamento do mês. */}
+      <DesfazerVenda />
+
+      <EntradaDeEstoque produto={aReceber} aoFechar={() => setAReceber(null)} />
+
       {lowStock.length > 0 && (
         <Card className="flex items-start gap-3 border-danger/30 md:p-5">
           <AlertTriangle size={18} className="mt-0.5 shrink-0 text-danger" />
           <div>
             <p className="text-sm text-ivory md:text-base">
-              {lowStock.length} produto(s) abaixo do estoque mínimo
+              {contar(lowStock.length, "produto", "produtos")} abaixo do estoque
+              mínimo
             </p>
             <p className="text-xs text-ivory-muted md:text-sm">
               {lowStock.map((p) => p.name).join(", ")}
@@ -133,7 +163,8 @@ function LojaConteudo() {
           <h2 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:mb-3 md:text-sm">
             <Package size={12} /> Produtos
           </h2>
-          {status === "carregando" && <LoadingRows rows={3} />}
+          {status === "carregando" && <LoadingRows rows={3} oQue="seus produtos" />}
+          {status === "erro" && <ErroAoCarregar oQue="seus produtos" erro={error} />}
           {status === "pronto" && products.length === 0 && (
             <EmptyState
               icon={Package}
@@ -160,9 +191,21 @@ function LojaConteudo() {
                       margem {formatBRL(margin)}
                     </p>
                   </div>
-                  <Pill tone={belowMin ? "danger" : "neutral"}>
-                    {p.stock} un.
-                  </Pill>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Pill tone={belowMin ? "danger" : "neutral"}>
+                      {p.stock} un.
+                    </Pill>
+                    {/* G1.5 · a entrada mora AQUI, ao lado do estoque.
+                        É onde o dono olha quando a caixa chega — e onde ele
+                        antes editava o número na mão, sem custo nem data. */}
+                    <Button
+                      variant="secondary"
+                      onClick={() => setAReceber(p)}
+                      className="min-h-9 px-3 text-xs"
+                    >
+                      Dar entrada
+                    </Button>
+                  </div>
                 </div>
               );
             })}
@@ -205,15 +248,20 @@ function LojaConteudo() {
             </label>
             <div className="flex items-center justify-between border-t border-border pt-3 text-sm md:text-base">
               <span className="text-ivory-muted">
-                Comissão do profissional ({commissionSplit.barberPct}% do lucro)
+                Comissão do profissional ({padraoDaCasa}% do lucro)
               </span>
               <span className="font-display font-semibold text-gold-light md:text-lg">
                 {formatBRL(simSplit.commission)}
               </span>
             </div>
+            {/* O simulador projeta com o padrão da casa, mas a comissão real
+                nasce com o percentual de quem vendeu. Dizer isso aqui custa
+                uma linha; deixar o dono descobrir no acerto custa a confiança
+                dele na tela. */}
             <p className="text-xs text-ivory-muted md:text-sm">
-              Rateio automático sobre o lucro da venda, não sobre o preço
-              cheio.
+              Rateio sobre o lucro da venda, não sobre o preço cheio. Usa o
+              padrão da casa — quem tem percentual próprio na Equipe recebe o
+              dele.
             </p>
           </Card>
         </section>
@@ -222,14 +270,19 @@ function LojaConteudo() {
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        title="Novo Produto"
+        /* Três nomes para um gesto só: o botão dizia "Adicionar produto", o
+           diálogo abria como "Novo Produto" (caixa alta de inglês) e o botão
+           de confirmar dizia "Cadastrar produto". O dono não sabe se são a
+           mesma coisa — e no diálogo de cadastro ele não deveria precisar
+           pensar nisso. */
+        title="Adicionar produto"
         className="max-w-xl"
         footer={
           <>
             <Button variant="ghost" onClick={() => setModalOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={saveProduct}>Cadastrar produto</Button>
+            <Button onClick={saveProduct}>Adicionar produto</Button>
           </>
         }
       >
@@ -305,17 +358,21 @@ function LojaConteudo() {
             <Row label="Preço de venda" value={formatBRL(preview.price)} strong />
             <Row label="Lucro bruto" value={formatBRL(preview.grossProfit)} />
             <Row
-              label={`Comissão do profissional (${commissionSplit.barberPct}%)`}
+              label={`Comissão do profissional (${padraoDaCasa}%)`}
               value={`− ${formatBRL(preview.commission)}`}
               tone="danger"
             />
             <Row
-              label={`Imposto (${taxRatePct}%)`}
+              label={`Imposto (${impostoDaCasa}%)`}
               value={`− ${formatBRL(preview.tax)}`}
               tone="danger"
             />
+            {/* A sobra é derivada do que ficou, não de um `shopPct` guardado à
+                parte: os dois números sairiam do mesmo lugar e poderiam
+                divergir se o percentual do barbeiro viesse do tenant e o da
+                casa não. */}
             <Row
-              label={`Sobra da barbearia (${commissionSplit.shopPct}% − imposto)`}
+              label={`Sobra da barbearia (${100 - padraoDaCasa}% − imposto)`}
               value={formatBRL(preview.shopProfit)}
               tone="success"
               strong

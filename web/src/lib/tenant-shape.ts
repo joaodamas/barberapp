@@ -71,6 +71,12 @@ export function toTenant(id: string, data: Record<string, unknown>): Tenant {
      * precisar de ataque nenhum. Agora a ausência resolve pelo plano contratado
      * e só o campo explícito sobrepõe. */
     features: { ...featuresForPlan(plan), ...features },
+    /* Só entra se for objeto de verdade. Quem decide o que ele libera é
+     * `acessoDaBarbearia`, e só para cima — ver `Tenant.featuresExtras`. */
+    featuresExtras:
+      data.featuresExtras && typeof data.featuresExtras === "object"
+        ? (data.featuresExtras as Partial<Tenant["features"]>)
+        : undefined,
     schedule: { ...DEFAULT_SCHEDULE, ...((data.schedule ?? {}) as object) },
     trial: toTrial(data.trial),
     onboarding: toOnboarding(data.onboarding),

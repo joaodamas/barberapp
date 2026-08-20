@@ -3,7 +3,6 @@ import {
   atendimentosAtrasados,
   avaliarOperacao,
   desfechosEsquecidos,
-  encaixesAguardando,
   estaAtrasado,
   fechamentosPendentes,
   LIMITE_CRITICOS,
@@ -61,6 +60,35 @@ describe("fechamento pendente", () => {
     ).toHaveLength(0);
   });
 
+  it("D2 · atendimento coberto pelo plano NÃO é pendência", () => {
+    /* O caso 3 da régua: concluído sem pagamento não pode virar cobrança
+     * automática de informação. O servidor não cria `PaymentDoc` de propósito —
+     * a mensalidade já pagou.
+     *
+     * Verificado na tela em 18/08: o produto abria um alerta CRÍTICO pedindo
+     * "Registrar pagamento" de dinheiro inexistente, justificando com "a taxa
+     * da maquininha entra como zero" sobre uma transação que nunca passou por
+     * maquininha nenhuma. */
+    const coberto = bk({ id: "1", paymentMethod: null }) as Doc<BookingDoc>;
+    (coberto as { cobertura?: unknown }).cobertura = {
+      tipo: "plano", subscriptionId: "s1", planId: "ilimitado",
+      planName: "Ilimitado", competencia: "2026-08",
+      valorCoberto: 50, usoNaCompetencia: 1, cota: null,
+    };
+    expect(fechamentosPendentes([coberto])).toHaveLength(0);
+  });
+
+  it("D2 · avulso sem método CONTINUA sendo pendência", () => {
+    /* A guarda nova não pode engolir o caso original. Cobertura `avulso` é
+     * exatamente o corte que o plano NÃO cobriu — cota esgotada, por exemplo —
+     * e aí a cobrança é real e a forma precisa ser informada. */
+    const avulso = bk({ id: "2", paymentMethod: null }) as Doc<BookingDoc>;
+    (avulso as { cobertura?: unknown }).cobertura = {
+      tipo: "avulso", motivo: "cota_esgotada", valorCoberto: 0,
+    };
+    expect(fechamentosPendentes([avulso])).toHaveLength(1);
+  });
+
   it("morre quando o pagamento é registrado, não por descarte", () => {
     const antes = fechamentosPendentes([bk({ id: "1", paymentMethod: null })]);
     const depois = fechamentosPendentes([bk({ id: "1", paymentMethod: "debit" })]);
@@ -69,8 +97,19 @@ describe("fechamento pendente", () => {
   });
 
   it("a ação acontece na própria tela, e o motor só declara a intenção", () => {
+    /* R1 · a intenção mudou de `fecharAtendimento` para `corrigirPagamento`, e
+     * a troca é o conserto do vazamento — não uma renomeação.
+     *
+     * O card aponta para um atendimento JÁ CONCLUÍDO. Mandar reabrir o modal de
+     * conclusão fazia a tela gravar `bookings.paymentMethod` e mais nada: o card
+     * sumia porque `!b.paymentMethod` virava falso, e o `PaymentDoc` — de onde
+     * saem as seis leituras de dinheiro — ficava com método nulo e taxa zero
+     * para sempre.
+     *
+     * Este teste afirmava a intenção que produzia o vazamento. Ele estava verde
+     * e a operação estava errada. */
     const [item] = fechamentosPendentes([bk({ id: "abc", paymentMethod: null })]);
-    expect(item.intent).toEqual({ kind: "fecharAtendimento", bookingId: "abc" });
+    expect(item.intent).toEqual({ kind: "corrigirPagamento", bookingId: "abc" });
   });
 });
 
@@ -132,24 +171,6 @@ describe("sem serviço cadastrado", () => {
         services: [sv({ id: "1", active: false })], statusConsulta: "pronto",
       })
     ).toHaveLength(1);
-  });
-});
-
-describe("encaixe aguardando", () => {
-  it("agrupa vários pedidos num item só", () => {
-    const itens = encaixesAguardando([
-      bk({ id: "1", status: "fit_in_requested" }),
-      bk({ id: "2", status: "fit_in_requested" }),
-    ]);
-    expect(itens).toHaveLength(1);
-    expect(itens[0].title).toContain("2");
-  });
-
-  it("nomeia o cliente quando é um só", () => {
-    const [item] = encaixesAguardando([
-      bk({ id: "1", status: "fit_in_requested", clientName: "Pedro" }),
-    ]);
-    expect(item.title).toContain("Pedro");
   });
 });
 
@@ -285,14 +306,13 @@ describe("motor", () => {
     const itens = avaliarOperacao(operacao({
       bookings: [
         bk({ id: "1", paymentMethod: null }),            // crítico, urgência 1
-        bk({ id: "2", status: "fit_in_requested" }),     // crítico, urgência 2
         bk({ id: "3", status: "confirmed", time: "09:00" }), // crítico, urgência 2
       ],
       services: [],                                      // crítico, urgência 1
       payments: [pg({ id: "p1" })], fees: SEM_TAXA,      // crítico, urgência 3
       agora: new Date("2026-08-11T10:20:00"),
     }));
-    expect(itens.map((i) => i.urgency)).toEqual([1, 1, 2, 2, 3]);
+    expect(itens.map((i) => i.urgency)).toEqual([1, 1, 2, 3]);
   });
 
   it("não repete o mesmo problema", () => {
@@ -327,14 +347,13 @@ describe("motor", () => {
     const itens = avaliarOperacao(operacao({
       bookings: [
         bk({ id: "1", paymentMethod: null }),
-        bk({ id: "2", status: "fit_in_requested" }),
         bk({ id: "3", status: "confirmed", paymentMethod: null }),
       ],
       services: [],
       payments: [pg({ id: "p1" })], fees: SEM_TAXA,
       agora: new Date("2026-08-11T10:20:00"),
     }));
-    expect(itens.length).toBeGreaterThan(3);
+    expect(itens.length).toBeGreaterThan(2);
     for (const i of itens) {
       expect(i.title.length, i.id).toBeGreaterThan(0);
       expect(i.reason.length, i.id).toBeGreaterThan(0);
@@ -359,7 +378,6 @@ describe("motor", () => {
     const itens = avaliarOperacao(operacao({
       bookings: [
         bk({ id: "1", paymentMethod: null }),
-        bk({ id: "2", status: "fit_in_requested" }),
         bk({ id: "3", status: "confirmed", paymentMethod: null }),
       ],
       services: [],

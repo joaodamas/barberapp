@@ -73,15 +73,26 @@ export const TEMPLATES = {
     category: "UTILITY",
     language: "pt_BR",
     audience: "cliente",
-    trigger: "Reserva criada (pagamento aprovado ou opção 'pagar no salão').",
+    trigger: "Reserva criada. O acerto é no salão — não há pagamento online.",
+    /* A régua de cancelamento saiu do corpo em 17/08 (D14).
+     *
+     * Ela prometia "100% de devolução" e "taxa de cancelamento" a quem nunca
+     * pagou nada: `paymentMethod` nasce nulo (booking.ts:237) e só é conhecido
+     * no fechamento, e `refundAmountFor` devolve `sem_pagamento` justamente
+     * nesse caso. Prometer devolução de dinheiro não recebido é a promessa mais
+     * cara do catálogo — e esta é a única mensagem que o produto JÁ envia.
+     *
+     * Os números 24h/6h eram um segundo problema em cima do primeiro: estavam
+     * cravados no texto enquanto `policies.cancellation` é configurável por
+     * barbearia. Quem mudasse a política teria a antiga saindo por WhatsApp. */
     body:
       "Olá {{1}}! Sua reserva na {{2}} está confirmada.\n\n" +
       "Serviço: {{3}}\n" +
       "Quando: {{4}} às {{5}}\n" +
       "Valor: {{6}} ({{7}})\n" +
       "Endereço: {{8}}\n\n" +
-      "Cancelamento até 24h antes tem 100% de devolução. Entre 24h e 6h, " +
-      "aplicamos a taxa de cancelamento. Te esperamos!",
+      "O acerto é feito na barbearia, no dia do atendimento. Se não puder vir, " +
+      "avise por aqui com antecedência para liberarmos o horário. Te esperamos!",
     params: [
       "primeiroNome",
       "nomeBarbearia",
@@ -99,7 +110,11 @@ export const TEMPLATES = {
       "domingo, 02 de agosto",
       "16:30",
       "R$ 90,00",
-      "pago via Pix",
+      /* `formaPagamento(null)` — é o que sai de verdade. A reserva nasce com
+       * `paymentMethod: null` e o gatilho dispara na criação, então nenhuma
+       * confirmação pode dizer "pago". O exemplo é o que a Meta aprova como
+       * amostra canônica: ele precisa mostrar o texto real. */
+      "pagar no salão",
       "Rua das Tesouras, 120 — Centro",
     ],
   },
@@ -129,22 +144,26 @@ export const TEMPLATES = {
     language: "pt_BR",
     audience: "cliente",
     trigger: "Cancelamento confirmado (pelo cliente ou pela loja).",
+    /* O parâmetro `detalheReembolso` saiu em 17/08 (D14).
+     *
+     * Ele era texto livre num campo chamado "reembolso", com o exemplo
+     * aprovado na Meta dizendo "em até 5 dias úteis na mesma forma de
+     * pagamento" — prazo de bandeira de cartão, num produto sem captura de
+     * cartão. Quem fosse preencher copiaria o exemplo, porque é para isso que
+     * o exemplo existe.
+     *
+     * Não há reembolso porque não houve cobrança: o acerto acontece no
+     * atendimento, e uma reserva cancelada não chegou lá. A frase que entrou no
+     * lugar afirma exatamente isso — e é a informação que o cliente precisa. */
     body:
       "Olá {{1}}, sua reserva de {{2}} às {{3}} foi cancelada.\n\n" +
-      "Sobre o valor: {{4}}\n\n" +
-      "Quando quiser remarcar, é só abrir o app em {{5}} — te esperamos!",
-    params: [
-      "primeiroNome",
-      "data",
-      "hora",
-      "detalheReembolso",
-      "linkApp",
-    ],
+      "Nada foi cobrado: o acerto acontece no atendimento, na barbearia.\n\n" +
+      "Quando quiser remarcar, é só abrir o app em {{4}} — te esperamos!",
+    params: ["primeiroNome", "data", "hora", "linkApp"],
     example: [
       "João",
       "domingo, 02 de agosto",
       "16:30",
-      "Devolvemos R$ 90,00 em até 5 dias úteis na mesma forma de pagamento.",
       "https://osiqueira.jpproject.com.br",
     ],
   },
@@ -176,17 +195,25 @@ export const TEMPLATES = {
     language: "pt_BR",
     audience: "cliente",
     trigger: "Atendimento marcado como concluído no painel.",
+    /* Achado durante a correção de D14: o convite para avaliar apontava para um
+     * recurso que não existe em lugar nenhum do produto — não há nota, estrela
+     * nem review no web, nas functions ou no domínio. O link ia para `/perfil`,
+     * que mostra carimbos de fidelidade e nada mais.
+     *
+     * O cliente clicava e não achava o que fazer. É a mesma classe de D14, com
+     * uma diferença: aqui a promessa não era de dinheiro, era de voz — e quem
+     * pede opinião e não tem onde recebê-la perde mais que uma resposta. */
     body:
       "Valeu pela visita, {{1}}! 💈\n\n" +
       "Você agora tem {{2}} de {{3}} carimbos — faltam {{4}} para {{5}}.\n\n" +
-      "Se puder avaliar o atendimento em {{6}}, ajuda muito. Até a próxima!",
+      "Acompanhe seus carimbos em {{6}} — até a próxima!",
     params: [
       "primeiroNome",
       "carimbos",
       "meta",
       "faltam",
       "recompensa",
-      "linkAvaliacao",
+      "linkPerfil",
     ],
     example: [
       "João",
@@ -288,6 +315,23 @@ export const TEMPLATES = {
   /* Régua de mensalistas (cobrança)                                         */
   /* ---------------------------------------------------------------------- */
 
+  /* Todo este bloco foi reescrito em 17/08 (D14).
+   *
+   * Ele descrevia uma operação de cobrança que não existe em nenhuma camada:
+   * `subscription.ts` diz, em comentário, que "não há checkout — a contratação
+   * é humana, por WhatsApp"; a coleção `subscriptions` não é escrita por
+   * caminho nenhum (G2); e o `/planos` para onde os links apontavam virou
+   * vitrine com contato da barbearia quando P0-1 removeu o checkout falso.
+   *
+   * O que mudou, e o que NÃO mudou: o valor, o vencimento e a consequência
+   * continuam na mensagem — o mensalista precisa saber quanto deve, quando, e
+   * o que acontece se não pagar. O que saiu foi só o MEIO: "pague pelo link"
+   * virou "acerte com a barbearia", que é como o dinheiro realmente anda hoje.
+   *
+   * `linkPagamento` virou `linkPlanos` em todo o bloco. O nome do parâmetro é
+   * documentação: quem fosse preencher iria procurar um link de pagamento que
+   * não existe, e colocar ali o que tivesse à mão. */
+
   mensalidade_aviso: {
     name: "mensalidade_aviso",
     category: "UTILITY",
@@ -296,8 +340,9 @@ export const TEMPLATES = {
     trigger: "D-5, D-3 e D-1 do vencimento da mensalidade.",
     body:
       "Oi {{1}}! Sua mensalidade do plano {{2}} ({{3}}) vence em {{4}}.\n\n" +
-      "Pode pagar pelo link {{5}} — leva menos de um minuto.",
-    params: ["primeiroNome", "nomePlano", "valor", "vencimento", "linkPagamento"],
+      "O acerto é feito direto com a barbearia — é só responder por aqui. " +
+      "Os detalhes do plano ficam em {{5}}, quando quiser conferir.",
+    params: ["primeiroNome", "nomePlano", "valor", "vencimento", "linkPlanos"],
     example: [
       "João",
       "Ilimitado",
@@ -321,7 +366,7 @@ export const TEMPLATES = {
       "João",
       "Ilimitado",
       "R$ 149,00",
-      "A cobrança automática no cartão será processada hoje — não precisa fazer nada.",
+      "O acerto é feito direto na barbearia — é só responder por aqui para combinar.",
     ],
   },
 
@@ -334,8 +379,9 @@ export const TEMPLATES = {
     body:
       "Oi {{1}}, sua mensalidade do plano {{2}} ({{3}}) venceu em {{4}} e ainda " +
       "consta em aberto.\n\n" +
-      "Regularize pelo link {{5}} para manter seus benefícios ativos.",
-    params: ["primeiroNome", "nomePlano", "valor", "vencimento", "linkPagamento"],
+      "Para manter seus benefícios ativos, é só responder por aqui e acertar " +
+      "com a barbearia. O plano está em {{5}}, se quiser conferir os detalhes.",
+    params: ["primeiroNome", "nomePlano", "valor", "vencimento", "linkPlanos"],
     example: [
       "João",
       "Ilimitado",
@@ -355,8 +401,9 @@ export const TEMPLATES = {
       "Oi {{1}}, este é o último aviso sobre a mensalidade do plano {{2}} " +
       "({{3}}), vencida em {{4}}.\n\n" +
       "Se não for regularizada, seu plano será suspenso e os benefícios ficam " +
-      "pausados até o pagamento. Você resolve agora pelo link {{5}} e mantém tudo ativo.",
-    params: ["primeiroNome", "nomePlano", "valor", "vencimento", "linkPagamento"],
+      "pausados até o acerto. Responda por aqui e a gente resolve agora — o " +
+      "plano está em {{5}}, se quiser conferir os detalhes.",
+    params: ["primeiroNome", "nomePlano", "valor", "vencimento", "linkPlanos"],
     example: [
       "João",
       "Ilimitado",
@@ -467,21 +514,30 @@ export const TEMPLATES = {
     category: "UTILITY",
     language: "pt_BR",
     audience: "cliente",
+    /* Estado `pending_payment` do domínio. Nenhum caminho do produto o produz:
+     * `createBooking` recusa `paymentOrigin` diferente de `in_person`
+     * (booking.ts:68) e grava `confirmed`.
+     *
+     * O template ficou, e o texto mudou. Tirá-lo exigiria ressubmissão na Meta
+     * e enfraqueceria o teste que garante uma mensagem para cada estado do
+     * domínio — enquanto o estado existir no tipo, ele precisa de resposta. O
+     * que não podia ficar era o corpo: ele mandava o cliente pagar online, com
+     * cronômetro, num produto que recusa pagamento online na porta de entrada.
+     * Um template dorme de graça; um template mentiroso dorme armado. */
     trigger:
-      "Reserva criada com pagamento antecipado. O horário fica em espera até o prazo do hold.",
+      "Estado `pending_payment`. Hoje nenhum caminho do produto o produz — " +
+      "booking.ts:68 recusa pagamento antecipado e a reserva nasce `confirmed`.",
     body:
-      "Oi {{1}}, separei seu horário de {{2}} às {{3}} ({{4}}).\n\n" +
-      "Para confirmar, finalize o pagamento de {{5}} em até {{6}} minutos — " +
-      "depois disso o horário volta para a agenda. É só abrir {{7}} e concluir.",
-    params: ["primeiroNome", "data", "hora", "servicos", "valor", "minutos", "linkPagamento"],
+      "Oi {{1}}, recebemos seu pedido de horário para {{2}} às {{3}} ({{4}}).\n\n" +
+      "Ele ainda não está confirmado. Assim que a {{5}} confirmar, você recebe " +
+      "o aviso por aqui — e o acerto é feito na barbearia, no dia do atendimento.",
+    params: ["primeiroNome", "data", "hora", "servicos", "nomeBarbearia"],
     example: [
       "João",
       "segunda, 03 de agosto",
       "16:30",
       "Corte + barba",
-      "R$ 90,00",
-      "15",
-      "https://osiqueira.jpproject.com.br/reservas",
+      "O Siqueira Barbearia",
     ],
   },
 
@@ -531,8 +587,20 @@ export const TEMPLATES = {
     category: "UTILITY",
     language: "pt_BR",
     audience: "cliente",
+    /* Este FICA, e é a contraprova da régua de D14.
+     *
+     * O produto não move dinheiro; uma pessoa move. A barbearia recebeu em mãos
+     * e pode devolver em mãos — avisar o cliente disso é verdadeiro e útil. O
+     * que era falso estava só no exemplo: "a mesma chave usada no pagamento"
+     * descrevia uma reversão automática sobre o instrumento original, que exige
+     * o gateway que não existe.
+     *
+     * Se a correção de D14 tivesse sido "apagar tudo que fala de dinheiro",
+     * este template teria caído junto — e a barbearia perderia a única forma de
+     * registrar por escrito uma devolução que ela de fato fez. */
     trigger:
-      "Estorno efetivado. O PRD §6 exige comunicar o prazo — Pix cai rápido, cartão segue a bandeira.",
+      "Devolução feita pela barbearia. O PRD §6 exige comunicar o prazo — e " +
+      "quem devolve é uma pessoa, então o prazo é o que ela combinou.",
     body:
       "Oi {{1}}, o valor de {{2}} referente à reserva de {{3}} foi devolvido.\n\n" +
       "Forma: {{4}}\n" +
@@ -543,7 +611,7 @@ export const TEMPLATES = {
       "João",
       "R$ 67,50",
       "domingo, 02 de agosto",
-      "Pix na mesma chave usada no pagamento",
+      "Pix enviado pela barbearia para a chave que você informar",
       "até 1 dia útil",
     ],
   },
@@ -646,15 +714,22 @@ export const TEMPLATES = {
     category: "UTILITY",
     language: "pt_BR",
     audience: "cliente",
-    trigger: "Assinatura criada e primeira cobrança aprovada.",
+    /* "próxima cobrança" → "próximo vencimento" em todo o ciclo (D14).
+     *
+     * A diferença não é de estilo. "Cobrança" diz que alguém vai debitar; num
+     * produto sem cobrança automática, quem precisa agir é o cliente, e ele fica
+     * esperando um débito que nunca vem — até o plano ser suspenso por uma
+     * mensalidade que ele achou que estava paga. "Vencimento" diz a data e
+     * devolve a ação para quem a tem. */
+    trigger: "Plano ativado pela barbearia, com a primeira mensalidade acertada.",
     body:
       "Bem-vindo ao clube, {{1}}! Seu plano {{2}} está ativo na {{3}}.\n\n" +
       "O que inclui: {{4}}\n" +
-      "Valor: {{5}}/mês · próxima cobrança em {{6}}\n\n" +
+      "Valor: {{5}}/mês · próximo vencimento em {{6}}\n\n" +
       "Já pode agendar usando o plano em {{7}} — bom corte!",
     params: [
       "primeiroNome", "nomePlano", "nomeBarbearia", "beneficios",
-      "valor", "proximaCobranca", "linkApp",
+      "valor", "proximoVencimento", "linkApp",
     ],
     example: [
       "João",
@@ -672,12 +747,12 @@ export const TEMPLATES = {
     category: "UTILITY",
     language: "pt_BR",
     audience: "cliente",
-    trigger: "Cobrança recorrente aprovada.",
+    trigger: "Mensalidade registrada como paga pela barbearia.",
     body:
       "Recebemos, {{1}}! Sua mensalidade do plano {{2}} ({{3}}) foi paga.\n\n" +
-      "Próxima cobrança: {{4}}\n\n" +
+      "Próximo vencimento: {{4}}\n\n" +
       "Seus benefícios seguem ativos. Bom corte!",
-    params: ["primeiroNome", "nomePlano", "valor", "proximaCobranca"],
+    params: ["primeiroNome", "nomePlano", "valor", "proximoVencimento"],
     example: ["João", "Corte ilimitado", "R$ 149,00", "05/09"],
   },
 
@@ -691,8 +766,9 @@ export const TEMPLATES = {
       "Oi {{1}}, seu plano {{2}} ficou suspenso porque a mensalidade de {{3}} " +
       "segue em aberto.\n\n" +
       "Você continua podendo agendar normalmente, pagando por atendimento. " +
-      "Assim que regularizar em {{4}}, os benefícios voltam na hora.",
-    params: ["primeiroNome", "nomePlano", "vencimento", "linkPagamento"],
+      "Assim que acertar com a barbearia, os benefícios voltam na hora — o " +
+      "plano está em {{4}}, se quiser conferir.",
+    params: ["primeiroNome", "nomePlano", "vencimento", "linkPlanos"],
     example: [
       "João",
       "Corte ilimitado",
@@ -706,12 +782,12 @@ export const TEMPLATES = {
     category: "UTILITY",
     language: "pt_BR",
     audience: "cliente",
-    trigger: "Mensalista regularizou o pagamento — reativação imediata (PRD §8).",
+    trigger: "Mensalista acertou a mensalidade — reativação imediata (PRD §8).",
     body:
       "Tudo certo, {{1}}! Seu plano {{2}} voltou a ficar ativo na {{3}}.\n\n" +
-      "Próxima cobrança: {{4}}\n\n" +
+      "Próximo vencimento: {{4}}\n\n" +
       "Pode agendar usando o plano normalmente em {{5}} — bom corte!",
-    params: ["primeiroNome", "nomePlano", "nomeBarbearia", "proximaCobranca", "linkApp"],
+    params: ["primeiroNome", "nomePlano", "nomeBarbearia", "proximoVencimento", "linkApp"],
     example: [
       "João",
       "Corte ilimitado",
@@ -732,7 +808,8 @@ export const TEMPLATES = {
       "Oi {{1}}, seu plano {{2}} foi cancelado, como você pediu.\n\n" +
       "Ele continua valendo até {{3}} — até lá seus benefícios seguem normais. " +
       "Depois disso, os atendimentos voltam a ser cobrados no avulso.\n\n" +
-      "Se mudar de ideia, é só reativar em {{4}} quando quiser.",
+      "Se mudar de ideia, é só falar com a gente por aqui. Os planos ficam em " +
+      "{{4}}, quando quiser olhar.",
     params: ["primeiroNome", "nomePlano", "fimDoCiclo", "linkPlanos"],
     example: [
       "João",
@@ -766,7 +843,9 @@ export const TEMPLATES = {
       "segunda, 03 de agosto",
       "16:30",
       "R$ 90,00",
-      "pago via Pix",
+      /* Mesmo motivo do `confirmacao_reserva`: `formaPagamento(null)` na
+       * criação. O dono não pode ler "pago via Pix" e deixar de cobrar. */
+      "pagar no salão",
     ],
   },
 
@@ -808,12 +887,17 @@ export const TEMPLATES = {
     language: "pt_BR",
     audience: "barbeiro",
     sender: "plataforma",
+    /* "escolha um plano em {{5}} — leva dois minutos" descrevia autoatendimento
+     * (D14). `definirPlano` exige operador da plataforma: o dono não contrata
+     * sozinho, e a página é vitrine. Ele clicaria, não acharia botão nenhum, e
+     * perderia o dia em que precisava decidir. */
     trigger: "Faltam 3 dias para o fim do teste de 7 dias.",
     body:
       "Oi {{1}}, faltam {{2}} dias do seu teste na {{3}}.\n\n" +
       "Nesse período você já registrou {{4}} atendimento(s). Para continuar " +
-      "com tudo funcionando, escolha um plano em {{5}} — leva dois minutos e " +
-      "seus dados continuam onde estão.",
+      "com tudo funcionando, é só responder por aqui que a gente acerta o " +
+      "plano com você — seus dados continuam onde estão. Os planos estão em " +
+      "{{5}}, se quiser dar uma olhada antes.",
     params: ["primeiroNome", "diasRestantes", "nomePlataforma", "atendimentos", "linkPlanos"],
     example: ["Zé", "3", "nossa plataforma", "12", "https://app.exemplo.com.br/planos"],
   },
@@ -828,7 +912,8 @@ export const TEMPLATES = {
     body:
       "Oi {{1}}, seu teste terminou hoje.\n\n" +
       "Nada foi apagado: sua agenda, seus clientes e seu financeiro continuam " +
-      "salvos. Escolhendo um plano em {{2}}, tudo volta a funcionar na hora.\n\n" +
+      "salvos. Responda por aqui e a gente reativa tudo junto com você — os " +
+      "planos estão em {{2}}, se quiser conferir antes.\n\n" +
       "Se quiser conversar antes de decidir, é só responder por aqui.",
     params: ["primeiroNome", "linkPlanos"],
     example: ["Zé", "https://app.exemplo.com.br/planos"],
@@ -840,13 +925,18 @@ export const TEMPLATES = {
     language: "pt_BR",
     audience: "barbeiro",
     sender: "plataforma",
-    trigger: "Cobrança da assinatura da plataforma recusada.",
+    /* O nome fica: uma mensalidade que não foi paga é uma cobrança que falhou,
+     * automática ou não. O corpo é que não podia ficar — ele descrevia cartão
+     * cadastrado, limite recusado e nova tentativa automática, três coisas que
+     * exigem o gateway que `subscription.ts` diz não existir. O dono ficaria
+     * esperando a retentativa até o dia em que o app entrasse em modo leitura. */
+    trigger: "Mensalidade da plataforma em aberto. A contratação é humana — não há cobrança automática que possa falhar.",
     body:
-      "Oi {{1}}, a cobrança do seu plano {{2}} ({{3}}) não passou.\n\n" +
-      "Costuma ser limite ou cartão vencido. Atualizando os dados em {{4}}, " +
-      "a gente tenta de novo automaticamente e nada é interrompido.",
-    params: ["primeiroNome", "nomePlano", "valor", "linkCobranca"],
-    example: ["Zé", "Crescimento", "R$ 197,00", "https://app.exemplo.com.br/assinatura"],
+      "Oi {{1}}, a mensalidade do seu plano {{2}} ({{3}}) está em aberto.\n\n" +
+      "É só responder por aqui que a gente acerta junto — nada é interrompido " +
+      "enquanto isso. Os planos ficam em {{4}}, se quiser conferir.",
+    params: ["primeiroNome", "nomePlano", "valor", "linkPlanos"],
+    example: ["Zé", "Crescimento", "R$ 197,00", "https://app.exemplo.com.br/planos"],
   },
 
 } as const satisfies Record<string, TemplateDef>;

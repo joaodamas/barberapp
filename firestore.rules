@@ -194,6 +194,33 @@ service cloud.firestore {
         allow write: if isOwnerOf(barbershopId);
       }
 
+      /* -------- cliente da barbearia (G3) -------- */
+
+      match /clients/{clientId} {
+        /* Quem toca a barbearia lê a lista inteira — é a agenda de contatos
+         * dela. O cliente lê SÓ o próprio cadastro, e o casamento é pelo id do
+         * documento, porque `clients/{uid}` faz referência e identidade
+         * coincidirem para quem tem conta.
+         *
+         * Cadastro de balcão tem id gerado: nenhum `request.auth.uid` o iguala,
+         * então ele é visível apenas para a barbearia. É o desenho, não uma
+         * lacuna — e o limite (o walk-in que criar conta não vê o histórico
+         * antigo) está declarado em `functions/src/clients.ts`. */
+        allow read: if isStaffOf(barbershopId)
+                    || (isSignedIn() && clientId == request.auth.uid);
+
+        /* Escrita é SÓ do servidor.
+         *
+         * O cadastro nasce dentro da transação que grava a reserva — os dois
+         * juntos ou nenhum. Deixar o cliente criar aqui abriria dois buracos: um
+         * cadastro fantasma sem atendimento nenhum, e a chance de gravar
+         * `whatsapp` de outra pessoa e sequestrar a deduplicação dela.
+         *
+         * O dono edita pelo painel, que também passa por function — a tela nunca
+         * escreve direto, pelo mesmo motivo de `bookings`. */
+        allow write: if false;
+      }
+
       /* -------- agenda -------- */
 
       match /bookings/{bookingId} {
@@ -227,7 +254,19 @@ service cloud.firestore {
       /* -------- financeiro: só quem é do time -------- */
 
       match /expenses/{expenseId}         { allow read, write: if isOwnerOf(barbershopId); }
-      match /cash_entries/{entryId}       { allow read, write: if isOwnerOf(barbershopId); }
+      /* Livro caixa — escrito SÓ pelo servidor desde a Rodada 3.1 (D25).
+       *
+       * Era `write: if isOwnerOf`, herdado de quando a coleção não tinha
+       * contrato nem uma única escrita. Com valor congelado, sinal derivado do
+       * tipo e idempotência por chave, deixar a tela gravar direto tornaria as
+       * três promessas falsas na primeira gravação que passasse por fora de
+       * `registrarMovimentoDeCaixa`.
+       *
+       * Mesma decisão de `payments`, `commissions`, `refunds` e
+       * `inventory_movements`. `expenses` continua aberta — é o D24, dívida
+       * consciente e registrada. */
+      match /cash_entries/{entryId}       { allow read: if isOwnerOf(barbershopId);
+                                            allow write: if false; }
       /* Comissão é da PESSOA, não da equipe.
        *
        * A regra anterior era `isStaffOf`, ou seja: qualquer barbeiro lia a
@@ -242,7 +281,25 @@ service cloud.firestore {
                     || (isStaffOf(barbershopId) && resource.data.uid == request.auth.uid);
         allow write: if false;
       }
-      match /inventory_movements/{moveId} { allow read, write: if isStaffOf(barbershopId); }
+      /* Estoque: LÊ quem toca a loja, ESCREVE só o servidor — G1.
+       *
+       * Era `read, write: if isStaffOf(...)`, e ficou assim enquanto a coleção
+       * não era escrita por ninguém. A partir do momento em que existe
+       * `registrarVendaDeProduto`, deixar a escrita aberta reabre tudo que a
+       * transação protege:
+       *
+       * 1. baixar estoque sem registrar a venda, ou registrar a venda sem
+       *    baixar estoque — as duas metades do fato deixam de ser atômicas;
+       * 2. gravar `unitCost` escolhido a dedo, que é escrever o CMV na mão;
+       * 3. furar a checagem de estoque e vender o que não existe;
+       * 4. duas vendas simultâneas consumindo a mesma unidade.
+       *
+       * Mesmo desenho de `bookings` e `payments`: o fato econômico nasce no
+       * servidor ou não nasce. */
+      match /inventory_movements/{moveId} {
+        allow read: if isStaffOf(barbershopId);
+        allow write: if false;
+      }
 
       /* -------- escrita exclusiva do servidor -------- */
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  caixaDiario, caixaDoDia, capacidadeDiaria, comissoesDeServico, folhaMensal,
+  caixaDiario, caixaDoDia, capacidadeDiaria, cenarioDeCrescimento,
+  comissoesDeServico, folhaMensal,
   taxasDePagamento,
   horariosDaJornada, indicadores,
   mesPeriodo, projecaoDeCaixa, receitaDoMes, recorrenciaDeClientes,
@@ -153,50 +154,109 @@ describe("receita", () => {
 });
 
 describe("caixa diário", () => {
+  /* Rodada 3.2 · o caixa passou a sair de `payments`, pelo LÍQUIDO.
+   *
+   * Lia `bookings.value` e jogava toda venda de produto na coluna dinheiro
+   * (D4). Agora soma o que caiu na conta — que é contra o extrato da
+   * maquininha que o dono confere. */
+  const pgc = (o: Partial<PaymentDoc> & { id: string }): Doc<PaymentDoc> =>
+    ({
+      origin: "servico", bookingId: o.id, clientId: "c1", date: "2026-07-10",
+      paymentOrigin: "in_person", paymentMethod: "pix",
+      grossAmount: 90, feePct: 0, feeAmount: 0, netAmount: 90, ...o,
+    }) as Doc<PaymentDoc>;
+
   it("agrupa por dia e separa meio de pagamento", () => {
     const dias = caixaDiario({
-      bookings: [
-        bk({ id: "1", date: "2026-07-10", paymentMethod: "pix", value: 90 }),
-        bk({ id: "2", date: "2026-07-10", paymentMethod: "credit", value: 60 }),
-        bk({ id: "3", date: "2026-07-11", paymentMethod: "cash", value: 35 }),
+      payments: [
+        pgc({ id: "1", date: "2026-07-10", paymentMethod: "pix", netAmount: 90 }),
+        pgc({ id: "2", date: "2026-07-10", paymentMethod: "credit", netAmount: 60 }),
+        pgc({ id: "3", date: "2026-07-11", paymentMethod: "cash", netAmount: 35 }),
       ],
-      movements: [], periodo: P,
+      periodo: P,
     });
     expect(dias).toHaveLength(2);
     expect(dias[0]).toMatchObject({ date: "2026-07-10", pix: 90, cartao: 60, total: 150, appointments: 2 });
     expect(dias[1]).toMatchObject({ date: "2026-07-11", dinheiro: 35 });
   });
 
-  it("débito e crédito somam na mesma coluna do caixa diário", () => {
-    /* O caixa responde por onde o dinheiro entrou no balcão, e as duas
-     * maquininhas são a mesma fila. A distinção vive em `payments`, que congela
-     * a taxa de cada uma. */
+  it("entra o LÍQUIDO, não o bruto", () => {
+    /* A maquininha deposita já descontada. Somar o bruto mostraria no caixa um
+     * dinheiro que não chegou. */
     const dias = caixaDiario({
-      bookings: [
-        bk({ id: "1", date: "2026-07-10", paymentMethod: "debit", value: 40 }),
-        bk({ id: "2", date: "2026-07-10", paymentMethod: "credit", value: 60 }),
+      payments: [pgc({ id: "1", paymentMethod: "credit", grossAmount: 100, feeAmount: 3.49, netAmount: 96.51 })],
+      periodo: P,
+    });
+    expect(dias[0].cartao).toBe(96.51);
+    expect(dias[0].total).toBe(96.51);
+  });
+
+  it("D4 · venda de produto NÃO cai toda em dinheiro", () => {
+    const dias = caixaDiario({
+      payments: [
+        pgc({ id: "v1", origin: "produto", movementId: "mv1", bookingId: undefined, paymentMethod: "credit", netAmount: 87 }),
+        pgc({ id: "v2", origin: "produto", movementId: "mv2", bookingId: undefined, paymentMethod: "pix", netAmount: 45 }),
       ],
-      movements: [], periodo: P,
+      periodo: P,
+    });
+    expect(dias[0].cartao).toBe(87);
+    expect(dias[0].pix).toBe(45);
+    expect(dias[0].dinheiro).toBe(0);
+  });
+
+  it("`appointments` conta só ATENDIMENTO — não venda nem mensalidade", () => {
+    /* Somar os três ali inflaria o denominador do ticket médio, que é o D2
+     * entrando por outra porta. */
+    const dias = caixaDiario({
+      payments: [
+        pgc({ id: "1", origin: "servico", netAmount: 50 }),
+        pgc({ id: "v1", origin: "produto", movementId: "mv1", bookingId: undefined, netAmount: 90 }),
+        pgc({ id: "f1", origin: "mensalidade", invoiceId: "f1", bookingId: undefined, netAmount: 99 }),
+      ],
+      periodo: P,
+    });
+    expect(dias[0].appointments).toBe(1);
+    expect(dias[0].total).toBe(239);
+  });
+
+  it("débito e crédito somam na mesma coluna do caixa diário", () => {
+    /* O dono concilia com o extrato da maquininha, que é uma fila só. A
+     * distinção vive em `payments`, que congela a taxa de cada uma. */
+    const dias = caixaDiario({
+      payments: [
+        pgc({ id: "1", paymentMethod: "debit", netAmount: 40 }),
+        pgc({ id: "2", paymentMethod: "credit", netAmount: 60 }),
+      ],
+      periodo: P,
     });
     expect(dias[0].cartao).toBe(100);
   });
 
-  it("a soma dos dias é a receita de balcão", () => {
-    const bookings = [bk({ id: "1", value: 90 }), bk({ id: "2", date: "2026-07-12", value: 60 })];
-    const movements = [mv({ id: "m", value: 45 })];
-    const receita = receitaDoMes({ bookings, movements, subscribers: [], periodo: P });
-    const total = caixaDiario({ bookings, movements, periodo: P }).reduce((s, d) => s + d.total, 0);
-    expect(total).toBe(receita.caixa);
-  });
-
   it("sai ordenado por data", () => {
     const dias = caixaDiario({
-      bookings: [bk({ id: "1", date: "2026-07-20" }), bk({ id: "2", date: "2026-07-05" })],
-      movements: [], periodo: P,
+      payments: [pgc({ id: "1", date: "2026-07-20" }), pgc({ id: "2", date: "2026-07-05" })],
+      periodo: P,
     });
     expect(dias.map((d) => d.date)).toEqual(["2026-07-05", "2026-07-20"]);
   });
 });
+
+/** Comissão de produto materializada — a fonte da linha desde a Rodada 3.2. */
+const comissaoDeVenda = (
+  o: Partial<CommissionDoc> & { id: string }
+): Doc<CommissionDoc> =>
+  ({
+    origin: "produto",
+    movementId: "mv1",
+    staffId: "leo",
+    uid: null,
+    staffName: "Léo",
+    date: "2026-07-10",
+    commissionPct: 40,
+    commissionBase: 300,
+    commissionAmount: 120,
+    ...o,
+  }) as Doc<CommissionDoc>;
 
 describe("resultado do mês", () => {
   const base = () => {
@@ -241,15 +301,52 @@ describe("resultado do mês", () => {
   /* O teste que existia aqui afirmava que a comissão saía APENAS do lucro da
    * loja — ou seja, ele passava porque codificava o defeito. Com R$ 1.000 de
    * serviço, o custo de mão de obra lançado era R$ 120 (40% sobre R$ 300 de
-   * lucro de produto) em vez de R$ 520. */
-  it("serviço paga comissão sobre o FATURAMENTO, produto sobre o lucro", () => {
+   * lucro de produto) em vez de R$ 520.
+   *
+   * Na Rodada 3.2 ele mudou de novo: a comissão de produto deixou de ser
+   * `lucroLoja × política de hoje` e passa a sair do FATO materializado. O
+   * teste antigo afirmava a derivação — que é o P1-7 — e por isso precisou ser
+   * reescrito com a comissão gravada. */
+  it("serviço paga comissão sobre o FATURAMENTO, produto sai do FATO", () => {
     const b = base();
-    const r = resultadoDoMes({ ...b, expenses: [], periodo: P, policies: PLATFORM_DEFAULT_POLICIES });
     const pct = PLATFORM_DEFAULT_POLICIES.commissionSplit.barberPct;
+    const r = resultadoDoMes({
+      ...b,
+      expenses: [],
+      periodo: P,
+      policies: PLATFORM_DEFAULT_POLICIES,
+      commissions: [comissaoDeVenda({ id: "cv1", commissionAmount: 120 })],
+    });
 
     expect(r.commissionsServico).toBe((1000 * pct) / 100);
-    expect(r.commissionsLoja).toBe(((500 - 200) * pct) / 100);
+    expect(r.commissionsLoja).toBe(120);
     expect(r.commissions).toBe(r.commissionsServico + r.commissionsLoja);
+  });
+
+  it("SEM o fato, a comissão de produto é ZERO — não deriva da política", () => {
+    /* P1-7 na porta de saída. Derivar aqui faria meses fechados se reescrever
+     * quando o split mudasse; zero é a verdade — não havia comissão gravada. */
+    const b = base();
+    const r = resultadoDoMes({ ...b, expenses: [], periodo: P, policies: PLATFORM_DEFAULT_POLICIES });
+    expect(r.commissionsLoja).toBe(0);
+  });
+
+  it("mudar o split NÃO reescreve a comissão de produto já gravada", () => {
+    const b = base();
+    const gravada = [comissaoDeVenda({ id: "cv1", commissionPct: 50, commissionAmount: 150 })];
+    const a40 = resultadoDoMes({
+      ...b, expenses: [], periodo: P, commissions: gravada,
+      policies: PLATFORM_DEFAULT_POLICIES,
+    });
+    const a60 = resultadoDoMes({
+      ...b, expenses: [], periodo: P, commissions: gravada,
+      policies: {
+        ...PLATFORM_DEFAULT_POLICIES,
+        commissionSplit: { barberPct: 60, shopPct: 40 } as unknown as typeof PLATFORM_DEFAULT_POLICIES.commissionSplit,
+      },
+    });
+    expect(a40.commissionsLoja).toBe(150);
+    expect(a60.commissionsLoja).toBe(150);
   });
 
   it("cada barbeiro paga o percentual DELE, não a média", () => {
@@ -346,12 +443,17 @@ describe("resultado do mês", () => {
   it("comissão tem como base o serviço, não só o lucro de produto", () => {
     // O serviço é o negócio da barbearia. Comissionar só a revenda deixava o
     // maior custo variável da operação em R$ 0,00 no DRE.
+    //
+    // A parcela de produto agora vem do fato (3.2); a de serviço continua
+    // derivando sobre o faturamento quando não há comissão gravada.
     const { receita, movements } = base();
-    const r = resultadoDoMes({ receita, expenses: [], movements, periodo: P, policies: PLATFORM_DEFAULT_POLICIES });
-    const baseDaComissao = 1000 + (500 - 200); // serviço cheio + lucro da revenda
-    expect(r.commissions).toBe(
-      Math.round((baseDaComissao * PLATFORM_DEFAULT_POLICIES.commissionSplit.barberPct) / 100)
-    );
+    const r = resultadoDoMes({
+      receita, expenses: [], movements, periodo: P,
+      policies: PLATFORM_DEFAULT_POLICIES,
+      commissions: [comissaoDeVenda({ id: "cv1", commissionAmount: 120 })],
+    });
+    const servico = Math.round((1000 * PLATFORM_DEFAULT_POLICIES.commissionSplit.barberPct) / 100);
+    expect(r.commissions).toBe(servico + 120);
   });
 
   it("despesa recorrente segue valendo no mês seguinte ao lançamento", () => {
@@ -461,7 +563,7 @@ describe("projeção", () => {
   it("não projeta receita em dia fechado", () => {
     const p = projecaoDeCaixa({
       bookings: [], expenses: [], subscribers: [],
-      historico: [{ date: "2026-07-05", pix: 100, cartao: 0, dinheiro: 0, total: 100, appointments: 1 }],
+      historico: [{ date: "2026-07-05", pix: 100, cartao: 0, dinheiro: 0, naoInformado: 0, total: 100, appointments: 1 }],
       openWeekdays: [1, 2, 3, 4, 5, 6],
       inicio: new Date("2026-08-02T00:00:00"), // domingo
       dias: 2,
@@ -649,11 +751,15 @@ describe("taxa de maquininha", () => {
     grossAmount: 100, feePct: 3.49, feeAmount: 3.49, netAmount: 96.51, ...o,
   });
 
-  it("soma o que foi de fato cobrado no período", () => {
+  it("soma o que foi de fato cobrado no período, AO CENTAVO", () => {
     // Era um parâmetro que nenhum chamador preenchia: o DRE debitava zero.
+    //
+    // E depois passou a somar arredondando ao real — 5,49 virava 5,00 (D1/D5).
+    // O número precisa bater com o extrato da maquininha, que é onde o dono
+    // confere; ali não existe real inteiro.
     expect(
       taxasDePagamento([pg({ id: "1", feeAmount: 3.49 }), pg({ id: "2", feeAmount: 2 })], P7)
-    ).toBe(5);
+    ).toBe(5.49);
   });
 
   it("ignora pagamento de outro mês", () => {
@@ -702,28 +808,213 @@ describe("jornada", () => {
   });
 });
 
-describe("caixa do dia", () => {
-  it("só o atendimento concluído entra no caixa, qualquer que seja o método", () => {
-    /* Pix e cartão contavam ao CONFIRMAR, e dinheiro só ao concluir — dois
-     * regimes dentro do mesmo número. Com um marco financeiro único, "Recebido"
-     * passa a ser caixa realizado; o que era previsão vive no card de previsão
-     * do dia, que já existe separado. */
-    const c = caixaDoDia([
-      bk({ id: "1", status: "confirmed", paymentMethod: "pix", value: 90 }),
-      bk({ id: "2", status: "confirmed", paymentMethod: "cash", value: 60 }),
-      bk({ id: "3", status: "completed", paymentMethod: "cash", value: 35 }),
-      bk({ id: "4", status: "completed", paymentMethod: "pix", value: 40 }),
-    ]);
+describe("caixa do dia · D2 · a fonte é o pagamento, não a reserva", () => {
+  /* A troca de fonte É a correção. Enquanto "concluído" e "recebido" foram
+   * sinônimos, somar reservas funcionava. O atendimento coberto pelo plano
+   * quebrou a equivalência: o servidor conclui e não cria pagamento. */
+  const pg = (over: Record<string, unknown> = {}) =>
+    ({
+      id: "p1", origin: "servico", clientId: "c1", date: "2026-09-14",
+      paymentOrigin: "in_person", paymentMethod: "pix",
+      grossAmount: 50, feePct: 0, feeAmount: 0, netAmount: 50, ...over,
+    }) as unknown as Doc<PaymentDoc>;
+
+  it("1 · atendimento pago entra no caixa", () => {
+    const c = caixaDoDia([pg({ paymentMethod: "pix", grossAmount: 40 })]);
     expect(c.pix).toBe(40);
-    expect(c.dinheiro).toBe(35);
-    expect(c.total).toBe(75);
+    expect(c.total).toBe(40);
   });
 
-  it("reserva cancelada ou não comparecida nunca entra no caixa", () => {
+  it("2 · atendimento COBERTO pelo plano não entra — porque não tem pagamento", () => {
+    /* Verificado na tela em 18/08: o mensalista do plano Ilimitado tinha o
+     * corte concluído, o servidor gravava `cobertura` e nenhum `PaymentDoc`, e
+     * o Hoje exibia `Recebido até agora R$ 50,00`.
+     *
+     * A prova aqui é a AUSÊNCIA: não existe pagamento para passar. É por isso
+     * que a correção foi trocar a fonte em vez de filtrar por cobertura — o
+     * `PaymentDoc` já é, por construção, a definição de "entrou". */
+    expect(caixaDoDia([]).total).toBe(0);
+    expect(caixaDoDia([]).naoInformado).toBe(0);
+  });
+
+  it("3 · pagamento SEM forma informada é dinheiro que entrou — e não é ausência de pagamento", () => {
+    /* A distinção que o D2 tornou obrigatória, e que a coluna precisa manter:
+     * ausência de pagamento e pagamento sem forma informada são opostos. O
+     * primeiro não entra em lugar nenhum; o segundo entrou e falta classificar. */
     const c = caixaDoDia([
-      bk({ id: "1", status: "no_show", paymentMethod: "pix", value: 90 }),
-      bk({ id: "2", status: "cancelled_by_client", paymentMethod: "pix", value: 60 }),
+      pg({ id: "a", paymentMethod: "pix", grossAmount: 100 }),
+      pg({ id: "b", paymentMethod: null, grossAmount: 60 }),
     ]);
-    expect(c.total).toBe(0);
+    expect(c.pix).toBe(100);
+    expect(c.naoInformado).toBe(60);
+    expect(c.dinheiro).toBe(0);
+    expect(c.total).toBe(160);
+  });
+
+  it("4 · venda de produto continua entrando", () => {
+    const c = caixaDoDia([pg({ origin: "produto", paymentMethod: "credit", grossAmount: 135 })]);
+    expect(c.cartao).toBe(135);
+    expect(c.total).toBe(135);
+  });
+
+  it("5 · mensalidade entra só quando há pagamento real", () => {
+    const paga = caixaDoDia([
+      pg({ origin: "mensalidade", paymentMethod: "pix", grossAmount: 149 }),
+    ]);
+    expect(paga.pix).toBe(149);
+    /* Fatura emitida e não paga não gera `PaymentDoc` — logo não chega aqui. */
+    expect(caixaDoDia([]).total).toBe(0);
+  });
+
+  it("os filhos sempre somam o cabeçalho", () => {
+    const c = caixaDoDia([
+      pg({ id: "a", paymentMethod: "pix", grossAmount: 50 }),
+      pg({ id: "b", paymentMethod: "credit", grossAmount: 30 }),
+      pg({ id: "c", paymentMethod: "cash", grossAmount: 20 }),
+      pg({ id: "d", paymentMethod: null, grossAmount: 15 }),
+    ]);
+    expect(c.pix + c.cartao + c.dinheiro + c.naoInformado).toBe(c.total);
+    expect(c.total).toBe(115);
+  });
+
+  it("é BRUTO — a taxa não é descontada aqui", () => {
+    /* Esta tela responde "quanto passou pelo meu caixa hoje", que é o que o
+     * dono confere contra a maquininha e a gaveta. O líquido, com a taxa já
+     * descontada como no extrato, é a pergunta do Fluxo de Caixa. */
+    const c = caixaDoDia([
+      pg({
+        paymentMethod: "credit", grossAmount: 100,
+        feePct: 3.49, feeAmount: 3.49, netAmount: 96.51,
+      }),
+    ]);
+    expect(c.cartao).toBe(100);
+  });
+});
+
+describe("simulação de cenário de crescimento — A6", () => {
+  /**
+   * O defeito medido: com o slider em 0% — simulando exatamente o mês que a
+   * tela acabara de apresentar — a linha "Resultado do Mês" mostrava
+   * `atual −R$ 556,80 · cenário −R$ 536,00 · DIFERENÇA +R$ 20,80`.
+   *
+   * Duas causas somavam o valor: o cenário não descontava imposto embora a
+   * linha se chamasse "Resultado do Mês", e `Math.round` arredondava em reais
+   * onde o motor arredonda em centavos.
+   *
+   * A causa de fundo era DUAS contas para o mesmo número, só uma sob teste.
+   * Com a fórmula no motor, este teste é a prova que faltava.
+   */
+  const cenarioBase = () => {
+    const bookings = [bk({ id: "1", value: 1000, paymentMethod: "cash" })];
+    const movements = [mv({ id: "v", kind: "venda", value: 500 })];
+    const receita = receitaDoMes({ bookings, movements, subscribers: [], periodo: P });
+    return resultadoDoMes({
+      receita, bookings, movements, periodo: P,
+      policies: PLATFORM_DEFAULT_POLICIES, staff: [st({ id: "s1" })],
+      expenses: [ex({ id: "1", value: 1800, recurring: true })],
+    });
+  };
+
+  it("variação 0% reproduz o mês EXATAMENTE — inclusive o resultado", () => {
+    const r = cenarioBase();
+    const c = cenarioDeCrescimento({
+      grossRevenue: r.grossRevenue,
+      variableCost: r.variableCost,
+      fixedCost: r.fixedCost,
+      taxRatePct: PLATFORM_DEFAULT_POLICIES.taxRatePct,
+      variacaoPct: 0,
+    });
+
+    // A linha que divergia em R$ 20,80.
+    expect(c.result).toBe(r.result);
+    // E as outras, que divergiam em R$ 0,21 pelo arredondamento em reais.
+    expect(c.grossRevenue).toBe(r.grossRevenue);
+    expect(c.variableCost).toBe(r.variableCost);
+    expect(c.contributionMargin).toBe(r.contributionMargin);
+    expect(c.fixedCost).toBe(r.fixedCost);
+    expect(c.tax).toBe(r.tax);
+  });
+
+  it("o imposto entra no resultado do cenário", () => {
+    // A maior das duas causas: sem esta linha o cenário mostrava um resultado
+    // melhor que o real pelo valor exato do Simples.
+    const r = cenarioBase();
+    const c = cenarioDeCrescimento({
+      grossRevenue: r.grossRevenue,
+      variableCost: r.variableCost,
+      fixedCost: r.fixedCost,
+      taxRatePct: PLATFORM_DEFAULT_POLICIES.taxRatePct,
+      variacaoPct: 0,
+    });
+    expect(c.tax).toBeGreaterThan(0);
+    expect(c.result).toBe(c.contributionMargin - c.fixedCost - c.tax);
+  });
+
+  it("o imposto acompanha a receita simulada, não fica congelado", () => {
+    // Congelado, o cenário de +100% prometeria uma sobra que o dono não teria:
+    // o Simples incide sobre faturamento.
+    const comum = { grossRevenue: 1000, variableCost: 400, fixedCost: 300, taxRatePct: 6 };
+    const zero = cenarioDeCrescimento({ ...comum, variacaoPct: 0 });
+    const dobro = cenarioDeCrescimento({ ...comum, variacaoPct: 100 });
+
+    expect(zero.tax).toBe(60);
+    expect(dobro.tax).toBe(120);
+    expect(dobro.grossRevenue).toBe(2000);
+    expect(dobro.variableCost).toBe(800);
+    // O custo fixo NÃO escala — é a premissa que a simulação existe para mostrar.
+    expect(dobro.fixedCost).toBe(300);
+    expect(dobro.result).toBe(2000 - 800 - 300 - 120);
+  });
+
+  it("arredonda ao centavo, nunca ao real", () => {
+    // `Math.round` em reais era a segunda causa dos R$ 20,80, e some
+    // exatamente onde o dono conferiria.
+    const c = cenarioDeCrescimento({
+      grossRevenue: 1000.555,
+      variableCost: 333.333,
+      fixedCost: 100,
+      taxRatePct: 6,
+      variacaoPct: 0,
+    });
+    expect(c.grossRevenue).toBe(1000.56);
+    expect(c.variableCost).toBe(333.33);
+    // Arredondando em reais seria 1001 — inteiro.
+    expect(Number.isInteger(c.grossRevenue)).toBe(false);
+  });
+});
+
+describe("ocupação — A17", () => {
+  it("o mês com UM atendimento não é apresentado como 0%", () => {
+    /* Medido na tela: `OCUPAÇÃO 0%` no mês em que houve 1 atendimento, com o
+     * mapa de calor logo abaixo dizendo "100% de ocupação" naquele horário.
+     * A capacidade de uma jornada mensal passa de 400 horários, e
+     * `Math.round(1/464 * 100)` é zero.
+     *
+     * "0%" é a única leitura que autoriza o dono a concluir que a cadeira
+     * ficou vazia o mês inteiro — e ela é falsa. */
+    const bookings = [bk({ id: "1", value: 50 })];
+    const receita = receitaDoMes({ bookings, movements: [], subscribers: [], periodo: P });
+    const k = indicadores({ bookings, receita, periodo: P, capacidade: 464 });
+
+    expect(k.occupancyPct).toBeGreaterThan(0);
+  });
+
+  it("segue limitada a 100%, e só devolve 0 quando não houve atendimento", () => {
+    const receitaVazia = receitaDoMes({
+      bookings: [], movements: [], subscribers: [], periodo: P,
+    });
+    expect(
+      indicadores({ bookings: [], receita: receitaVazia, periodo: P, capacidade: 464 })
+        .occupancyPct
+    ).toBe(0);
+
+    const lotado = Array.from({ length: 20 }, (_, i) => bk({ id: `b${i}` }));
+    const receitaCheia = receitaDoMes({
+      bookings: lotado, movements: [], subscribers: [], periodo: P,
+    });
+    expect(
+      indicadores({ bookings: lotado, receita: receitaCheia, periodo: P, capacidade: 5 })
+        .occupancyPct
+    ).toBe(100);
   });
 });

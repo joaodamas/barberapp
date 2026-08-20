@@ -4,8 +4,10 @@ import { useShopCollection } from "@/lib/db/use-collection";
 import { saldoDeFidelidade } from "@/lib/domain";
 import { useTenant } from "@/lib/tenant-context";
 import type {
-  BookingDoc, CommissionDoc, ExpenseDoc, InventoryMovementDoc,
-  LoyaltyTransactionDoc, PaymentDoc, PlanDoc, ProductDoc, ServiceDoc,
+  BookingDoc, ClientDoc, CommissionDoc, ExpenseDoc, InventoryMovementDoc,
+  CashEntryDoc,
+  LoyaltyTransactionDoc, PaymentDoc, PlanDoc, ProductDoc, RefundDoc, ServiceDoc,
+  SubscriptionInvoiceDoc,
   StaffDoc, SubscriberDoc,
 } from "@/lib/domain";
 
@@ -35,6 +37,31 @@ export const usePayments = () =>
     direction: "desc",
   });
 
+/**
+ * Estornos — D22 / D23. Escritos só pelo servidor.
+ *
+ * Coleção separada de propósito: o estorno **não** é um pagamento negativo em
+ * `payments`. Se fosse, toda leitura que soma pagamentos teria de aprender a
+ * filtrar, e a que esquecesse contaria devolução como receita.
+ */
+export const useRefunds = () =>
+  useShopCollection<RefundDoc>("refunds", {
+    orderByField: "date",
+    direction: "desc",
+  });
+
+/**
+ * Livro caixa — D25. Escrito só pelo servidor.
+ *
+ * Só o que NÃO tem outro fato por trás: sangria, troco, aporte, pagamento de
+ * comissão e ajuste. Somar `amount` dá o saldo — o sinal já está no fato.
+ */
+export const useCashEntries = () =>
+  useShopCollection<CashEntryDoc>("cashEntries", {
+    orderByField: "date",
+    direction: "desc",
+  });
+
 export const usePlans = () => useShopCollection<PlanDoc>("plans", { orderByField: "price" });
 
 export const useProducts = () =>
@@ -43,16 +70,61 @@ export const useProducts = () =>
 export const useBookings = () =>
   useShopCollection<BookingDoc>("bookings", { orderByField: "date", direction: "desc" });
 
+/**
+ * A carteira de clientes da barbearia — G3.
+ *
+ * Só quem toca a loja lê a coleção inteira; o cliente lê apenas o próprio
+ * cadastro. As regras garantem isso, e a suíte de isolamento tenta violar as
+ * duas portas (ler o de outro, listar a coleção).
+ *
+ * Escrita é sempre do servidor: o cadastro nasce dentro da transação que grava
+ * a reserva, para não existir cliente sem atendimento nem reserva apontando
+ * para cadastro inexistente.
+ */
+export const useClients = () =>
+  useShopCollection<ClientDoc>("clients", { orderByField: "name" });
+
 export const useExpenses = () =>
   useShopCollection<ExpenseDoc>("expenses", { orderByField: "date", direction: "desc" });
 
 export const useSubscribers = () =>
   useShopCollection<SubscriberDoc>("subscriptions", { orderByField: "name" });
 
+/**
+ * As faturas de mensalidade — G2.
+ *
+ * É o lastro que faltava: antes, "receita de mensalista" saía de um status
+ * marcado como `ativo`. Escritas só pelo servidor.
+ */
+export const useSubscriptionInvoices = () =>
+  useShopCollection<SubscriptionInvoiceDoc>("subscriptionInvoices", {
+    orderByField: "dueDate",
+    direction: "desc",
+  });
+
 export const useInventoryMovements = () =>
   useShopCollection<InventoryMovementDoc>("inventoryMovements", {
     orderByField: "date",
     direction: "desc",
+  });
+
+/**
+ * A assinatura do próprio cliente — D2, no app de quem paga.
+ *
+ * Consulta filtrada por `clientId`, e não a coleção inteira: a regra do
+ * Firestore libera `subscriptions` para quem trabalha na loja **ou** para o
+ * dono do documento (`resource.data.clientId == request.auth.uid`), e uma
+ * listagem sem o filtro seria negada para o cliente — que é justamente quem
+ * precisa dela aqui.
+ *
+ * A lista vem porque a consulta é uma lista; quem escolhe a ativa é
+ * `assinaturaAtivaDe`, para que a regra de "qual assinatura vale" exista num
+ * lugar só e não em cada tela.
+ */
+export const useMinhasAssinaturas = (clientId: string | undefined) =>
+  useShopCollection<SubscriberDoc>("subscriptions", {
+    equals: { clientId },
+    enabled: !!clientId,
   });
 
 /** Reservas de um cliente específico — o app do cliente. */

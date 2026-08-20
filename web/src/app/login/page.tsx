@@ -15,11 +15,17 @@ import {
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
-import { useTenant } from "@/lib/tenant-context";
+import { useTenant, useTenantIndisponivel } from "@/lib/tenant-context";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  metodoPadrao,
+  metodosDisponiveis,
+  mostrarSeletor,
+  type MetodoDeLogin,
+} from "@/lib/metodos-de-login";
 
-type Method = "phone" | "email";
+type Method = MetodoDeLogin;
 type PhoneStep = "phone" | "code";
 type EmailMode = "entrar" | "criar";
 
@@ -65,7 +71,10 @@ export default function LoginPage() {
   const { user, claims, loading } = useAuth();
   const tenant = useTenant();
   const { brand } = tenant;
-  const [method, setMethod] = useState<Method>("phone");
+  const indisponivel = useTenantIndisponivel();
+  /* O caminho de entrada precisa FUNCIONAR. A regra e o porquê estão em
+   * `lib/metodos-de-login.ts`, onde o teste consegue afirmá-los. */
+  const [method, setMethod] = useState<Method>(metodoPadrao());
 
   const [phoneStep, setPhoneStep] = useState<PhoneStep>("phone");
   const [phone, setPhone] = useState("");
@@ -228,15 +237,37 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-6 overflow-y-auto bg-bg px-4 py-10 md:h-full">
-      <div className="flex flex-col items-center gap-2 text-center">
-        <Image src={brand.logo} alt="" width={56} height={56} priority />
-        <h1 className="font-display text-xl text-ivory">{brand.name}</h1>
-        <p className="text-sm text-ivory-muted">Entre com sua conta</p>
-      </div>
+      {/* A marca só é afirmada quando o produto TEM certeza de qual é.
+
+          Com o Firestore fora, `resolverTenant` devolve o tenant padrão e esta
+          tela exibia "CorteHub" e o logo da plataforma — para o cliente de uma
+          barbearia que não é essa, numa tela que pede a senha dele. Quem
+          reparasse suspeitaria de golpe; quem não reparasse digitaria a senha
+          numa página que não sabe dizer de quem é.
+
+          O cabeçalho neutro não é degradação: é a única versão honesta desta
+          tela quando a identidade não foi confirmada. Entrar continua
+          funcionando — quem cai aqui é o Firestore, não o Auth. */}
+      {indisponivel ? (
+        <div className="flex max-w-sm flex-col items-center gap-2 text-center">
+          <h1 className="font-display text-xl text-ivory">Entre com sua conta</h1>
+          <p className="text-sm text-ivory-muted">
+            Não consegui confirmar de qual barbearia é este endereço — pode ser a
+            conexão. Você ainda pode entrar; seus dados continuam onde estavam.
+          </p>
+        </div>
+      ) : (
+        <div className="flex flex-col items-center gap-2 text-center">
+          <Image src={brand.logo} alt="" width={56} height={56} priority />
+          <h1 className="font-display text-xl text-ivory">{brand.name}</h1>
+          <p className="text-sm text-ivory-muted">Entre com sua conta</p>
+        </div>
+      )}
 
       <Card className="flex w-full max-w-sm flex-col gap-4 p-6">
+        {mostrarSeletor() && (
         <div className="flex gap-2 rounded-xl border border-border bg-surface p-1">
-          {(["phone", "email"] as Method[]).map((m) => (
+          {metodosDisponiveis().map((m) => (
             <button
               key={m}
               type="button"
@@ -257,6 +288,7 @@ export default function LoginPage() {
             </button>
           ))}
         </div>
+        )}
 
         {method === "phone" ? (
           phoneStep === "phone" ? (

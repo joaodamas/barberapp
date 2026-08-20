@@ -5,12 +5,15 @@ import Link from "next/link";
 import {
   AlertCircle,
   CalendarCheck,
+  CalendarPlus,
   CalendarX,
   Check,
   ChevronRight,
   CreditCard,
+  HelpCircle,
   Landmark,
   Percent,
+  RotateCcw,
   Scissors,
   UserX,
   Wallet,
@@ -19,7 +22,12 @@ import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
-import { bookingStatusMeta } from "@/lib/booking-status";
+import {
+  assinaturaAtivaDe,
+  liquidacaoDoAtendimento,
+  metaDoStatus,
+  termosDoPlano,
+} from "@/lib/booking-status";
 import {
   avaliarOperacao,
   estaAtrasado,
@@ -30,17 +38,23 @@ import {
 } from "@/lib/action-center";
 import { usePayments } from "@/lib/db/use-shop-data";
 import type { PaymentMethod } from "@/lib/types";
-import { labelDoPagamento, PAYMENT_METHODS, paymentMethodLabel } from "@/lib/payment-method";
-import { formatBRL, formatPhonePtBR, safePct } from "@/lib/format";
-import { bookingPolicy, refundAmountFor } from "@/lib/business-rules";
+import { PAYMENT_METHODS, paymentMethodLabel } from "@/lib/payment-method";
+import { formatBRL, formatPctPtBR, formatPhonePtBR, safePct } from "@/lib/format";
+import { NAO_APURADO } from "@/lib/apuracao";
+import { contar } from "@/lib/plural";
+import { refundAmountFor } from "@/lib/business-rules";
 import { useTenant } from "@/lib/tenant-context";
 import type { TenantPolicies } from "@/lib/tenant";
-import { useBookings, useServices, useStaff } from "@/lib/db/use-shop-data";
+import { useBookings, useServices, useStaff, useSubscribers } from "@/lib/db/use-shop-data";
 import { patchDoc } from "@/lib/db/repository";
 import { soAvisaSeGravou } from "@/lib/so-avisa-se-gravou";
-import { capacidadeDiaria, caixaDoDia, mesPeriodo } from "@/lib/analytics";
+import { MarcarNoBalcao } from "@/components/marcar-no-balcao";
+import { EstornarValor } from "@/components/estornar-valor";
+import { CorrigirPagamento } from "@/components/corrigir-pagamento";
+import { capacidadeDiaria, caixaDoDia, mesPeriodo, previsaoDoDia } from "@/lib/analytics";
 import { monthOf, OCCUPIES_SLOT } from "@/lib/domain";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
+import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
 import { toISODate } from "@/lib/format";
 import type { BookingDoc } from "@/lib/domain";
 import type { Doc } from "@/lib/db/repository";
@@ -48,10 +62,17 @@ import type { Doc } from "@/lib/db/repository";
 export default function PainelHojePage() {
   const tenant = useTenant();
   const { brand } = tenant;
-  const { items: todas, status } = useBookings();
+  const { items: todas, status, error: erroDaAgenda } = useBookings();
   const { items: services, status: statusServicos } = useServices();
   const payments = usePayments();
   const { items: equipe } = useStaff();
+  /* D2 · o fechamento precisa saber se o cliente é mensalista.
+   *
+   * Só o FATO da assinatura — quem decide se o corte está coberto é o servidor,
+   * na conclusão. A tela lê isto para escolher que pergunta fazer, e a tela de
+   * Clientes já exibia o selo do plano: o dado existia e não era consultado no
+   * único lugar onde evitaria a cobrança em dobro. */
+  const { items: assinaturas } = useSubscribers();
 
   const hoje = toISODate(new Date());
   const bookings = todas.filter((b) => b.date === hoje);
@@ -68,21 +89,33 @@ export default function PainelHojePage() {
   const barbeirosAtivos = Math.max(equipe.filter((b) => b.active !== false).length, 1);
   const totalSlots = capacidadeDiaria(tenant.schedule) * barbeirosAtivos;
 
-  const fitInRequests = bookings.filter((b) => b.status === "fit_in_requested");
-
   /* `localeCompare` em "HH:mm" ordena certo porque o formato é de largura fixa
    * e zero-padded — "09:00" < "10:00" < "12:00" como texto. */
+  /* Sem filtro por status: a seção "Encaixes pendentes" saiu junto com o
+   * encaixe, e um `fit_in_requested` antigo ficaria invisível — some da agenda
+   * e não tem mais onde ser encontrado. Ele aparece na tabela como qualquer
+   * outra reserva, com o rótulo que `metaDoStatus` já dá. */
+  /* `?? ""` porque uma reserva sem `time` derrubava a tela INTEIRA do dia.
+   *
+   * `undefined.localeCompare` estoura dentro do `sort`, o erro sobe até o error
+   * boundary e o dono vê "Esta tela não abriu" — perdendo a agenda, o caixa e o
+   * Action Center por causa de um documento. As regras permitem escrita direta
+   * em `bookings` ao dono e à equipe (`firestore.rules:246`), então o campo pode
+   * faltar sem que nenhuma tela tenha errado. Encontrado em 20/08, ao semear uma
+   * reserva pelo Admin SDK sem o campo. */
   const bookingsDoDia = bookings
-    .filter((b) => b.status !== "fit_in_requested")
     .slice()
-    .sort((a, b) => a.time.localeCompare(b.time));
+    .sort((a, b) => (a.time ?? "").localeCompare(b.time ?? ""));
   const agendados = bookings.filter((b) => OCCUPIES_SLOT.includes(b.status));
 
   const confirmedCount = agendados.length;
   const horariosLivres = Math.max(totalSlots - agendados.length, 0);
   const ocupacaoPct = Math.round(safePct(agendados.length, totalSlots));
 
-  const previsaoHoje = agendados.reduce((s, b) => s + b.value, 0);
+  /* A previsão é sobre o que ainda pode virar receita — e a falta já
+   * confirmada não pode. Ver `previsaoDoDia`: a cadeira continua ocupada
+   * (`agendados`), o valor é que sai da conta. */
+  const previsaoHoje = previsaoDoDia(bookings);
 
   /* "Precisa de você" derivado do estado real, não de uma lista fixa. */
   /* A decisão de o que exige atenção mora no motor (`lib/action-center.ts`),
@@ -106,10 +139,16 @@ export default function PainelHojePage() {
   const { visiveis: acoesVisiveis, ocultos: acoesOcultas } =
     repartirParaExibicao(itensDeAcao);
 
-  const semColunaLateral = itensDeAcao.length === 0 && fitInRequests.length === 0;
+  const semColunaLateral = itensDeAcao.length === 0;
+  const [balcaoAberto, setBalcaoAberto] = useState(false);
   const [aFechar, setAFechar] = useState<Doc<BookingDoc> | null>(null);
   const [faltaDe, setFaltaDe] = useState<Doc<BookingDoc> | null>(null);
   const [aCancelar, setACancelar] = useState<Doc<BookingDoc> | null>(null);
+  const [aEstornar, setAEstornar] = useState<Doc<BookingDoc> | null>(null);
+  /* R1 · a correção de pagamento tem estado PRÓPRIO, separado de `aFechar`.
+   * Compartilhar o estado com a conclusão era compartilhar o caminho, e é
+   * exatamente o que a decisão de 18/08 recusa. */
+  const [aCorrigir, setACorrigir] = useState<Doc<BookingDoc> | null>(null);
   const [cancelando, setCancelando] = useState(false);
   const [erroCancelar, setErroCancelar] = useState<string | null>(null);
   /* Uma falha de gravação precisa aparecer ONDE a ação foi disparada. Antes ela
@@ -118,7 +157,6 @@ export default function PainelHojePage() {
   const [salvando, setSalvando] = useState(false);
   const [erroAoFechar, setErroAoFechar] = useState<string | null>(null);
   const [erroDaFalta, setErroDaFalta] = useState<string | null>(null);
-  const [erroDoEncaixe, setErroDoEncaixe] = useState<Record<string, string>>({});
 
   /* A conta que o dono vê antes de confirmar, com a política DESTA barbearia —
    * a mesma que `cancelBooking` vai aplicar do lado do servidor. Enquanto isto
@@ -128,8 +166,46 @@ export default function PainelHojePage() {
     ? devolucaoDoCancelamento(aCancelar, tenant.policies.cancellation)
     : null;
 
-  const caixaHoje = caixaDoDia(agendados);
+  /* D2 · o cliente que está sendo fechado tem plano contratado?
+   *
+   * `assinaturaAtivaDe` responde só isso. Não responde "este corte está
+   * coberto" — essa decisão depende de competência e cota, mora em
+   * `decidirCobertura` no servidor, e reimplementá-la aqui recriaria o D1 com
+   * outro nome: o web afirmando uma coisa e o fato nascendo outra. */
+  const assinaturaDoFechamento = aFechar
+    ? assinaturaAtivaDe(assinaturas, aFechar.clientId)
+    : null;
+
+  /* D2 · o caixa do dia nasce do PAGAMENTO, não da reserva concluída.
+   *
+   * Passava `agendados`, e toda reserva concluída virava dinheiro. Com o
+   * atendimento coberto pelo plano isso deixou de valer: o servidor conclui,
+   * grava `cobertura` e não cria pagamento nenhum — e a tela exibia
+   * `Recebido até agora R$ 50,00` de dinheiro que não entrou.
+   *
+   * Aqui entram TODAS as origens do dia — serviço, produto e mensalidade —
+   * porque a pergunta do bloco é "quanto passou pelo meu caixa hoje", e a
+   * gaveta não distingue de onde veio. É também o que faz o número parar de
+   * divergir do Fluxo de Caixa por população. */
+  const pagamentosDeHoje = payments.items.filter((p) => p.date === hoje);
+  const caixaHoje = caixaDoDia(pagamentosDeHoje);
   const recebidoReal = caixaHoje.total;
+
+  /* D3 · o recebido tem fonte PRÓPRIA desde o D2, e some pela falha dela.
+   *
+   * Enquanto o caixa saía de `bookings`, um gate só bastava. Agora a agenda
+   * pode estar ilegível com os pagamentos perfeitamente legíveis — e nesse dia
+   * "quanto entrou" continua sendo uma pergunta respondível. É a segunda metade
+   * da regra do D3: suprimir o que não dá para apurar, preservar o que dá. */
+  const pagamentosIlegiveis = payments.status === "erro";
+
+  /* D3 · sem a agenda, todo número desta tela é zero por falta de leitura.
+   *
+   * `agendados` sai de `bookings`; com a coleção ilegível ela vira `[]` e a
+   * tela afirma "0 atendimentos", "0% de ocupação" e um caixa do dia zerado —
+   * exatamente o que o dono veria num dia em que ninguém apareceu. O banner de
+   * erro fica na seção da agenda, abaixo destes números. */
+  const agendaIlegivel = status === "erro";
 
   /**
    * Concluir passa a perguntar COMO o cliente pagou.
@@ -141,8 +217,14 @@ export default function PainelHojePage() {
    * Método e status vão na MESMA escrita: o trigger financeiro lê o documento
    * depois da atualização, e gravar em duas etapas materializaria o pagamento
    * antes de o método existir.
+   *
+   * `metodo: null` é o fechamento do mensalista — D2. Não é ausência de
+   * resposta: é a resposta "não entrou dinheiro no balcão". A tela não afirma
+   * que o plano cobriu; ela deixa de inventar um meio de pagamento para um
+   * valor que ninguém recebeu, e quem decide a cobertura continua sendo o
+   * servidor, que lê a assinatura e a cota na conclusão.
    */
-  async function concluirCom(metodo: PaymentMethod) {
+  async function concluirCom(metodo: PaymentMethod | null) {
     const booking = aFechar;
     if (!booking) return;
     setSalvando(true);
@@ -244,47 +326,29 @@ export default function PainelHojePage() {
      * clique não fazer nada — silenciosamente. */
     const alvo = todas.find((b) => b.id === intent.bookingId);
     if (!alvo) return;
-    if (intent.kind === "fecharAtendimento") setAFechar(alvo);
-    else setFaltaDe(alvo);
-  }
 
-  /**
-   * O caso mais grave dos três, e o motivo de `soAvisaSeGravou` existir.
-   *
-   * A mensagem ao cliente saía ANTES de a reserva ser gravada — `window.open`
-   * incondicional, logo depois de um `void patchDoc(...)`. Com a rede caindo, o
-   * dono confirmava a um TERCEIRO um encaixe que não existia, e o cliente
-   * aparecia para um horário sem reserva.
-   *
-   * Tela errada se resolve recarregando; mensagem enviada, não.
-   */
-  async function resolveFitIn(booking: Doc<BookingDoc>, approve: boolean) {
-    /* Limpa só o erro DESTE encaixe: com dois pendentes, apagar o mapa
-     * inteiro esconderia a falha do outro cartão. */
-    setErroDoEncaixe((atual) =>
-      Object.fromEntries(Object.entries(atual).filter(([id]) => id !== booking.id))
-    );
+    if (intent.kind === "corrigirPagamento") return setACorrigir(alvo);
+    if (intent.kind === "marcarFalta") return setFaltaDe(alvo);
 
-    const firstName = booking.clientName.split(" ")[0];
-    const serviceNames = getServicesByIds(booking.serviceIds)
-      .map((s) => s.name)
-      .join(" + ");
-    const message = approve
-      ? `Olá ${firstName}! Seu encaixe de hoje às ${booking.time} (${serviceNames}) foi confirmado. Te esperamos! — ${brand.name}`
-      : `Olá ${firstName}, infelizmente não conseguimos encaixar o horário das ${booking.time} hoje. Posso te mandar as próximas vagas livres?`;
-
-    const r = await soAvisaSeGravou({
-      gravar: () =>
-        patchDoc(tenant.id, "bookings", booking.id, {
-          status: approve ? "confirmed" : "cancelled_by_shop",
-        }),
-      avisar: () =>
-        window.open(
-          `https://wa.me/${booking.clientWhatsapp}?text=${encodeURIComponent(message)}`,
-          "_blank"
-        ),
-    });
-    if (!r.ok) setErroDoEncaixe((atual) => ({ ...atual, [booking.id]: r.erro }));
+    /* 🔒 R1 · o modal de conclusão NUNCA reabre sobre um atendimento concluído.
+     *
+     * Era aqui o vazamento, e este `if` é o elo que o fecha. O card crítico
+     * apontava para cá, o modal de conclusão gravava `bookings.paymentMethod`,
+     * o card sumia porque `!b.paymentMethod` virava falso — e o `PaymentDoc`,
+     * de onde sai todo o dinheiro das telas, ficava com método nulo e taxa zero
+     * para sempre.
+     *
+     * A razão de manter a guarda mesmo depois de o card passar a declarar
+     * `corrigirPagamento` é mais forte que o vazamento: reabrir `completed` é a
+     * MESMA superfície por onde o "Veio depois" opera (`no_show` → `completed`
+     * rematerializa o pagamento com `set` sem merge e relê policies e staff de
+     * hoje). As duas operações não podem compartilhar caminho, e um avaliador
+     * novo que declare `fecharAtendimento` sobre um concluído não deve
+     * conseguir reabrir aquela porta por engano.
+     *
+     * Concluído vai para a correção, que é a porta certa para os dois casos. */
+    if (alvo.status === "completed") return setACorrigir(alvo);
+    setAFechar(alvo);
   }
 
   return (
@@ -300,23 +364,28 @@ export default function PainelHojePage() {
         </h1>
       </div>
 
+      {/* O KPI "previsto hoje" saiu daqui.
+       *
+       * Ele imprimia `previsaoHoje` — a MESMA variável que o cartão "Previsão ×
+       * recebido" imprime 40px abaixo, com o rótulo "Previsão do dia". Um
+       * número, dois nomes, uma tela: é o defeito que `UI-UX-GUIDELINES.md`
+       * §13 lista nominalmente como exemplo proibido, e ele estava aqui.
+       *
+       * O número NÃO saiu da tela — saiu da repetição. Onde ele ficou é onde
+       * ele vira decisão: ao lado do recebido, com a barra que responde "estou
+       * no ritmo do que a agenda prometia?". Sozinho aqui em cima ele não
+       * permitia nenhuma decisão que o cartão de baixo já não permitisse.
+       *
+       * A grade continua `md:grid-cols-4` de propósito: três cartões ocupam
+       * três colunas e o quarto vão fica livre. Apertar para `grid-cols-3` no
+       * desktop mudaria a largura dos três, e largura de cartão é identidade —
+       * §10.6, a identidade se reforça, não se inventa. */}
       <div className="grid grid-cols-2 gap-2 md:col-span-2 md:grid-cols-4 md:gap-4">
-        <Card className="flex flex-col items-center gap-1 p-3 text-center md:flex-row md:justify-start md:gap-3 md:p-5">
-          <Wallet size={16} className="mx-auto text-gold-light md:mx-0 md:h-9 md:w-9 md:shrink-0 md:rounded-xl md:bg-gold/10 md:p-2" />
-          <div className="md:text-left">
-            <p className="font-display text-sm font-semibold text-ivory md:text-2xl">
-              {formatBRL(previsaoHoje)}
-            </p>
-            <p className="text-[11px] text-ivory-muted md:text-xs md:uppercase md:tracking-wide">
-              previsto hoje
-            </p>
-          </div>
-        </Card>
         <Card className="flex flex-col items-center gap-1 p-3 text-center md:flex-row md:justify-start md:gap-3 md:p-5">
           <Scissors size={16} className="mx-auto text-gold-light md:mx-0 md:h-9 md:w-9 md:shrink-0 md:rounded-xl md:bg-gold/10 md:p-2" />
           <div className="md:text-left">
             <p className="font-display text-sm font-semibold text-ivory md:text-2xl">
-              {confirmedCount}
+              {agendaIlegivel ? NAO_APURADO : confirmedCount}
             </p>
             <p className="text-[11px] text-ivory-muted md:text-xs md:uppercase md:tracking-wide">
               atendimentos
@@ -327,7 +396,7 @@ export default function PainelHojePage() {
           <Percent size={16} className="mx-auto text-gold-light md:mx-0 md:h-9 md:w-9 md:shrink-0 md:rounded-xl md:bg-gold/10 md:p-2" />
           <div className="md:text-left">
             <p className="font-display text-sm font-semibold text-ivory md:text-2xl">
-              {ocupacaoPct}%
+              {agendaIlegivel ? NAO_APURADO : formatPctPtBR(ocupacaoPct, 0)}
             </p>
             <p className="text-[11px] text-ivory-muted md:text-xs md:uppercase md:tracking-wide">
               ocupação
@@ -338,7 +407,7 @@ export default function PainelHojePage() {
           <CalendarCheck size={16} className="mx-auto text-gold-light md:mx-0 md:h-9 md:w-9 md:shrink-0 md:rounded-xl md:bg-gold/10 md:p-2" />
           <div className="md:text-left">
             <p className="font-display text-sm font-semibold text-ivory md:text-2xl">
-              {horariosLivres}
+              {agendaIlegivel ? NAO_APURADO : horariosLivres}
             </p>
             <p className="text-[11px] text-ivory-muted md:text-xs md:uppercase md:tracking-wide">
               horários livres
@@ -347,36 +416,69 @@ export default function PainelHojePage() {
         </Card>
       </div>
 
-      <section className="md:col-span-2">
-        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm">
-          Previsão × recebido
-        </h2>
-        <Card className="flex flex-col gap-3 md:p-6">
-          <div className="flex items-center justify-between text-sm md:text-base">
-            <span className="text-ivory-muted">Previsão do dia (agenda confirmada)</span>
-            <span className="font-display font-semibold text-ivory md:text-lg">
-              {formatBRL(previsaoHoje)}
-            </span>
-          </div>
-          <div className="h-2 w-full overflow-hidden rounded-full bg-surface-raised">
-            <div
-              className="h-full rounded-full bg-success transition-[width] duration-300"
-              style={{ width: `${safePct(recebidoReal, previsaoHoje)}%` }}
-            />
-          </div>
-          <div className="flex items-center justify-between text-sm md:text-base">
-            <span className="text-ivory-muted">Recebido até agora</span>
-            <span className="font-display font-semibold text-success md:text-lg">
-              {formatBRL(recebidoReal)}
-            </span>
-          </div>
-          <p className="text-xs text-ivory-muted">
-            Pix e cartão contam assim que confirmados; dinheiro só entra quando
-            o cliente é atendido e marcado como concluído.
-          </p>
-        </Card>
-      </section>
+      {/* F5/F6 · duas perguntas, dois cartões — e nenhuma régua entre elas.
+          =================================================================
+          Isto era um cartão só, com uma barra de progresso: `previsaoHoje` em
+          cima, `recebidoReal` embaixo, e `safePct(recebido, previsão)` no meio.
+          A barra afirmava "quanto do previsto já entrou".
 
+          Ela deixou de poder afirmar isso no D2. "Previsão do dia" sai da
+          AGENDA e é serviço; "Recebido" passou a sair de `payments` e é caixa de
+          TODAS as origens. Medido na tela em 18/08, com dois atendimentos, uma
+          venda e uma mensalidade:
+
+              Previsão do dia    R$ 100,00   (2 cortes agendados)
+              Recebido até agora R$ 244,00   (50 serviço + 45 venda + 149 mensalidade)
+
+          A barra ficava cheia e sugeria 244% de um dia "realizado". Os R$ 149 da
+          mensalidade e os R$ 45 da venda não pertencem à população da previsão:
+          venda não ocupa horário e mensalidade não é atendimento. O percentual
+          não estava errado por arredondamento — estava comparando coisas que
+          não se comparam.
+
+          A saída NÃO é voltar o recebido para serviço só. O D2 estabeleceu que
+          recebido é caixa, e desfazer isso para a barra funcionar seria escolher
+          a régua em vez do fato. A saída é separar as perguntas: "o que estava
+          previsto para hoje?" e "quanto dinheiro entrou hoje?" são duas, e a
+          tela passa a fazer as duas.
+
+          Cada cartão também some pela SUA fonte, e não mais pela da agenda: a
+          previsão morre com `bookings` ilegível, o recebido com `payments`. Era
+          o mesmo gate para os dois porque os dois vinham de `bookings`. */}
+      <div className="grid gap-3 md:col-span-2 md:grid-cols-2 md:gap-4">
+        {!agendaIlegivel && (
+          <Card className="flex flex-col gap-1 md:p-6">
+            <p className="text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm">
+              Previsão do dia
+            </p>
+            <p className="font-display text-xl font-semibold text-ivory md:text-2xl">
+              {formatBRL(previsaoHoje)}
+            </p>
+            <p className="text-xs text-ivory-muted">
+              serviços agendados para hoje, já sem faltas e cancelamentos
+            </p>
+          </Card>
+        )}
+
+        {!pagamentosIlegiveis && (
+          <Card className="flex flex-col gap-1 md:p-6">
+            <p className="text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm">
+              Recebido hoje
+            </p>
+            <p className="font-display text-xl font-semibold text-success md:text-2xl">
+              {formatBRL(recebidoReal)}
+            </p>
+            {/* Dizer as origens é o que impede o dono de ler este número como
+                "o quanto da agenda já entrou". São coisas diferentes, e a
+                legenda é onde isso fica explícito. */}
+            <p className="text-xs text-ivory-muted">
+              tudo que entrou no caixa — atendimento, venda e mensalidade
+            </p>
+          </Card>
+        )}
+      </div>
+
+      {!agendaIlegivel && (
       <section className="md:col-span-2">
         <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm">
           Caixa de hoje
@@ -403,8 +505,39 @@ export default function PainelHojePage() {
               {formatBRL(caixaHoje.dinheiro)}
             </span>
           </div>
+          {/* D31 · a quarta coluna, que existia no motor e em tela nenhuma.
+           *
+           * `caixaDoDia` devolve `naoInformado` desde `843b84c`, e nenhuma tela
+           * o consumia: o bloco continuava com três colunas enquanto o TOTAL
+           * conta todas as reservas recebidas. Um atendimento concluído sem
+           * meio de pagamento informado — estado que o servidor grava de
+           * propósito, com `paymentMethod: null` — entrava na conta e em coluna
+           * nenhuma. O dono somava as três na mão, não chegava no total, e a
+           * diferença não tinha onde ser explicada.
+           *
+           * Só aparece quando existe: uma coluna eternamente em R$ 0,00
+           * ensinaria que falta informar meio de pagamento em todo atendimento,
+           * que é o oposto do caso normal. */}
+          {caixaHoje.naoInformado > 0 && (
+            <div className="flex items-center gap-3 px-4 py-3 md:flex-1 md:p-5">
+              <HelpCircle size={16} className="shrink-0 text-ivory-muted" />
+              <span className="flex-1 text-sm text-ivory-muted">
+                Sem forma informada
+              </span>
+              <span className="font-display font-semibold text-ivory">
+                {formatBRL(caixaHoje.naoInformado)}
+              </span>
+            </div>
+          )}
         </Card>
+        {caixaHoje.naoInformado > 0 && (
+          <p className="mt-1.5 text-xs text-ivory-muted">
+            Entrou no total, mas não dá para conferir contra a gaveta enquanto
+            não souber como foi pago.
+          </p>
+        )}
       </section>
+      )}
 
       {acoesVisiveis.length > 0 && (
         <section className="md:col-start-2 md:row-start-4">
@@ -415,74 +548,24 @@ export default function PainelHojePage() {
             {acoesVisiveis.map((item) => (
               <ItemDeAcao key={item.id} item={item} onExecutar={executarIntencao} />
             ))}
+            {/* "as próximas" era plural fixo num número que começa em 1.
+                A cauda passa a ser invariável ("o resto"), e só a contagem
+                concorda — ver `lib/plural.ts`. */}
             {acoesOcultas.length > 0 && (
               <p className="px-1 text-xs text-ivory-muted">
-                E mais {acoesOcultas.length} pendência(s) — resolva as de cima
-                para ver as próximas.
+                E mais {contar(acoesOcultas.length, "pendência", "pendências")} na
+                fila — resolva as de cima para ver o resto.
               </p>
             )}
           </div>
         </section>
       )}
 
-      {fitInRequests.length > 0 && (
-        <section className="md:col-start-2 md:row-start-5">
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm">
-            Encaixes pendentes
-          </h2>
-          <div className="flex flex-col gap-2 md:gap-3">
-            {fitInRequests.map((booking) => (
-              <Card key={booking.id} className="flex flex-col gap-3 md:p-5">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-sm text-ivory">{booking.clientName}</p>
-                    <p className="text-xs text-ivory-muted">
-                      {getServicesByIds(booking.serviceIds)
-                        .map((s) => s.name)
-                        .join(" + ")}{" "}
-                      · {booking.time}
-                    </p>
-                  </div>
-                  <Pill tone="gold">
-                    expira em até {bookingPolicy.fitInExpirationMinutes} min
-                  </Pill>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    className="flex-1"
-                    onClick={() => resolveFitIn(booking, true)}
-                  >
-                    Aprovar
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    className="flex-1"
-                    onClick={() => resolveFitIn(booking, false)}
-                  >
-                    Recusar
-                  </Button>
-                </div>
-                {erroDoEncaixe[booking.id] && (
-                  <p role="alert" className="text-xs text-danger">
-                    {erroDoEncaixe[booking.id]} Nenhuma mensagem foi enviada ao
-                    cliente.
-                  </p>
-                )}
-                <p className="text-[11px] text-ivory-muted">
-                  Aprovar ou recusar abre o WhatsApp do cliente com a mensagem
-                  pronta — só depois de o encaixe ser gravado.
-                </p>
-              </Card>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* A coluna lateral de 360px só existe quando há algo nela — "precisa de
-          você" ou encaixe pendente. Vazia, ela deixava a agenda parando no meio
-          da tela com um vão à direita, enquanto os blocos de cima iam até a
-          borda. Sem nada ao lado, a agenda ocupa a largura inteira: é a tabela
-          com mais colunas do painel, e é onde a largura faz diferença. */}
+      {/* A coluna lateral de 360px só existe quando há algo nela — hoje, o
+          "precisa de você". Vazia, ela deixava a agenda parando no meio da tela
+          com um vão à direita, enquanto os blocos de cima iam até a borda. Sem
+          nada ao lado, a agenda ocupa a largura inteira: é a tabela com mais
+          colunas do painel, e é onde a largura faz diferença. */}
       <section
         className={
           semColunaLateral
@@ -490,17 +573,34 @@ export default function PainelHojePage() {
             : "md:col-start-1 md:row-start-4 md:row-span-2"
         }
       >
-        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm">
-          Agenda do dia
-        </h2>
-        {status === "carregando" && <LoadingRows rows={3} />}
+        {/* D13 · o botão de marcar mora AQUI, na agenda do dia.
+         *
+         * É onde o dono está quando alguém chega no balcão ou liga — e era
+         * exatamente o lugar onde ele procurou e não achou. Nenhuma das 8 telas
+         * do painel criava reserva: o produto tinha um caminho só, o app do
+         * cliente autenticado. */}
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-ivory-muted md:text-sm">
+            Agenda do dia
+          </h2>
+          <Button
+            variant="secondary"
+            onClick={() => setBalcaoAberto(true)}
+            className="min-h-9 px-3 text-xs"
+          >
+            <CalendarPlus size={14} />
+            Marcar atendimento
+          </Button>
+        </div>
+        {status === "carregando" && <LoadingRows rows={3} oQue="sua agenda" />}
+        {status === "erro" && <ErroAoCarregar oQue="sua agenda" erro={erroDaAgenda} />}
         {status === "pronto" && bookings.length === 0 && (
           <EmptyState
             icon={CalendarCheck}
             title="Nenhum horário marcado para hoje"
-            description="Compartilhe seu link com os clientes para começar a receber agendamentos."
-            actionLabel="Ver meu link"
-            actionHref="/comecar"
+            description="Marque quem chegou no balcão ou compartilhe seu link para receber agendamentos pelo app."
+            actionLabel="Marcar atendimento"
+            onAction={() => setBalcaoAberto(true)}
           />
         )}
         {/* Ordenado por HORA.
@@ -525,7 +625,11 @@ export default function PainelHojePage() {
               </thead>
               <tbody>
                 {bookingsDoDia.map((booking) => {
-                  const statusMeta = bookingStatusMeta[booking.status];
+                  /* Leitura guardada: um status fora da união derrubava a tela
+                   * Hoje INTEIRA — `undefined.tone`, e o dono ficava sem a
+                   * agenda do dia por causa de uma linha. Ver `metaDoStatus`. */
+                  const statusMeta = metaDoStatus(booking.status);
+                  const liquidacao = liquidacaoDoAtendimento(booking);
                   const bookingServices = getServicesByIds(booking.serviceIds);
                   const emAberto =
                     booking.status === "confirmed" ||
@@ -585,8 +689,21 @@ export default function PainelHojePage() {
                       <td className="px-4 py-3 text-ivory-muted">
                         {bookingServices.map((s) => s.name).join(" + ")}
                       </td>
+                      {/* D2 · a coluna passa a dizer como o atendimento foi
+                          LIQUIDADO, não só que meio de pagamento tem gravado.
+                          O corte coberto pelo plano não tem pagamento — e
+                          exibia "A pagar no salão" depois de concluído, que é
+                          o produto mandando cobrar de novo o que a mensalidade
+                          já pagou. */}
                       <td className="px-4 py-3 text-ivory-muted">
-                        {labelDoPagamento(booking.paymentOrigin, booking.paymentMethod)}
+                        {liquidacao.coberto ? (
+                          <span className="text-ivory">{liquidacao.label}</span>
+                        ) : (
+                          liquidacao.label
+                        )}
+                        {liquidacao.detalhe && (
+                          <span className="block text-[11px]">{liquidacao.detalhe}</span>
+                        )}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-right text-ivory">
                         {formatBRL(booking.value)}
@@ -636,6 +753,42 @@ export default function PainelHojePage() {
                               <CalendarX size={14} /> Cancelar
                             </button>
                           )}
+                          {/* R1 · A PORTA da correção de pagamento.
+                              Ela fica na linha do atendimento concluído, e não
+                              atrás do card crítico, porque o card só enxerga o
+                              caso 1 — o atendimento que terminou sem método.
+                              O caso 2 (o dono marcou Pix e o cliente pagou em
+                              dinheiro) não aciona alerta nenhum: com o método
+                              preenchido, `!b.paymentMethod` é falso e nenhuma
+                              tela do produto o detecta. Sem esta linha, metade
+                              da matriz não teria por onde ser alcançada.
+
+                              Não aparece no coberto pelo plano: ali não existe
+                              `PaymentDoc` — a mensalidade já é a receita
+                              daquele corte —, e o servidor recusa. Oferecer o
+                              botão para depois recusar seria a interface
+                              prometendo o que o sistema não faz. */}
+                          {booking.status === "completed" && !liquidacao.coberto && (
+                            <button
+                              onClick={() => setACorrigir(booking)}
+                              className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ivory-muted transition-colors hover:border-gold hover:text-gold-light"
+                            >
+                              <CreditCard size={14} /> Corrigir pagamento
+                            </button>
+                          )}
+                          {/* D22 · e este é o "outro caminho" que o comentário
+                              acima mencionava e que não existia.
+                              Devolver dinheiro de atendimento REALIZADO é
+                              estorno, não cancelamento: o serviço aconteceu, e
+                              o registro dele fica. */}
+                          {booking.status === "completed" && (
+                            <button
+                              onClick={() => setAEstornar(booking)}
+                              className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ivory-muted transition-colors hover:border-gold hover:text-gold-light"
+                            >
+                              <RotateCcw size={14} /> Devolver
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -647,18 +800,104 @@ export default function PainelHojePage() {
         )}
       </section>
 
-      {/* Uma pergunta, quatro opções, e cada opção JÁ conclui.
-          Um botão "Confirmar" separado somaria um segundo clique ao gesto mais
-          repetido do dia — o fechamento precisa custar um toque, senão o dono
-          volta para o caderno. */}
+      {/* D13 · o caminho que faltava.
+          A reserva criada aqui aparece na agenda acima assim que o servidor
+          confirma — o listener do Firestore é a mesma fonte da tabela, então não
+          há recarregar nem estado paralelo que possa divergir. */}
+      <MarcarNoBalcao open={balcaoAberto} onClose={() => setBalcaoAberto(false)} />
+
+      {/* D22 · devolver valor de atendimento concluído. */}
+      {aEstornar && (
+        <EstornarValor
+          aberto
+          aoFechar={() => setAEstornar(null)}
+          origem="servico"
+          refId={aEstornar.id}
+          descricao={`${aEstornar.clientName} · ${formatBRL(aEstornar.value)} · ${aEstornar.time}`}
+          valorPago={aEstornar.value}
+        />
+      )}
+
+      {/* R1 · corrigir como o atendimento concluído foi pago.
+          Modal PRÓPRIO, montado condicionalmente: cada abertura ganha uma chave
+          de idempotência nova — reaproveitá-la faria a segunda correção cair no
+          caminho de retry do servidor e a tela diria "pronto" sem nada ter
+          acontecido. */}
+      {aCorrigir && (
+        <CorrigirPagamento
+          aberto
+          aoFechar={() => setACorrigir(null)}
+          bookingId={aCorrigir.id}
+          descricao={`${aCorrigir.clientName} · ${formatBRL(aCorrigir.value)} · ${aCorrigir.time}`}
+          valor={aCorrigir.value}
+          metodoAtual={aCorrigir.paymentMethod ?? null}
+        />
+      )}
+
+      {/* Uma pergunta e opções que JÁ concluem — nenhuma exige um "Confirmar"
+          depois. Um segundo clique no gesto mais repetido do dia é o que faz o
+          dono voltar para o caderno.
+          Qual pergunta, depende de quem está na cadeira: o avulso responde
+          COMO pagou; o mensalista responde SE houve cobrança — D2. */}
       <Modal
         open={!!aFechar}
         onClose={() => setAFechar(null)}
-        title="Como o cliente pagou?"
+        title={
+          assinaturaDoFechamento ? "Concluir atendimento" : "Como o cliente pagou?"
+        }
       >
         <p className="mb-4 text-sm text-ivory-muted">
           {aFechar?.clientName} · {aFechar ? formatBRL(aFechar.value) : ""}
         </p>
+
+        {/* D2 · o mensalista deixa de ser obrigado a escolher um meio de
+            pagamento para dinheiro que não entrou.
+            Era o F2 visto do balcão: o dono do plano Ilimitado concluía o corte
+            e o produto perguntava "Como o cliente pagou? · R$ 50,00", com
+            quatro opções e nenhuma saída honesta — cobrar de novo (receita e
+            comissão fantasmas) ou não concluir (a agenda nunca fecha).
+
+            Os meios de pagamento CONTINUAM aqui, e isso é deliberado: o quinto
+            corte de um plano de quatro é cobrança legítima, e esconder as
+            opções tiraria do dono a única chance de registrar o método — o
+            gatilho financeiro só materializa na transição para `completed`, e
+            não há caminho de volta para informá-lo depois. */}
+        {assinaturaDoFechamento && (
+          <div className="mb-5 flex flex-col gap-3">
+            <div className="rounded-xl border border-border bg-surface-raised px-3 py-2.5">
+              <p className="text-sm text-ivory">
+                Mensalista · {assinaturaDoFechamento.planName}
+              </p>
+              <p className="mt-0.5 text-xs text-ivory-muted">
+                {termosDoPlano(assinaturaDoFechamento)}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              disabled={salvando}
+              onClick={() => void concluirCom(null)}
+              className="flex min-h-16 cursor-pointer items-center justify-center gap-2 rounded-xl border border-gold/50 bg-gold/10 text-sm font-medium text-gold-light transition-colors hover:border-gold hover:bg-gold/15"
+            >
+              <Check size={16} /> Concluir sem cobrar
+            </button>
+
+            {/* A tela não promete cobertura — ela diz quem decide e quando.
+                Prometer aqui seria afirmar um fato que ainda não existe: a
+                cobertura é gravada na conclusão, pelo servidor, com a cota do
+                mês na mão. */}
+            <p className="text-xs text-ivory-muted">
+              Quem decide se o plano cobre este atendimento é o fechamento, com a
+              cota do mês. Se a cota já tiver acabado, ele entra como avulso — a
+              agenda mostra o motivo, e aí a cobrança é com você.
+            </p>
+
+            <p className="mt-1 text-xs uppercase tracking-wider text-ivory-muted">
+              Ou registre a cobrança
+            </p>
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-3">
           {PAYMENT_METHODS.map((metodo) => (
             <button
