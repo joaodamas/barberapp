@@ -233,6 +233,14 @@ describe("P1-7 · o que a fonte precisa continuar dizendo", () => {
     expect(fonte).toMatch(/pagamento:\s*pagamentoSnap\.exists/);
   });
 
+  it("a reversão limpa o `paymentMethod` junto com a cobertura", () => {
+    /* Sem isto, a reserva fica "Não compareceu" exibindo "Crédito" na coluna
+     * Pagamento, sem pagamento nenhum no banco — divergência booking × payment
+     * criada pelo produto, e permanente se ninguém concluir de novo. Visto na
+     * tela durante o gate de 20/08. */
+    expect(fonte).toMatch(/cobertura:\s*FieldValue\.delete\(\)[\s\S]{0,80}paymentMethod:\s*null/);
+  });
+
   it("o bruto da reconclusão sai do congelado, não de `depois.value`", () => {
     expect(fonte).toMatch(/reconclusao && ciclo\?\.pagamento/);
   });

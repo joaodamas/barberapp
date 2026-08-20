@@ -71,6 +71,40 @@ Daí as duas regras novas do protocolo:
 
 ---
 
+# 3.5 · O critério mudou — 20/08
+
+Até aqui, cada descoberta virava um portão novo, e o efeito colateral era ficar
+eternamente em validação. **O critério oficial passa a ser:**
+
+> **Produto operacional + financeiro confiável + sem bugs críticos conhecidos.**
+
+Não é "100% perfeito". O que o projeto persegue agora é colocar **O Siqueira** para
+usar e aprender com o uso real — o que aparecer depois vira backlog de V1.1.
+
+## D-Caso-2 · risco aceito para o piloto V1
+
+**Decisão do dono, 20/08.** O caso 2 não é bug: é **limitação de
+observabilidade**. Se o operador digita "Crédito", o sistema não tem como saber
+que entrou Pix — e o briefing em `DECISAO-CASO-2.md` mostra que fechar essa
+lacuna exige construir uma fonte de evidência nova (gaveta, extrato ou cliente),
+que é frente de produto, não correção.
+
+Fica registrado no contrato do piloto:
+
+> **Piloto V1: o meio de pagamento é informado pelo dono. O sistema não valida a
+> correspondência contra adquirente, gaveta ou extrato.**
+
+⚠️ **O risco aceito tem um gatilho, e ele não é temporal.** Com as taxas de
+pagamento **zeradas** — o padrão de nascença (`tenant.ts:153`) — o caso 2 move só
+a coluna do caixa e **nenhum centavo**. No dia em que o dono cadastrar as taxas
+reais em Configurações, o mesmo erro passa a mover dinheiro em todo pagamento
+novo. **Cadastrar taxa é o evento que reabre esta decisão**, e vale avisar O
+Siqueira disso quando ele for preencher.
+
+Se depois quisermos fechar a lacuna, é V1.1 — com uma das opções do briefing.
+
+---
+
 # 4 · Três portões, e misturá-los é erro
 
 A distinção não é burocrática: **bloquear o R1 pelo defeito nº 2 deixaria o
@@ -99,9 +133,12 @@ preservou o histórico, e o R1 apenas tornou o dano visível.
 |---|---|---|
 | ✅ | ~~**P1-7**~~ — fechado em 20/08, ver §4.2.1 | — |
 | 🟡 | **Cobertura re-decidida** — a parte **silenciosa** foi fechada pelo D-3, ver §4.2.2 | resta o caso em que o dono escolhe "Concluir sem cobrar" sobre um atendimento que já tinha pagamento: o valor sai, por decisão dele, e nada avisa que havia receita ali |
-| 🔴 | **Caso 2** — meio de pagamento preenchido e errado | indetectável hoje: não há segunda origem. **Único bloqueio 🔴 restante.** Briefing de decisão em `DECISAO-CASO-2.md` — aguarda **D-Caso-2** |
+| ✅ | ~~**Caso 2**~~ — **risco aceito** para o piloto V1, ver §3.5 | limitação de observabilidade, não bug. Briefing em `DECISAO-CASO-2.md` |
 | ✅ | ~~**D18**~~ — **já estava fechado pelo D2**, ver §4.2.3 | o registro que o dava como aberto estava velho |
-| 🟡 | **Quatro leituras derivadas ignoram a cobertura** | previsão e relatório inflados — não é receita realizada errada |
+| ✅ | ~~**Duas leituras derivadas**~~ — `topServicos` e `recorrenciaDeClientes` corrigidas | o coberto conta como visita e não como receita |
+| 🟡 | **Duas leituras de FUTURO** — `previsaoDoDia`, `projecaoDeCaixa` | não é polimento: reserva agendada não tem `cobertura`, precisam da assinatura como fonte |
+
+**Nenhum 🔴 restante.** O portão do piloto está aberto pelo critério de §3.5.
 
 ### 4.2.1 · P1-7 — fechado, e provado em execução
 
@@ -334,8 +371,14 @@ então o trigger continua sem cobertura automatizada.
 **Não é construir feature.**
 
 ```
-Gate P0 ✅ → P1-7 ✅ → cobertura silenciosa ✅ → D18 → caso 2 → Go-Live
+Gate P0 ✅ → P1-7 ✅ → cobertura silenciosa ✅ → D18 ✅ → caso 2 aceito ✅
+                                                            ↓
+                                    E2E do dono → E2E do cliente → PILOTO
 ```
+
+**O próximo passo não é mais motor: é operação.** A pergunta deixou de ser "o
+número está certo?" e passou a ser **"um dono de barbearia consegue usar isto
+todo dia?"**. Os dois roteiros estão em `E2E-PILOTO.md`.
 
 **O D18 é o próximo alvo** — mensalista contado duas vezes no DRE, o problema
 conceitual mais importante em aberto. E o D-3 acabou de tocar a fronteira dele:
@@ -343,18 +386,29 @@ conceitual mais importante em aberto. E o D-3 acabou de tocar a fronteira dele:
 receita de serviço** — o que é correto (ele pagou à parte), mas encosta na
 mesma pergunta que o D18 faz sobre o que a mensalidade cobre.
 
-Três correções 🟡 seguem sem depender de decisão nenhuma:
+## Os 🟡 — o que caiu em 20/08 e o que sobrou
 
-- `paymentMethod` órfão no `no_show` (uma linha na perna de reversão);
-- o alcance da porta do R1, que só enxerga hoje enquanto o servidor já concede
-  o mês corrente;
-- **`page.tsx:100` ordena a agenda com `a.time.localeCompare(b.time)` sem
-  guarda** — um único booking sem `time` derruba a tela inteira do dia com
-  "Esta tela não abriu". Encontrado por acidente, escrevendo um documento
-  incompleto direto no banco; as regras permitem essa escrita ao dono e à
-  equipe (`firestore.rules:246`).
+**Corrigidos:**
 
-A quarta (`grossAmount` recriado de `booking.value`) **caiu junto com o P1-7**.
+- **`paymentMethod` órfão no `no_show`** — a reversão passou a limpá-lo junto com
+  a cobertura. Acabou a linha "Não compareceu" exibindo "Crédito";
+- **o sort da agenda sem guarda** (`page.tsx`) — `(a.time ?? "")`. Um booking sem
+  `time` derrubava a tela inteira do dia com "Esta tela não abriu";
+- **`topServicos` e `recorrenciaDeClientes`** — o atendimento coberto passou a
+  contar como visita e a valer zero de receita. Excluir a linha faria o produto
+  esconder o corte mais feito da casa e perder da recorrência justamente o
+  cliente que mais volta;
+- **`grossAmount` recriado de `booking.value`** — caiu junto com o P1-7.
+
+**Sobraram dois, e nenhum é polimento:**
+
+| | Item | Por que não é "uma linha" |
+|---|---|---|
+| 🟡 | **Alcance da porta do R1** | o servidor concede o mês corrente, a tela só mostra hoje. Alcançar o mês exige lista/tela nova, com decisões de UX próprias, e o §8 do contrato do Action Center barra histórico dali |
+| 🟡 | **`previsaoDoDia` e `projecaoDeCaixa`** | falam do FUTURO, e reserva agendada **não tem `cobertura`** — ela só é decidida na conclusão (achado do R1). Precisam ler a assinatura ativa, e isso traz decisão embutida: quanto mostrar para um mensalista agendado, se a cota ainda pode acabar? |
+
+O sintoma da segunda foi visto no gate sem ser reconhecido: "Previsão do dia
+**R$ 150,00**" com um atendimento coberto no meio.
 
 ## Uma sequência de evidência que vale preservar
 

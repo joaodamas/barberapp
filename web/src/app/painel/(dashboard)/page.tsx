@@ -95,9 +95,17 @@ export default function PainelHojePage() {
    * encaixe, e um `fit_in_requested` antigo ficaria invisível — some da agenda
    * e não tem mais onde ser encontrado. Ele aparece na tabela como qualquer
    * outra reserva, com o rótulo que `metaDoStatus` já dá. */
+  /* `?? ""` porque uma reserva sem `time` derrubava a tela INTEIRA do dia.
+   *
+   * `undefined.localeCompare` estoura dentro do `sort`, o erro sobe até o error
+   * boundary e o dono vê "Esta tela não abriu" — perdendo a agenda, o caixa e o
+   * Action Center por causa de um documento. As regras permitem escrita direta
+   * em `bookings` ao dono e à equipe (`firestore.rules:246`), então o campo pode
+   * faltar sem que nenhuma tela tenha errado. Encontrado em 20/08, ao semear uma
+   * reserva pelo Admin SDK sem o campo. */
   const bookingsDoDia = bookings
     .slice()
-    .sort((a, b) => a.time.localeCompare(b.time));
+    .sort((a, b) => (a.time ?? "").localeCompare(b.time ?? ""));
   const agendados = bookings.filter((b) => OCCUPIES_SLOT.includes(b.status));
 
   const confirmedCount = agendados.length;

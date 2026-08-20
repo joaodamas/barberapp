@@ -527,8 +527,25 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
          * desfazer a conclusão precisa devolver essa vaga: senão o cliente de
          * um plano de quatro cortes perde um deles para um atendimento que o
          * dono já disse que não aconteceu. */
+        /* `paymentMethod` sai junto com a cobertura.
+         *
+         * A perna de reversão apagava `cobertura` e deixava o método para trás:
+         * a reserva ficava "Não compareceu" exibindo "Crédito" na coluna
+         * Pagamento, sem pagamento nenhum no banco. Divergência
+         * booking × payment criada pelo produto — exatamente a que a decisão B
+         * do R1 declara impossível —, e permanente se ninguém concluir de novo.
+         *
+         * `null` e não `delete`: é o estado com que a reserva nasce
+         * (`booking.ts`), e a tela já sabe lê-lo como "a pagar no salão". */
         reservaRef
-          .set({ cobertura: FieldValue.delete(), cicloFinanceiro: congelado }, { merge: true })
+          .set(
+            {
+              cobertura: FieldValue.delete(),
+              paymentMethod: null,
+              cicloFinanceiro: congelado,
+            },
+            { merge: true }
+          )
           .catch(() => undefined),
       ]);
       return;

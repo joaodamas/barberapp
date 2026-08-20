@@ -5,6 +5,7 @@ import {
    * concluído sem dinheiro. O predicado continua em `domain.ts`, com teste
    * próprio, para quem precisar da pergunta de AGENDA — mas nenhum número
    * financeiro sai mais dele. */
+  cobertoPeloPlano,
   isRevenue,
   monthOf,
   OCCUPIES_SLOT,
@@ -899,8 +900,16 @@ export function topServicos(params: {
 
   for (const b of params.bookings) {
     if (!isRevenue(b) || !dentroDoPeriodo(b.date, params.periodo)) continue;
+    /* O atendimento coberto pelo plano CONTA mas não FATURA — D2.
+     *
+     * A tesourada aconteceu: excluir a linha inteira faria "serviços mais
+     * vendidos" subestimar quantos cortes a casa fez. Mas ela não trouxe
+     * receita de serviço: quem responde por ela é a mensalidade, e somar
+     * `b.value` aqui inflava o ranking com dinheiro que não entrou — o mesmo
+     * defeito que `receitaDeServico` já corrigia, sobrevivendo nesta leitura. */
+    const coberto = cobertoPeloPlano(b);
     // Combo de dois serviços rateia o valor entre eles.
-    const fatia = safeDiv(b.value, b.serviceIds.length);
+    const fatia = coberto ? 0 : safeDiv(b.value, b.serviceIds.length);
     for (const id of b.serviceIds) {
       const name = params.nomePorId.get(id) ?? id;
       const atual = acc.get(id) ?? { name, count: 0, revenue: 0 };
@@ -929,8 +938,18 @@ export function recorrenciaDeClientes(params: {
   for (const b of params.bookings) {
     if (!isRevenue(b)) continue;
     const atual = porCliente.get(b.clientId) ?? { name: b.clientName, datas: [], spent: 0 };
+    /* A VISITA conta sempre; o GASTO, só quando houve — D2.
+     *
+     * Recorrência é sobre quem volta, e o mensalista é justamente quem mais
+     * volta: tirar as datas dele destruiria a resposta que esta função existe
+     * para dar. Mas `spent` somava `b.value` de cortes que o plano absorveu,
+     * afirmando um gasto que não aconteceu naquele atendimento.
+     *
+     * ⚠️ `spent` é, portanto, "o que o cliente pagou em serviço avulso" — NÃO
+     * inclui a mensalidade dele, que vive em `invoices`. Um mensalista fiel
+     * pode aparecer com `spent` baixo e visitas altas, e isso é o fato. */
     atual.datas.push(b.date);
-    atual.spent += b.value;
+    if (!cobertoPeloPlano(b)) atual.spent += b.value;
     porCliente.set(b.clientId, atual);
   }
 
