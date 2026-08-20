@@ -157,7 +157,10 @@ function QrCode({ value }: { value: string }) {
 
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, size, size);
-    ctx.fillStyle = "#17140f";
+    /* O mesmo `--color-ink` da paleta, à mão porque `canvas` não lê variável
+     * CSS. Precisa ser quase-preto por ESCANEABILIDADE, não por estética: o
+     * leitor separa módulo claro de escuro por limiar de luminância. */
+    ctx.fillStyle = "#0f172a";
 
     for (let linha = 0; linha < modulos; linha++) {
       for (let coluna = 0; coluna < modulos; coluna++) {

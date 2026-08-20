@@ -28,7 +28,7 @@ export function PainelSidebarNav() {
        aparecia cortado ao meio, com "Painel do dono" pela metade e o botão de
        sair inalcançável. Agora só a lista de navegação rola, e quem é dono do
        espaço restante é ela — o rodapé fica sempre ancorado embaixo. */
-    <aside className="hidden shrink-0 bg-surface/60 md:flex md:h-full md:w-64 md:flex-col md:overflow-hidden md:border-r md:border-border md:shadow-[8px_0_32px_-24px_rgba(0,0,0,0.8)]">
+    <aside className="hidden shrink-0 bg-surface/60 md:flex md:h-full md:w-64 md:flex-col md:overflow-hidden md:border-r md:border-border md:shadow-[8px_0_32px_-24px_rgba(15,23,42,0.28)]">
       <Link
         href="/painel"
         className="flex items-center gap-3 px-6 pb-6 pt-8"

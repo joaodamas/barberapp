@@ -1,14 +1,26 @@
 @import "tailwindcss";
 
 :root {
-  /* Design system da plataforma — fundo claro, detalhes dourado/preto.
-   * `--color-gold` é sobrescrito por barbearia em tempo de execução (ver
-   * `lib/tenant.ts`); o resto é da plataforma, para o contraste medido não
-   * depender da cor que o lojista escolher. */
-  --color-canvas: #ffffff;
-  --color-surface: #f8f5ee;
-  --color-surface-raised: #efe9dc;
-  --color-border: #e1d8c5;
+  /* Design system da plataforma — página fria e neutra, cartão branco, detalhe
+   * dourado. `--color-gold` é sobrescrito por barbearia em tempo de execução
+   * (ver `lib/tenant.ts`); o resto é da plataforma, para o contraste medido não
+   * depender da cor que o lojista escolher.
+   *
+   * A pilha de superfícies NÃO é monotônica, e isso é de propósito: a página é
+   * cinza, o cartão é BRANCO — mais claro que ela — e o realce dentro do cartão
+   * volta a ser cinza. O cartão flutua por ser mais claro que o fundo, que é
+   * como papel sobre mesa se comporta. Antes era o contrário: página branca e
+   * cartão creme, ou seja, o cartão afundava.
+   *
+   * O creme saiu inteiro. Ele vinha da identidade "barbearia clássica" e, em
+   * tela, quatro tons quentes próximos (#fff, #f8f5ee, #efe9dc, #e1d8c5) leem
+   * como papel envelhecido, não como hierarquia — e o dono passa o dia nesta
+   * tela. O cinza-azulado neutro deixa o dourado ser o único calor da tela, que
+   * é onde ele importa: é a cor da marca dele. */
+  --color-canvas: #f8fafc;
+  --color-surface: #ffffff;
+  --color-surface-raised: #f1f5f9;
+  --color-border: #e2e8f0;
 
   /* ATENÇÃO à nomenclatura: `ink` é o texto quase preto e `gold-strong` é
    * MAIS ESCURO que `gold` — existe para ter contraste como texto sobre fundo
@@ -18,17 +30,24 @@
   /* Hover de superfície dourada: precisa CLAREAR, senão o texto escuro sobre
    * ela cai para 3.3:1 e reprova no WCAG AA. */
   --color-gold-hover: #c99a52;
-  --color-ink: #17140f;
-  --color-ink-muted: #6b6355;
+  --color-ink: #0f172a;
+  /* Slate 600, e não 500. O 500 (#64748b) mede 4,55:1 sobre a página e 4,34:1
+   * sobre o realce — passa no fácil e reprova onde o texto secundário de fato
+   * aparece, que é dentro de etiqueta e de bloco realçado. Medido, não
+   * presumido: ver `contraste-de-tokens.test.ts`. */
+  --color-ink-muted: #475569;
 
-  /* #4f8542 dava 4.41:1 sobre o fundo — reprovava AA por pouco. */
-  --color-success: #43733a;
-  --color-danger: #ab4a3a;
+  /* Também um passo mais escuros que o tom 600 da paleta, pelo mesmo motivo do
+   * texto secundário: #059669 e #dc2626 reprovam sobre `surface-raised`, e o
+   * vermelho reprova ainda no hover do botão destrutivo, que clareia a 90% e
+   * derruba o branco por cima para ~4,3:1. */
+  --color-success: #047857;
+  --color-danger: #b91c1c;
 
-  /* Contorno decorativo de card (1.42:1 — não é alvo de WCAG 1.4.11) e
-   * contorno de CONTROLE, que precisa ser perceptível. */
-  --color-border: #e1d8c5;
-  --color-border-strong: #a1937a;
+  /* Contorno decorativo de card (não é alvo de WCAG 1.4.11) e contorno de
+   * CONTROLE, que precisa ser perceptível. */
+  --color-border: #e2e8f0;
+  --color-border-strong: #94a3b8;
 
   --background: var(--color-canvas);
   --foreground: var(--color-ink);
@@ -41,20 +60,24 @@
    * fundo em volta, e o resultado lê como acabamento malfeito, não como
    * camada.
    *
-   * A troca é de tinta e de forma: opacidade baixa, duas sombras por nível (uma
-   * curta que define a borda, outra longa e difusa que dá a distância), e o tom
-   * puxado para o marrom da identidade em vez de preto puro — sombra
-   * neutra sobre fundo quente parece cinza sujo.
+   * A troca é de tinta e de forma: opacidade baixa e duas sombras por nível —
+   * uma curta que define a borda, outra longa e difusa que dá a distância.
+   *
+   * O TOM acompanha o fundo, e por isso mudou junto com a paleta. Era marrom
+   * (`60, 45, 20`) porque o fundo era creme, e sombra neutra sobre fundo quente
+   * lê como cinza sujo. Agora o fundo é cinza-azulado, e o marrom faria o
+   * inverso — mancharia de amarelo a borda do cartão. Passa a ser o próprio
+   * `--color-ink` (`15, 23, 42`), que é a tinta mais escura da paleta.
    */
   --shadow-sm:
-    0 1px 2px rgba(60, 45, 20, 0.06),
-    0 1px 3px rgba(60, 45, 20, 0.04);
+    0 1px 2px rgba(15, 23, 42, 0.06),
+    0 1px 3px rgba(15, 23, 42, 0.04);
   --shadow-md:
-    0 2px 4px rgba(60, 45, 20, 0.05),
-    0 8px 20px -6px rgba(60, 45, 20, 0.10);
+    0 2px 4px rgba(15, 23, 42, 0.05),
+    0 8px 20px -6px rgba(15, 23, 42, 0.10);
   --shadow-lg:
-    0 4px 8px rgba(60, 45, 20, 0.05),
-    0 24px 48px -16px rgba(60, 45, 20, 0.16);
+    0 4px 8px rgba(15, 23, 42, 0.05),
+    0 24px 48px -16px rgba(15, 23, 42, 0.16);
   --shadow-gold: 0 8px 24px -10px rgba(184, 134, 58, 0.28);
 }
 
@@ -158,13 +181,15 @@ h1, h2, h3, h4, .font-display {
 
 /* Elevation — cartão com profundidade real.
  *
- * O gradiente escurecia o TOPO do cartão (preto a 1,5% descendo para
- * transparente). Num app escuro isso simula luz vindo de baixo; num app claro
- * inverte a leitura — a superfície fica mais suja em cima do que embaixo, ao
- * contrário de tudo que a luz faz. Agora clareia o topo, que é como um objeto
- * iluminado de cima se comporta. */
+ * Havia aqui um gradiente que clareava o topo do cartão com branco a 50%. Ele
+ * fazia sentido enquanto `--color-surface` era creme: clarear o topo é o que a
+ * luz faz com um objeto iluminado de cima.
+ *
+ * Com o cartão BRANCO, branco sobre branco não desenha nada — a regra virou
+ * peso morto que ainda parecia estar fazendo alguma coisa, que é a pior forma
+ * de código morto. A elevação agora vem inteira de onde ela é real: a sombra,
+ * mais o contraste do cartão claro contra a página cinza. */
 .card-elevated {
-  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.5), transparent 60%);
   box-shadow: var(--shadow-sm);
 }
 
