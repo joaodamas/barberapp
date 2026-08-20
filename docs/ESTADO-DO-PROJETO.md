@@ -133,6 +133,8 @@ preservou o histórico, e o R1 apenas tornou o dano visível.
 |---|---|---|
 | ✅ | ~~**P1-7**~~ — fechado em 20/08, ver §4.2.1 | — |
 | 🟡 | **Cobertura re-decidida** — a parte **silenciosa** foi fechada pelo D-3, ver §4.2.2 | resta o caso em que o dono escolhe "Concluir sem cobrar" sobre um atendimento que já tinha pagamento: o valor sai, por decisão dele, e nada avisa que havia receita ali |
+| ✅ | ~~**Plano de mensalidade**~~ — fora do mínimo do piloto pelo `CHECKLIST-O-SIQUEIRA.md` (item 7, "se ele já faz — senão, pular"). V1.1 | `plans` é lido por todos e escrito por ninguém; o motor está inteiro, falta a porta do catálogo |
+| ✅ | ~~**Jornada da barbearia**~~ — `/painel/horarios`, provada na tela em 20/08 | era 🔴: nenhuma tela escrevia `schedule`, e o item **4** do mínimo do checklist é justamente "os horários oferecidos serem os horários reais" |
 | ✅ | ~~**Caso 2**~~ — **risco aceito** para o piloto V1, ver §3.5 | limitação de observabilidade, não bug. Briefing em `DECISAO-CASO-2.md` |
 | ✅ | ~~**D18**~~ — **já estava fechado pelo D2**, ver §4.2.3 | o registro que o dava como aberto estava velho |
 | ✅ | ~~**Duas leituras derivadas**~~ — `topServicos` e `recorrenciaDeClientes` corrigidas | o coberto conta como visita e não como receita |

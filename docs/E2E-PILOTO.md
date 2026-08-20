@@ -79,7 +79,10 @@ Executado com a bancada local, barbearia semeada, sessão de dono ativa.
 | 5 | Agenda | 🟢 | "Pezinho" e "Bruno Teste" chegaram ao balcão. Capacidade subiu de 36 → 54 com o 3º barbeiro, como a tela de Equipe avisou que aconteceria |
 | 6-7 | Conclui e recebe | 🟢 | **D1 provado no barbeiro novo**: campo em branco → `commissionPct: 40`, comissão R$ 8,00 sobre R$ 20,00 |
 | — | **Jornada da barbearia** | 🔴→✅ | **Nenhuma tela escrevia `schedule`.** Corrigido nesta rodada — ver §6 |
-| 8-11 | Caixa, comissão, fechamento, histórico | ⏸ | Não executados: o E2E parou no 🔴 da jornada, conforme a regra |
+| 8 | Vê caixa | 🟢 | Receita R$ 20,00 − custo R$ 9,20 (comissão 8,00 + imposto 1,20) = **R$ 10,80**, margem 54%. Fecha na casa do centavo |
+| 9 | Vê comissão | 🟢 | "Quanto sobrou" linha a linha: despesas variáveis **R$ 8,00** = a comissão do barbeiro novo. Sem jargão contábil no rótulo |
+| 10 | Fecha o dia | 🔵 | **Não existe fechamento de dia** — nem o de mês, como o R1 já registrara. O dono simplesmente não fecha nada |
+| 11 | Consulta histórico | 🔵 | A ficha do cliente **declara a lacuna**: *"o histórico completo de atendimentos e compras entra numa próxima versão desta ficha"*. Fora dela, o painel só mostra HOJE — é o 🟡 do alcance da porta do R1, visto por outro ângulo |
 
 ## Roteiro do cliente
 
@@ -87,21 +90,36 @@ Executado com a bancada local, barbearia semeada, sessão de dono ativa.
 |---|---|---|---|
 | 1-2 | Acessa e escolhe serviço | 🟢 | Passo 1 de 4, os 5 serviços com preço e duração, "Pezinho" incluído |
 | 3 | Escolhe horário | 🟢 | **Dom e Seg aparecem como "fechado"** — a folga configurada no painel chegou aqui. Horários de 15 em 15, de 14:00 a 19:45 (fecha 20:00). E o N7 se confirma: *"os horários livres mudam conforme o profissional — por isso a lista aparece depois da escolha"* |
-| 4-6 | Agenda, confirmação, acompanha | ⏸ | Não executados nesta rodada |
+| 4-6 | Agenda, confirmação, acompanha | ⏸ | **Não executados.** Pedem uma sessão de cliente real, não o dono navegando na própria área. O passo 5 já é 🔵 conhecido: o WhatsApp nunca enviou — faltam credenciais e verificação comercial |
 
 ---
 
-# 5 · A pergunta que decide o segundo 🔴
+# 5 · O segundo 🔴 virou 🔵 — e a decisão já estava escrita
 
-**A mensalidade faz parte do piloto do O Siqueira?**
+**A mensalidade NÃO faz parte do mínimo do piloto.** Não é opinião: está em
+`CHECKLIST-O-SIQUEIRA.md`, escrito antes desta rodada.
 
-É fato de negócio, não de código — só o dono responde.
+Mensalidade é o **item 7**, cuja seção se chama literalmente *"Se ele já faz
+(**senão, pular**)"*. E o documento fecha:
 
-- **Sim** → criar/configurar plano é 🔴 e precisa sair antes do piloto.
-- **Não** → `plans` vira 🔵 e não se gasta tempo agora.
+> *"O mínimo para abrir para o primeiro cliente real são os itens **1, 3, 4 e
+> 9**. O resto melhora o produto, mas não impede o primeiro agendamento."*
 
-O motor de mensalista está inteiro (contratar, faturar, cobrir, cota, D2, D-3).
-Falta só a porta de entrada do catálogo.
+| Item | | Mínimo? |
+|---|---|---|
+| 1 | A barbearia | ✅ |
+| 3 | Os serviços | ✅ |
+| **4** | **Os horários** | ✅ |
+| 9 | Criar a conta dele | ✅ |
+| 7 | Mensalidade | ❌ |
+
+**O item 4 do mínimo é "os horários oferecidos serem os horários reais"** — o
+🔴 que este E2E encontrou e fechou. O checklist já sabia que era pré-requisito
+do primeiro cliente; o produto é que não tinha a tela.
+
+`plans` fica como **🔵 / V1.1**. O motor de mensalista está inteiro — contratar,
+faturar, cobrir, cota, D2, D-3 —, falta só a porta de entrada do catálogo, e ela
+só importa quando mensalidade entrar em escopo.
 
 ---
 
@@ -135,3 +153,24 @@ estavam certos: `concordancia.test.ts` recusou o ternário `"dia" : "dias"`
 na lista de telas — a guarda vale nas duas direções, tela órfã e link morto.
 
 788 web · typecheck · lint.
+
+
+---
+
+# 7 · Achados novos desta execução
+
+| | Achado | Onde |
+|---|---|---|
+| 🟡 | **O mapa de calor sugere promover horário em dia fechado.** Com a segunda desmarcada, ele desenha `Seg` como linha normal e conclui *"Seg às 10:00 é a maior brecha (0%) — bom alvo para promoção"*. Ele não distingue "vazio" de "fechado" | `analytics.ts` · mapa de calor |
+| 🟡 | O documento de barbeiro/serviço **nasce vazio no clique**, antes do nome, e a tela não tem botão de salvar nem confirmação | `equipe`, `servicos` |
+| 🟢 | O produto **avisa sozinho** sobre serviço com preço zerado, explicando a consequência: *"o cliente consegue agendar sem pagar nada"* | `servicos` |
+| 🟢 | A ficha do cliente **declara a própria lacuna** em vez de fingir completude | `clientes` |
+
+# 8 · Veredito
+
+**Nenhum 🔴 em aberto.** Os dois encontrados foram tratados: a jornada foi
+implementada e provada na tela; a mensalidade saiu de escopo pelo checklist do
+próprio dono.
+
+O que sobrou é 🟡 e 🔵 — nada que impeça O Siqueira de abrir a barbearia,
+atender, receber e ver o dinheiro certo no fim do dia.
