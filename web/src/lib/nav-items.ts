@@ -187,6 +187,7 @@ export const painelNavItems: NavItem[] = [
     children: [
       { href: "/painel/configuracoes", label: "Taxas e regras" },
       { href: "/painel/horarios", label: "Horários" },
+      { href: "/painel/meu-link", label: "Meu link" },
       { href: "/painel/servicos", label: "Serviços" },
       { href: "/painel/equipe", label: "Equipe" },
     ],

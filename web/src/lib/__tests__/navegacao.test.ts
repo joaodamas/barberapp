@@ -31,6 +31,7 @@ const rotasDoPainel = [
   "/painel/financeiro/projecao",
   "/painel/horarios",
   "/painel/loja",
+  "/painel/meu-link",
   "/painel/mensal",
   "/painel/numeros",
   "/painel/servicos",

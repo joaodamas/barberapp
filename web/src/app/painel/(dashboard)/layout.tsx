@@ -1,7 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
 import { AuthGuard } from "@/components/auth-guard";
-import { DemoBanner } from "@/components/demo-banner";
 import { AvisoModoLeitura } from "@/components/ui/bloqueio-plano";
 import { AvisoDeTrial } from "@/components/acesso";
 import { resolverTenant } from "@/lib/tenant-server";
@@ -47,7 +46,6 @@ export default async function PainelDashboardLayout({
       >
         Pular para o conteúdo
       </a>
-      <DemoBanner />
       {/* Os dois se completam e nunca aparecem juntos: o de trial avisa nos
           últimos dias, o de leitura explica depois que venceu. */}
       <AvisoDeTrial tenant={tenant} />

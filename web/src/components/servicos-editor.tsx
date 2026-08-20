@@ -21,6 +21,14 @@ import type { ServiceDoc } from "@/lib/domain";
  */
 export type Servico = ServiceDoc & { id: string };
 
+/** "100" → "100,00"; vazio continua vazio, para o placeholder aparecer. */
+function formatarPreco(valor: unknown): string {
+  const n = Number(valor);
+  if (!valor && valor !== 0) return "";
+  if (!Number.isFinite(n)) return String(valor);
+  return n.toFixed(2).replace(".", ",");
+}
+
 export function EditorDeServicos({
   barbershopId,
   permiteDesativar = false,
@@ -32,6 +40,12 @@ export function EditorDeServicos({
   onChange?: (servicos: Servico[]) => void;
 }) {
   const [servicos, setServicos] = useState<Servico[]>([]);
+  /* Qual preço está sendo digitado agora.
+   *
+   * Enquanto o dono digita, o campo mostra o valor CRU — formatar no meio da
+   * digitação faria "1" virar "1,00" e o cursor pular para o fim, tornando
+   * impossível chegar em "15". Fora de foco, mostra formatado. */
+  const [precoEmFoco, setPrecoEmFoco] = useState<string | null>(null);
   const [status, setStatus] = useState<"carregando" | "pronto" | "erro">("carregando");
   const [erroDeEscrita, setErroDeEscrita] = useState<string | null>(null);
   const [aExcluir, setAExcluir] = useState<Servico | null>(null);
@@ -186,17 +200,34 @@ export function EditorDeServicos({
               />
               <span className="text-xs text-ivory-muted md:hidden">min</span>
             </div>
-            <input
-              aria-label="Preço"
-              type="number"
-              min={0}
-              step="0.01"
-              value={s.price || ""}
-              onChange={(e) => atualizar(s.id, "price", e.target.value)}
-              onBlur={() => salvarLinha(s)}
-              placeholder="0,00"
-              className="rounded-xl border border-border bg-surface-raised px-3 py-2.5 text-sm text-ivory"
-            />
+            {/* O preço mostra R$ e as duas casas — o campo cru exibia "100" e
+                "15", e um cardápio de barbearia não se lê assim. O "R$" fica
+                FORA do campo, como adorno: dentro, viraria texto que o dono
+                precisa apagar para digitar.
+
+                `type="text"` com `inputMode="decimal"`: `number` não aceita
+                exibir "100,00" formatado, e ainda traz as setinhas de incremento
+                que não fazem sentido em dinheiro. A vírgula é como se digita
+                preço em português, e `atualizar` já normaliza para ponto. */}
+            <div className="flex items-center gap-1.5 rounded-xl border border-border bg-surface-raised px-3 py-2.5 focus-within:border-gold/40">
+              <span aria-hidden className="text-sm text-ivory-muted">
+                R$
+              </span>
+              <input
+                aria-label="Preço"
+                type="text"
+                inputMode="decimal"
+                value={precoEmFoco === s.id ? s.price || "" : formatarPreco(s.price)}
+                onFocus={() => setPrecoEmFoco(s.id)}
+                onChange={(e) => atualizar(s.id, "price", e.target.value.replace(",", "."))}
+                onBlur={() => {
+                  setPrecoEmFoco(null);
+                  salvarLinha(s);
+                }}
+                placeholder="0,00"
+                className="w-full bg-transparent text-sm text-ivory outline-none"
+              />
+            </div>
 
             {permiteDesativar && (
               <button
