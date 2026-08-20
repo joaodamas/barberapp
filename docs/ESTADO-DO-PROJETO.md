@@ -1,0 +1,201 @@
+# Estado do projeto — CorteHub / JP Barber
+
+> **20/08/2026** · `hardening/p0-2026-08-17` em `3f460e2` · consolidado com o João.
+>
+> Substitui `STATUS-ATUAL.md` (12/08) como fotografia de referência. Aquele
+> documento descreve um repositório que já não existe: foi escrito antes do
+> fechamento de D1–D4, antes do R1 e antes do N7.
+>
+> **Este documento diz o que É.** O que **falta** continua em
+> `GO-LIVE-READINESS.md`; a fila de execução, em `FILA-DE-EXECUCAO.md`.
+
+---
+
+# 1 · A trajetória, em uma linha
+
+```
+protótipo → validação funcional → multi-tenant → hardening → LGPD
+         → motor financeiro → decisões de domínio → R1 → Gate P0 → piloto
+```
+
+O projeto saiu da construção. **A pergunta deixou de ser "funciona?" e passou a
+ser "o número que ele mostra é o fato?"** — e é essa troca que explica por que
+uma rodada inteira pode terminar sem feature nova e ainda assim ter sido a mais
+produtiva.
+
+---
+
+# 2 · O que está fechado
+
+| Frente | Estado | Onde |
+|---|---|---|
+| **D1** — comissão padrão da casa | ✅ 40% barbeiro / 60% casa, gravado na criação | `96565f3` · `provisioning.ts:163` · `financial-events.ts:96` |
+| **D2** — atendimento coberto pelo plano | ✅ reserva ganhou `cobertura`; caixa do dia nasce do pagamento | `96565f3` + `0b4e8ce` |
+| **D3** — falha de leitura não vira zero | ✅ | `12056c7` |
+| **D4** — receita × caixa × ticket | ✅ nomes distintos | `12056c7` |
+| **N7** — área do cliente | ✅ `/agendar` não afirma "não há horário" antes de perguntar | `e9eea9b` |
+| **ROOT_DOMAIN / tenant** | ✅ login identifica "O Siqueira Barbearia" — reconfirmado na tela em 20/08 | `9559d4b` |
+| **R1** — correção de pagamento | ✅ **FECHADO** — Gate P0 executado na tela em 20/08, 9 passos e 9 cenários | `a9c5eca` · `GATE-P0-R1-EXECUTADO.md` |
+| **LGPD técnica** | 🟡 política, termos, links, exclusão e 11 testes; pendência jurídica | — |
+| **Suíte** | ✅ 781 web · 471 functions · 33 emulador; typecheck, lint e build limpos | — |
+
+**D1–D4 não bloqueiam mais nada.** É a correção mais importante ao registro
+anterior, que os tratava como bloqueio ativo.
+
+---
+
+# 3 · O que o R1 ensinou
+
+Começou como *"deixar editar o meio de pagamento"*. Terminou em outro lugar:
+
+> O problema não era **editar um campo**. Era **corrigir um fato financeiro já
+> materializado** — que move pagamento, comissão, caixa, DRE e projeção de uma vez.
+
+Por isso virou callable dono-only, alterando pagamento + reserva + `audit_log`
+na **mesma** transação, com `update` nunca `set`, campos congelados intocados e
+taxa vigente reusada, não reimplementada.
+
+E duas descobertas não vieram de rodar teste — vieram de perguntar *quem escreve
+isto*:
+
+- **`audit_log` é `allow write: if false`** (`firestore.rules:341`), imutável até
+  para o dono. Um `updateDoc` de tela não registra correção nenhuma.
+- **A cobertura do plano é indecidível antes da conclusão** — duas reservas
+  futuras do mesmo mês disputam a mesma vaga da cota.
+
+Daí as duas regras novas do protocolo:
+
+- **§26** — toda mudança de fato financeiro define seu próprio rastro.
+- **§27** — a interface não afirma o que o sistema ainda não sabe.
+
+---
+
+# 4 · Três portões, e misturá-los é erro
+
+A distinção não é burocrática: **bloquear o R1 pelo defeito nº 2 deixaria o
+produto exatamente igual**, com o P1-7 vivo e sem a única porta que corrige
+pagamento. Piora em vez de melhorar.
+
+## 4.1 · Portão do R1 — ✅ FECHADO em 20/08
+
+O Gate P0 rodou na bancada com **auth + firestore + functions**, primeira execução
+real de `materializeFinancialsOnCompletion` neste repositório. Os 9 passos e os 9
+cenários estão em `GATE-P0-R1-EXECUTADO.md`.
+
+O passo decisivo foi o **8**: com o cadastro do barbeiro em 50%, uma escrita em
+`bookings` que não fosse `status` não moveu documento nenhum — a comissão ficou
+congelada em 60% e o `createdAt` do pagamento não mudou.
+`decidirEfeito("completed","completed") === "nada"` passou de asserção de função
+pura a **fato observado**. Era a premissa do R1, e ela é verdadeira em runtime.
+
+Um cenário da matriz falhou — o **6**, "Veio depois não recalcula histórico". Ele
+falha contra a **expectativa do briefing**, não contra o R1: a reabertura nunca
+preservou o histórico, e o R1 apenas tornou o dano visível.
+
+## 4.2 · Portão do piloto — quatro itens
+
+| | Bloqueio | Por quê |
+|---|---|---|
+| 🔴 | **P1-7** — `completed → no_show → completed` reescreve comissão congelada | muda o acerto com o barbeiro retroativamente |
+| 🔴 | **Cobertura re-decidida apaga receita realizada** | acontece sem tela, sem log e sem alerta |
+| 🔴 | **Caso 2** — meio de pagamento preenchido e errado | indetectável hoje: não há segunda origem |
+| 🔴 | **D18** — mensalista contado duas vezes no DRE | o problema conceitual mais importante em aberto |
+
+## 4.3 · Portão do Go-Live
+
+Mobile sem uma única medição · pendência jurídica da LGPD · deploy completo
+(403 nas regras do Storage).
+
+---
+
+# 5 · Os dois achados que a auditoria de 20/08 acrescentou
+
+Recuperados de worktrees onde ficaram órfãos; hoje em `docs/agent-reports/`.
+
+## "Veio depois" apaga a correção — `R1-VEIO-DEPOIS.md`
+
+Não são quatro campos. O `PaymentDoc` **inteiro** é deletado e renasce com o
+**mesmo id** (`pagamento_{bookingId}`): nada duplica, a contagem de documentos
+não muda e **nenhuma tela pode notar**. A comissão renasce do cadastro de hoje,
+a cobertura é re-decidida, e se o cliente ganhou plano no intervalo o pagamento
+é apagado — a receita some. O `audit_log` sobrevive intacto, descrevendo um
+pagamento que já não existe.
+
+Três achados que ninguém tinha escrito: `bookings.paymentMethod` fica órfão no
+`no_show` (uma linha "Não compareceu" exibindo "Crédito"); o `grossAmount`
+renasce de `booking.value` de hoje, não do congelado; e **a erosão não deixa
+rastro em lugar nenhum**.
+
+## O caso 2 é indetectável — `R1-CASO-2.md`
+
+Dezesseis candidatos a sinal, dezesseis descartados. Todo registro de meio de
+pagamento desce de uma digitação humana, e o produto não tem segunda origem:
+
+```
+dono escolhe no modal → bookings.paymentMethod → payments.paymentMethod
+   → feePct · feeAmount · netAmount → refunds → DRE · Caixa · Fluxo · Projeção
+```
+
+Nenhum nó desse grafo tem aresta de entrada vinda do mundo. **Alarme exige
+coleta antes** — fechamento de caixa, extrato da maquininha ou recibo ao
+cliente. Sem isso, qualquer alerta seria `insufficient` e o invariante 3 do
+Action Center o barra na porta.
+
+Achado lateral não registrado em documento nenhum: **o card do caso 1 só enxerga
+reservas de hoje** (`page.tsx:117`). Um `completed` sem método de anteontem não
+gera card nem tem linha na tabela.
+
+---
+
+# 6 · Estado técnico
+
+| | |
+|---|---|
+| HEAD | `3f460e2` (18/08) — `9559d4b` ficou **26 commits** atrás |
+| Worktrees | 3 ativas |
+| Relatórios recuperados | `docs/agent-reports/R1-VEIO-DEPOIS.md` · `R1-CASO-2.md` |
+| Bancada | emuladores **auth + firestore + functions** de pé, com `materializeFinancialsOnCompletion` registrado |
+
+**O trigger não é exercitado por nenhum teste automatizado.** Os 12 scripts de
+emulador (`functions/package.json:15-25`) usam `--only firestore`; nenhum sobe
+`functions`. O Gate P0 de 20/08 foi a **primeira execução real** — e o que ela
+mediu está em `GATE-P0-R1-EXECUTADO.md`. A lacuna na suíte **continua aberta**:
+o que provou o comportamento foi uma bancada montada à mão, não a esteira.
+
+## Dois defeitos de bancada, encontrados ao montá-la
+
+1. **O seed não roda como documentado.** `node scripts/semear-day-in-the-life.mjs`
+   falha com `ERR_MODULE_NOT_FOUND: firebase-admin` — o pacote só existe em
+   `functions/node_modules`, e o resolver ESM não sobe até lá a partir de
+   `scripts/`. Correção de uma linha, e **todo roteiro de bancada começa por aí**.
+2. **`export PATH="$JAVA_HOME/bin:$PATH"` quebra em silêncio no Git Bash** quando
+   o caminho é estilo Windows: o `C:` é o próprio separador de `PATH`. Com JDK 21
+   instalado, o Firebase recusava por "Java version before 21". Só o caminho
+   POSIX (`/c/Program Files/...`) funciona. É irmão do tropeço já registrado
+   (`VAR=x npm run dev` não propaga).
+
+---
+
+# 7 · O próximo passo
+
+**Não é construir feature.**
+
+```
+Gate P0 do R1 ✅ → P1-7 → cobertura re-decidida → D18 → gate de Go-Live
+```
+
+O **P1-7 é o próximo**, e agora tem número em vez de argumento: no gate, o acerto
+com o barbeiro saltou de R$ 20 para R$ 30 num atendimento que já tinha
+acontecido, só porque o cadastro mudou entre as duas conclusões. Ele depende da
+decisão **D-2** — a comissão renasce do cadastro de hoje ou do documento
+anterior? — e essa decisão é do dono.
+
+Três correções 🟡 não dependem de decisão nenhuma e podem sair antes:
+`paymentMethod` órfão no `no_show` (uma linha em `financial-events.ts:392-394`),
+`grossAmount` recriado de `booking.value`, e o alcance da porta do R1, que só
+enxerga hoje enquanto o servidor já concede o mês corrente.
+
+## O marco de retomada
+
+> **JP Barber — R1 FECHADO com gate na tela, D1–D4 fechadas, piloto bloqueado
+> por P1-7, cobertura re-decidida, caso 2 e D18.**
