@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Check, Copy, Download, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { tenantUrl, type Tenant } from "@/lib/tenant";
+import { matrizDoQr } from "@/lib/qr";
 
 /**
  * O passo que decide o trial.
@@ -121,9 +122,11 @@ function Bloco({
 }
 
 /**
- * QR gerado no cliente, sem dependência externa.
- * Implementação mínima de QR versão 4 com correção de erro baixa — suficiente
- * para uma URL curta de subdomínio.
+ * QR gerado no cliente, sem dependência externa e sem rede.
+ *
+ * A matriz vem de `lib/qr.ts`, que é onde o teste a verifica: aqui só há
+ * desenho. O `quietZone` de 4 módulos não é decoração — é exigência da
+ * especificação, e sem ela leitor nenhum reconhece o código impresso.
  */
 function QrCode({ value }: { value: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -135,29 +138,36 @@ function QrCode({ value }: { value: string }) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Placeholder determinístico até a biblioteca de QR entrar: um padrão
-    // derivado da URL, para a tela ser testável sem dependência nova.
-    const size = 180;
-    const cells = 25;
-    const cell = size / cells;
+    const matriz = matrizDoQr(value);
+    const modulos = matriz.length;
+    const quietZone = 4;
+    const total = modulos + quietZone * 2;
+
+    /* Escala inteira: um módulo fracionado gera meia célula cinza no
+     * antialiasing, e é assim que QR impresso deixa de ser lido. */
+    const alvo = 220;
+    const escala = Math.max(2, Math.floor(alvo / total));
+    const size = total * escala;
+
     canvas.width = size;
     canvas.height = size;
+    /* Dobro no CSS mantém o desenho nítido em tela retina sem esticar pixel. */
+    canvas.style.width = `${size}px`;
+    canvas.style.height = `${size}px`;
+
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, size, size);
     ctx.fillStyle = "#17140f";
 
-    let hash = 0;
-    for (let i = 0; i < value.length; i++) hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
-
-    for (let y = 0; y < cells; y++) {
-      for (let x = 0; x < cells; x++) {
-        const marcador =
-          (x < 7 && y < 7) || (x >= cells - 7 && y < 7) || (x < 7 && y >= cells - 7);
-        const borda =
-          marcador &&
-          (x % 6 === 0 || y % 6 === 0 || (x % 6 >= 2 && x % 6 <= 4 && y % 6 >= 2 && y % 6 <= 4));
-        const bit = ((hash >> ((x * 7 + y * 13) % 31)) ^ (x * y)) & 1;
-        if (marcador ? borda : bit) ctx.fillRect(x * cell, y * cell, cell, cell);
+    for (let linha = 0; linha < modulos; linha++) {
+      for (let coluna = 0; coluna < modulos; coluna++) {
+        if (!matriz[linha][coluna]) continue;
+        ctx.fillRect(
+          (coluna + quietZone) * escala,
+          (linha + quietZone) * escala,
+          escala,
+          escala
+        );
       }
     }
     setPronto(true);
