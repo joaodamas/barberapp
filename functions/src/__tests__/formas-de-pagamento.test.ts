@@ -1,8 +1,5 @@
-<<<<<<< HEAD
-=======
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
->>>>>>> origin/main
 import { describe, expect, it } from "vitest";
 import { SEM_TAXA } from "../financial-events";
 import { valoresDoPagamento } from "../payments";
@@ -76,8 +73,6 @@ describe("valoresDoPagamento · a forma entra congelada", () => {
     expect(v.paymentFormLabel).toBe("Débito");
   });
 });
-<<<<<<< HEAD
-=======
 
 describe("a reversão não deixa forma órfã", () => {
   /**
@@ -101,4 +96,3 @@ describe("a reversão não deixa forma órfã", () => {
     expect(reversao).toContain("paymentFormLabel: null");
   });
 });
->>>>>>> origin/main
