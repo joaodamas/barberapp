@@ -142,6 +142,62 @@ pagamento existiu, a maquininha cobrou, e o DRE passaria a afirmar que não.
 A tela grava só `policies.paymentForms`. Manter os dois em dia seria manter duas
 fontes para a mesma pergunta — o defeito que este repositório mais corrigiu.
 
+## [2026-09-10] — o mês começa limpo
+
+Terceiro e último dos pedidos que o dono d'O Siqueira mandou depois da primeira
+semana de uso.
+
+> *"Outra coisa, como tiro o registro que você fez no mês?"*
+
+Ele tinha razão em perguntar e não tinha onde clicar. Existia exclusão de
+equipe, despesa, plano e serviço; de **atendimento concluído, pagamento e
+comissão, nenhuma**. Dava para desfazer a conclusão — e aí o pagamento some — e
+cancelar enquanto está em aberto, mas a reserva continuava no dia, e o primeiro
+mês de operação nasceria misturado com o que foi teste.
+
+### Por que uma Cloud Function, e não a tela apagando documento
+
+Três razões, e nenhuma é conveniência:
+
+1. **`payments`, `commissions`, `refunds` e `cash_entries` são `write: if
+   false` para o cliente.** Afrouxar a regra para permitir a limpeza destruiria
+   a propriedade que torna o histórico confiável.
+2. **O rastro.** `audit_log` também é imutável para a tela. Um apagamento em
+   massa sem registro seria a única operação do produto capaz de acontecer sem
+   ninguém saber depois — §26.
+3. **Atomicidade não cabe.** São milhares de documentos em coleções diferentes.
+   O que dá para garantir é a ORDEM: o registro do que vai sair é escrito
+   **antes** da primeira exclusão. Na ordem inversa, uma função que morre no
+   meio deixa um banco vazio sem uma linha explicando por quê — indistinguível
+   de perda de dados.
+
+### O contrato é a LISTA, e é ela que o teste guarda
+
+O risco desta função não é falhar: é **funcionar sobre a coleção errada**. Uma
+linha a mais apaga a equipe, os serviços ou os clientes de uma barbearia real, e
+nenhum teste de comportamento pegaria — a operação teria sido um sucesso.
+
+Fica: equipe, serviços, preços, planos, produtos, clientes, horários, taxas,
+configurações e o `audit_log` inteiro.
+
+Sai: atendimentos, pagamentos, comissões, estornos, caixa, movimentos de
+estoque, despesas, mensalistas, faturas, fidelidade, ocorrências e mensagens.
+
+### Duas decisões que a tela precisa dizer em voz alta
+
+**A prévia vem do servidor.** A tela contaria errado: ela lê `bookings` do mês
+corrente, não os de março; não lê `commissions` nem `refunds` em lugar nenhum. O
+número que o dono vê antes de digitar ZERAR é contado por quem apaga — e pela
+mesma régua, na mesma callable.
+
+**O estoque volta a zero.** `products.stock` é o saldo dos movimentos que estão
+saindo; mantê-lo deixaria o produto afirmando oito unidades sem uma linha que
+explique de onde vieram.
+
+E a prévia mostra a **data do atendimento mais antigo**, porque ela muda a
+decisão: "de 3 dias atrás" é apagar teste, "de 7 meses atrás" é apagar a
+operação da barbearia.
+
 ## [2026-08-18] — o R1, e o dia em que a pergunta mudou três vezes
 
 Entrou a correção de pagamento de atendimento (R1). Mas o registro honesto desta

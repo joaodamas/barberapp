@@ -8,6 +8,7 @@ import { useTenant } from "@/lib/tenant-context";
 import { patchTenant } from "@/lib/db/repository";
 import { formatBRL } from "@/lib/format";
 import { EditorDeFormasDePagamento } from "@/components/formas-de-pagamento-editor";
+import { ComecarDoZero } from "@/components/comecar-do-zero";
 import {
   formasDoTenant,
   taxasEmBranco,
@@ -331,6 +332,25 @@ export default function ConfiguracoesPage() {
           </p>
         )}
       </div>
+
+      {/* Por último, e separada por desenho.
+          Fica depois do botão de salvar, com moldura própria e cor de perigo,
+          porque é a única ação desta tela que não se desfaz — e a distância
+          entre ela e os campos que o dono ajusta toda semana é o que impede o
+          clique de músculo. */}
+      <Card className="flex flex-col gap-4 border-danger/30 md:p-6">
+        <div>
+          <h2 className="text-sm font-semibold text-ink md:text-base">
+            Antes de começar de verdade
+          </h2>
+          <p className="mt-1 text-xs text-ink-muted md:text-sm">
+            Se você testou o sistema com atendimentos e valores inventados, tire
+            tudo daqui antes do primeiro dia real — senão o resultado do mês nasce
+            misturado com o que era teste.
+          </p>
+        </div>
+        <ComecarDoZero />
+      </Card>
     </div>
   );
 }
