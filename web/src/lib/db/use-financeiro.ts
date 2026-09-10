@@ -8,7 +8,7 @@ import {
 } from "@/lib/db/use-shop-data";
 import { fluxoDiario, movimentosDeCaixa, resumoDoFluxo } from "@/lib/fluxo-de-caixa";
 import {
-  caixaDiario, capacidadeDiaria, folhaMensal, horariosDaJornada, indicadores,
+  caixaDiario, capacidadeDoPeriodo, folhaMensal, horariosDaSemana, indicadores,
   taxasDePagamento, HORIZONTES,
   mapaDeCalor, mesPeriodo, projecaoDeCaixa, receitaDoMes,
   recorrenciaDeClientes, resultadoDoMes, topServicos,
@@ -150,13 +150,17 @@ export function useFinanceiro(mes: string, horizonte: Horizonte = "mensal") {
   const fluxo = resumoDoFluxo(movimentos);
   const fluxoPorDia = fluxoDiario(movimentos);
 
-  const diasAbertos = tenant.schedule.weekdays.length;
   /* Capacidade do mês × barbeiros ativos. Sem isso, a ocupação de uma equipe
    * de três sai três vezes maior que a real — e o dono decide preço e horário
-   * em cima de um número inventado. */
+   * em cima de um número inventado.
+   *
+   * A conta era `capacidadeDiaria × diasAbertos × 4,3`. O 4,3 é a média de
+   * semanas num mês, e o resto assumia que todo dia aberto rende igual —
+   * premissa que morreu com o horário por dia da semana. `capacidadeDoPeriodo`
+   * soma dia a dia o mês REAL, com feriado fechado e terça mais curta. */
   const barbeirosAtivos = Math.max(staff.items.filter((b) => b.active !== false).length, 1);
   const capacidadeMes =
-    capacidadeDiaria(tenant.schedule) * diasAbertos * 4.3 * barbeirosAtivos;
+    capacidadeDoPeriodo({ schedule: tenant.schedule, periodo }) * barbeirosAtivos;
 
   const kpis = indicadores({
     bookings: bookings.items,
@@ -190,7 +194,7 @@ export function useFinanceiro(mes: string, horizonte: Horizonte = "mensal") {
     heatmap: mapaDeCalor({
       bookings: bookings.items,
       periodo,
-      horarios: horariosDaJornada(tenant.schedule),
+      horarios: horariosDaSemana(tenant.schedule),
     }),
     projecao: projecaoDeCaixa({
       bookings: bookings.items,
@@ -198,6 +202,7 @@ export function useFinanceiro(mes: string, horizonte: Horizonte = "mensal") {
       subscribers: subscribers.items,
       historico: caixa,
       openWeekdays: tenant.schedule.weekdays,
+      schedule: tenant.schedule,
       inicio: new Date(),
       dias: diasDeProjecao,
     }),

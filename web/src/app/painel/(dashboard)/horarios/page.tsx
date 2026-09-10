@@ -4,10 +4,12 @@ import { useState } from "react";
 import { Check, Loader2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { PassoHorarios } from "@/components/comecar/passo-horarios";
+import { ExcecoesDeAgenda } from "@/components/excecoes-de-agenda";
 import { useTenant } from "@/lib/tenant-context";
 import { patchTenant } from "@/lib/db/repository";
-import { capacidadeDiaria } from "@/lib/analytics";
-import { contar } from "@/lib/plural";
+import { capacidadeDaData } from "@/lib/jornada";
+import { toISODate } from "@/lib/format";
+import { contar, plural } from "@/lib/plural";
 
 /**
  * A jornada da barbearia — quando ela abre, e de quanto em quanto tempo.
@@ -37,8 +39,16 @@ export default function HorariosPage() {
   const [salvo, setSalvo] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
-  const horariosPorDia = capacidadeDiaria(tenant.schedule);
+  const hoje = toISODate(new Date());
+  const horariosDeHoje = capacidadeDaData({
+    schedule: tenant.schedule,
+    weekday: new Date().getDay(),
+    date: hoje,
+  });
   const diasAbertos = tenant.schedule.weekdays.length;
+  const diasComHorarioProprio = Object.keys(tenant.schedule.perDay ?? {}).filter((d) =>
+    tenant.schedule.weekdays.includes(Number(d))
+  ).length;
 
   async function salvar(dados: Record<string, unknown>) {
     setSalvando(true);
@@ -97,14 +107,31 @@ export default function HorariosPage() {
         )}
       </Card>
 
+      <Card className="flex flex-col gap-5">
+        <header className="flex flex-col gap-1">
+          <h2 className="font-display text-xl text-ink">Dias fechados e horários especiais</h2>
+          <p className="max-w-2xl text-sm text-ink-muted">
+            Um dia só, sem mexer na semana: feriado, viagem, o compromisso que
+            apareceu. Se o horário diferente se repete toda semana, use{" "}
+            <em>&ldquo;algum dia fecha em horário diferente?&rdquo;</em> ali em cima.
+          </p>
+        </header>
+        <ExcecoesDeAgenda />
+      </Card>
+
       <Card className="flex flex-col gap-2">
         <p className="text-sm font-medium text-ink">O que está valendo agora</p>
         <p className="text-sm text-ink-muted">
           {contar(diasAbertos, "dia", "dias")} por semana ·{" "}
-          {tenant.schedule.opensAt}–{tenant.schedule.closesAt} ·{" "}
           {tenant.schedule.slotMinutes} min por horário ·{" "}
-          <span className="text-ink">{horariosPorDia}</span> horários por
-          barbeiro, por dia.
+          <span className="text-ink">{horariosDeHoje}</span>{" "}
+          {plural(horariosDeHoje, "horário", "horários")} por barbeiro <strong>hoje</strong>.
+          {diasComHorarioProprio > 0 && (
+            <>
+              {" "}
+              {contar(diasComHorarioProprio, "dia tem", "dias têm")} horário próprio.
+            </>
+          )}
         </p>
         <p className="text-xs text-ink-muted">
           Serviço mais curto que o intervalo continua ocupando o horário inteiro:

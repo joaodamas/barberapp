@@ -2,6 +2,7 @@ import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { diaDaSemanaNoFuso, hojeNoFuso, instanteNoFuso, localeDoDocumento } from "./locale";
 import { horarioDisponivel, janelasOcupadas, podeRemarcar } from "./agenda";
+import { horariosDaJornada, jornadaDoDia } from "./jornada";
 import { resolverCliente, type OrigemDoCliente } from "./clients";
 
 /**
@@ -263,14 +264,30 @@ export async function validarPedido(params: {
   /* Jornada do BARBEIRO quando ele tem uma; senão a da loja. Folga na segunda
    * e entrada às 10h são o normal de uma equipe. */
   const jornadaDele = barbeiro.get("schedule");
-  const abre: number[] =
-    jornadaDele?.weekdays ?? policies.openWeekdays ?? schedule.weekdays ?? [1, 2, 3, 4, 5, 6];
-  if (!abre.includes(diaSemana)) {
+  const doDia = jornadaDoDia({
+    schedule: {
+      weekdays: jornadaDele?.weekdays ?? policies.openWeekdays ?? schedule.weekdays,
+      opensAt: jornadaDele?.opensAt ?? schedule.opensAt,
+      closesAt: jornadaDele?.closesAt ?? schedule.closesAt,
+      breaks: jornadaDele?.breaks ?? schedule.breaks,
+      perDay: jornadaDele?.perDay ?? schedule.perDay,
+      exceptions: jornadaDele?.exceptions ?? schedule.exceptions,
+    },
+    weekday: diaSemana,
+    date,
+  });
+  if (!doDia.aberto) {
+    /* A exceção diz mais do que o dia da semana: quem tenta marcar num feriado
+     * merece ler "fechado neste dia", e não uma frase que sugere que a
+     * barbearia nunca abre às quintas. */
+    const porExcecao = doDia.origem === "excecao";
     throw new HttpsError(
       "failed-precondition",
-      jornadaDele
-        ? `${barbeiro.get("name")} não atende neste dia.`
-        : "A barbearia não abre neste dia."
+      porExcecao
+        ? `A barbearia não atende neste dia${doDia.nota ? ` — ${doDia.nota}` : ""}.`
+        : jornadaDele
+          ? `${barbeiro.get("name")} não atende neste dia.`
+          : "A barbearia não abre neste dia."
     );
   }
 
@@ -330,6 +347,34 @@ export async function validarPedido(params: {
    * a janela seria vazia e toda reserva seguinte caberia dentro dela. A grade é
    * o mínimo defensável. */
   const duracaoDaReserva = durationMin > 0 ? durationMin : slotMinutes;
+
+  /* ---- O horário cabe dentro do expediente daquele dia? ----
+   *
+   * Buraco que a jornada por dia tornou visível: a validação conferia o DIA da
+   * semana e nunca a HORA. `availableSlots` só oferece horário de dentro do
+   * expediente, então pela tela ninguém alcançava isto — mas a callable é
+   * pública, e um POST direto marcava 23:00 numa barbearia que fecha às 19:00.
+   * Com horário por dia e exceções, "dentro do expediente" passa a variar por
+   * data, e a checagem deixa de ser opcional.
+   *
+   * ⚠️ Vale só para o CLIENTE (`exigirAntecedencia`). O balcão precisa poder
+   * lançar o atendimento que passou das 19:30 e o que aconteceu no meio do
+   * almoço — recusar isso seria o produto discordando do que já aconteceu na
+   * cadeira, e o dono voltaria ao caderno para não perder o registro.
+   */
+  if (params.exigirAntecedencia) {
+    const cabe = horariosDaJornada({
+      jornada: doDia,
+      slotMinutes,
+      duracao: duracaoDaReserva,
+    }).includes(time);
+    if (!cabe) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Esse horário não está no expediente deste dia."
+      );
+    }
+  }
 
   return {
     staffId,
@@ -771,9 +816,25 @@ export const rescheduleBooking = onCall<{
 
   const locale = localeDoDocumento(shop);
   const diaSemana = diaDaSemanaNoFuso(date, locale.timeZone);
-  const abre: number[] = policies.openWeekdays ?? schedule.weekdays ?? [1, 2, 3, 4, 5, 6];
-  if (!abre.includes(diaSemana)) {
-    throw new HttpsError("failed-precondition", "A barbearia não abre neste dia.");
+  const doDia = jornadaDoDia({
+    schedule: {
+      weekdays: policies.openWeekdays ?? schedule.weekdays,
+      opensAt: schedule.opensAt,
+      closesAt: schedule.closesAt,
+      breaks: schedule.breaks,
+      perDay: schedule.perDay,
+      exceptions: schedule.exceptions,
+    },
+    weekday: diaSemana,
+    date,
+  });
+  if (!doDia.aberto) {
+    throw new HttpsError(
+      "failed-precondition",
+      doDia.origem === "excecao"
+        ? `A barbearia não atende neste dia${doDia.nota ? ` — ${doDia.nota}` : ""}.`
+        : "A barbearia não abre neste dia."
+    );
   }
 
   const minutosMinimos: number = policies.booking?.minAdvanceMinutes ?? 60;

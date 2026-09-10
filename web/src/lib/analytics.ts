@@ -1,4 +1,10 @@
-import { safeDiv, toISODate } from "@/lib/format";
+import { parseISODate, safeDiv, toISODate } from "@/lib/format";
+import {
+  capacidadeDaData,
+  horariosDaJornada as horariosDaGrade,
+  jornadaDoDia,
+  type EntradaDeJornada,
+} from "@/lib/jornada";
 import {
   /* `isReceived` saiu daqui com o D2: "status conta como recebido" deixou de
    * ser a pergunta certa quando o atendimento coberto pelo plano passou a ser
@@ -1084,6 +1090,14 @@ export function projecaoDeCaixa(params: {
   subscribers: Doc<SubscriberDoc>[];
   historico: DiaDeCaixa[];
   openWeekdays: number[];
+  /**
+   * A jornada completa, quando o chamador a tem.
+   *
+   * `openWeekdays` sozinho não sabe que o dono fechou o dia 15 — e a projeção
+   * previa faturamento num feriado que ele mesmo cadastrou. Opcional para não
+   * obrigar todo chamador a mudar de uma vez; presente, manda.
+   */
+  schedule?: EntradaDeJornada;
   inicio: Date;
   dias?: number;
 }): DiaProjetado[] {
@@ -1122,7 +1136,9 @@ export function projecaoDeCaixa(params: {
       d.getDate()
     ).padStart(2, "0")}`;
     const dow = d.getDay();
-    const isClosed = !params.openWeekdays.includes(dow);
+    const isClosed = params.schedule
+      ? !jornadaDoDia({ schedule: params.schedule, weekday: dow, date }).aberto
+      : !params.openWeekdays.includes(dow);
 
     const confirmado = params.bookings
       .filter((b) => b.date === date && OCCUPIES_SLOT.includes(b.status))
@@ -1247,27 +1263,73 @@ export function caixaDoDia(payments: Doc<PaymentDoc>[]) {
   };
 }
 
-/** Quantos horários a jornada oferece por dia. */
+/**
+ * Quantos horários a jornada oferece num dia comum.
+ *
+ * Delega a `lib/jornada.ts` desde que a jornada passou a variar por dia da
+ * semana e por data: enquanto a conta vivia aqui, a capacidade era gerada por
+ * uma régua e os horários oferecidos ao cliente por outra — e as duas
+ * discordavam num detalhe que ninguém veria de olho. A daqui considerava a
+ * pausa só quando o slot COMEÇAVA dentro dela, então um atendimento das 11:45
+ * numa grade de 30 entrava na capacidade e invadia o almoço.
+ *
+ * Para a capacidade de UMA data — com o horário próprio daquele dia e as
+ * exceções aplicadas — use `capacidadeDaData`.
+ */
 export function capacidadeDiaria(schedule: {
   opensAt: string;
   closesAt: string;
   breaks: Array<{ from: string; to: string }>;
   slotMinutes: number;
 }) {
-  const min = (t: string) => {
-    const [h, m] = t.split(":").map(Number);
-    return h * 60 + m;
-  };
-  const inicio = min(schedule.opensAt);
-  const fim = min(schedule.closesAt);
-  if (!Number.isFinite(inicio) || !Number.isFinite(fim) || fim <= inicio) return 0;
+  return horariosDaGrade({ jornada: schedule, slotMinutes: schedule.slotMinutes }).length;
+}
 
+/**
+ * Capacidade de um período, dia a dia — a conta que a ocupação do mês usa.
+ *
+ * Substitui a aproximação `capacidadeDiaria × diasAbertos × 4,3`, que assumia
+ * que todo dia aberto rende a mesma coisa. Com horário por dia da semana isso
+ * deixou de ser verdade por desenho — a terça que fecha às 17:30 tem quatro
+ * horários a menos que a quarta — e com exceções, um mês com feriado passava a
+ * ser medido contra uma capacidade que a barbearia não teve.
+ *
+ * Somar 31 dias é barato e acaba com o fator mágico.
+ */
+export function capacidadeDoPeriodo(params: {
+  schedule: EntradaDeJornada;
+  periodo: Periodo;
+}): number {
   let total = 0;
-  for (let t = inicio; t + schedule.slotMinutes <= fim; t += schedule.slotMinutes) {
-    const emIntervalo = schedule.breaks.some((b) => t >= min(b.from) && t < min(b.to));
-    if (!emIntervalo) total += 1;
+  const fim = parseISODate(params.periodo.fim);
+  for (const d = parseISODate(params.periodo.inicio); d <= fim; d.setDate(d.getDate() + 1)) {
+    total += capacidadeDaData({
+      schedule: params.schedule,
+      weekday: d.getDay(),
+      date: toISODate(d),
+    });
   }
   return total;
+}
+
+/**
+ * Todos os horários que a semana pode oferecer — o eixo do mapa de calor.
+ *
+ * União, e não a jornada padrão: com horário por dia, a quinta pode ir até as
+ * 21h e o resto da semana até as 19h. Usar só o padrão faria as marcações das
+ * 19h às 21h simplesmente não terem linha onde aparecer, e o dono leria o
+ * mapa como se ninguém cortasse cabelo àquela hora.
+ */
+export function horariosDaSemana(schedule: EntradaDeJornada & { slotMinutes: number }): string[] {
+  const todos = new Set<string>();
+  for (let weekday = 0; weekday < 7; weekday++) {
+    const jornada = jornadaDoDia({ schedule, weekday, date: "" });
+    if (!jornada.aberto) continue;
+    for (const h of horariosDaGrade({ jornada, slotMinutes: schedule.slotMinutes })) {
+      todos.add(h);
+    }
+  }
+  return [...todos].sort();
 }
 
 /** Horários da jornada, para o mapa de calor e a grade. */
@@ -1277,23 +1339,7 @@ export function horariosDaJornada(schedule: {
   breaks: Array<{ from: string; to: string }>;
   slotMinutes: number;
 }) {
-  const min = (t: string) => {
-    const [h, m] = t.split(":").map(Number);
-    return h * 60 + m;
-  };
-  const fmt = (v: number) =>
-    `${String(Math.floor(v / 60)).padStart(2, "0")}:${String(v % 60).padStart(2, "0")}`;
-
-  const inicio = min(schedule.opensAt);
-  const fim = min(schedule.closesAt);
-  if (!Number.isFinite(inicio) || !Number.isFinite(fim) || fim <= inicio) return [];
-
-  const horarios: string[] = [];
-  for (let t = inicio; t + schedule.slotMinutes <= fim; t += schedule.slotMinutes) {
-    const emIntervalo = schedule.breaks.some((b) => t >= min(b.from) && t < min(b.to));
-    if (!emIntervalo) horarios.push(fmt(t));
-  }
-  return horarios;
+  return horariosDaGrade({ jornada: schedule, slotMinutes: schedule.slotMinutes });
 }
 
 export { monthOf };
