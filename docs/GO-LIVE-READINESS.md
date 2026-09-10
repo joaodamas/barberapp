@@ -54,6 +54,35 @@ Classificados como **escopo** ("não existe"), não como defeito.
 | 2.0.2 | *"como tiro o registro que você fez no mês?"* | atendimento concluído **não tem porta de saída**. Existe exclusão de equipe, despesa, plano e serviço; de reserva, pagamento e comissão, nenhuma |
 | 2.0.3 | *"como também posso colocar mais taxa?"* | `TenantPaymentFees` é fechado em quatro chaves (`tenant.ts:92`). Aproximação × inserido e parcelado não têm onde entrar — a própria tela já admitia: *"Parcelado entra numa próxima versão"* |
 
+### Estado em 10/09 — implementados, nenhum provado em produção
+
+| | | |
+|---|---|---|
+| 2.0.1 | jornada por dia + exceções por data | 🟡 `#25` na `main` |
+| 2.0.3 | formas de pagamento com taxa própria | 🟡 `#26` na `main` |
+| 2.0.2 | "começar do zero" | 🟡 `#28` na `main` |
+
+**🟡 e não ✅, pela regra 1 deste documento.** Os três passam na esteira —
+854 testes no web, 524 nas functions, regras do Firestore incluídas — e a
+esteira não promove nada. O que falta em cada um:
+
+| Item | O que provar no domínio publicado |
+|---|---|
+| jornada | o dono fecha a terça às 17:30 e o app do cliente **para** de oferecer 18:00 e 18:30 naquele dia; um dia travado some do seletor |
+| formas | um atendimento fechado em "Crédito inserido" grava `feePct` da forma certa, e o DRE do mês desconta exatamente isso |
+| começar do zero | rodar **numa barbearia de teste primeiro**. É a única função do produto que apaga em massa, e ela nunca foi exercida contra dado real |
+
+⚠️ **Dois defeitos foram encontrados revisando os próprios PRs, e nenhum
+apareceria em teste verde** — o revisor automático estava sem cota nesta rodada:
+
+1. **`stripUndefined` é raso e não entra em array.** Fechar um dia sem digitar
+   motivo enviava `note: undefined` dentro de `schedule.exceptions`, e o SDK
+   recusa a escrita inteira. O caminho quebrado era o mais comum de todos.
+2. **A reversão limpava `paymentMethod` e deixava a forma para trás.** Como a
+   agenda passou a preferir o rótulo congelado, uma reserva revertida voltaria a
+   exibir "Crédito inserido" sob "Não compareceu" — o defeito de 20/08 reaberto
+   por outra porta.
+
 **Decidido em 10/09**, com o João:
 
 1. **Horário por dia da semana + exceções por data.** O caso dele é recorrente
