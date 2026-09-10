@@ -38,6 +38,7 @@ export {
 export { registrarVendaDeProduto, registrarEntradaDeEstoque } from "./inventory";
 export { registrarEstorno } from "./refunds";
 export { corrigirPagamentoDeAtendimento } from "./correcao-de-pagamento";
+export { comecarDoZero } from "./comecar-do-zero";
 export { registrarMovimentoDeCaixa } from "./caixa";
 export {
   criarMensalista,
