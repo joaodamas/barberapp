@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { COLECOES_DE_MOVIMENTO } from "../comecar-do-zero";
 
@@ -16,7 +17,7 @@ import { COLECOES_DE_MOVIMENTO } from "../comecar-do-zero";
  * Por isso o que se prova aqui é a LISTA, e as guardas que cercam a chamada.
  */
 
-const FONTE = readFileSync(new URL("../comecar-do-zero.ts", import.meta.url), "utf8");
+const FONTE = readFileSync(resolve(__dirname, "../comecar-do-zero.ts"), "utf8");
 
 /** O que é cadastro da barbearia e não pode sumir. */
 const CADASTRO = [
