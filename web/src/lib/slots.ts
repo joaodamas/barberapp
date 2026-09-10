@@ -1,5 +1,6 @@
 import { bookingPolicy } from "@/lib/business-rules";
 import { horariosDaJornada } from "@/lib/analytics";
+import { horariosDaJornada as horariosDaGrade, jornadaDoDia } from "@/lib/jornada";
 import { parseISODate, toISODate } from "@/lib/format";
 import { DEFAULT_SCHEDULE, type TenantSchedule } from "@/lib/tenant";
 import type { TimeSlot } from "@/lib/types";
@@ -20,8 +21,33 @@ export function workdayTimes(schedule: TenantSchedule = DEFAULT_SCHEDULE) {
   return horariosDaJornada(schedule);
 }
 
+/**
+ * A barbearia atende NAQUELA data?
+ *
+ * Passou a olhar a data inteira, e não só o dia da semana: com exceções, um
+ * sábado normal pode estar fechado por feriado, e um domingo pode estar aberto
+ * de propósito. Enquanto a pergunta era `weekdays.includes(getDay())`, a tela
+ * de agendar oferecia o dia que o dono tinha acabado de travar — e o cliente
+ * só descobria ao levar a recusa do servidor, que é o defeito que
+ * `availableSlots` nasceu para acabar.
+ */
 function isOpenOnSchedule(date: Date, schedule: TenantSchedule) {
-  return schedule.weekdays.includes(date.getDay());
+  return jornadaDoDia({
+    schedule,
+    weekday: date.getDay(),
+    date: toISODate(date),
+  }).aberto;
+}
+
+/** A grade daquela data, com o horário próprio do dia e as exceções aplicadas. */
+function horariosDaData(iso: string, schedule: TenantSchedule) {
+  const jornada = jornadaDoDia({
+    schedule,
+    weekday: parseISODate(iso).getDay(),
+    date: iso,
+  });
+  if (!jornada.aberto) return [];
+  return horariosDaGrade({ jornada, slotMinutes: schedule.slotMinutes });
 }
 
 export type BookableDay = {
@@ -97,13 +123,16 @@ export function slotsForDate(iso: string, options: SlotOptions = {}): TimeSlot[]
     ocupados = [],
   } = options;
   const durationMin = options.durationMin || schedule.slotMinutes;
-  const horarios = workdayTimes(schedule);
 
   /* Defesa em profundidade: a tela já esconde dia fechado, mas quem chamar
    * direto não deve receber horário nenhum num domingo. */
   if (!isOpenOnSchedule(parseISODate(iso), schedule)) {
-    return horarios.map((time) => ({ time, available: false }));
+    return workdayTimes(schedule).map((time) => ({ time, available: false }));
   }
+
+  /* A grade é a DAQUELE dia. Numa terça que fecha às 17:30, a jornada padrão
+   * ofereceria 18:00 e 18:30 — horários que o barbeiro não atende. */
+  const horarios = horariosDaData(iso, schedule);
 
   const occupied = occupiedIndexesFor(iso, ocupados, horarios);
   const slotsNeeded = Math.max(1, Math.ceil(durationMin / schedule.slotMinutes));
