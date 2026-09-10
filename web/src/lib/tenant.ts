@@ -185,7 +185,18 @@ export function featuresForPlan(plan: PlanId): TenantFeatures {
   return FEATURES_POR_PLANO[plan];
 }
 
-/** Jornada da barbearia — sai de `lib/slots.ts` e vira configuração. */
+/**
+ * Jornada da barbearia — sai de `lib/slots.ts` e vira configuração.
+ *
+ * `opensAt`/`closesAt`/`breaks` são o **padrão** da semana. `perDay` sobrescreve
+ * um dia da semana inteiro; `exceptions` sobrescreve uma data. A régua de
+ * precedência mora em `lib/jornada.ts` e **não deve ser reescrita em tela
+ * nenhuma** — era exatamente essa conta que estava em quatro lugares.
+ *
+ * Os dois campos novos são opcionais porque toda barbearia existente hoje foi
+ * criada sem eles: ausente significa "segue o padrão da semana", que é o
+ * comportamento anterior, byte por byte.
+ */
 export type TenantSchedule = {
   /** 0 = domingo. */
   weekdays: number[];
@@ -193,6 +204,28 @@ export type TenantSchedule = {
   closesAt: string;
   breaks: Array<{ from: string; to: string }>;
   slotMinutes: number;
+  /**
+   * Horário próprio de um dia da semana. Chave = `"0"`..`"6"`.
+   *
+   * Objeto e não array porque o dono edita um dia de cada vez: com array, salvar
+   * a terça exigiria reenviar os sete, e duas abas abertas se sobrescreveriam.
+   * Com caminho pontilhado (`schedule.perDay.2`), o merge do Firestore resolve.
+   */
+  perDay?: Record<string, Partial<Omit<TenantSchedule, "weekdays" | "slotMinutes" | "perDay" | "exceptions">>>;
+  /** Dias fechados e horários especiais, por data. */
+  exceptions?: ScheduleException[];
+};
+
+/** Um dia com regra própria: fechado, ou aberto em horário diferente. */
+export type ScheduleException = {
+  /** ISO `YYYY-MM-DD`. */
+  date: string;
+  closed?: boolean;
+  opensAt?: string;
+  closesAt?: string;
+  breaks?: Array<{ from: string; to: string }>;
+  /** O que o dono escreve para si mesmo: "feriado", "compromisso". */
+  note?: string;
 };
 
 export type TenantTrial = {

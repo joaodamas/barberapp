@@ -2,6 +2,7 @@ import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
 import { diaDaSemanaNoFuso, instanteNoFuso, localeDoDocumento } from "./locale";
 import { janelaLivre, janelasOcupadas, paraHora, paraMinutos } from "./agenda";
+import { jornadaDoDia, type ExcecaoDeAgenda, type JornadaDoDia } from "./jornada";
 
 /**
  * Horários livres de um dia.
@@ -37,6 +38,8 @@ type Jornada = {
   closesAt?: string;
   breaks?: Array<{ from: string; to: string }>;
   slotMinutes?: number;
+  perDay?: Record<string, Partial<JornadaDoDia>>;
+  exceptions?: ExcecaoDeAgenda[];
 };
 
 export const availableSlots = onCall<{
@@ -80,20 +83,44 @@ export const availableSlots = onCall<{
     : equipe.docs[0];
   if (!barbeiro) throw new HttpsError("failed-precondition", "Esse barbeiro não está disponível.");
 
-  /* Jornada do barbeiro quando ele tem uma; senão a da loja. */
+  /* Jornada do barbeiro quando ele tem uma; senão a da loja.
+   *
+   * A composição continua sendo campo a campo — um barbeiro que só declara
+   * `weekdays` herda o horário da casa —, mas quem aplica a precedência entre
+   * exceção, dia da semana e padrão é `jornadaDoDia`, e só ela. Enquanto esta
+   * conta era escrita aqui, em `createBooking` e em `rescheduleBooking`, as
+   * três tinham fallbacks diferentes para o mesmo campo ausente. */
   const daLoja: Jornada = shop.schedule ?? {};
   const dele: Jornada = barbeiro.get("schedule") ?? {};
-  const jornada: Required<Jornada> = {
-    weekdays: dele.weekdays ?? policies.openWeekdays ?? daLoja.weekdays ?? [1, 2, 3, 4, 5, 6],
-    opensAt: dele.opensAt ?? daLoja.opensAt ?? "09:00",
-    closesAt: dele.closesAt ?? daLoja.closesAt ?? "19:00",
-    breaks: dele.breaks ?? daLoja.breaks ?? [],
-    slotMinutes: dele.slotMinutes ?? daLoja.slotMinutes ?? 30,
-  };
+  const slotMinutes: number = Number(dele.slotMinutes ?? daLoja.slotMinutes) || 30;
 
-  if (!jornada.weekdays.includes(diaDaSemanaNoFuso(date, locale.timeZone))) {
-    return { slots: [], staffId: barbeiro.id, fechado: true };
+  const doDia = jornadaDoDia({
+    schedule: {
+      weekdays: dele.weekdays ?? policies.openWeekdays ?? daLoja.weekdays,
+      opensAt: dele.opensAt ?? daLoja.opensAt,
+      closesAt: dele.closesAt ?? daLoja.closesAt,
+      breaks: dele.breaks ?? daLoja.breaks,
+      perDay: dele.perDay ?? daLoja.perDay,
+      exceptions: dele.exceptions ?? daLoja.exceptions,
+    },
+    weekday: diaDaSemanaNoFuso(date, locale.timeZone),
+    date,
+  });
+
+  if (!doDia.aberto) {
+    /* `motivo` viaja junto para a tela do cliente poder dizer "fechado neste
+     * dia — feriado" em vez do genérico "a barbearia não abre neste dia", que
+     * num sábado de exceção soaria como se ela tivesse fechado as portas. */
+    return {
+      slots: [],
+      staffId: barbeiro.id,
+      fechado: true,
+      motivo: doDia.origem,
+      nota: doDia.nota ?? null,
+    };
   }
+
+  const jornada = { ...doDia, slotMinutes };
 
   const duracao = Math.max(Number(request.data?.durationMin) || jornada.slotMinutes, 5);
   /* A antecedência mínima protege o CLIENTE de marcar um horário que o barbeiro

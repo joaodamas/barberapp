@@ -3,6 +3,74 @@
 Histórico de mudanças do CorteHub — plataforma de gestão para barbearias.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [2026-09-10] — o produto voltou do cliente
+
+Primeira rodada movida por **uso real**, e não por auditoria. O dono d'O Siqueira
+passou uma semana com o produto na mão e mandou três perguntas por WhatsApp. Não
+são pedidos de funcionalidade: são três lugares em que o sistema afirma algo que
+não é verdade.
+
+Classificadas em `GO-LIVE-READINESS.md` §2.0 **antes** de virar trabalho.
+
+### A jornada deixa de ser uma só para a semana inteira
+
+> *"na terça feira desse ano eu tenho compromisso aí eu fecho as 17:30. Ano que
+> vem vai ser outro dia. (…) Mas se eu quiser travar um dia específico?"*
+
+`TenantSchedule` tinha **um** `opensAt`/`closesAt` valendo de terça a sábado.
+Fechar a terça às 17:30 só era possível fechando todos os dias às 17:30 — e o
+app do cliente passaria a esconder três horas de sábado que a barbearia atende.
+
+São duas perguntas diferentes, e por isso dois campos:
+
+| | Pergunta | Campo |
+|---|---|---|
+| recorrente | *"toda terça eu fecho mais cedo"* | `schedule.perDay` |
+| pontual | *"dia 15 eu não abro"* | `schedule.exceptions` |
+
+Só exceção por data resolveria o caso dele com ~50 lançamentos à mão, um por
+terça do ano — e outros 50 quando o compromisso mudar de dia. Só horário por dia
+não cobre feriado nem imprevisto, que é o que mais acontece.
+
+**A régua de precedência mora em um lugar só** (`lib/jornada.ts`), com par
+obrigatório em `functions/src/jornada.ts` e um teste que compara os dois
+arquivos: divergir não quebraria build nenhum, produziria uma tela que oferece o
+horário que o servidor recusa.
+
+```
+exceção da data  >  jornada do dia da semana  >  jornada geral
+```
+
+Uma exceção sem `closed` **abre** — é o domingo de véspera de Natal. Fosse só
+para fechar, o dia extra voltaria para o caderno.
+
+### O que apareceu ao juntar as contas
+
+Três achados que não estavam no pedido, e vieram de olhar quem mais lê a
+jornada:
+
+- **A hora nunca foi validada.** `createBooking` conferia o DIA da semana e
+  nada mais. Pela tela ninguém alcançava — `availableSlots` só oferece horário
+  de dentro do expediente —, mas a callable é pública e um POST direto marcava
+  23:00 numa barbearia que fecha às 19:00. Agora o horário precisa caber no
+  expediente **daquele dia**, e vale só para o cliente: o balcão continua
+  podendo lançar o atendimento que passou das 19:30, porque ele já aconteceu.
+- **A capacidade e os horários oferecidos vinham de réguas diferentes.** A do
+  painel considerava o almoço só quando o slot COMEÇAVA dentro dele: numa grade
+  de 30, o horário das 11:45 entrava na capacidade e invadia o meio-dia.
+- **A ocupação do mês tinha um fator mágico.** Era
+  `capacidadeDiaria × diasAbertos × 4,3`, que assume que todo dia aberto rende
+  igual. Virou soma dia a dia do mês real, com feriado fechado valendo zero.
+
+### O aviso que a tela dá antes de gravar
+
+Fechar um dia **não cancela** o que já está marcado, e a tela diz isso com
+número: *"Já há 3 horários marcados nesse dia"*. Cancelar em lote moveria
+dinheiro pela política de devolução, dispararia aviso a cada cliente e seria
+irreversível — tudo atrás de um clique cujo rótulo diz apenas "não abro".
+Silenciar seria pior: o cliente chegaria na porta fechada com a reserva
+confirmada no celular.
+
 ## [2026-08-18] — o R1, e o dia em que a pergunta mudou três vezes
 
 Entrou a correção de pagamento de atendimento (R1). Mas o registro honesto desta

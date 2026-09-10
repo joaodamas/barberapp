@@ -51,7 +51,8 @@ import { soAvisaSeGravou } from "@/lib/so-avisa-se-gravou";
 import { MarcarNoBalcao } from "@/components/marcar-no-balcao";
 import { EstornarValor } from "@/components/estornar-valor";
 import { CorrigirPagamento } from "@/components/corrigir-pagamento";
-import { capacidadeDiaria, caixaDoDia, mesPeriodo, previsaoDoDia } from "@/lib/analytics";
+import { caixaDoDia, mesPeriodo, previsaoDoDia } from "@/lib/analytics";
+import { capacidadeDaData } from "@/lib/jornada";
 import { monthOf, OCCUPIES_SLOT } from "@/lib/domain";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
@@ -87,7 +88,16 @@ export default function PainelHojePage() {
    * calcular como se fosse uma faz a tela mostrar "lotado" com duas cadeiras
    * vazias, e a taxa de ocupação sair três vezes maior que a real. */
   const barbeirosAtivos = Math.max(equipe.filter((b) => b.active !== false).length, 1);
-  const totalSlots = capacidadeDiaria(tenant.schedule) * barbeirosAtivos;
+  /* Capacidade DE HOJE, não a do dia comum: numa terça que fecha às 17:30 a
+   * ocupação era calculada contra quatro horários que a barbearia não abre, e
+   * um dia cheio aparecia como 78%. Em dia fechado por exceção a capacidade é
+   * zero, e a barra some em vez de mostrar ocupação de um dia que não houve. */
+  const totalSlots =
+    capacidadeDaData({
+      schedule: tenant.schedule,
+      weekday: new Date().getDay(),
+      date: hoje,
+    }) * barbeirosAtivos;
 
   /* `localeCompare` em "HH:mm" ordena certo porque o formato é de largura fixa
    * e zero-padded — "09:00" < "10:00" < "12:00" como texto. */

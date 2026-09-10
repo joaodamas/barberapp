@@ -7,7 +7,8 @@ pendente coisa que já estava feita, e como feita coisa que nunca foi provada.
 Um inventário que erra nas duas direções é pior que nenhum — ele faz decidir
 com base em ficção.
 
-**Última revisão: 12/08/2026.**
+**Última revisão: 10/09/2026** — três pedidos do dono da barbearia piloto
+(§2.0), levantados por ele ao usar o produto pela primeira vez.
 
 ---
 
@@ -37,6 +38,41 @@ que mente é defeito.
 ## 2. 🔴 Bloqueadores
 
 Ordenados por quanto machucam se descobertos depois que houver cliente real.
+
+### 2.0 O que o dono pediu ao usar — 30/08
+
+Três pedidos do Romulo (O Siqueira), na primeira semana de mão no produto.
+Entram como 🔴 porque **nenhum deles é polimento**: cada um faz o sistema afirmar
+algo falso enquanto não for resolvido — horário que ele não atende, taxa que a
+maquininha não cobrou, e um mês que começa sujo.
+
+Classificados como **escopo** ("não existe"), não como defeito.
+
+| | Pedido, nas palavras dele | O que falta |
+|---|---|---|
+| 2.0.1 | *"se eu quiser travar um dia específico?"* | jornada é **uma só para a semana inteira** (`tenant.ts:256`): um `opensAt`/`closesAt` valendo de terça a sábado. Fechar a terça às 17:30 hoje só é possível fechando **todos** os dias às 17:30 |
+| 2.0.2 | *"como tiro o registro que você fez no mês?"* | atendimento concluído **não tem porta de saída**. Existe exclusão de equipe, despesa, plano e serviço; de reserva, pagamento e comissão, nenhuma |
+| 2.0.3 | *"como também posso colocar mais taxa?"* | `TenantPaymentFees` é fechado em quatro chaves (`tenant.ts:92`). Aproximação × inserido e parcelado não têm onde entrar — a própria tela já admitia: *"Parcelado entra numa próxima versão"* |
+
+**Decidido em 10/09**, com o João:
+
+1. **Horário por dia da semana + exceções por data.** O caso dele é recorrente
+   (*"na terça desse ano tenho compromisso"*) e muda de ano para ano — só
+   exceção por data exigiria ~50 lançamentos à mão. As duas coisas juntas
+   cobrem também feriado e imprevisto, que é o que mais acontece.
+2. **Formas de pagamento como lista livre.** O dono cadastra as modalidades que
+   a maquininha **dele** cobra, com a taxa de cada uma. Adivinhar a tabela da
+   adquirente é o erro que fez as quatro chaves nascerem curtas.
+3. **"Começar do zero".** Rotina única que apaga o movimento de demonstração e
+   preserva cadastro — equipe, serviços, preços, clientes, horários e
+   configurações ficam.
+
+⚠️ **Um efeito colateral que o pedido 2.0.3 já disparou.** O `ESTADO-DO-PROJETO`
+registra que o risco aceito do caso 2 tinha um gatilho não temporal: *"no dia em
+que o dono cadastrar as taxas reais, o mesmo erro passa a mover dinheiro em todo
+pagamento novo"*. **Ele cadastrou.** O caso 2 continua aceito para o piloto, mas
+deixou de ser inofensivo — digitar o meio errado no balcão agora move centavos
+no DRE, não só a coluna do caixa.
 
 ### 2.1 LGPD — escrito, ainda não publicável
 
