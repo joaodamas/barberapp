@@ -547,12 +547,20 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
          * do R1 declara impossível —, e permanente se ninguém concluir de novo.
          *
          * `null` e não `delete`: é o estado com que a reserva nasce
-         * (`booking.ts`), e a tela já sabe lê-lo como "a pagar no salão". */
+         * (`booking.ts`), e a tela já sabe lê-lo como "a pagar no salão".
+         *
+         * A FORMA sai junto, e pelo mesmo motivo — só que ela reabriria o
+         * defeito por outra porta: a agenda passou a preferir o rótulo
+         * congelado, então uma reserva revertida com `paymentFormLabel` de pé
+         * voltaria a exibir "Crédito inserido" sob "Não compareceu". Limpar um
+         * e esquecer o outro é a mesma divergência com nome novo. */
         reservaRef
           .set(
             {
               cobertura: FieldValue.delete(),
               paymentMethod: null,
+              paymentFormId: null,
+              paymentFormLabel: null,
               cicloFinanceiro: congelado,
             },
             { merge: true }
