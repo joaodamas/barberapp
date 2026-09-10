@@ -16,8 +16,8 @@ import { filtrarClientes } from "@/lib/clientes-busca";
 import { mascararWhatsapp } from "@/lib/whatsapp-numero";
 import { estagioDaFatura, resumoDasFaturas } from "@/lib/mensalidade";
 import { EstornarValor } from "@/components/estornar-valor";
-import { PAYMENT_METHODS, paymentMethodLabel } from "@/lib/payment-method";
-import type { PaymentMethod } from "@/lib/types";
+import { paymentMethodLabel } from "@/lib/payment-method";
+import { formasAtivas, type FormaDePagamento } from "@/lib/formas-de-pagamento";
 import type { Doc } from "@/lib/db/repository";
 import type { ClientDoc, SubscriptionInvoiceDoc } from "@/lib/domain";
 
@@ -44,6 +44,7 @@ import type { ClientDoc, SubscriptionInvoiceDoc } from "@/lib/domain";
 
 export function GerirMensalistas({ competencia }: { competencia: string }) {
   const tenant = useTenant();
+  const formasDeCobranca = formasAtivas(tenant.policies);
   const { items: clientes } = useClients();
   const { items: planos } = usePlans();
   const { items: faturas, status } = useSubscriptionInvoices();
@@ -110,7 +111,8 @@ export function GerirMensalistas({ competencia }: { competencia: string }) {
     }
   }
 
-  async function receber(metodo: PaymentMethod) {
+  async function receber(forma: FormaDePagamento) {
+    const metodo = forma.base;
     if (!aReceber) return;
     setRecebendo(true);
     setErroDoRecebimento(null);
@@ -120,6 +122,7 @@ export function GerirMensalistas({ competencia }: { competencia: string }) {
         barbershopId: tenant.id,
         invoiceId: aReceber.id,
         paymentMethod: metodo,
+        paymentFormId: forma.id,
       });
       setAReceber(null);
     } catch (err) {
@@ -427,16 +430,16 @@ export function GerirMensalistas({ competencia }: { competencia: string }) {
         }
       >
         <div className="flex flex-col gap-2">
-          <div className="grid grid-cols-2 gap-2">
-            {PAYMENT_METHODS.map((m) => (
+          <div className={formasDeCobranca.length > 4 ? "grid grid-cols-3 gap-2" : "grid grid-cols-2 gap-2"}>
+            {formasDeCobranca.map((f) => (
               <Button
-                key={m}
+                key={f.id}
                 variant="secondary"
                 disabled={recebendo}
-                onClick={() => receber(m)}
-                className="min-h-12"
+                onClick={() => receber(f)}
+                className="min-h-12 px-2 text-center leading-tight"
               >
-                {paymentMethodLabel[m]}
+                {f.label}
               </Button>
             ))}
           </div>

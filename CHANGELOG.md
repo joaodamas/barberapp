@@ -3,6 +3,78 @@
 Histórico de mudanças do CorteHub — plataforma de gestão para barbearias.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [2026-09-10] — as formas de pagamento deixam de ser quatro
+
+Segundo dos três pedidos que o dono d'O Siqueira mandou depois de uma semana de
+uso real.
+
+> *"como também posso colocar mais taxa? Porque eu coloquei aqui a taxa de
+> aproximação. Mas não coloquei a taxa de maquininha quando insere o cartão"*
+
+### O buraco que a própria tela já admitia
+
+`TenantPaymentFees` era fechado em quatro chaves — dinheiro, pix, débito,
+crédito — e o texto de ajuda dizia, desde sempre: *"Crédito à vista. Parcelado
+entra numa próxima versão."* Aproximação e chip cobram preços diferentes na
+maquininha dele, então **uma das duas estava errada em todo atendimento no
+crédito** — em silêncio, porque a taxa entra no DRE sem passar por tela nenhuma.
+
+Alargar o enum (`credito_aproximacao`, `credito_chip`, `credito_2x`…) seria
+adivinhar a tabela da adquirente de cada barbearia: o mesmo erro que fez as
+quatro chaves nascerem curtas, cometido de novo com mais palavras. Quem sabe o
+que a maquininha cobra é quem paga a fatura dela.
+
+### O que muda, e o que deliberadamente NÃO muda
+
+O dono cadastra as formas dele, cada uma com taxa própria. Cada forma declara de
+que **meio** ela é, e é o meio que continua indo para `paymentMethod`:
+
+```
+"Crédito inserido"  →  base: credit  →  paymentMethod: "credit"
+```
+
+Assim o fluxo de caixa por origem, o DRE, os estornos, o Action Center e os 34
+templates de WhatsApp seguem funcionando sem saber que formas existem. Eles
+perguntam *"entrou em cartão?"* — não *"entrou por aproximação?"*. A forma
+responde uma pergunta só: **quanto a maquininha cobrou.**
+
+**Nenhuma migração.** A barbearia sem `paymentForms` recebe as quatro nativas
+derivadas de `paymentFees`, com os mesmos percentuais: quem não mexer continua
+com exatamente os quatro botões de antes.
+
+### O que fica congelado, e por que são dois campos
+
+`paymentFormId` **e** `paymentFormLabel`, em par. Só o id não bastaria: renomear
+a forma reescreveria a história de todo pagamento que a cita, e apagá-la deixaria
+um código na tela do extrato. É a mesma regra que já valia para `feePct` — o
+documento tem de ser legível a partir dos próprios campos.
+
+A régua que decide a taxa tem ordem, e a ordem é o contrato:
+
+1. a forma escolhida, quando ainda existe;
+2. **a primeira forma ativa daquele meio**, quando o pagamento não trouxe forma;
+3. zero.
+
+Sem o passo 2, um atendimento antigo reaberto renasceria com taxa zero — o
+pagamento existiu, a maquininha cobrou, e o DRE passaria a afirmar que não.
+
+### Três efeitos que vieram junto
+
+- **A agenda para de dizer "Crédito" para duas coisas diferentes.** Dois
+  atendimentos com taxas distintas exibiam a mesma palavra, e era impossível
+  saber qual linha explicava qual desconto.
+- **A correção do R1 passa a corrigir a FORMA.** Numa barbearia com aproximação
+  e inserido, trocar de uma para a outra é a correção mais comum — e filtrar as
+  opções por meio esconderia justamente ela.
+- **O aviso de taxa em branco ficou mais preciso.** Perguntava *"as quatro estão
+  zeradas?"*; agora pergunta pelo **cartão**, que é onde taxa zero não pode ser
+  verdade. Com aproximação preenchida e inserido em branco, o antigo se calava.
+
+### `paymentFees` vira fallback de leitura
+
+A tela grava só `policies.paymentForms`. Manter os dois em dia seria manter duas
+fontes para a mesma pergunta — o defeito que este repositório mais corrigiu.
+
 ## [2026-08-18] — o R1, e o dia em que a pergunta mudou três vezes
 
 Entrou a correção de pagamento de atendimento (R1). Mas o registro honesto desta

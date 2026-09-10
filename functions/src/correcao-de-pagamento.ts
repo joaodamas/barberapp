@@ -2,6 +2,7 @@ import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { SEM_TAXA, type PaymentFees, type PaymentMethod } from "./financial-events";
 import { idDoPagamento, valoresDoPagamento } from "./payments";
+import { formasDoTenant, type FormaDePagamento } from "./formas-de-pagamento";
 import { competenciaDe } from "./mensalistas";
 import { metodoValido } from "./inventory";
 import { hojeNoFuso, localeDoDocumento } from "./locale";
@@ -90,6 +91,12 @@ import { hojeNoFuso, localeDoDocumento } from "./locale";
  */
 export const CAMPOS_CORRIGIVEIS = [
   "paymentMethod",
+  /* A forma entrou na lista com as formas de pagamento, e por necessidade: se
+   * o método fosse corrigido de crédito para débito e a forma continuasse
+   * "Crédito aproximação", o extrato passaria a exibir uma frase que contradiz
+   * o próprio documento — e a taxa nova não teria como ser explicada. */
+  "paymentFormId",
+  "paymentFormLabel",
   "feePct",
   "feeAmount",
   "netAmount",
@@ -97,6 +104,8 @@ export const CAMPOS_CORRIGIVEIS = [
 
 export type CamposDaCorrecao = {
   paymentMethod: PaymentMethod;
+  paymentFormId: string | null;
+  paymentFormLabel: string | null;
   feePct: number;
   feeAmount: number;
   netAmount: number;
@@ -114,14 +123,20 @@ export function camposDaCorrecao(params: {
   bruto: number;
   metodo: PaymentMethod;
   fees: PaymentFees;
+  formas?: FormaDePagamento[];
+  formaId?: string | null;
 }): CamposDaCorrecao {
   const v = valoresDoPagamento({
     bruto: params.bruto,
     metodo: params.metodo,
     fees: params.fees,
+    formas: params.formas,
+    formaId: params.formaId,
   });
   return {
     paymentMethod: params.metodo,
+    paymentFormId: v.paymentFormId,
+    paymentFormLabel: v.paymentFormLabel,
     feePct: v.feePct,
     feeAmount: v.feeAmount,
     netAmount: v.netAmount,
@@ -258,7 +273,10 @@ export function idDaCorrecao(bookingId: string, chave: string): string {
 export type ResultadoDaCorrecao = {
   paymentId: string;
   bookingId: string;
-  de: CamposDaCorrecao | { paymentMethod: null; feePct: number; feeAmount: number; netAmount: number };
+  /* O estado ANTERIOR. Mesmo formato do novo, com o método podendo ser nulo:
+   * é exatamente o caso que a porta existe para corrigir — o atendimento
+   * concluído sem informar como o cliente pagou. */
+  de: Omit<CamposDaCorrecao, "paymentMethod"> & { paymentMethod: PaymentMethod | null };
   para: CamposDaCorrecao;
   /** `true` quando a mesma chave já tinha sido gravada — retry, não correção nova. */
   repetida: boolean;
@@ -286,6 +304,10 @@ export async function gravarCorrecao(params: {
   metodo: PaymentMethod;
   /** A tabela vigente HOJE — R1.1, sem versionamento. */
   fees: PaymentFees;
+  /** As formas vigentes hoje, pela mesma regra do R1.1. */
+  formas?: FormaDePagamento[];
+  /** A forma escolhida na correção. */
+  formaId?: string | null;
   /** Hoje no fuso DA BARBEARIA. Define a janela do mês corrente. */
   hoje: string;
   chave: string;
@@ -327,13 +349,23 @@ export async function gravarCorrecao(params: {
       return {
         paymentId,
         bookingId,
-        de: detail.de ?? { paymentMethod: null, feePct: 0, feeAmount: 0, netAmount: 0 },
+        de:
+          detail.de ?? {
+            paymentMethod: null,
+            paymentFormId: null,
+            paymentFormLabel: null,
+            feePct: 0,
+            feeAmount: 0,
+            netAmount: 0,
+          },
         para:
           detail.para ??
           camposDaCorrecao({
             bruto: Number(pagamentoSnap.get("grossAmount")) || 0,
             metodo: params.metodo,
             fees: params.fees,
+            formas: params.formas,
+            formaId: params.formaId,
           }),
         repetida: true,
       };
@@ -363,12 +395,22 @@ export async function gravarCorrecao(params: {
 
     const de = {
       paymentMethod: (pagamentoSnap.get("paymentMethod") ?? null) as PaymentMethod | null,
+      /* Nulos nos pagamentos anteriores às formas — e o `audit_log` precisa
+       * registrar isso como o que é: não havia forma, não que ela era vazia. */
+      paymentFormId: (pagamentoSnap.get("paymentFormId") ?? null) as string | null,
+      paymentFormLabel: (pagamentoSnap.get("paymentFormLabel") ?? null) as string | null,
       feePct: Number(pagamentoSnap.get("feePct")) || 0,
       feeAmount: Number(pagamentoSnap.get("feeAmount")) || 0,
       netAmount: Number(pagamentoSnap.get("netAmount")) || 0,
     };
 
-    const para = camposDaCorrecao({ bruto, metodo: params.metodo, fees: params.fees });
+    const para = camposDaCorrecao({
+      bruto,
+      metodo: params.metodo,
+      fees: params.fees,
+      formas: params.formas,
+      formaId: params.formaId,
+    });
 
     /* ================= ESCRITAS ================= */
 
@@ -380,7 +422,11 @@ export async function gravarCorrecao(params: {
     /* O estado operacional, na MESMA transação. Corrigir só o pagamento
      * deixaria o card crítico na tela para sempre e a agenda exibindo o método
      * antigo; corrigir só a reserva é o vazamento de hoje. */
-    tx.update(reservaRef, { paymentMethod: params.metodo });
+    tx.update(reservaRef, {
+      paymentMethod: params.metodo,
+      paymentFormId: para.paymentFormId,
+      paymentFormLabel: para.paymentFormLabel,
+    });
 
     /* O rastro — §26. Dentro da transação, e não com `.add()` depois: um log
      * que pode falhar sozinho registra um mundo que não aconteceu.
@@ -406,6 +452,8 @@ type CorrecaoInput = {
   barbershopId: string;
   bookingId: string;
   paymentMethod: PaymentMethod;
+  /** A forma exata, quando a barbearia cadastrou as dela. */
+  paymentFormId?: string | null;
   idempotencyKey?: string;
 };
 
@@ -458,8 +506,12 @@ export const corrigirPagamentoDeAtendimento = onCall<CorrecaoInput>(async (reque
   /* R1.1 · a tabela vigente AGORA, sem versionamento. O merge raso sobre
    * `SEM_TAXA` é o mesmo de `materializeFinancialsOnCompletion`: taxa ausente é
    * zero porque o dono ainda não preencheu, e o sistema não inventa custo. */
-  const policies = (shopSnap.get("policies") ?? {}) as { paymentFees?: Partial<PaymentFees> };
+  const policies = (shopSnap.get("policies") ?? {}) as {
+    paymentFees?: Partial<PaymentFees>;
+    paymentForms?: unknown;
+  };
   const fees: PaymentFees = { ...SEM_TAXA, ...(policies.paymentFees ?? {}) };
+  const formas = formasDoTenant(policies);
 
   /* No fuso DA BARBEARIA. A function roda em UTC, e a janela do mês corrente
    * decidida em UTC recusaria uma correção legítima feita às 23h50 de 31/07 em
@@ -477,6 +529,8 @@ export const corrigirPagamentoDeAtendimento = onCall<CorrecaoInput>(async (reque
     bookingId,
     metodo: data.paymentMethod,
     fees,
+    formas,
+    formaId: data.paymentFormId ? String(data.paymentFormId) : null,
     hoje,
     chave,
     autor: uid,

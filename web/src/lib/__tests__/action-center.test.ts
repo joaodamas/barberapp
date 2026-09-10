@@ -14,7 +14,7 @@ import {
 import { mesPeriodo } from "@/lib/analytics";
 import type { Doc } from "@/lib/db/repository";
 import type { BookingDoc, PaymentDoc, ServiceDoc } from "@/lib/domain";
-import type { TenantPaymentFees } from "@/lib/tenant";
+import { formasDoTenant } from "@/lib/formas-de-pagamento";
 
 /**
  * O motor decide o que exige decisão. Estes testes protegem os invariantes do
@@ -38,8 +38,16 @@ const pg = (o: Partial<PaymentDoc> & { id: string }): Doc<PaymentDoc> => ({
   paymentMethod: "credit", grossAmount: 50, feePct: 3.49,
   feeAmount: 1.75, netAmount: 48.25, ...o,
 });
-const SEM_TAXA: TenantPaymentFees = { dinheiro: 0, pix: 0, debito: 0, credito: 0 };
-const COM_TAXA: TenantPaymentFees = { dinheiro: 0, pix: 0, debito: 1.99, credito: 3.49 };
+/* As formas derivadas de uma barbearia sem taxa nenhuma preenchida, e de outra
+ * com o cartão preenchido. `formasDoTenant` é a mesma função que a tela usa —
+ * montar os objetos à mão aqui deixaria o teste provar um formato que o
+ * produto não produz. */
+const SEM_TAXA = formasDoTenant({
+  paymentFees: { dinheiro: 0, pix: 0, debito: 0, credito: 0 },
+});
+const COM_TAXA = formasDoTenant({
+  paymentFees: { dinheiro: 0, pix: 0, debito: 1.99, credito: 3.49 },
+});
 
 describe("fechamento pendente", () => {
   it("levanta o atendimento concluído sem forma de pagamento", () => {
@@ -116,7 +124,7 @@ describe("fechamento pendente", () => {
 describe("taxas não configuradas", () => {
   it("cobra a configuração quando houve cartão e a taxa está zerada", () => {
     const itens = taxasNaoConfiguradas({
-      fees: SEM_TAXA, payments: [pg({ id: "1", paymentMethod: "credit" })], periodo: P,
+      formas: SEM_TAXA, payments: [pg({ id: "1", paymentMethod: "credit" })], periodo: P,
     });
     expect(itens).toHaveLength(1);
     expect(itens[0].urgency).toBe(3);
@@ -126,7 +134,7 @@ describe("taxas não configuradas", () => {
     /* Taxa zero é a verdade dessa barbearia. Cobrar configuração seria pedir
      * que ela informe um custo que não tem. */
     const itens = taxasNaoConfiguradas({
-      fees: SEM_TAXA,
+      formas: SEM_TAXA,
       payments: [pg({ id: "1", paymentMethod: "pix" }), pg({ id: "2", paymentMethod: "cash" })],
       periodo: P,
     });
@@ -136,7 +144,7 @@ describe("taxas não configuradas", () => {
   it("some depois de qualquer taxa ser informada", () => {
     expect(
       taxasNaoConfiguradas({
-        fees: COM_TAXA, payments: [pg({ id: "1" })], periodo: P,
+        formas: COM_TAXA, payments: [pg({ id: "1" })], periodo: P,
       })
     ).toHaveLength(0);
   });
@@ -144,7 +152,7 @@ describe("taxas não configuradas", () => {
   it("ignora cartão de outro mês", () => {
     expect(
       taxasNaoConfiguradas({
-        fees: SEM_TAXA, payments: [pg({ id: "1", date: "2026-07-10" })], periodo: P,
+        formas: SEM_TAXA, payments: [pg({ id: "1", date: "2026-07-10" })], periodo: P,
       })
     ).toHaveLength(0);
   });
@@ -297,7 +305,7 @@ describe("motor", () => {
    * em que a suíte roda. */
   const operacao = (o: Partial<EstadoOperacional> = {}): EstadoOperacional => ({
     bookings: [], services: [sv({ id: "s" })], statusServicos: "pronto",
-    payments: [], fees: COM_TAXA, periodo: P,
+    payments: [], formas: COM_TAXA, periodo: P,
     agora: null, toleranciaAtrasoMin: 15,
     ...o,
   });
@@ -309,7 +317,7 @@ describe("motor", () => {
         bk({ id: "3", status: "confirmed", time: "09:00" }), // crítico, urgência 2
       ],
       services: [],                                      // crítico, urgência 1
-      payments: [pg({ id: "p1" })], fees: SEM_TAXA,      // crítico, urgência 3
+      payments: [pg({ id: "p1" })], formas: SEM_TAXA,      // crítico, urgência 3
       agora: new Date("2026-08-11T10:20:00"),
     }));
     expect(itens.map((i) => i.urgency)).toEqual([1, 1, 2, 3]);
@@ -350,7 +358,7 @@ describe("motor", () => {
         bk({ id: "3", status: "confirmed", paymentMethod: null }),
       ],
       services: [],
-      payments: [pg({ id: "p1" })], fees: SEM_TAXA,
+      payments: [pg({ id: "p1" })], formas: SEM_TAXA,
       agora: new Date("2026-08-11T10:20:00"),
     }));
     expect(itens.length).toBeGreaterThan(2);
@@ -381,7 +389,7 @@ describe("motor", () => {
         bk({ id: "3", status: "confirmed", paymentMethod: null }),
       ],
       services: [],
-      payments: [pg({ id: "p1" })], fees: SEM_TAXA,
+      payments: [pg({ id: "p1" })], formas: SEM_TAXA,
       agora: new Date("2026-08-11T10:20:00"),
     }));
     for (const i of itens) {
@@ -397,7 +405,7 @@ describe("repartição para exibição", () => {
   const comCriticos = (n: number) =>
     avaliarOperacao({
       bookings: criticos(n), services: [sv({ id: "s" })], statusServicos: "pronto",
-      payments: [], fees: COM_TAXA, periodo: P,
+      payments: [], formas: COM_TAXA, periodo: P,
       agora: null, toleranciaAtrasoMin: 15,
     });
 

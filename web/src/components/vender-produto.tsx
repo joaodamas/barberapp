@@ -10,8 +10,7 @@ import { useClients, useProducts, useStaff } from "@/lib/db/use-shop-data";
 import { filtrarClientes } from "@/lib/clientes-busca";
 import { mascararWhatsapp } from "@/lib/whatsapp-numero";
 import { chaveDeIdempotencia } from "@/lib/chave-de-idempotencia";
-import { PAYMENT_METHODS, paymentMethodLabel } from "@/lib/payment-method";
-import type { PaymentMethod } from "@/lib/types";
+import { formasAtivas, type FormaDePagamento } from "@/lib/formas-de-pagamento";
 import type { Doc } from "@/lib/db/repository";
 import type { ClientDoc } from "@/lib/domain";
 
@@ -46,12 +45,14 @@ type Linha = { productId: string; quantity: number };
 
 export function VenderProduto({ aoVender }: { aoVender?: () => void }) {
   const tenant = useTenant();
+  const formasDeCobranca = formasAtivas(tenant.policies);
   const { items: produtos } = useProducts();
   const { items: clientes } = useClients();
   const { items: equipe } = useStaff();
 
   const [linhas, setLinhas] = useState<Linha[]>([]);
-  const [metodo, setMetodo] = useState<PaymentMethod | null>(null);
+  const [forma, setForma] = useState<FormaDePagamento | null>(null);
+  const metodo = forma?.base ?? null;
   const [vendedorClicado, setVendedorClicado] = useState<string | null>(null);
   const [busca, setBusca] = useState("");
   const [cliente, setCliente] = useState<Doc<ClientDoc> | null>(null);
@@ -137,6 +138,7 @@ export function VenderProduto({ aoVender }: { aoVender?: () => void }) {
         barbershopId: tenant.id,
         itens: linhas,
         paymentMethod: metodo,
+        paymentFormId: forma?.id ?? null,
         clientId: cliente?.id ?? null,
         staffId: vendedorId,
         idempotencyKey: chave,
@@ -144,7 +146,7 @@ export function VenderProduto({ aoVender }: { aoVender?: () => void }) {
 
       setFeito({ itens: totalItens, valor: r.value });
       setLinhas([]);
-      setMetodo(null);
+      setForma(null);
       setCliente(null);
       setVendedorClicado(null);
       setBusca("");
@@ -357,24 +359,24 @@ export function VenderProduto({ aoVender }: { aoVender?: () => void }) {
                 exatamente por isso que `PaymentMethod` deixou de ser
                 `"pix" | "cartao" | "local"`. Um botão a mais aqui é o preço de
                 a taxa ser a que a maquininha cobrou. */}
-            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
-              {PAYMENT_METHODS.map((m) => (
+            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+              {formasDeCobranca.map((f) => (
                 <button
-                  key={m}
+                  key={f.id}
                   type="button"
-                  aria-pressed={metodo === m}
+                  aria-pressed={forma?.id === f.id}
                   onClick={() => {
-                    setMetodo(m);
+                    setForma(f);
                     setErro(null);
                   }}
                   className={
-                    "min-h-11 rounded-xl border text-sm transition-colors " +
-                    (metodo === m
+                    "min-h-11 rounded-xl border px-2 text-sm transition-colors " +
+                    (forma?.id === f.id
                       ? "border-gold bg-gold/10 text-ink"
                       : "border-border text-ink-muted hover:border-gold/60")
                   }
                 >
-                  {paymentMethodLabel[m]}
+                  {f.label}
                 </button>
               ))}
             </div>

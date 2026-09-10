@@ -132,7 +132,10 @@ export type LiquidacaoDoAtendimento = {
  * — e dizer "não sei" é o comportamento correto, não uma lacuna.
  */
 export function liquidacaoDoAtendimento(
-  booking: Pick<BookingDoc, "status" | "paymentOrigin" | "paymentMethod" | "cobertura">
+  booking: Pick<
+    BookingDoc,
+    "status" | "paymentOrigin" | "paymentMethod" | "cobertura" | "paymentFormLabel"
+  >
 ): LiquidacaoDoAtendimento {
   const cobertura = booking.cobertura;
 
@@ -161,7 +164,13 @@ export function liquidacaoDoAtendimento(
     cobertura?.tipo === "avulso" ? (conhecido(MOTIVO_AVULSO, cobertura.motivo) ?? null) : null;
   const detalhe = motivo ? `Fora do plano: ${motivo}` : null;
 
-  const metodo = conhecido(paymentMethodLabel, booking.paymentMethod);
+  /* O rótulo CONGELADO vence o genérico.
+   *
+   * A agenda dizia "Crédito" para um atendimento pago por aproximação e outro
+   * no chip — duas taxas diferentes, a mesma palavra —, e era impossível saber
+   * qual linha explicava qual desconto no DRE. O congelado também sobrevive ao
+   * dono renomear ou apagar a forma depois. */
+  const metodo = booking.paymentFormLabel || conhecido(paymentMethodLabel, booking.paymentMethod);
   if (metodo) return { label: metodo, detalhe, coberto: false };
 
   /* Concluído e sem método é o caminho de exceção que o servidor já admite

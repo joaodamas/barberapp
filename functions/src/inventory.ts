@@ -9,6 +9,7 @@ import {
   type PaymentMethod,
 } from "./financial-events";
 import { documentoDePagamento, idDoPagamento } from "./payments";
+import { formasDoTenant, type FormaDePagamento } from "./formas-de-pagamento";
 import { comissaoDaVenda, idDaComissao } from "./comissoes";
 
 /**
@@ -337,6 +338,10 @@ export async function gravarVendaComTravaDeEstoque(params: {
    * para quem ainda não preencheu as taxas em Configurações.
    */
   fees?: PaymentFees;
+  /** As formas cadastradas, lidas junto das taxas e pelo mesmo motivo. */
+  formas?: FormaDePagamento[];
+  /** Qual delas o dono escolheu na venda. */
+  formaId?: string | null;
   /**
    * Quem vendeu, e sob que percentual — Rodada 3.1.
    *
@@ -480,6 +485,8 @@ export async function gravarVendaComTravaDeEstoque(params: {
             bruto: m.movimento.value,
             metodo: params.paymentMethod,
             fees: params.fees ?? SEM_TAXA,
+            formas: params.formas,
+            formaId: params.formaId,
           }),
           ...(params.extras ?? {}),
         }
@@ -535,6 +542,13 @@ type VendaInput = {
   /** O carrinho. Uma venda pode ter mais de um produto, e é atômica entre eles. */
   itens: ItemDaVenda[];
   paymentMethod: PaymentMethod;
+  /**
+   * A forma exata, quando a barbearia cadastrou as dela.
+   *
+   * Opcional: a tela antiga em cache continua mandando só o método, e nesse
+   * caso a taxa vem da primeira forma ativa daquele meio — nunca zero.
+   */
+  paymentFormId?: string | null;
   /** Quem vendeu. Sem ele a venda não gera comissão — ver `comissoes.ts`. */
   staffId?: string | null;
   clientId?: string | null;
@@ -607,6 +621,7 @@ export const registrarVendaDeProduto = onCall<VendaInput>(async (request) => {
     commissionSplit?: { barberPct?: number };
   };
   const fees: PaymentFees = { ...SEM_TAXA, ...(politicas.paymentFees ?? {}) };
+  const formas = formasDoTenant(politicas);
 
   /* O vendedor e o percentual, lidos AGORA e congelados no documento.
    *
@@ -647,6 +662,8 @@ export const registrarVendaDeProduto = onCall<VendaInput>(async (request) => {
 
   return gravarVendaComTravaDeEstoque({
     fees,
+    formas,
+    formaId: request.data?.paymentFormId ? String(request.data.paymentFormId) : null,
     vendedor,
     db,
     shopRef,

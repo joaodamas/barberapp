@@ -7,7 +7,12 @@ import { Button } from "@/components/ui/button";
 import { useTenant } from "@/lib/tenant-context";
 import { patchTenant } from "@/lib/db/repository";
 import { formatBRL } from "@/lib/format";
-import type { TenantPaymentFees } from "@/lib/tenant";
+import { EditorDeFormasDePagamento } from "@/components/formas-de-pagamento-editor";
+import {
+  formasDoTenant,
+  taxasEmBranco,
+  type FormaDePagamento,
+} from "@/lib/formas-de-pagamento";
 
 /**
  * Configurações da barbearia.
@@ -20,16 +25,6 @@ import type { TenantPaymentFees } from "@/lib/tenant";
  * A taxa preenchida aqui é congelada em cada pagamento no momento da conclusão
  * do atendimento. Mudar o valor não altera o passado.
  */
-const METODOS: Array<{
-  chave: keyof TenantPaymentFees;
-  label: string;
-  ajuda: string;
-}> = [
-  { chave: "dinheiro", label: "Dinheiro", ajuda: "Normalmente 0% — não passa por maquininha." },
-  { chave: "pix", label: "Pix", ajuda: "Cobrado por algumas maquininhas; direto na conta costuma ser 0%." },
-  { chave: "debito", label: "Débito", ajuda: "Taxa por transação no débito." },
-  { chave: "credito", label: "Crédito", ajuda: "Crédito à vista. Parcelado entra numa próxima versão." },
-];
 
 /** Exemplo em cima de um valor redondo — porcentagem sozinha não dá noção. */
 const EXEMPLO = 100;
@@ -55,28 +50,28 @@ export default function ConfiguracoesPage() {
    * rascunho vence — e a chegada de um snapshot não puxa o texto debaixo do
    * dedo dele. Salvar limpa o rascunho e devolve o campo à fonte.
    */
-  const [rascunhoTaxas, setRascunhoTaxas] = useState<TenantPaymentFees | null>(null);
+  const [rascunhoFormas, setRascunhoFormas] = useState<FormaDePagamento[] | null>(null);
   const [rascunhoTolerancia, setRascunhoTolerancia] = useState<number | null>(null);
   const [rascunhoComissao, setRascunhoComissao] = useState<number | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [salvo, setSalvo] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
-  const taxas = rascunhoTaxas ?? tenant.policies.paymentFees;
+  /* A barbearia que nunca abriu esta tela recebe as quatro nativas derivadas
+   * das taxas antigas — então o formulário nasce exatamente como estava. */
+  const formasSalvas = formasDoTenant(tenant.policies);
+  const formas = rascunhoFormas ?? formasSalvas;
   const tolerancia = rascunhoTolerancia ?? tenant.policies.booking.lateToleranceMinutes;
   const comissao = rascunhoComissao ?? tenant.policies.commissionSplit.barberPct;
 
-  const naoConfigurado = Object.values(taxas).every((v) => v === 0);
+  const naoConfigurado = taxasEmBranco(formas);
   const mudou =
-    JSON.stringify(taxas) !== JSON.stringify(tenant.policies.paymentFees) ||
+    JSON.stringify(formas) !== JSON.stringify(formasSalvas) ||
     tolerancia !== tenant.policies.booking.lateToleranceMinutes ||
     comissao !== tenant.policies.commissionSplit.barberPct;
 
-  function alterar(chave: keyof TenantPaymentFees, valor: string) {
-    // Vírgula é como se digita percentual em português.
-    const n = Number(valor.replace(",", "."));
-    const limpo = Number.isFinite(n) ? Math.min(Math.max(n, 0), 100) : 0;
-    setRascunhoTaxas({ ...taxas, [chave]: limpo });
+  function alterarFormas(novas: FormaDePagamento[]) {
+    setRascunhoFormas(novas);
     setSalvo(false);
   }
 
@@ -113,7 +108,14 @@ export default function ConfiguracoesPage() {
        * apagaria antecedência mínima e prazo de encaixe, que esta tela nem
        * exibe. */
       await patchTenant(tenant.id, {
-        "policies.paymentFees": taxas,
+        /* Só as FORMAS.
+         *
+         * `policies.paymentFees` deixa de ser escrito de propósito: ele agora é
+         * fallback de leitura para a barbearia que nunca cadastrou formas, e
+         * manter os dois em dia seria manter duas fontes para a mesma pergunta
+         * — o defeito que este repositório mais corrigiu. Quem quer saber
+         * quanto a maquininha cobrou chama `taxaDoPagamento`. */
+        "policies.paymentForms": formas,
         "policies.booking.lateToleranceMinutes": tolerancia,
         /* O objeto INTEIRO, e não dois caminhos pontilhados separados.
          *
@@ -133,7 +135,7 @@ export default function ConfiguracoesPage() {
        * É o que faz o selo "Salvo" aparecer — antes, `mudou` continuava
        * verdadeiro porque a comparação era contra uma ficha que não atualizava,
        * e o dono nunca via confirmação nenhuma. */
-      setRascunhoTaxas(null);
+      setRascunhoFormas(null);
       setRascunhoTolerancia(null);
       setRascunhoComissao(null);
       setSalvo(true);
@@ -181,44 +183,13 @@ export default function ConfiguracoesPage() {
               Taxas por forma de pagamento
             </h2>
             <p className="mt-1 text-xs text-ink-muted md:text-sm">
-              O que a sua maquininha cobra, não a média do mercado. Está no extrato
-              ou no contrato dela.
+              O que a <strong className="text-ink">sua</strong> maquininha cobra, não
+              a média do mercado. Está no extrato ou no contrato dela — e se
+              aproximação e cartão inserido têm preços diferentes, cadastre as duas.
             </p>
           </div>
 
-          <div className="flex flex-col gap-4">
-            {METODOS.map((m) => {
-              const taxa = taxas[m.chave];
-              const liquido = EXEMPLO - (EXEMPLO * taxa) / 100;
-              return (
-                <div key={m.chave} className="grid gap-2 md:grid-cols-[1fr_120px_auto] md:items-center">
-                  <div>
-                    <label htmlFor={`taxa-${m.chave}`} className="text-sm text-ink">
-                      {m.label}
-                    </label>
-                    <p className="text-xs text-ink-muted">{m.ajuda}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      id={`taxa-${m.chave}`}
-                      type="number"
-                      min={0}
-                      max={100}
-                      step="0.01"
-                      value={taxa}
-                      onChange={(e) => alterar(m.chave, e.target.value)}
-                      className="min-h-11 w-full rounded-xl border border-border bg-surface-raised px-3 text-sm text-ink"
-                    />
-                    <span className="text-sm text-ink-muted">%</span>
-                  </div>
-                  <p className="text-xs text-ink-muted md:text-right">
-                    {formatBRL(EXEMPLO)} viram{" "}
-                    <span className="text-ink">{formatBRL(liquido)}</span>
-                  </p>
-                </div>
-              );
-            })}
-          </div>
+          <EditorDeFormasDePagamento formas={formas} onChange={alterarFormas} />
 
         </Card>
 

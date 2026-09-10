@@ -1,6 +1,7 @@
 import { onDocumentUpdated } from "firebase-functions/v2/firestore";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { valoresDoPagamento } from "./payments";
+import { formasDoTenant, type FormaDePagamento } from "./formas-de-pagamento";
 import { competenciaDe, decidirCobertura, type Cobertura } from "./mensalistas";
 import {
   estornoDaComissaoDeServico,
@@ -201,6 +202,10 @@ export function calcularEventoFinanceiro(params: {
   commissionPctDoBarbeiro?: number | null;
   padraoPct: number;
   fees: PaymentFees;
+  /** Formas cadastradas pela barbearia. Ausentes, vale a tabela de quatro. */
+  formas?: FormaDePagamento[];
+  /** A forma escolhida no fechamento, congelada junto com a taxa dela. */
+  formaId?: string | null;
 }) {
   const valor = Number(params.valor) || 0;
   const commissionPct = percentualDaComissao({
@@ -218,7 +223,13 @@ export function calcularEventoFinanceiro(params: {
    * Sem método, a taxa é DESCONHECIDA, não zero. Materializa assim mesmo, com
    * `paymentMethod: null` explícito: o bruto aconteceu e precisa existir no
    * histórico, e o nulo separa "não teve taxa" de "não sabemos a taxa". */
-  const payment = valoresDoPagamento({ bruto: valor, metodo: params.metodo, fees: params.fees });
+  const payment = valoresDoPagamento({
+    bruto: valor,
+    metodo: params.metodo,
+    fees: params.fees,
+    formas: params.formas,
+    formaId: params.formaId,
+  });
 
   return {
     commission: {
@@ -596,9 +607,13 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
     const policies = (shopSnap.get("policies") ?? {}) as {
       commissionSplit?: { barberPct?: number };
       paymentFees?: Partial<PaymentFees>;
+      paymentForms?: unknown;
     };
 
     const fees: PaymentFees = { ...SEM_TAXA, ...(policies.paymentFees ?? {}) };
+    /* Lidas AGORA, como a comissão e a taxa: o que a barbearia cobrava no
+     * instante do fechamento é o que fica congelado no pagamento. */
+    const formas = formasDoTenant(policies);
     const padraoPct = padraoDaCasa(policies);
 
     /* O PERCENTUAL DO BARBEIRO — o coração do P1-7.
@@ -619,6 +634,8 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
     const { commission, payment } = calcularEventoFinanceiro({
       valor,
       metodo,
+      formas,
+      formaId: (depois.paymentFormId ?? null) as string | null,
       origem: (depois.paymentOrigin ?? null) as PaymentOrigin | null,
       // Gravado como `null` no cadastro inicial, não ausente.
       commissionPctDoBarbeiro: pctCongelado ?? staffSnap?.get("commissionPct") ?? null,

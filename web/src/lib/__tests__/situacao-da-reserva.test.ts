@@ -379,7 +379,7 @@ describe("o D2 chega às duas telas", () => {
     /* O quinto corte de um plano de quatro é cobrança legítima, e o gatilho
      * financeiro só materializa na transição para `completed` — esconder as
      * opções tiraria a única chance de registrar o método. */
-    expect(HOJE()).toContain("PAYMENT_METHODS.map");
+    expect(HOJE()).toContain("formasDeCobranca.map");
   });
 
   it("a tela do cliente reconhece o mensalista antes de prometer o preço", () => {

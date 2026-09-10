@@ -37,8 +37,7 @@ import {
   type ActionItem,
 } from "@/lib/action-center";
 import { usePayments } from "@/lib/db/use-shop-data";
-import type { PaymentMethod } from "@/lib/types";
-import { PAYMENT_METHODS, paymentMethodLabel } from "@/lib/payment-method";
+import { formasAtivas, type FormaDePagamento } from "@/lib/formas-de-pagamento";
 import { formatBRL, formatPctPtBR, formatPhonePtBR, safePct } from "@/lib/format";
 import { NAO_APURADO } from "@/lib/apuracao";
 import { contar } from "@/lib/plural";
@@ -61,6 +60,9 @@ import type { Doc } from "@/lib/db/repository";
 
 export default function PainelHojePage() {
   const tenant = useTenant();
+  /* As formas que o dono cadastrou — ou as quatro de sempre, derivadas das
+   * taxas, para a barbearia que nunca abriu a tela de Ajustes. */
+  const formasDeCobranca = formasAtivas(tenant.policies);
   const { brand } = tenant;
   const { items: todas, status, error: erroDaAgenda } = useBookings();
   const { items: services, status: statusServicos } = useServices();
@@ -131,7 +133,7 @@ export default function PainelHojePage() {
     services,
     statusServicos,
     payments: payments.items,
-    fees: tenant.policies.paymentFees,
+    formas: formasDeCobranca,
     periodo: mesPeriodo(monthOf(hoje)),
     agora,
     toleranciaAtrasoMin,
@@ -224,7 +226,7 @@ export default function PainelHojePage() {
    * valor que ninguém recebeu, e quem decide a cobertura continua sendo o
    * servidor, que lê a assinatura e a cota na conclusão.
    */
-  async function concluirCom(metodo: PaymentMethod | null) {
+  async function concluirCom(forma: FormaDePagamento | null) {
     const booking = aFechar;
     if (!booking) return;
     setSalvando(true);
@@ -233,7 +235,15 @@ export default function PainelHojePage() {
       gravar: () =>
         patchDoc(tenant.id, "bookings", booking.id, {
           status: "completed",
-          paymentMethod: metodo,
+          /* O MEIO e a FORMA, na mesma escrita.
+           *
+           * O meio é o que todo relatório já sabe agrupar; a forma é o que diz
+           * qual taxa a maquininha cobrou. O servidor lê os dois do documento
+           * atualizado — gravar em duas etapas materializaria o pagamento antes
+           * de a forma existir, e a taxa nasceria da forma errada. */
+          paymentMethod: forma?.base ?? null,
+          paymentFormId: forma?.id ?? null,
+          paymentFormLabel: forma?.label ?? null,
         }),
       // Fechar o diálogo É o aviso: é assim que o dono lê "deu certo".
       avisar: () => setAFechar(null),
@@ -831,6 +841,8 @@ export default function PainelHojePage() {
           descricao={`${aCorrigir.clientName} · ${formatBRL(aCorrigir.value)} · ${aCorrigir.time}`}
           valor={aCorrigir.value}
           metodoAtual={aCorrigir.paymentMethod ?? null}
+          formaAtual={aCorrigir.paymentFormId ?? null}
+          formaAtualLabel={aCorrigir.paymentFormLabel ?? null}
         />
       )}
 
@@ -898,16 +910,24 @@ export default function PainelHojePage() {
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-3">
-          {PAYMENT_METHODS.map((metodo) => (
+        {/* Duas colunas até quatro formas; três quando a barbearia cadastrou
+            mais, para a lista não virar uma coluna de rolagem no celular de
+            quem está com o cliente esperando. */}
+        <div className={formasDeCobranca.length > 4 ? "grid grid-cols-3 gap-2" : "grid grid-cols-2 gap-3"}>
+          {formasDeCobranca.map((forma) => (
             <button
-              key={metodo}
+              key={forma.id}
               type="button"
               disabled={salvando}
-              onClick={() => void concluirCom(metodo)}
-              className="flex min-h-16 cursor-pointer items-center justify-center rounded-xl border border-border text-sm font-medium text-ink transition-colors hover:border-gold hover:bg-gold/10 hover:text-gold-strong"
+              onClick={() => void concluirCom(forma)}
+              className="flex min-h-16 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-xl border border-border px-2 text-center text-sm font-medium text-ink transition-colors hover:border-gold hover:bg-gold/10 hover:text-gold-strong"
             >
-              {paymentMethodLabel[metodo]}
+              <span className="leading-tight">{forma.label}</span>
+              {forma.feePct > 0 && (
+                <span className="text-[11px] font-normal text-ink-muted">
+                  {formatPctPtBR(forma.feePct, 2)}
+                </span>
+              )}
             </button>
           ))}
         </div>
