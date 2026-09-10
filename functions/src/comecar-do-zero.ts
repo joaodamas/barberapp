@@ -1,5 +1,6 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
+import { hojeNoFuso, localeDoDocumento } from "./locale";
 
 /**
  * Apagar o movimento de demonstração e começar o mês limpo.
@@ -86,6 +87,9 @@ const TETO_POR_CHAMADA = 5_000;
 /** O Firestore aceita 500 operações por lote. */
 const TAMANHO_DO_LOTE = 500;
 
+/** Reserva viva: o cliente ainda espera ser atendido naquele horário. */
+const EM_ABERTO = ["pending_payment", "confirmed", "confirmed_by_client", "fit_in_requested"];
+
 type Contagem = Record<string, number>;
 
 /**
@@ -96,8 +100,14 @@ type Contagem = Record<string, number>;
  * responder um número que cabe em um inteiro.
  */
 async function contarMovimento(
-  shopRef: FirebaseFirestore.DocumentReference
-): Promise<{ porColecao: Contagem; total: number; maisAntigo: string | null }> {
+  shopRef: FirebaseFirestore.DocumentReference,
+  hoje: string
+): Promise<{
+  porColecao: Contagem;
+  total: number;
+  maisAntigo: string | null;
+  futurosEmAberto: number;
+}> {
   const porColecao: Contagem = {};
   let total = 0;
 
@@ -121,7 +131,23 @@ async function contarMovimento(
     .get();
   const maisAntigo = primeira.empty ? null : String(primeira.docs[0].get("date") ?? "") || null;
 
-  return { porColecao, total, maisAntigo };
+  /* O aviso que nenhuma outra conta dá: entre os atendimentos que vão sumir
+   * pode haver horário JÁ MARCADO para os próximos dias.
+   *
+   * O cliente não é avisado — não há caminho para isso, e criar um aqui seria
+   * disparar dezenas de mensagens a partir de um botão de limpeza. Ele
+   * simplesmente chega no dia e não tem reserva. É o único efeito desta função
+   * que atinge alguém de fora da barbearia, e por isso é o único que a tela
+   * precisa dizer com número próprio. */
+  const futuros = await shopRef
+    .collection("bookings")
+    .where("date", ">=", hoje)
+    .get();
+  const futurosEmAberto = futuros.docs.filter((d) =>
+    EM_ABERTO.includes(String(d.get("status")))
+  ).length;
+
+  return { porColecao, total, maisAntigo, futurosEmAberto };
 }
 
 /** Apaga em lotes, devolvendo quantos saíram. */
@@ -184,7 +210,8 @@ export const comecarDoZero = onCall<{
   const shopSnap = await shopRef.get();
   if (!shopSnap.exists) throw new HttpsError("not-found", "Barbearia não encontrada.");
 
-  const antes = await contarMovimento(shopRef);
+  const hoje = hojeNoFuso(localeDoDocumento(shopSnap.data()).timeZone);
+  const antes = await contarMovimento(shopRef, hoje);
 
   /* Fase 1 — a conta, sem tocar em nada. */
   if (request.data?.confirmacao !== "ZERAR") {
@@ -201,7 +228,14 @@ export const comecarDoZero = onCall<{
     tipo: "comecar_do_zero",
     at: FieldValue.serverTimestamp(),
     por: uid,
-    detail: { antes: antes.porColecao, total: antes.total, maisAntigo: antes.maisAntigo },
+    detail: {
+      antes: antes.porColecao,
+      total: antes.total,
+      maisAntigo: antes.maisAntigo,
+      /* Registrado porque é o que alguém vai querer saber depois: quantas
+       * pessoas ficaram sem o horário que tinham marcado. */
+      futurosEmAberto: antes.futurosEmAberto,
+    },
   });
 
   const apagado: Contagem = {};
@@ -225,7 +259,7 @@ export const comecarDoZero = onCall<{
     await batch.commit();
   }
 
-  const depois = await contarMovimento(shopRef);
+  const depois = await contarMovimento(shopRef, hoje);
 
   return {
     modo: "executado" as const,

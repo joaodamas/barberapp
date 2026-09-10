@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { useTenant } from "@/lib/tenant-context";
 import { formatDatePtBR } from "@/lib/format";
-import { contar } from "@/lib/plural";
+import { contar, plural } from "@/lib/plural";
 
 /**
  * Apagar o movimento de teste e começar o mês limpo.
@@ -180,6 +180,20 @@ export function ComecarDoZero() {
                       </ul>
                     </div>
 
+                    {previa.futurosEmAberto > 0 && (
+                      /* O único efeito desta função que atinge alguém de fora
+                         da barbearia — e o cliente não é avisado. Dizer isso
+                         com número é a diferença entre uma limpeza e um cliente
+                         chegando para um horário que não existe mais. */
+                      <p className="rounded-xl border border-danger/40 bg-danger/10 px-3 py-2.5 text-sm text-ink">
+                        <strong>
+                          {contar(previa.futurosEmAberto, "horário já marcado", "horários já marcados")}
+                        </strong>{" "}
+                        para os próximos dias {plural(previa.futurosEmAberto, "vai", "vão")} sumir
+                        junto. O cliente não é avisado — ele chega e não tem reserva.
+                      </p>
+                    )}
+
                     {previa.maisAntigo && (
                       /* A frase que muda a decisão: teste tem dias, operação tem
                          meses. */
@@ -232,6 +246,8 @@ type Previa = {
   porColecao: Record<string, number>;
   total: number;
   maisAntigo: string | null;
+  /** Horários já marcados daqui para a frente — ver o aviso na tela. */
+  futurosEmAberto: number;
 };
 
 type Executado = {
