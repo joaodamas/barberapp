@@ -3,6 +3,91 @@
 Histórico de mudanças do CorteHub — plataforma de gestão para barbearias.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [2026-09-10] — publicado, e o que a revisão pegou no caminho
+
+Fecha o dia em que o produto voltou do cliente. As três entradas abaixo contam
+cada frente; esta conta o que aconteceu **entre elas e o ar**.
+
+| | Frente | PR |
+|---|---|---|
+| 1 | jornada por dia da semana + exceções por data | `#25` |
+| 2 | formas de pagamento com taxa própria | `#26` |
+| 3 | "começar do zero" | `#28` |
+| — | registro das três na fila de prontidão | `#29` |
+
+### Dois defeitos que nenhum teste verde pegaria
+
+O revisor automático estava **sem cota** nesta rodada — a rede que em agosto
+barrou um P1 num PR meu não rodou. Os dois achados vieram de reler o próprio
+diff perguntando *quem mais escreve isto*, e nenhum quebraria build:
+
+**1. `stripUndefined` é raso e não entra em array.** A tela montava a exceção de
+agenda com `note: nota.trim() || undefined`. Fechar um dia **sem digitar
+motivo** — o caminho mais comum de todos — enviava
+
+```
+"schedule.exceptions": [{ date, closed: true, note: undefined }]
+```
+
+e o SDK recusa a escrita inteira com *"Unsupported field value: undefined"*. O
+dono clicaria em "Salvar este dia" e leria "não foi possível salvar" toda vez.
+Virou `montarExcecao`, nos dois lados do par, porque é a única forma de o teste
+alcançar a regra sem renderizar o formulário.
+
+**2. A reversão limpava o método e deixava a forma para trás.** É o defeito de
+20/08 reaberto por outra porta: a perna de reversão apaga `paymentMethod` de
+propósito — senão a reserva fica "Não compareceu" exibindo "Crédito", sem
+pagamento nenhum no banco. Como a agenda passou a **preferir o rótulo congelado
+da forma**, deixar `paymentFormLabel` de pé fazia a mesma linha voltar a dizer
+"Crédito inserido". Limpar um campo e esquecer o outro é a mesma divergência com
+nome novo.
+
+> A lição não é "revisar mais". É que **os dois defeitos moram na fronteira
+> entre uma mudança nova e uma decisão antiga** — o array que o helper não
+> alcança, o campo que a limpeza não conhecia. Nenhum aparece lendo só o código
+> que mudou.
+
+E um terceiro, pego pelo CI e não por mim: `import.meta` não compila no tsconfig
+das functions, que é CommonJS. Escrevi o teste **depois** do último `tsc` local.
+
+### Publicado em produção
+
+Primeiro deploy desde 20/08. Produção estava em `e67c0ef` — o commit anterior a
+tudo isto.
+
+| | |
+|---|---|
+| Commit | `9387fba` |
+| Escopo | tudo — índices, regras, functions e hosting |
+| Functions | 33 atualizadas, incluindo `comecarDoZero` (nova) |
+| Hosting | `release complete`, SSR atualizado |
+| Run | `34524011537`, aprovado no ambiente protegido |
+
+Fumaça no domínio: `osiqueira.jpproject.com.br` responde 200 e o tenant resolve
+como "O Siqueira Barbearia" — o subdomínio serve a barbearia certa, não o
+fallback.
+
+**Os três seguem 🟡.** Site no ar não é feature provada, e a régua do
+`GO-LIVE-READINESS.md` continua valendo: promove quem for visto na tela. O que
+falta em cada um está escrito lá, com destaque para o "começar do zero" — a
+única função do produto que apaga em massa, e que **não deve rodar n'O Siqueira
+antes de rodar numa barbearia de teste**.
+
+### O manual saiu junto
+
+O dono pediu o passo a passo do que perguntou; entregamos o manual **da
+plataforma inteira**, para virar PDF: os dois apps, as sete áreas do painel,
+os fluxos de balcão, o dinheiro, e uma parte inteira sobre **o que o sistema
+ainda não faz** — WhatsApp automático, pagamento online, cobrança de
+mensalidade, nota fiscal.
+
+Escrevê-lo encontrou uma afirmação falsa antes de ela chegar ao cliente: o
+rascunho dizia *"desfaça a conclusão na agenda"*, e **esse botão não existe** —
+`page.tsx` manda todo `completed` para a correção de pagamento, de propósito,
+porque reabrir é a mesma superfície do "Veio depois". Documentar obriga a
+conferir o que se afirma, e é a terceira vez neste repositório que escrever o
+texto encontra o defeito.
+
 ## [2026-09-10] — o produto voltou do cliente
 
 Primeira rodada movida por **uso real**, e não por auditoria. O dono d'O Siqueira
