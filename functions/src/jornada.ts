@@ -267,6 +267,38 @@ export function capacidadeDaData(params: {
 }
 
 /**
+ * Monta a exceção que vai para o banco, sem nenhum campo `undefined`.
+ *
+ * Parece detalhe de estilo e não é. O `stripUndefined` do repositório é **raso**:
+ * ele limpa o nível de cima e não entra em array. Um `note: undefined` dentro de
+ * `schedule.exceptions` chega inteiro ao Firestore, que recusa a escrita com
+ * *"Unsupported field value: undefined"* — e o caso que quebraria é o mais
+ * comum de todos: fechar um dia sem digitar motivo.
+ *
+ * Existe como função, e não como objeto montado na tela, porque é a única
+ * forma de o teste alcançar a regra sem renderizar o formulário.
+ */
+export function montarExcecao(params: {
+  date: string;
+  fechado: boolean;
+  opensAt?: string;
+  closesAt?: string;
+  nota?: string;
+}): ExcecaoDeAgenda {
+  const nota = (params.nota ?? "").trim();
+  return {
+    date: params.date,
+    ...(params.fechado
+      ? { closed: true }
+      : {
+          ...(params.opensAt ? { opensAt: params.opensAt } : {}),
+          ...(params.closesAt ? { closesAt: params.closesAt } : {}),
+        }),
+    ...(nota ? { note: nota } : {}),
+  };
+}
+
+/**
  * Exceções que ainda importam, em ordem de data.
  *
  * O array vive no documento da barbearia e cresceria para sempre — um feriado

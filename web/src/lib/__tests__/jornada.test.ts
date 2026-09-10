@@ -5,6 +5,7 @@ import {
   excecaoDaData,
   horariosDaJornada,
   jornadaDoDia,
+  montarExcecao,
   podarExcecoes,
   type EntradaDeJornada,
 } from "@/lib/jornada";
@@ -216,6 +217,57 @@ describe("podarExcecoes", () => {
       "2026-09-15"
     );
     expect(lista.map((e) => e.date)).toEqual(["2026-10-12", "2026-12-25"]);
+  });
+});
+
+describe("montarExcecao · nenhum campo `undefined` chega ao Firestore", () => {
+  /**
+   * O defeito que este bloco impede não é de lógica: é de gravação.
+   *
+   * `stripUndefined` (`db/repository.ts`) limpa o nível de cima e **não entra em
+   * array**. Um `note: undefined` dentro de `schedule.exceptions` chega inteiro
+   * ao SDK, que recusa com *"Unsupported field value: undefined"* — e o caminho
+   * quebrado seria o mais comum de todos: fechar um dia sem digitar motivo.
+   */
+  const semUndefined = (o: object) =>
+    Object.values(o).every((v) => v !== undefined);
+
+  it("dia fechado sem motivo não carrega `note`", () => {
+    const e = montarExcecao({ date: TERCA, fechado: true, nota: "" });
+    expect(e).toEqual({ date: TERCA, closed: true });
+    expect(semUndefined(e)).toBe(true);
+    expect("note" in e).toBe(false);
+  });
+
+  it("motivo em branco não vira nota vazia", () => {
+    /* String vazia gravaria e a lista exibiria " · " sem nada depois. */
+    const e = montarExcecao({ date: TERCA, fechado: true, nota: "   " });
+    expect("note" in e).toBe(false);
+  });
+
+  it("horário especial guarda abertura e fechamento, e nunca `closed`", () => {
+    const e = montarExcecao({
+      date: TERCA,
+      fechado: false,
+      opensAt: "09:00",
+      closesAt: "15:00",
+      nota: "meio expediente",
+    });
+    expect(e).toEqual({
+      date: TERCA,
+      opensAt: "09:00",
+      closesAt: "15:00",
+      note: "meio expediente",
+    });
+    expect("closed" in e).toBe(false);
+  });
+
+  it("o que ela monta é aceito pela régua que a lê", () => {
+    /* A ponta a ponta que importa: o objeto gravado precisa produzir o dia
+     * fechado que o dono pediu. */
+    const e = montarExcecao({ date: TERCA, fechado: true, nota: "feriado" });
+    const j = jornadaDoDia({ schedule: { ...SIQUEIRA, exceptions: [e] }, weekday: 2, date: TERCA });
+    expect(j).toMatchObject({ aberto: false, origem: "excecao", nota: "feriado" });
   });
 });
 

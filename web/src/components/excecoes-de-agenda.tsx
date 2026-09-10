@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useTenant } from "@/lib/tenant-context";
 import { useShopCollection } from "@/lib/db/use-collection";
 import { patchTenant } from "@/lib/db/repository";
-import { podarExcecoes, type ExcecaoDeAgenda } from "@/lib/jornada";
+import { montarExcecao, podarExcecoes, type ExcecaoDeAgenda } from "@/lib/jornada";
 import { formatDatePtBR, toISODate } from "@/lib/format";
 import { OCCUPIES_SLOT, type BookingDoc } from "@/lib/domain";
 import { contar } from "@/lib/plural";
@@ -78,9 +78,17 @@ export function ExcecoesDeAgenda() {
 
   async function adicionar() {
     if (!data) return;
-    const nova: ExcecaoDeAgenda = fecha
-      ? { date: data, closed: true, note: nota.trim() || undefined }
-      : { date: data, opensAt, closesAt, note: nota.trim() || undefined };
+    /* `montarExcecao` e não um literal: `stripUndefined` do repositório é raso
+     * e não entra em array, então um `note: undefined` aqui chegaria inteiro ao
+     * Firestore — que recusa a escrita. O caso quebrado seria o mais comum de
+     * todos: fechar um dia sem digitar motivo. */
+    const nova = montarExcecao({
+      date: data,
+      fechado: fecha,
+      opensAt,
+      closesAt,
+      nota,
+    });
 
     /* A nova entra por último: `podarExcecoes` mantém a última de cada data, e
      * é assim que editar um dia já cadastrado sobrescreve em vez de duplicar. */
