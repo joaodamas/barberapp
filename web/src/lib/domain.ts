@@ -115,6 +115,16 @@ export type PaymentDoc = {
   paymentOrigin: PaymentOrigin;
   /** Nulo quando o atendimento foi concluído sem informar como o cliente pagou. */
   paymentMethod: PaymentMethod | null;
+  /**
+   * A forma exata, quando a barbearia cadastrou as dela — "Crédito
+   * aproximação", "Crédito 2–6x".
+   *
+   * Congelada em par com o rótulo: o dono pode renomear ou apagar a forma, e o
+   * extrato de três meses atrás não pode passar a exibir um código. Ausente nos
+   * pagamentos anteriores às formas, e nos que não têm método.
+   */
+  paymentFormId?: string | null;
+  paymentFormLabel?: string | null;
   grossAmount: number;
   /** Congelada na conclusão: mudar a taxa não altera o passado. */
   feePct: number;
@@ -335,6 +345,12 @@ export type BookingDoc = {
    * balcão, não o cliente no momento de marcar.
    */
   paymentMethod: PaymentMethod | null;
+  /**
+   * A forma exata escolhida no fechamento, quando a barbearia cadastrou as
+   * dela. O servidor a lê daqui para congelar a taxa certa no pagamento.
+   */
+  paymentFormId?: string | null;
+  paymentFormLabel?: string | null;
   isFitIn?: boolean;
   /** Quando o encaixe foi pedido — base para o prazo de expiração. */
   requestedAt?: string;

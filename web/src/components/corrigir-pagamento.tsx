@@ -3,10 +3,10 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
-import { formatBRL } from "@/lib/format";
+import { formatBRL, formatPctPtBR } from "@/lib/format";
 import { useTenant } from "@/lib/tenant-context";
 import { chaveDeIdempotencia } from "@/lib/chave-de-idempotencia";
-import { PAYMENT_METHODS, paymentMethodLabel } from "@/lib/payment-method";
+import { formasAtivas, type FormaDePagamento } from "@/lib/formas-de-pagamento";
 import type { PaymentMethod } from "@/lib/types";
 
 /**
@@ -47,11 +47,15 @@ export function CorrigirPagamento(params: {
   valor: number;
   /** O que está registrado hoje. `null` é o caso 1 — o plano não cobriu. */
   metodoAtual: PaymentMethod | null;
+  /** A forma registrada hoje, quando havia uma. */
+  formaAtual?: string | null;
+  /** O rótulo congelado dela, que sobrevive a renomear e a excluir. */
+  formaAtualLabel?: string | null;
   aoCorrigir?: (metodo: PaymentMethod) => void;
 }) {
   const tenant = useTenant();
 
-  const [escolhido, setEscolhido] = useState<PaymentMethod | null>(null);
+  const [escolhida, setEscolhida] = useState<FormaDePagamento | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -61,13 +65,30 @@ export function CorrigirPagamento(params: {
    * evento anterior e a tela diria "pronto" sem nada ter acontecido. */
   const [chave] = useState(chaveDeIdempotencia);
 
-  /* O método atual não é oferecido: o servidor recusa "corrigir" para o mesmo
-   * meio, e um botão que só existe para dar erro é uma promessa falsa. */
-  const opcoes = PAYMENT_METHODS.filter((m) => m !== params.metodoAtual);
-  const podeConfirmar = escolhido !== null;
+  /* O rótulo CONGELADO no documento vence o cadastro de hoje: a forma pode ter
+   * sido renomeada ou apagada desde o fechamento, e o que o dono precisa ler é
+   * o que está registrado, não o que existe agora. */
+  const rotuloAtual =
+    params.formaAtualLabel ??
+    (params.formaAtual
+      ? formasAtivas(tenant.policies).find((f) => f.id === params.formaAtual)?.label
+      : null) ??
+    (params.metodoAtual ? NOME_DO_MEIO[params.metodoAtual] : null);
+
+  /* A forma atual não é oferecida: o servidor recusa "corrigir" para o mesmo
+   * meio, e um botão que só existe para dar erro é uma promessa falsa.
+   *
+   * O filtro é pela FORMA quando há uma registrada, e pelo MEIO quando não há.
+   * Numa barbearia com "Crédito aproximação" e "Crédito inserido", corrigir de
+   * uma para a outra é justamente a correção mais comum — e filtrar por meio
+   * esconderia a única opção que o dono foi ali procurar. */
+  const opcoes = formasAtivas(tenant.policies).filter((f) =>
+    params.formaAtual ? f.id !== params.formaAtual : f.base !== params.metodoAtual
+  );
+  const podeConfirmar = escolhida !== null;
 
   async function confirmar() {
-    if (!escolhido) return;
+    if (!escolhida) return;
     setSalvando(true);
     setErro(null);
     try {
@@ -75,10 +96,11 @@ export function CorrigirPagamento(params: {
       await callFunction("corrigirPagamentoDeAtendimento", {
         barbershopId: tenant.id,
         bookingId: params.bookingId,
-        paymentMethod: escolhido,
+        paymentMethod: escolhida.base,
+        paymentFormId: escolhida.id,
         idempotencyKey: chave,
       });
-      params.aoCorrigir?.(escolhido);
+      params.aoCorrigir?.(escolhida.base);
       params.aoFechar();
     } catch (e) {
       /* A mensagem do servidor é a que explica — "esse pagamento já teve
@@ -111,12 +133,10 @@ export function CorrigirPagamento(params: {
         <div className="rounded-xl border border-border bg-surface-raised px-3 py-2.5">
           <p className="text-xs text-ink-muted">Registrado hoje</p>
           <p className="text-sm text-ink">
-            {params.metodoAtual
-              ? paymentMethodLabel[params.metodoAtual]
-              : /* O caso 1, dito com as palavras do que aconteceu. "A pagar no
-                   salão" num atendimento que já terminou é uma cobrança que
-                   ninguém vai fazer. */
-                "Não informado"}{" "}
+            {rotuloAtual ?? /* O caso 1, dito com as palavras do que aconteceu.
+                 "A pagar no salão" num atendimento que já terminou é uma
+                 cobrança que ninguém vai fazer. */
+              "Não informado"}{" "}
             · {formatBRL(params.valor)}
           </p>
         </div>
@@ -125,21 +145,26 @@ export function CorrigirPagamento(params: {
           Como o cliente pagou de verdade
         </p>
 
-        <div className="grid grid-cols-2 gap-3">
-          {opcoes.map((metodo) => (
+        <div className={opcoes.length > 4 ? "grid grid-cols-3 gap-2" : "grid grid-cols-2 gap-3"}>
+          {opcoes.map((forma) => (
             <button
-              key={metodo}
+              key={forma.id}
               type="button"
               disabled={salvando}
-              aria-pressed={escolhido === metodo}
-              onClick={() => setEscolhido(metodo)}
+              aria-pressed={escolhida?.id === forma.id}
+              onClick={() => setEscolhida(forma)}
               className={
-                escolhido === metodo
-                  ? "flex min-h-16 cursor-pointer items-center justify-center rounded-xl border border-gold bg-gold/15 text-sm font-medium text-gold-strong"
-                  : "flex min-h-16 cursor-pointer items-center justify-center rounded-xl border border-border text-sm font-medium text-ink transition-colors hover:border-gold hover:bg-gold/10 hover:text-gold-strong"
+                escolhida?.id === forma.id
+                  ? "flex min-h-16 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-xl border border-gold bg-gold/15 px-2 text-center text-sm font-medium text-gold-strong"
+                  : "flex min-h-16 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-xl border border-border px-2 text-center text-sm font-medium text-ink transition-colors hover:border-gold hover:bg-gold/10 hover:text-gold-strong"
               }
             >
-              {paymentMethodLabel[metodo]}
+              <span className="leading-tight">{forma.label}</span>
+              {forma.feePct > 0 && (
+                <span className="text-[11px] font-normal text-ink-muted">
+                  {formatPctPtBR(forma.feePct, 2)}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -169,3 +194,11 @@ export function CorrigirPagamento(params: {
     </Modal>
   );
 }
+
+/** Os quatro meios, para descrever um pagamento anterior às formas. */
+const NOME_DO_MEIO: Record<PaymentMethod, string> = {
+  pix: "Pix",
+  cash: "Dinheiro",
+  debit: "Débito",
+  credit: "Crédito",
+};

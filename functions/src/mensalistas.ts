@@ -36,6 +36,7 @@ import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { hojeNoFuso, localeDoDocumento } from "./locale";
 import { metodoValido } from "./inventory";
 import { documentoDePagamento, idDoPagamento } from "./payments";
+import { formasDoTenant } from "./formas-de-pagamento";
 import { SEM_TAXA, type PaymentFees } from "./financial-events";
 import type { PaymentMethod } from "./financial-events";
 
@@ -574,11 +575,14 @@ export const registrarPagamentoDeMensalidade = onCall<{
   barbershopId: string;
   invoiceId: string;
   paymentMethod: PaymentMethod;
+  /** A forma exata, quando a barbearia cadastrou as dela. */
+  paymentFormId?: string | null;
 }>(async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Entre na sua conta.");
 
   const { barbershopId, invoiceId, paymentMethod } = request.data ?? {};
+  const paymentFormId = request.data?.paymentFormId ? String(request.data.paymentFormId) : null;
   if (!barbershopId || !invoiceId) {
     throw new HttpsError("invalid-argument", "Fatura não informada.");
   }
@@ -596,8 +600,12 @@ export const registrarPagamentoDeMensalidade = onCall<{
   const ref = shopRef.collection("subscription_invoices").doc(String(invoiceId));
 
   /* Taxas lidas fora da transação — política, não estado disputado. */
-  const politicas = (shopSnap.get("policies") ?? {}) as { paymentFees?: Partial<PaymentFees> };
+  const politicas = (shopSnap.get("policies") ?? {}) as {
+    paymentFees?: Partial<PaymentFees>;
+    paymentForms?: unknown;
+  };
   const fees: PaymentFees = { ...SEM_TAXA, ...(politicas.paymentFees ?? {}) };
+  const formas = formasDoTenant(politicas);
 
   return db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
@@ -646,6 +654,8 @@ export const registrarPagamentoDeMensalidade = onCall<{
         bruto: Number(snap.get("amount")) || 0,
         metodo: paymentMethod,
         fees,
+        formas,
+        formaId: paymentFormId,
       })
     );
 

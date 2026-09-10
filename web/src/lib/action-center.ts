@@ -1,7 +1,7 @@
 import type { Doc } from "@/lib/db/repository";
 import { cobertoPeloPlano } from "@/lib/domain";
 import type { BookingDoc, PaymentDoc, ServiceDoc } from "@/lib/domain";
-import type { TenantPaymentFees } from "@/lib/tenant";
+import { taxasEmBranco, type FormaDePagamento } from "@/lib/formas-de-pagamento";
 import { dentroDoPeriodo, type Periodo } from "@/lib/analytics";
 
 /**
@@ -311,12 +311,17 @@ export function atendimentosAtrasados(params: {
  * Pix e dinheiro tem taxa zero de verdade, e seria absurdo cobrá-la por isso.
  */
 export function taxasNaoConfiguradas(params: {
-  fees: TenantPaymentFees;
+  /** As formas da barbearia — as cadastradas, ou as quatro derivadas. */
+  formas: FormaDePagamento[];
   payments: Doc<PaymentDoc>[];
   periodo: Periodo;
 }): ActionItem[] {
-  const todasZeradas = Object.values(params.fees).every((v) => !v);
-  if (!todasZeradas) return [];
+  /* Antes a pergunta era "todas as quatro taxas estão zeradas?", e ela ficou
+   * errada no dia em que a barbearia passou a cadastrar as formas dela: com
+   * "Crédito aproximação" preenchido e "Crédito inserido" em branco, nada
+   * avisava — e o segundo é justamente o que o dono esqueceu. `taxasEmBranco`
+   * pergunta pelo CARTÃO, que é onde a taxa zero não pode ser verdade. */
+  if (!taxasEmBranco(params.formas)) return [];
 
   const usouCartao = params.payments.some(
     (p) =>
@@ -399,7 +404,7 @@ export type EstadoOperacional = {
   services: Doc<ServiceDoc>[];
   statusServicos: "carregando" | "pronto" | "erro";
   payments: Doc<PaymentDoc>[];
-  fees: TenantPaymentFees;
+  formas: FormaDePagamento[];
   periodo: Periodo;
   /** Relógio da tela, que avança sozinho. `null` antes de montar no cliente. */
   agora: Date | null;
@@ -430,7 +435,7 @@ export function avaliarOperacao(estado: EstadoOperacional): ActionItem[] {
       toleranciaMin: estado.toleranciaAtrasoMin,
     }),
     ...taxasNaoConfiguradas({
-      fees: estado.fees,
+      formas: estado.formas,
       payments: estado.payments,
       periodo: estado.periodo,
     }),

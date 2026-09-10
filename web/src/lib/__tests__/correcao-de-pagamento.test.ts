@@ -209,7 +209,12 @@ describe("R1 · o modal de correção", () => {
   it("🔒 não oferece o método que já está registrado", () => {
     /* O servidor recusa corrigir para o mesmo meio; um botão que só existe para
      * dar erro é promessa falsa. */
-    expect(MODAL).toContain("PAYMENT_METHODS.filter((m) => m !== params.metodoAtual)");
+    /* Filtra pela FORMA quando há uma registrada e pelo MEIO quando não há —
+     * numa barbearia com aproximação e inserido, corrigir de uma para a outra é
+     * a correção mais comum, e filtrar por meio esconderia justamente ela. */
+    expect(MODAL).toContain("formasAtivas(tenant.policies).filter(");
+    expect(MODAL).toContain("f.id !== params.formaAtual");
+    expect(MODAL).toContain("f.base !== params.metodoAtual");
   });
 
   it("diz o que vai ser registrado antes de gravar", () => {

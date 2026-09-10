@@ -68,7 +68,7 @@ describe("R1 · os quatro campos saem de `valoresDoPagamento`", () => {
     expect(FONTE).not.toContain("taxaDoMetodo(");
   });
 
-  it("devolve EXATAMENTE os quatro campos, e nada mais", () => {
+  it("devolve EXATAMENTE os campos declarados, e nada mais", () => {
     /* `valoresDoPagamento` também calcula `grossAmount`. Se ele vazar para o
      * `update`, a correção reescreve um campo congelado. */
     const campos = camposDaCorrecao({ bruto: 50, metodo: "credit", fees: TAXAS });
@@ -76,9 +76,14 @@ describe("R1 · os quatro campos saem de `valoresDoPagamento`", () => {
     expect(campos).not.toHaveProperty("grossAmount");
   });
 
-  it("os quatro são o conjunto que o contrato declara", () => {
+  it("o conjunto corrigível é o que o contrato declara", () => {
+    /* Cresceu de quatro para seis com as formas de pagamento, e os dois novos
+     * andam JUNTO do método: corrigir de crédito para débito e deixar a forma
+     * em "Crédito aproximação" faria o documento contradizer a si mesmo. */
     expect([...CAMPOS_CORRIGIVEIS]).toEqual([
       "paymentMethod",
+      "paymentFormId",
+      "paymentFormLabel",
       "feePct",
       "feeAmount",
       "netAmount",
@@ -101,10 +106,49 @@ describe("R1 · os quatro campos saem de `valoresDoPagamento`", () => {
     const c = camposDaCorrecao({ bruto: 50, metodo: "credit", fees: SEM_TAXA });
     expect(c).toEqual({
       paymentMethod: "credit",
+      /* Sem formas cadastradas não há forma a congelar — e nulo é o que
+       * distingue "esta barbearia não usa formas" de "a forma se perdeu". */
+      paymentFormId: null,
+      paymentFormLabel: null,
       feePct: 0,
       feeAmount: 0,
       netAmount: 50,
     });
+  });
+
+  it("com formas cadastradas, congela a que o dono escolheu", () => {
+    /* O pedido do dono: aproximação e inserido cobram diferente, e o pagamento
+     * precisa dizer QUAL delas — senão a taxa de 4,19% aparece no DRE sem nada
+     * que a explique. */
+    const formas = [
+      { id: "credit", label: "Crédito aproximação", base: "credit" as const, feePct: 3.49, active: true },
+      { id: "credito-inserido", label: "Crédito inserido", base: "credit" as const, feePct: 4.19, active: true },
+    ];
+    const c = camposDaCorrecao({
+      bruto: 100,
+      metodo: "credit",
+      fees: SEM_TAXA,
+      formas,
+      formaId: "credito-inserido",
+    });
+    expect(c).toMatchObject({
+      paymentMethod: "credit",
+      paymentFormId: "credito-inserido",
+      paymentFormLabel: "Crédito inserido",
+      feePct: 4.19,
+      netAmount: 95.81,
+    });
+  });
+
+  it("sem forma informada, cai na primeira ativa daquele meio — nunca em zero", () => {
+    /* O caminho de toda tela antiga em cache, e de todo pagamento anterior às
+     * formas. Zerar aqui faria o DRE afirmar que a maquininha não cobrou. */
+    const formas = [
+      { id: "credit", label: "Crédito aproximação", base: "credit" as const, feePct: 3.49, active: true },
+    ];
+    const c = camposDaCorrecao({ bruto: 100, metodo: "credit", fees: SEM_TAXA, formas });
+    expect(c.feePct).toBe(3.49);
+    expect(c.paymentFormId).toBe("credit");
   });
 });
 
@@ -328,7 +372,7 @@ describe("R1 · o invariante do qual a correção depende — cenário 6", () =>
 describe("R1 · a correção ALTERA, não reescreve", () => {
   it("🔒 usa `tx.update` no pagamento e na reserva", () => {
     expect(FONTE).toContain("tx.update(pagamentoRef, para)");
-    expect(FONTE).toContain("tx.update(reservaRef, { paymentMethod: params.metodo })");
+    expect(FONTE).toMatch(/tx\.update\(reservaRef, \{\s*paymentMethod: params\.metodo,/);
   });
 
   it("🔒 NUNCA usa `set` sem merge no pagamento nem na reserva", () => {

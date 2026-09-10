@@ -1,3 +1,4 @@
+import type { FormaDePagamento } from "@/lib/formas-de-pagamento";
 import {
   bookingPolicy as defaultBookingPolicy,
   cancellationPolicy as defaultCancellationPolicy,
@@ -138,8 +139,27 @@ export type TenantPolicies = {
   taxRatePct: number;
   /** Dias em que abre (0 = domingo). */
   openWeekdays: number[];
-  /** Taxa da maquininha por meio de recebimento, em %. */
+  /**
+   * Taxa da maquininha por meio de recebimento, em %.
+   *
+   * ⚠️ LEGADO desde as formas de pagamento. Continua sendo a fonte da
+   * barbearia que nunca abriu a tela — `formasDoTenant` deriva as quatro
+   * nativas a partir dele — e o lugar onde as quatro nativas são gravadas,
+   * para que nada que ainda leia daqui passe a ler zero. Quem pergunta "quanto
+   * a maquininha cobrou" deve chamar `taxaDoPagamento`, nunca este objeto.
+   */
   paymentFees: TenantPaymentFees;
+  /**
+   * As formas que ESTA barbearia recebe, com a taxa de cada uma.
+   *
+   * Nasceu do pedido do dono d'O Siqueira: aproximação e cartão inserido são
+   * preços diferentes na maquininha dele, e com quatro chaves fixas uma das
+   * duas estaria errada em todo atendimento no crédito.
+   *
+   * Opcional porque nenhuma barbearia existente tem o campo — ausente, as
+   * quatro nativas são derivadas de `paymentFees` e nada muda.
+   */
+  paymentForms?: FormaDePagamento[];
 };
 
 /**

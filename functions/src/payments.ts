@@ -1,4 +1,5 @@
 import { taxaDoMetodo, type PaymentFees, type PaymentMethod, type PaymentOrigin } from "./financial-events";
+import { taxaDoPagamento, type FormaDePagamento } from "./formas-de-pagamento";
 
 /**
  * O pagamento como fato financeiro — G1.6.
@@ -70,13 +71,36 @@ export function valoresDoPagamento(params: {
   bruto: number;
   metodo: PaymentMethod | null;
   fees: PaymentFees;
+  /**
+   * As formas cadastradas pela barbearia, quando o chamador as tem.
+   *
+   * Ausentes, a taxa vem das quatro chaves de sempre — o caminho de todo teste
+   * e de todo chamador anterior às formas. Presentes, mandam: é nelas que mora
+   * a diferença entre a taxa da aproximação e a do cartão inserido.
+   */
+  formas?: FormaDePagamento[];
+  /** Qual delas o dono escolheu no fechamento. */
+  formaId?: string | null;
 }) {
   const bruto = Number(params.bruto) || 0;
-  const feePct = params.metodo ? taxaDoMetodo(params.metodo, params.fees) : 0;
+
+  const resolvida = params.formas?.length
+    ? taxaDoPagamento({ formaId: params.formaId, meio: params.metodo, formas: params.formas })
+    : { feePct: params.metodo ? taxaDoMetodo(params.metodo, params.fees) : 0, forma: null };
+
+  const feePct = params.metodo ? resolvida.feePct : 0;
   const feeAmount = Math.round(((bruto * feePct) / 100) * 100) / 100;
 
   return {
     paymentMethod: params.metodo,
+    /* O id E o rótulo, congelados juntos.
+     *
+     * Só o id não basta: o dono pode renomear a forma, desativá-la ou apagá-la,
+     * e o extrato de três meses atrás passaria a exibir um código ou um vazio.
+     * Congelar o rótulo é a mesma regra que já vale para `feePct` — o documento
+     * tem de ser legível a partir dos próprios campos. */
+    paymentFormId: params.metodo ? (resolvida.forma?.id ?? null) : null,
+    paymentFormLabel: params.metodo ? (resolvida.forma?.label ?? null) : null,
     grossAmount: bruto,
     feePct,
     feeAmount,
@@ -99,6 +123,8 @@ export function documentoDePagamento(params: {
   bruto: number;
   metodo: PaymentMethod | null;
   fees: PaymentFees;
+  formas?: FormaDePagamento[];
+  formaId?: string | null;
   paymentOrigin?: PaymentOrigin;
 }) {
   const referencia =
@@ -114,6 +140,12 @@ export function documentoDePagamento(params: {
     clientId: params.clientId,
     date: params.date,
     paymentOrigin: params.paymentOrigin ?? "in_person",
-    ...valoresDoPagamento({ bruto: params.bruto, metodo: params.metodo, fees: params.fees }),
+    ...valoresDoPagamento({
+      bruto: params.bruto,
+      metodo: params.metodo,
+      fees: params.fees,
+      formas: params.formas,
+      formaId: params.formaId,
+    }),
   };
 }
