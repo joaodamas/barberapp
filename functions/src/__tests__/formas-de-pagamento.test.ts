@@ -1,3 +1,8 @@
+<<<<<<< HEAD
+=======
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+>>>>>>> origin/main
 import { describe, expect, it } from "vitest";
 import { SEM_TAXA } from "../financial-events";
 import { valoresDoPagamento } from "../payments";
@@ -71,3 +76,29 @@ describe("valoresDoPagamento · a forma entra congelada", () => {
     expect(v.paymentFormLabel).toBe("Débito");
   });
 });
+<<<<<<< HEAD
+=======
+
+describe("a reversão não deixa forma órfã", () => {
+  /**
+   * O defeito de 20/08, com nome novo.
+   *
+   * A perna de reversão apagava `cobertura` e deixava `paymentMethod` para
+   * trás: a reserva ficava "Não compareceu" exibindo "Crédito", sem pagamento
+   * nenhum no banco. Foi corrigido — e a forma reabriria exatamente o mesmo
+   * buraco por outra porta, porque a agenda passou a PREFERIR o rótulo
+   * congelado. Limpar um campo e esquecer o outro é a mesma divergência.
+   */
+  const FONTE = readFileSync(resolve(__dirname, "../financial-events.ts"), "utf8");
+
+  it("🔒 limpa método E forma na mesma escrita", () => {
+    const reversao = FONTE.slice(
+      FONTE.indexOf("cobertura: FieldValue.delete()"),
+      FONTE.indexOf("{ merge: true }", FONTE.indexOf("cobertura: FieldValue.delete()"))
+    );
+    expect(reversao).toContain("paymentMethod: null");
+    expect(reversao).toContain("paymentFormId: null");
+    expect(reversao).toContain("paymentFormLabel: null");
+  });
+});
+>>>>>>> origin/main

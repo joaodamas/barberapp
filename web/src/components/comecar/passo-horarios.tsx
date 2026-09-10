@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { horariosDaJornada, type PausaDaJornada } from "@/lib/jornada";
 import type { Tenant } from "@/lib/tenant";
 
 const DIAS = [
@@ -10,32 +11,19 @@ const DIAS = [
   { n: 0, label: "Dom" },
 ];
 
-/**
- * Prévia ao vivo da grade.
- *
- * É o que transforma configuração em compreensão: o dono VÊ que fechar às 19h
- * com intervalo de 30 min gera 16 horários, em vez de descobrir depois que a
- * agenda ficou com buraco.
- */
-function gradeDe(opensAt: string, closesAt: string, slotMinutes: number, breaks: Array<{from: string; to: string}>) {
-  const min = (t: string) => {
-    const [h, m] = t.split(":").map(Number);
-    return h * 60 + m;
-  };
-  const fmt = (v: number) =>
-    `${String(Math.floor(v / 60)).padStart(2, "0")}:${String(v % 60).padStart(2, "0")}`;
+/** Horário próprio de um dia, enquanto o dono edita. */
+type HorarioDoDia = { opensAt: string; closesAt: string };
 
-  const inicio = min(opensAt);
-  const fim = min(closesAt);
-  if (!Number.isFinite(inicio) || !Number.isFinite(fim) || fim <= inicio || slotMinutes < 5) return [];
-
-  const horarios: string[] = [];
-  for (let t = inicio; t + slotMinutes <= fim; t += slotMinutes) {
-    const dentroDoIntervalo = breaks.some((b) => t >= min(b.from) && t < min(b.to));
-    if (!dentroDoIntervalo) horarios.push(fmt(t));
-    if (horarios.length > 60) break;
+function overridesIniciais(perDay: Tenant["schedule"]["perDay"], padrao: HorarioDoDia) {
+  const saida: Record<string, HorarioDoDia> = {};
+  for (const [dia, valor] of Object.entries(perDay ?? {})) {
+    if (!valor) continue;
+    saida[dia] = {
+      opensAt: valor.opensAt ?? padrao.opensAt,
+      closesAt: valor.closesAt ?? padrao.closesAt,
+    };
   }
-  return horarios;
+  return saida;
 }
 
 export function PassoHorarios({
@@ -61,12 +49,45 @@ export function PassoHorarios({
   const [breakFrom, setBreakFrom] = useState(tenant.schedule.breaks[0]?.from ?? "12:00");
   const [breakTo, setBreakTo] = useState(tenant.schedule.breaks[0]?.to ?? "14:00");
 
-  const breaks = temIntervalo ? [{ from: breakFrom, to: breakTo }] : [];
-  const grade = gradeDe(opensAt, closesAt, slotMinutes, breaks);
+  /**
+   * Dias com horário próprio — o pedido que fez esta tela crescer.
+   *
+   * > *"na terça feira desse ano eu tenho compromisso aí eu fecho as 17:30"*
+   *
+   * Só `opensAt`/`closesAt`, de propósito: o intervalo continua vindo do
+   * padrão. O modelo (`schedule.perDay`) já aceita pausa por dia, mas oferecer
+   * sete almoços editáveis numa tela de cadastro cobra atenção de todo dono
+   * para resolver o caso de poucos. Quando aparecer quem precise, o campo já
+   * existe no dado — não é uma migração, é uma linha de formulário.
+   */
+  const [porDia, setPorDia] = useState<Record<string, HorarioDoDia>>(() =>
+    overridesIniciais(tenant.schedule.perDay, {
+      opensAt: tenant.schedule.opensAt,
+      closesAt: tenant.schedule.closesAt,
+    })
+  );
+
+  const breaks: PausaDaJornada[] = temIntervalo ? [{ from: breakFrom, to: breakTo }] : [];
+  const grade = horariosDaJornada({ jornada: { opensAt, closesAt, breaks }, slotMinutes });
   const valido = weekdays.length > 0 && grade.length > 0;
 
+  const diasAbertos = DIAS.filter((d) => weekdays.includes(d.n));
+
+  function horarioDe(dia: number): HorarioDoDia {
+    return porDia[String(dia)] ?? { opensAt, closesAt };
+  }
+
+  function alternarDiaProprio(dia: number, proprio: boolean) {
+    setPorDia((prev) => {
+      const copia = { ...prev };
+      if (proprio) copia[String(dia)] = { opensAt, closesAt };
+      else delete copia[String(dia)];
+      return copia;
+    });
+  }
+
   return (
-    <div className="grid gap-6 md:grid-cols-[1fr_200px]">
+    <div className="grid gap-6 md:grid-cols-[1fr_220px]">
       <div className="flex flex-col gap-5">
         <fieldset className="flex flex-col gap-2">
           <legend className="text-sm font-medium text-ink">Dias de funcionamento</legend>
@@ -139,6 +160,80 @@ export function PassoHorarios({
           </select>
         </div>
 
+        {/* Fechado por padrão: quem abre e fecha na mesma hora todo dia — a
+            maioria — não precisa nem saber que isto existe. Quem precisa,
+            chega aqui procurando exatamente esta frase. */}
+        <details className="rounded-xl border border-border bg-surface-raised/40 p-4 [&[open]>summary]:mb-3">
+          <summary className="cursor-pointer text-sm font-medium text-ink">
+            Algum dia fecha em horário diferente?
+          </summary>
+          <p className="text-xs text-ink-muted">
+            Use quando o horário diferente <strong>se repete toda semana</strong> — a terça
+            do compromisso, o sábado que fecha mais cedo. Para um dia só (feriado,
+            viagem), use os dias fechados logo abaixo.
+          </p>
+          <div className="mt-3 flex flex-col gap-2">
+            {diasAbertos.length === 0 && (
+              <p className="text-xs text-ink-muted">Marque ao menos um dia de funcionamento.</p>
+            )}
+            {diasAbertos.map((d) => {
+              const proprio = !!porDia[String(d.n)];
+              const valor = horarioDe(d.n);
+              return (
+                <div
+                  key={d.n}
+                  className="flex flex-col gap-2 rounded-lg border border-border/70 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <label className="flex items-center gap-2 text-sm text-ink">
+                    <input
+                      type="checkbox"
+                      checked={proprio}
+                      onChange={(e) => alternarDiaProprio(d.n, e.target.checked)}
+                      className="h-4 w-4 rounded border-border accent-gold"
+                    />
+                    <span className="w-10 font-medium">{d.label}</span>
+                    {!proprio && (
+                      <span className="text-xs text-ink-muted">
+                        {opensAt}–{closesAt} (padrão)
+                      </span>
+                    )}
+                  </label>
+
+                  {proprio && (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="time"
+                        aria-label={`${d.label} — abre`}
+                        value={valor.opensAt}
+                        onChange={(e) =>
+                          setPorDia((prev) => ({
+                            ...prev,
+                            [String(d.n)]: { ...valor, opensAt: e.target.value },
+                          }))
+                        }
+                        className="min-h-11 rounded-lg border border-border bg-surface-raised px-3 text-sm text-ink"
+                      />
+                      <span className="text-xs text-ink-muted">até</span>
+                      <input
+                        type="time"
+                        aria-label={`${d.label} — fecha`}
+                        value={valor.closesAt}
+                        onChange={(e) =>
+                          setPorDia((prev) => ({
+                            ...prev,
+                            [String(d.n)]: { ...valor, closesAt: e.target.value },
+                          }))
+                        }
+                        className="min-h-11 rounded-lg border border-border bg-surface-raised px-3 text-sm text-ink"
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </details>
+
         <Button
           onClick={() =>
             onSubmit({
@@ -147,6 +242,11 @@ export function PassoHorarios({
               "schedule.closesAt": closesAt,
               "schedule.slotMinutes": slotMinutes,
               "schedule.breaks": breaks,
+              /* Objeto inteiro, e não `schedule.perDay.2`: a tela mostra os
+               * sete dias de uma vez, então ela é a autoridade sobre o
+               * conjunto. Enviar campo a campo deixaria para trás o dia que o
+               * dono acabou de desmarcar. */
+              "schedule.perDay": porDia,
             })
           }
           disabled={!valido || saving}
@@ -155,6 +255,9 @@ export function PassoHorarios({
         </Button>
       </div>
 
+      {/* Prévia por dia: é o que transforma configuração em compreensão. Um
+          número só ("16 horários por dia") voltou a mentir no instante em que
+          a terça passou a fechar mais cedo. */}
       <aside className="flex flex-col gap-2 rounded-xl border border-border bg-surface-raised/60 p-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
           O cliente vai ver
@@ -165,10 +268,34 @@ export function PassoHorarios({
           </p>
         ) : (
           <>
-            <p className="font-display text-2xl text-gold-strong">{grade.length}</p>
-            <p className="text-xs text-ink-muted">horários por dia</p>
+            <ul className="flex flex-col gap-1">
+              {diasAbertos.map((d) => {
+                const valor = horarioDe(d.n);
+                const quantos = horariosDaJornada({
+                  jornada: { ...valor, breaks },
+                  slotMinutes,
+                }).length;
+                const proprio = !!porDia[String(d.n)];
+                return (
+                  <li key={d.n} className="flex items-baseline justify-between gap-2 text-xs">
+                    <span className={proprio ? "font-medium text-ink" : "text-ink-muted"}>
+                      {d.label}
+                    </span>
+                    <span className="text-ink-muted">
+                      {valor.opensAt}–{valor.closesAt}
+                    </span>
+                    <span className={proprio ? "font-medium text-gold-strong" : "text-ink"}>
+                      {quantos}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+            <p className="text-[11px] text-ink-muted">
+              horários por barbeiro, em cada dia.
+            </p>
             <div className="mt-1 flex flex-wrap gap-1">
-              {grade.slice(0, 12).map((h) => (
+              {grade.slice(0, 8).map((h) => (
                 <span
                   key={h}
                   className="rounded-md border border-border px-1.5 py-0.5 text-[11px] text-ink"
@@ -176,9 +303,9 @@ export function PassoHorarios({
                   {h}
                 </span>
               ))}
-              {grade.length > 12 && (
+              {grade.length > 8 && (
                 <span className="px-1 py-0.5 text-[11px] text-ink-muted">
-                  +{grade.length - 12}
+                  +{grade.length - 8}
                 </span>
               )}
             </div>
