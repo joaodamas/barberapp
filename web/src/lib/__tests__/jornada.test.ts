@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   capacidadeDaData,
+  horariosLivresRestantes,
   excecaoDaData,
   horariosDaJornada,
   jornadaDoDia,
@@ -298,5 +299,33 @@ describe("o par obrigatório com as functions", () => {
 
   it("web/src/lib/jornada.ts e functions/src/jornada.ts não divergiram", () => {
     expect(corpo("../jornada.ts")).toBe(corpo("../../../../functions/src/jornada.ts"));
+  });
+});
+
+describe("horários livres de agora em diante (rodada E2E de 23/09)", () => {
+  // 09–19, almoço 12–14, grade 30: 16 horários no dia.
+  const schedule = {
+    weekdays: [1, 2, 3, 4, 5, 6], opensAt: "09:00", closesAt: "19:00",
+    breaks: [{ from: "12:00", to: "14:00" }], slotMinutes: 30,
+  };
+  const base = { schedule, weekday: 3, date: "2026-09-23", barbeiros: ["a"] };
+
+  it("às 18h não conta a manhã que já passou", () => {
+    expect(horariosLivresRestantes({ ...base, ocupadas: [] })).toBe(16);
+    expect(horariosLivresRestantes({ ...base, agora: "18:00", ocupadas: [] })).toBe(2);
+  });
+
+  it("um serviço de 60 min ocupa dois horários, não um", () => {
+    expect(
+      horariosLivresRestantes({ ...base, ocupadas: [{ staffId: "a", time: "14:00", durationMin: 60 }] })
+    ).toBe(14);
+  });
+
+  it("cada cadeira tem a sua agenda", () => {
+    expect(
+      horariosLivresRestantes({
+        ...base, barbeiros: ["a", "b"], ocupadas: [{ staffId: "a", time: "14:00", durationMin: 30 }],
+      })
+    ).toBe(31);
   });
 });

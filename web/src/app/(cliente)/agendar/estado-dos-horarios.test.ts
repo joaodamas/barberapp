@@ -93,3 +93,14 @@ describe("a tela de agendar usa a regra, e não booleano solto", () => {
     expect(pagina).not.toMatch(/const\s+hasFreeSlot/);
   });
 });
+
+describe("falha não é ausência (rodada E2E de 23/09)", () => {
+  it("consulta que falhou vira 'erro', nunca 'sem horário'", () => {
+    expect(
+      estadoDosHorarios({ diaFechado: false, temProfissional: true, horariosLivres: [], falhou: true })
+    ).toBe("erro");
+    expect(
+      estadoDosHorarios({ diaFechado: false, temProfissional: true, horariosLivres: [] })
+    ).toBe("sem-horario");
+  });
+});

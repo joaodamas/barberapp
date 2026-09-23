@@ -92,7 +92,9 @@ export default function AgendarPage() {
    * dentro de efeito e provoca render em cascata. Derivar resolve os dois
    * problemas de uma vez: não há limpeza a fazer, e a lista de um dia nunca
    * aparece sob o outro enquanto a consulta nova viaja. */
-  const [resposta, setResposta] = useState<{ chave: string; slots: string[] } | null>(null);
+  const [resposta, setResposta] = useState<{ chave: string; slots: string[]; falhou?: boolean } | null>(null);
+  /* Incrementar refaz a consulta de horários — o "Tentar de novo". */
+  const [tentativa, setTentativa] = useState(0);
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>(retomada?.serviceIds ?? []);
   const [selectedDayIndex, setSelectedDayIndex] = useState(() => {
     const dias = bookableDays();
@@ -282,17 +284,18 @@ export default function AgendarPage() {
         if (!cancelado) setResposta({ chave: chaveDaConsulta, slots: r.slots ?? [] });
       } catch (err) {
         console.error("[agendar] falha ao buscar horários", err);
-        if (!cancelado) setResposta({ chave: chaveDaConsulta, slots: [] });
+        if (!cancelado) setResposta({ chave: chaveDaConsulta, slots: [], falhou: true });
       }
     })();
     return () => {
       cancelado = true;
     };
-  }, [step, diaIso, idDoBarbeiro, totalDuration, tenant.id, chaveDaConsulta]);
+  }, [step, diaIso, idDoBarbeiro, totalDuration, tenant.id, chaveDaConsulta, tentativa]);
 
   /* Só vale a resposta desta combinação de dia, barbeiro e duração. Trocar
    * qualquer uma volta a lista para "carregando" sem precisar limpá-la. */
-  const horariosLivres = resposta?.chave === chaveDaConsulta ? resposta.slots : null;
+  const respostaAtual = resposta?.chave === chaveDaConsulta ? resposta : null;
+  const horariosLivres = respostaAtual ? respostaAtual.slots : null;
 
   /* `availableSlots` devolve só o que está livre, então todo horário exibido é
    * agendável. O encaixe saiu da proposta em 17/08: ele existia aqui como
@@ -313,6 +316,7 @@ export default function AgendarPage() {
     diaFechado: !!selectedDay?.disabled,
     temProfissional: !!barbeiroEscolhido,
     horariosLivres,
+    falhou: respostaAtual?.falhou === true,
   });
 
   /* Rótulo e trava do CTA existiam duplicados na barra fixa do mobile e no
@@ -510,6 +514,19 @@ export default function AgendarPage() {
             </Card>
           ) : estadoDaLista === "carregando" ? (
             <LoadingRows rows={3} />
+          ) : estadoDaLista === "erro" ? (
+            <Card className="flex flex-col items-center gap-2 py-6 text-center text-sm text-ink-muted">
+              <span>Não conseguimos carregar os horários agora.</span>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setResposta(null);
+                  setTentativa((n) => n + 1);
+                }}
+              >
+                Tentar de novo
+              </Button>
+            </Card>
           ) : estadoDaLista === "sem-horario" ? (
             <Card className="flex flex-col gap-2 py-6 text-center text-sm text-ink-muted">
               <span>

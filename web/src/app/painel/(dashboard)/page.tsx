@@ -51,7 +51,7 @@ import { MarcarNoBalcao } from "@/components/marcar-no-balcao";
 import { EstornarValor } from "@/components/estornar-valor";
 import { CorrigirPagamento } from "@/components/corrigir-pagamento";
 import { caixaDoDia, mesPeriodo, previsaoDoDia } from "@/lib/analytics";
-import { capacidadeDaData } from "@/lib/jornada";
+import { capacidadeDaData, horariosLivresRestantes } from "@/lib/jornada";
 import { monthOf, OCCUPIES_SLOT } from "@/lib/domain";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
@@ -121,7 +121,19 @@ export default function PainelHojePage() {
   const agendados = bookings.filter((b) => OCCUPIES_SLOT.includes(b.status));
 
   const confirmedCount = agendados.length;
-  const horariosLivres = Math.max(totalSlots - agendados.length, 0);
+  /* De agora em diante, por cadeira, pela duração real — ver
+   * `horariosLivresRestantes`. Era "capacidade do dia − número de reservas". */
+  const idsAtivos = equipe.filter((b) => b.active !== false).map((b) => b.id);
+  const horariosLivres = horariosLivresRestantes({
+    schedule: tenant.schedule,
+    weekday: new Date().getDay(),
+    date: hoje,
+    agora: agora
+      ? `${String(agora.getHours()).padStart(2, "0")}:${String(agora.getMinutes()).padStart(2, "0")}`
+      : undefined,
+    barbeiros: idsAtivos.length > 0 ? idsAtivos : [""],
+    ocupadas: agendados,
+  });
   const ocupacaoPct = Math.round(safePct(agendados.length, totalSlots));
 
   /* A previsão é sobre o que ainda pode virar receita — e a falta já

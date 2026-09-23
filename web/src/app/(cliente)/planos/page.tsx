@@ -4,6 +4,7 @@ import { MessageCircle, Sparkles } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
+import { contar } from "@/lib/plural";
 import { formatBRL, safeDiv } from "@/lib/format";
 import { usePlans } from "@/lib/db/use-shop-data";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
@@ -72,8 +73,15 @@ export default function PlanosPage() {
                 1,
                 Math.ceil(safeDiv(plan.price, plan.priceAvulso, 1))
               );
+              /* Plano com cota compara o preço POR ATENDIMENTO com o avulso.
+               * Comparar a mensalidade inteira com UM corte dava "economize
+               * −220%" num plano de 4 cortes (rodada E2E de 23/09). E
+               * percentual negativo nunca aparece: seria o app anunciando que
+               * o plano sai mais caro com a palavra "economize". */
+              const cota = Number(plan.servicesIncluded) || 0;
+              const precoPorAtendimento = cota > 0 ? plan.price / cota : plan.price;
               const economia = Math.round(
-                (1 - safeDiv(plan.price, plan.priceAvulso, 1)) * 100
+                (1 - safeDiv(precoPorAtendimento, plan.priceAvulso, 1)) * 100
               );
 
               return (
@@ -112,14 +120,24 @@ export default function PlanosPage() {
                         A partir da {visitasParaCompensar}ª visita no mês o plano
                         já compensa (avulso: {formatBRL(plan.priceAvulso)}/corte)
                       </>
-                    ) : (
+                    ) : cota > 0 ? (
+                      <>
+                        {contar(cota, "atendimento", "atendimentos")} por mês ·{" "}
+                        {formatBRL(precoPorAtendimento)} cada
+                        {economia > 0 && (
+                          <>
+                            {" "}(avulso {formatBRL(plan.priceAvulso)}) · economize {economia}%
+                          </>
+                        )}
+                      </>
+                    ) : economia > 0 ? (
                       <>
                         <span className="line-through">
                           {formatBRL(plan.priceAvulso)}
                         </span>{" "}
                         no avulso · economize {economia}%
                       </>
-                    )}
+                    ) : null}
                   </p>
 
                   {/* Sem número configurado o botão não aparece: um "Assinar"
