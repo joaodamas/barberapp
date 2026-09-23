@@ -530,3 +530,108 @@ describe("a equipe", () => {
     await assertFails(getDoc(doc(as(CLIENTE), `barbershops/${ALFA}/cash_entries`, "cx-1")));
   });
 });
+
+/* ------------------------------------------------------------------ */
+/* Encerramento da conta — P0-5                                        */
+/* ------------------------------------------------------------------ */
+
+describe("o encerramento é do servidor", () => {
+  /* A barbearia encerrada há 2 dias, como `encerrarConta` a deixa. */
+  const DOIS_DIAS_ATRAS = Date.now() - 2 * 24 * 60 * 60 * 1000;
+
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), "barbershops", ALFA), {
+        status: "encerrada",
+        statusAntesDeEncerrar: "ativo",
+        encerradaEm: new Date(DOIS_DIAS_ATRAS),
+        encerradaEmMs: DOIS_DIAS_ATRAS,
+        encerradaPor: DONO_ALFA.sub,
+        encerramentoMotivo: null,
+      });
+    });
+  });
+
+  it("🔒 o dono NÃO antecipa o expurgo reescrevendo a data do encerramento", async () => {
+    /* `encerradaEmMs: 1` = "encerrada em 1970": o expurgo rodaria na
+     * madrugada seguinte, pulando a janela de 30 dias. */
+    await assertFails(updateDoc(doc(as(DONO_ALFA), "barbershops", ALFA), { encerradaEmMs: 1 }));
+    await assertFails(
+      updateDoc(doc(as(DONO_ALFA), "barbershops", ALFA), { encerradaEm: new Date(0) })
+    );
+  });
+
+  it("🔒 o dono NÃO impede o expurgo estragando a data", async () => {
+    /* Uma string faz `venceuAJanela` devolver falso para sempre — a conta
+     * nunca seria apagada, e a Política afirmaria que foi. */
+    await assertFails(
+      updateDoc(doc(as(DONO_ALFA), "barbershops", ALFA), { encerradaEmMs: "nunca" })
+    );
+  });
+
+  it("🔒 o dono NÃO reescreve quem encerrou, nem o motivo, nem o status a restaurar", async () => {
+    const ref = doc(as(DONO_ALFA), "barbershops", ALFA);
+    await assertFails(updateDoc(ref, { encerradaPor: "outra-pessoa" }));
+    await assertFails(updateDoc(ref, { encerramentoMotivo: "reescrito" }));
+    /* `statusAntesDeEncerrar` decide o que `reabrirConta` devolve: gravar
+     * "ativo" numa conta que era suspensa a destravaria ao reabrir. */
+    await assertFails(updateDoc(ref, { statusAntesDeEncerrar: "trial" }));
+  });
+
+  it("🔒 o dono NÃO destrava a reabertura apagando a marca do expurgo", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), "barbershops", ALFA), {
+        expurgo: { iniciadoEmMs: Date.now() },
+      });
+    });
+    await assertFails(updateDoc(doc(as(DONO_ALFA), "barbershops", ALFA), { expurgo: null }));
+  });
+
+  it("🔒 o dono NÃO apaga o rastro de uma suspensão", async () => {
+    await assertFails(
+      updateDoc(doc(as(DONO_ALFA), "barbershops", ALFA), { suspendedReason: null })
+    );
+    await assertFails(
+      updateDoc(doc(as(DONO_ALFA), "barbershops", ALFA), { suspendedAt: new Date() })
+    );
+  });
+
+  it("🔒 nem escondendo a mudança junto de uma edição legítima", async () => {
+    await assertFails(
+      updateDoc(doc(as(DONO_ALFA), "barbershops", ALFA), {
+        brand: { name: "Disfarce" },
+        encerradaEmMs: 1,
+      })
+    );
+  });
+
+  it("a lista nova não pegou campo que o dono edita", async () => {
+    /* O modo leitura da conta encerrada é decisão da TELA
+     * (`acessoDaBarbearia`), não desta regra. */
+    await assertSucceeds(
+      updateDoc(doc(as(DONO_ALFA), "barbershops", ALFA), { brand: { name: "Nova Marca" } })
+    );
+  });
+
+  it("o suporte da plataforma ainda corrige o encerramento, se precisar", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as(SUPORTE), "barbershops", ALFA), { encerradaEmMs: DOIS_DIAS_ATRAS - 1 })
+    );
+  });
+});
+
+describe("o arquivo fiscal do expurgo", () => {
+  it("🔒 ninguém alcança `arquivo_fiscal` pelo cliente — nem o dono, nem o suporte", async () => {
+    /* Cópia sem identificação dos registros fiscais de uma barbearia que já
+     * não existe. Só o Admin SDK lê; ver `data-deletion.ts`. */
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `arquivo_fiscal/${ALFA}/payments`, "pg-1"), { value: 90 });
+    });
+    for (const quem of [DONO_ALFA, SUPORTE, CLIENTE]) {
+      await assertFails(getDoc(doc(as(quem), `arquivo_fiscal/${ALFA}/payments`, "pg-1")));
+      await assertFails(
+        setDoc(doc(as(quem), `arquivo_fiscal/${ALFA}/payments`, "forjado"), { value: 1 })
+      );
+    }
+  });
+});

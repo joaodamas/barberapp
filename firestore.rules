@@ -142,13 +142,26 @@ service cloud.firestore {
        * quando o acesso vence. Sem eles aqui, o dono liberava o plano de cima e
        * empurrava o fim do teste para 2099 com uma escrita direta do navegador,
        * sem passar por função nenhuma. `createdBy` entrou junto, por sustentar
-       * o limite de uma conta por barbearia. */
+       * o limite de uma conta por barbearia.
+       *
+       * O estado do ENCERRAMENTO também é do servidor (P0-5). Sem ele aqui, o
+       * dono gravava `encerradaEmMs: 1` e o expurgo rodava na madrugada
+       * seguinte, pulando os 30 dias que existem justamente para o clique
+       * errado e a briga de sócios — ou gravava uma string e a conta nunca era
+       * expurgada, quebrando a promessa da Política. `statusAntesDeEncerrar`
+       * decide o que `reabrirConta` devolve; `expurgo` trava a reabertura; e
+       * `suspended*` é escrito por `revisarAssinaturas`. Ver
+       * `docs/LGPD-DIREITOS-DO-TITULAR.md` §3.4. */
       allow update: if isPlatformAdmin()
                     || (isOwnerOf(barbershopId)
                         && !request.resource.data.diff(resource.data)
                              .affectedKeys().hasAny(['slug', 'plan', 'status',
                                                      'createdAt', 'createdBy',
-                                                     'features', 'trial']));
+                                                     'features', 'trial',
+                                                     'encerradaEm', 'encerradaEmMs',
+                                                     'encerradaPor', 'encerramentoMotivo',
+                                                     'statusAntesDeEncerrar', 'expurgo',
+                                                     'suspendedAt', 'suspendedReason']));
 
       /* -------- contrato com a plataforma: nunca público -------- */
 
