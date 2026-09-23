@@ -629,195 +629,245 @@ export default function PainelHojePage() {
          * dentro do mesmo dia, arbitrária. Na tela isso aparecia como
          * "09:00, 10:00, 12:00, 11:00": a agenda do dia fora de ordem, que é
          * justamente a informação que o dono lê primeiro de manhã. */}
-        {bookingsDoDia.length > 0 && (
-          <Card className="table-scroll overflow-x-auto p-0">
-            <table className="w-full min-w-[720px] text-sm">
-              <thead>
-                <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ink-muted">
-                  <th className="px-4 py-3 font-medium md:px-6">Hora</th>
-                  <th className="px-4 py-3 font-medium">Cliente</th>
-                  <th className="px-4 py-3 font-medium">Telefone</th>
-                  <th className="px-4 py-3 font-medium">Serviço</th>
-                  <th className="px-4 py-3 font-medium">Pagamento</th>
-                  <th className="px-4 py-3 text-right font-medium">Valor</th>
-                  <th className="px-4 py-3 font-medium md:px-6">Situação</th>
-                </tr>
-              </thead>
-              <tbody>
-                {bookingsDoDia.map((booking) => {
-                  /* Leitura guardada: um status fora da união derrubava a tela
-                   * Hoje INTEIRA — `undefined.tone`, e o dono ficava sem a
-                   * agenda do dia por causa de uma linha. Ver `metaDoStatus`. */
-                  const statusMeta = metaDoStatus(booking.status);
-                  const liquidacao = liquidacaoDoAtendimento(booking);
-                  const bookingServices = getServicesByIds(booking.serviceIds);
-                  const emAberto =
-                    booking.status === "confirmed" ||
-                    booking.status === "confirmed_by_client";
-                  /* A falta não é beco sem saída: cliente que aparece 40 min
-                   * depois volta a ser atendimento pelo mesmo caminho. Sem
-                   * isso, um toque errado no "Não veio" viraria receita perdida
-                   * no relatório, e a única correção seria mexer no banco. */
-                  const podeConcluir = emAberto || booking.status === "no_show";
-                  /* Quem responde "isto está atrasado?" é o motor — a tela só
-                   * pergunta. Comparar minuto com tolerância aqui daria duas
-                   * verdades: a coluna lateral acusando o atraso e a linha ao
-                   * lado sem oferecer a ação. */
-                  const atrasado = estaAtrasado({
-                    booking,
-                    agora,
-                    toleranciaMin: toleranciaAtrasoMin,
-                  });
-                  const atrasoMin = agora ? minutosDeAtraso(booking, agora) : null;
-                  const digitos = String(booking.clientWhatsapp ?? "").replace(/\D/g, "");
+        {bookingsDoDia.length > 0 && (() => {
+          const linhas = bookingsDoDia.map((booking) => {
+            /* Leitura guardada: um status fora da união derrubava a tela
+             * Hoje INTEIRA — `undefined.tone`, e o dono ficava sem a
+             * agenda do dia por causa de uma linha. Ver `metaDoStatus`. */
+            const statusMeta = metaDoStatus(booking.status);
+            const liquidacao = liquidacaoDoAtendimento(booking);
+            const bookingServices = getServicesByIds(booking.serviceIds);
+            const emAberto =
+              booking.status === "confirmed" ||
+              booking.status === "confirmed_by_client";
+            /* A falta não é beco sem saída: cliente que aparece 40 min
+             * depois volta a ser atendimento pelo mesmo caminho. Sem
+             * isso, um toque errado no "Não veio" viraria receita perdida
+             * no relatório, e a única correção seria mexer no banco. */
+            const podeConcluir = emAberto || booking.status === "no_show";
+            /* Quem responde "isto está atrasado?" é o motor — a tela só
+             * pergunta. Comparar minuto com tolerância aqui daria duas
+             * verdades: a coluna lateral acusando o atraso e a linha ao
+             * lado sem oferecer a ação. */
+            const atrasado = estaAtrasado({
+              booking,
+              agora,
+              toleranciaMin: toleranciaAtrasoMin,
+            });
+            const atrasoMin = agora ? minutosDeAtraso(booking, agora) : null;
+            const digitos = String(booking.clientWhatsapp ?? "").replace(/\D/g, "");
 
-                  return (
-                    <tr
-                      key={booking.id}
-                      className="border-b border-border/60 transition-colors last:border-0 hover:bg-surface-raised/60"
-                    >
-                      <td className="whitespace-nowrap px-4 py-3 font-display text-gold-strong md:px-6">
-                        {booking.time}
-                        {atrasado && (
-                          <span className="block font-sans text-[11px] text-danger">
-                            {atrasoMin} min atrasado
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-ink">
-                        {booking.clientName}
-                        {booking.isFitIn && (
-                          <span className="ml-2 text-xs text-ink-muted">encaixe</span>
-                        )}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3">
-                        {digitos ? (
-                          /* Toque no telefone abre a conversa. É o que o dono faz
-                           * hoje quando o cliente atrasa — e fazia saindo do app. */
-                          <a
-                            href={`https://wa.me/${digitos}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-ink-muted underline-offset-2 transition-colors hover:text-gold-strong hover:underline"
-                          >
-                            {formatPhonePtBR(digitos)}
-                          </a>
-                        ) : (
-                          <span className="text-ink-muted">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-ink-muted">
-                        {bookingServices.map((s) => s.name).join(" + ")}
-                      </td>
-                      {/* D2 · a coluna passa a dizer como o atendimento foi
-                          LIQUIDADO, não só que meio de pagamento tem gravado.
-                          O corte coberto pelo plano não tem pagamento — e
-                          exibia "A pagar no salão" depois de concluído, que é
-                          o produto mandando cobrar de novo o que a mensalidade
-                          já pagou. */}
-                      <td className="px-4 py-3 text-ink-muted">
-                        {liquidacao.coberto ? (
-                          <span className="text-ink">{liquidacao.label}</span>
-                        ) : (
-                          liquidacao.label
-                        )}
-                        {liquidacao.detalhe && (
-                          <span className="block text-[11px]">{liquidacao.detalhe}</span>
-                        )}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-right text-ink">
-                        {formatBRL(booking.value)}
-                      </td>
-                      <td className="px-4 py-3 md:px-6">
-                        <div className="flex flex-wrap items-center gap-2">
-                          {!emAberto && (
-                            <Pill tone={statusMeta.tone}>{statusMeta.label}</Pill>
-                          )}
-                          {podeConcluir && (
-                            <button
-                              onClick={() => {
-                                setErroAoFechar(null);
-                                setAFechar(booking);
-                              }}
-                              className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ink-muted transition-colors hover:border-success hover:text-success"
-                            >
-                              <Check size={14} />
-                              {booking.status === "no_show" ? "Veio depois" : "Concluir"}
-                            </button>
-                          )}
-                          {/* Só depois da tolerância. Oferecer "não veio" às
-                              13:59 para um horário das 14:00 é convidar o erro
-                              no gesto mais repetido do dia. */}
-                          {atrasado && (
-                            <button
-                              onClick={() => {
-                                setErroDaFalta(null);
-                                setFaltaDe(booking);
-                              }}
-                              className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ink-muted transition-colors hover:border-danger hover:text-danger"
-                            >
-                              <UserX size={14} /> Não veio
-                            </button>
-                          )}
-                          {/* Só enquanto está em aberto. Cancelar depois de
-                              concluído mexeria em dinheiro já materializado, e
-                              desfazer a conclusão é outro caminho. */}
-                          {emAberto && (
-                            <button
-                              onClick={() => {
-                                setErroCancelar(null);
-                                setACancelar(booking);
-                              }}
-                              className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ink-muted transition-colors hover:border-danger hover:text-danger"
-                            >
-                              <CalendarX size={14} /> Cancelar
-                            </button>
-                          )}
-                          {/* R1 · A PORTA da correção de pagamento.
-                              Ela fica na linha do atendimento concluído, e não
-                              atrás do card crítico, porque o card só enxerga o
-                              caso 1 — o atendimento que terminou sem método.
-                              O caso 2 (o dono marcou Pix e o cliente pagou em
-                              dinheiro) não aciona alerta nenhum: com o método
-                              preenchido, `!b.paymentMethod` é falso e nenhuma
-                              tela do produto o detecta. Sem esta linha, metade
-                              da matriz não teria por onde ser alcançada.
+            return {
+              booking, statusMeta, liquidacao, bookingServices, emAberto,
+              podeConcluir, atrasado, atrasoMin, digitos,
+            };
+          });
+          type Linha = (typeof linhas)[number];
 
-                              Não aparece no coberto pelo plano: ali não existe
-                              `PaymentDoc` — a mensalidade já é a receita
-                              daquele corte —, e o servidor recusa. Oferecer o
-                              botão para depois recusar seria a interface
-                              prometendo o que o sistema não faz. */}
-                          {booking.status === "completed" && !liquidacao.coberto && (
-                            <button
-                              onClick={() => setACorrigir(booking)}
-                              className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ink-muted transition-colors hover:border-gold hover:text-gold-strong"
-                            >
-                              <CreditCard size={14} /> Corrigir pagamento
-                            </button>
+          const telefone = ({ digitos }: Linha) => (
+            <>
+              {digitos ? (
+                /* Toque no telefone abre a conversa. É o que o dono faz
+                 * hoje quando o cliente atrasa — e fazia saindo do app. */
+                <a
+                  href={`https://wa.me/${digitos}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-ink-muted underline-offset-2 transition-colors hover:text-gold-strong hover:underline"
+                >
+                  {formatPhonePtBR(digitos)}
+                </a>
+              ) : (
+                <span className="text-ink-muted">—</span>
+              )}
+            </>
+          );
+          /* D2 · diz como o atendimento foi LIQUIDADO, não só que meio de
+           * pagamento tem gravado. O corte coberto pelo plano não tem
+           * pagamento — e exibia "A pagar no salão" depois de concluído, que
+           * é o produto mandando cobrar de novo o que a mensalidade pagou. */
+          const pagamento = ({ liquidacao }: Linha) => (
+            <>
+              {liquidacao.coberto ? (
+                <span className="text-ink">{liquidacao.label}</span>
+              ) : (
+                liquidacao.label
+              )}
+              {liquidacao.detalhe && (
+                <span className="block text-[11px]">{liquidacao.detalhe}</span>
+              )}
+            </>
+          );
+          const acoes = ({ booking, statusMeta, liquidacao, emAberto, podeConcluir, atrasado }: Linha) => (
+            <div className="flex flex-wrap items-center gap-2">
+              {!emAberto && (
+                <Pill tone={statusMeta.tone}>{statusMeta.label}</Pill>
+              )}
+              {podeConcluir && (
+                <button
+                  onClick={() => {
+                    setErroAoFechar(null);
+                    setAFechar(booking);
+                  }}
+                  className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ink-muted transition-colors hover:border-success hover:text-success"
+                >
+                  <Check size={14} />
+                  {booking.status === "no_show" ? "Veio depois" : "Concluir"}
+                </button>
+              )}
+              {/* Só depois da tolerância. Oferecer "não veio" às
+                  13:59 para um horário das 14:00 é convidar o erro
+                  no gesto mais repetido do dia. */}
+              {atrasado && (
+                <button
+                  onClick={() => {
+                    setErroDaFalta(null);
+                    setFaltaDe(booking);
+                  }}
+                  className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ink-muted transition-colors hover:border-danger hover:text-danger"
+                >
+                  <UserX size={14} /> Não veio
+                </button>
+              )}
+              {/* Só enquanto está em aberto. Cancelar depois de
+                  concluído mexeria em dinheiro já materializado, e
+                  desfazer a conclusão é outro caminho. */}
+              {emAberto && (
+                <button
+                  onClick={() => {
+                    setErroCancelar(null);
+                    setACancelar(booking);
+                  }}
+                  className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ink-muted transition-colors hover:border-danger hover:text-danger"
+                >
+                  <CalendarX size={14} /> Cancelar
+                </button>
+              )}
+              {/* R1 · A PORTA da correção de pagamento.
+                  Ela fica na linha do atendimento concluído, e não
+                  atrás do card crítico, porque o card só enxerga o
+                  caso 1 — o atendimento que terminou sem método.
+                  O caso 2 (o dono marcou Pix e o cliente pagou em
+                  dinheiro) não aciona alerta nenhum: com o método
+                  preenchido, `!b.paymentMethod` é falso e nenhuma
+                  tela do produto o detecta. Sem esta linha, metade
+                  da matriz não teria por onde ser alcançada.
+
+                  Não aparece no coberto pelo plano: ali não existe
+                  `PaymentDoc` — a mensalidade já é a receita
+                  daquele corte —, e o servidor recusa. Oferecer o
+                  botão para depois recusar seria a interface
+                  prometendo o que o sistema não faz. */}
+              {booking.status === "completed" && !liquidacao.coberto && (
+                <button
+                  onClick={() => setACorrigir(booking)}
+                  className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ink-muted transition-colors hover:border-gold hover:text-gold-strong"
+                >
+                  <CreditCard size={14} /> Corrigir pagamento
+                </button>
+              )}
+              {/* D22 · e este é o "outro caminho" que o comentário
+                  acima mencionava e que não existia.
+                  Devolver dinheiro de atendimento REALIZADO é
+                  estorno, não cancelamento: o serviço aconteceu, e
+                  o registro dele fica. */}
+              {booking.status === "completed" && (
+                <button
+                  onClick={() => setAEstornar(booking)}
+                  className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ink-muted transition-colors hover:border-gold hover:text-gold-strong"
+                >
+                  <RotateCcw size={14} /> Devolver
+                </button>
+              )}
+            </div>
+          );
+
+          return (
+            <>
+              {/* Celular: um cartão por atendimento, com as ações À VISTA.
+                  A tabela de 720px cortava em "SERVIÇ…" e deixava Concluir e
+                  Cancelar fora da tela, atrás de uma rolagem lateral que nada
+                  indicava — na tela que o dono usa em pé, com o celular na mão
+                  (rodada E2E de 23/09). */}
+              <div className="flex flex-col gap-2 md:hidden">
+                {linhas.map((l) => (
+                  <Card key={l.booking.id} className="flex flex-col gap-2 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-display text-lg text-gold-strong">
+                          {l.booking.time}
+                          {l.atrasado && (
+                            <span className="ml-2 font-sans text-xs text-danger">
+                              {l.atrasoMin} min atrasado
+                            </span>
                           )}
-                          {/* D22 · e este é o "outro caminho" que o comentário
-                              acima mencionava e que não existia.
-                              Devolver dinheiro de atendimento REALIZADO é
-                              estorno, não cancelamento: o serviço aconteceu, e
-                              o registro dele fica. */}
-                          {booking.status === "completed" && (
-                            <button
-                              onClick={() => setAEstornar(booking)}
-                              className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ink-muted transition-colors hover:border-gold hover:text-gold-strong"
-                            >
-                              <RotateCcw size={14} /> Devolver
-                            </button>
-                          )}
-                        </div>
-                      </td>
+                        </p>
+                        <p className="truncate text-sm font-medium text-ink">{l.booking.clientName}</p>
+                        <p className="truncate text-xs text-ink-muted">
+                          {l.bookingServices.map((x) => x.name).join(" + ")}
+                        </p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className="text-sm font-semibold text-ink">{formatBRL(l.booking.value)}</p>
+                        <div className="text-xs text-ink-muted">{pagamento(l)}</div>
+                      </div>
+                    </div>
+                    <div className="text-xs">{telefone(l)}</div>
+                    {acoes(l)}
+                  </Card>
+                ))}
+              </div>
+
+              <Card className="table-scroll hidden overflow-x-auto p-0 md:block">
+                <table className="w-full min-w-[720px] text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ink-muted">
+                      <th className="px-4 py-3 font-medium md:px-6">Hora</th>
+                      <th className="px-4 py-3 font-medium">Cliente</th>
+                      <th className="px-4 py-3 font-medium">Telefone</th>
+                      <th className="px-4 py-3 font-medium">Serviço</th>
+                      <th className="px-4 py-3 font-medium">Pagamento</th>
+                      <th className="px-4 py-3 text-right font-medium">Valor</th>
+                      <th className="px-4 py-3 font-medium md:px-6">Situação</th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </Card>
-        )}
+                  </thead>
+                  <tbody>
+                    {linhas.map((l) => (
+                      <tr
+                        key={l.booking.id}
+                        className="border-b border-border/60 transition-colors last:border-0 hover:bg-surface-raised/60"
+                      >
+                        <td className="whitespace-nowrap px-4 py-3 font-display text-gold-strong md:px-6">
+                          {l.booking.time}
+                          {l.atrasado && (
+                            <span className="block font-sans text-[11px] text-danger">
+                              {l.atrasoMin} min atrasado
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-ink">
+                          {l.booking.clientName}
+                          {l.booking.isFitIn && (
+                            <span className="ml-2 text-xs text-ink-muted">encaixe</span>
+                          )}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3">{telefone(l)}</td>
+                        <td className="px-4 py-3 text-ink-muted">
+                          {l.bookingServices.map((x) => x.name).join(" + ")}
+                        </td>
+                        <td className="px-4 py-3 text-ink-muted">{pagamento(l)}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-right text-ink">
+                          {formatBRL(l.booking.value)}
+                        </td>
+                        <td className="px-4 py-3 md:px-6">{acoes(l)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </Card>
+            </>
+          );
+        })()}
       </section>
 
       {/* D13 · o caminho que faltava.
