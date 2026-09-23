@@ -1,7 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { headers } from "next/headers";
-import { DEFAULT_TENANT, slugFromHost, type Tenant } from "@/lib/tenant";
+import { DEFAULT_TENANT, ROOT_DOMAIN, slugFromHost, type Tenant } from "@/lib/tenant";
 /* A normalização mora em `tenant-shape` porque o painel também precisa dela:
  * ele lê a mesma ficha pelo SDK cliente, em tempo real. Duas implementações do
  * mesmo merge divergiriam, e o preço da divergência é uma política sumir num
@@ -93,6 +93,28 @@ export type ResolucaoDeTenant = {
  * decisão registrada em `loadTenantBySlug` — barbearia com a marca da
  * plataforma é melhor que barbearia fora do ar.
  */
+/**
+ * O subdomínio da barbearia quando o acesso vem pelo balanceador.
+ *
+ * O Firebase Hosting não emite certificado curinga, então os subdomínios novos
+ * passam por um Load Balancer do Google com certificado `*.domínio`, que
+ * encaminha ao Hosting reescrevendo o host para `*.web.app`. O Hosting, por sua
+ * vez, SOBRESCREVE `x-forwarded-host` — testado em 23/09: mandando
+ * `osiqueira`, a página voltava "CorteHub". O balanceador leva o host original
+ * (o SNI da conexão) neste cabeçalho próprio.
+ *
+ * Só vale se for subdomínio do domínio raiz. Mandá-lo à mão escolhe qual
+ * vitrine pública aparece — o mesmo que digitar outro subdomínio —, e nada
+ * além disso: sessão e dados continuam presos à origem e às regras.
+ */
+const CABECALHO_DO_BALANCEADOR = "x-cortehub-host";
+
+function hostDoBalanceador(valor: string | null): string | null {
+  if (!valor) return null;
+  const host = valor.trim().toLowerCase();
+  return host.endsWith(`.${ROOT_DOMAIN}`) ? host : null;
+}
+
 export const resolverTenant = cache(async function resolverTenant(): Promise<ResolucaoDeTenant> {
   const headerList = await headers();
 
@@ -107,6 +129,7 @@ export const resolverTenant = cache(async function resolverTenant(): Promise<Res
    * Em desenvolvimento não existe proxy, então o sintoma não aparece: só surge
    * no primeiro acesso real em produção. */
   const host =
+    hostDoBalanceador(headerList.get(CABECALHO_DO_BALANCEADOR)) ??
     headerList.get("x-forwarded-host") ??
     headerList.get("host");
 

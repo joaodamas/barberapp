@@ -84,10 +84,23 @@ type SignUpInput = {
   accentColor?: string;
 };
 
+/**
+ * Fechado em 23/09 — ver `web/src/lib/platform.ts` (`CADASTRO_ABERTO`). A tela
+ * desviar para o WhatsApp não basta: a callable é pública, e uma chamada
+ * direta criaria uma barbearia num endereço sem certificado.
+ */
+export const CADASTRO_ABERTO = false;
+
 export const signUpBarbershop = onCall<SignUpInput>(async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Entre na sua conta antes de criar a barbearia.");
+  }
+  if (!CADASTRO_ABERTO) {
+    throw new HttpsError(
+      "failed-precondition",
+      "O cadastro está pausado por alguns dias. Fale com a gente pelo WhatsApp para começar."
+    );
   }
 
   /* Self-service é superfície de squatting de subdomínio: sem e-mail
