@@ -289,9 +289,13 @@ desde #25, com a suíte verde. Tudo está 🟡 até rodar no domínio publicado,
 quatro passos manuais pós-deploy estão listados lá (marca do piloto,
 remuneração da equipe, papel de IAM, índices).
 
-Continua 🔴: WhatsApp para número não verificado antes de ligar o envio
-(P1-18), `DRY_RUN` do expurgo (decisão consciente, agora com a rotina
-corrigida), revisão jurídica da LGPD.
+Continua 🔴: `DRY_RUN` do expurgo (decisão consciente, agora com a rotina
+corrigida) e revisão jurídica da LGPD.
+
+⚪ **WhatsApp fica por último — decisão do dono em 23/09:** só entra depois
+que todo o resto estiver rodando em produção. A condição para ligar o envio
+continua de pé: verificar o número do cliente (OTP) antes da primeira
+mensagem, senão o número da plataforma vira canal de spam (P1-18).
 
 ## 3. 🟡 Em validação
 
