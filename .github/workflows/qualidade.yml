@@ -101,3 +101,14 @@ jobs:
       # financeiro de um cliente pagante para outro — é o teste que não pode
       # faltar antes de qualquer deploy de regras.
       - run: npm run test:rules
+
+      # As suítes que só rodam com emulador: concorrência de reserva, cliente
+      # e balcão, estoque, mensalistas, estornos, caixa, correção de
+      # pagamento, direitos do titular e isolamento entre barbearias.
+      #
+      # Ficavam fora do CI — só `test:tudo`, na mão —, e em 23/09 duas delas
+      # estavam vermelhas na `main` desde #26 sem ninguém saber, enquanto três
+      # testes de isolamento afirmavam vazamentos que a rodada E2E fechou.
+      # Suíte que não roda não protege. Em série (`--no-file-parallelism`):
+      # elas limpam o banco entre testes.
+      - run: npm run test:emulador
