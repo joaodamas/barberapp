@@ -1,4 +1,6 @@
+import { createHash } from "node:crypto";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { exigirEdicao } from "./acesso";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { diaDaSemanaNoFuso, hojeNoFuso, instanteNoFuso, localeDoDocumento } from "./locale";
 import { horarioDisponivel, janelasOcupadas, podeRemarcar } from "./agenda";
@@ -33,6 +35,11 @@ type CriarReservaInput = {
    */
   paymentOrigin?: "in_person";
   isFitIn?: boolean;
+  /**
+   * Uma chave por TENTATIVA de confirmação, gerada no app e reenviada nas
+   * repetições. Ver `idDaReservaPorChave`.
+   */
+  chave?: string;
   clientName?: string;
   clientWhatsapp?: string;
 };
@@ -72,6 +79,23 @@ const OCUPAM_SLOT = [
 
 /** Status de uma reserva ainda viva, do ponto de vista do cliente. */
 const EM_ABERTO = ["pending_payment", "confirmed", "confirmed_by_client", "fit_in_requested"];
+
+/**
+ * Idempotência da criação de reserva — auditoria de 23/09.
+ *
+ * Com rede ruim, o cliente toca "Confirmar", a resposta se perde e ele tenta
+ * de novo. Se a primeira gravou, a segunda disputava o mesmo horário, perdia
+ * para a própria reserva e dizia "esse horário acabou de ser reservado": o
+ * cliente saía achando que NÃO tinha horário. Com a chave, a repetição cai no
+ * mesmo documento e devolve sucesso.
+ *
+ * O id mistura o uid: a chave vem do cliente, e sem o uid uma chave copiada
+ * apontaria para a reserva de outra pessoa.
+ */
+export function idDaReservaPorChave(uid: string, chave: unknown): string | undefined {
+  if (typeof chave !== "string" || !/^[A-Za-z0-9_-]{8,64}$/.test(chave)) return undefined;
+  return `app_${createHash("sha256").update(`${uid}:${chave}`).digest("hex").slice(0, 32)}`;
+}
 
 export const createBooking = onCall<CriarReservaInput>(async (request) => {
   const uid = request.auth?.uid;
@@ -146,6 +170,7 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
 
   /* ---- Grava checando conflito na mesma transação ---- */
   const bookingId = await gravarComTravaDeHorario({
+    idDaReserva: idDaReservaPorChave(uid, request.data?.chave),
     db,
     shopRef,
     clientId: uid,
@@ -546,6 +571,7 @@ export const createBookingAtCounter = onCall<ReservaNoBalcaoInput>(async (reques
       "Só quem trabalha na barbearia marca pelo balcão."
     );
   }
+  await exigirEdicao(barbershopId);
 
   const db = getFirestore();
   const shopRef = db.doc(`barbershops/${barbershopId}`);
@@ -757,11 +783,21 @@ export async function gravarComTravaDeHorario(params: {
    * traria o cadastro errado quando dois homônimos compartilham número.
    */
   aoResolverCliente?: (clientId: string) => void;
+  /** Id derivado da chave de idempotência; ausente, o Firestore gera um. */
+  idDaReserva?: string;
 }): Promise<string> {
   const { db, shopRef, date, time, staffId } = params;
-  const bookingRef = shopRef.collection("bookings").doc();
+  const bookingRef = params.idDaReserva
+    ? shopRef.collection("bookings").doc(params.idDaReserva)
+    : shopRef.collection("bookings").doc();
 
   await db.runTransaction(async (tx) => {
+    /* Repetição da MESMA tentativa: a reserva já existe, e o pedido já foi
+     * atendido. Devolver o id em vez de disputar o horário de novo — senão a
+     * segunda chamada perdia para a primeira e respondia "esse horário acabou
+     * de ser reservado" a quem acabou de reservá-lo. */
+    if (params.idDaReserva && (await tx.get(bookingRef)).exists) return;
+
     /* ---- G3: o cliente, ainda na fase de LEITURA da transação ----
      *
      * Antes de qualquer outra leitura por comodidade de ordem, mas o que manda
@@ -1136,10 +1172,25 @@ export const cancelBooking = onCall<{ barbershopId: string; bookingId: string }>
       peloDono: ehDono && booking.clientId !== uid,
     });
 
-    await bookingRef.update({
-      status,
-      cancelledAt: FieldValue.serverTimestamp(),
-      refundedAmount: refund,
+    /* O status lido lá em cima é de antes da gravação. Se o dono concluiu o
+     * atendimento nesse meio-tempo, `update` direto passava por cima: o
+     * atendimento pago virava "cancelado", o caixa ficava com o dinheiro e o
+     * DRE perdia a receita (auditoria de 23/09). A transação relê e recusa. */
+    await db.runTransaction(async (tx) => {
+      const atual = await tx.get(bookingRef);
+      if (!EM_ABERTO.includes(atual.get("status"))) {
+        throw new HttpsError(
+          "failed-precondition",
+          atual.get("status") === "completed"
+            ? "Esse atendimento acabou de ser concluído e não pode ser cancelado. Fale com a barbearia."
+            : "Essa reserva não está mais aberta."
+        );
+      }
+      tx.update(bookingRef, {
+        status,
+        cancelledAt: FieldValue.serverTimestamp(),
+        refundedAmount: refund,
+      });
     });
 
     return { refund, horasAteOAtendimento: Math.round(horas) };

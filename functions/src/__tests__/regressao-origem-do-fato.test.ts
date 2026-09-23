@@ -66,9 +66,13 @@ function arquivosQueEscrevemComissao(): string[] {
        * é exatamente o que ela existe para fazer. Agora o padrão aceita qualquer
        * ref de comissão, e amarrar ao nome de UMA variável deixa de ser o que
        * mantém este teste vivo. */
+      /* E o terceiro, desde 23/09: dentro de transação a escrita é
+       * `tx.set(comissaoRef, …)` — o gatilho financeiro passou a gravar assim
+       * para não agir sobre evento velho, e a varredura deixou de enxergá-lo. */
       return (
         /set\([\s\S]{0,160}collection\("commissions"\)/.test(t) ||
-        /comiss\w*Ref\.set\(/.test(t)
+        /comiss\w*Ref\.set\(/.test(t) ||
+        /tx\.set\(\s*comiss\w*Ref/.test(t)
       );
     });
 }

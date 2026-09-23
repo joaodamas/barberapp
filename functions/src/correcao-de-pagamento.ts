@@ -1,4 +1,5 @@
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
+import { exigirEdicao } from "./acesso";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { SEM_TAXA, type PaymentFees, type PaymentMethod } from "./financial-events";
 import { idDoPagamento, valoresDoPagamento } from "./payments";
@@ -487,6 +488,7 @@ export const corrigirPagamentoDeAtendimento = onCall<CorrecaoInput>(async (reque
   if (papel !== "owner") {
     throw new HttpsError("permission-denied", "Só o dono corrige pagamento.");
   }
+  await exigirEdicao(barbershopId);
 
   const bookingId = String(data.bookingId ?? "");
   if (!bookingId) throw new HttpsError("invalid-argument", "Atendimento não informado.");

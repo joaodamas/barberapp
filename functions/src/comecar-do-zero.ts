@@ -1,4 +1,5 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { exigirEdicao } from "./acesso";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { hojeNoFuso, localeDoDocumento } from "./locale";
 
@@ -204,6 +205,7 @@ export const comecarDoZero = onCall<{
   if (papel !== "owner") {
     throw new HttpsError("permission-denied", "Só o dono pode zerar o movimento.");
   }
+  await exigirEdicao(barbershopId);
 
   const db = getFirestore();
   const shopRef = db.doc(`barbershops/${barbershopId}`);

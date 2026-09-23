@@ -1,7 +1,8 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { exigirEdicao } from "./acesso";
 import { onDocumentUpdated } from "firebase-functions/v2/firestore";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
-import { decidirEfeito } from "./financial-events";
+import { decidirEfeito, estadoAindaVale } from "./financial-events";
 import { featuresFor, toPlanId } from "./plans";
 
 /**
@@ -67,17 +68,28 @@ export const creditLoyaltyOnCompletion = onDocumentUpdated(
      * fez, ou com carimbo de um que não fez. */
     const efeito = decidirEfeito(antes.status, depois.status);
 
+    if (efeito === "nada") return;
+    const reservaRef = db.doc(`barbershops/${barbershopId}/bookings/${bookingId}`);
+
     if (efeito === "materializar") {
       /* Carimbo só com o programa ligado: ligar depois não pode transformar
        * o histórico inteiro em recompensas que o dono não planejou dar. */
       const shop = (await db.doc(`barbershops/${barbershopId}`).get()).data();
       if (!fidelidadeAtiva(shop)) return;
-      await ref.set({
-        clientId: depois.clientId,
-        kind: "credito" satisfies LoyaltyKind,
-        stamps: 1,
-        bookingId,
-        at: FieldValue.serverTimestamp(),
+      /* Mesma guarda do gatilho financeiro: evento velho não age. Num
+       * "concluir → desfazer" rápido, o crédito chegava depois do estorno e o
+       * carimbo ficava para um atendimento desfeito. Quem decide é o estado
+       * ATUAL da reserva, lido na transação que grava. */
+      await db.runTransaction(async (tx) => {
+        const atual = await tx.get(reservaRef);
+        if (!estadoAindaVale("materializar", atual.get("status"))) return;
+        tx.set(ref, {
+          clientId: atual.get("clientId") ?? depois.clientId,
+          kind: "credito" satisfies LoyaltyKind,
+          stamps: 1,
+          bookingId,
+          at: FieldValue.serverTimestamp(),
+        });
       });
       return;
     }
@@ -87,7 +99,11 @@ export const creditLoyaltyOnCompletion = onDocumentUpdated(
      * desfazer. Cancelamento de atendimento realizado NÃO chega aqui — ver
      * `decidirEfeito`. */
     if (efeito === "reverter") {
-      await ref.delete().catch(() => undefined);
+      await db.runTransaction(async (tx) => {
+        const atual = await tx.get(reservaRef);
+        if (!estadoAindaVale("reverter", atual.get("status"))) return;
+        tx.delete(ref);
+      });
     }
   }
 );
@@ -130,6 +146,7 @@ export const redeemLoyaltyReward = onCall<{ barbershopId: string; clientId: stri
         "O resgate é registrado no balcão, por quem entrega a recompensa."
       );
     }
+    await exigirEdicao(barbershopId);
 
     const db = getFirestore();
     const shopRef = db.doc(`barbershops/${barbershopId}`);

@@ -360,8 +360,10 @@ describe("R1 · o invariante do qual a correção depende — cenário 6", () =>
     /* Se um dia isto virar `set(..., { merge: true })`, este teste falha — e a
      * falha é uma BOA notícia que precisa ser lida, não silenciada: significa
      * que o risco do cenário 6 mudou de natureza. */
-    expect(fonte).toContain("pagamentoRef.delete()");
-    expect(fonte).toMatch(/pagamentoRef\.set\(\{/);
+    /* Dentro de transação desde 23/09 (gatilho à prova de evento velho): o
+     * invariante é o mesmo — `set` inteiro, sem merge. */
+    expect(fonte).toContain("tx.delete(pagamentoRef)");
+    expect(fonte).toMatch(/tx\.set\(pagamentoRef, \{/);
   });
 });
 

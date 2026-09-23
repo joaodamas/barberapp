@@ -1,4 +1,5 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { exigirEdicao } from "./acesso";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { hojeNoFuso, localeDoDocumento } from "./locale";
 import type { PaymentMethod } from "./financial-events";
@@ -287,6 +288,7 @@ export const registrarMovimentoDeCaixa = onCall<LancamentoInput>(async (request)
   if (papel !== "owner") {
     throw new HttpsError("permission-denied", "Só o dono registra movimento de caixa.");
   }
+  await exigirEdicao(barbershopId);
 
   if (!tipoValido(data.kind)) {
     throw new HttpsError("invalid-argument", "Tipo de movimento de caixa desconhecido.");

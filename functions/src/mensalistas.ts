@@ -31,6 +31,7 @@
  * pagamento congela `paymentMethod`. Assinatura muda; fatura emitida, não.
  */
 
+import { exigirEdicao } from "./acesso";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { hojeNoFuso, localeDoDocumento } from "./locale";
@@ -386,6 +387,7 @@ export const criarMensalista = onCall<{
   const { barbershopId, clientId, planId, billingDay } = request.data ?? {};
   if (!barbershopId) throw new HttpsError("invalid-argument", "Barbearia não informada.");
   exigirVinculo(request, barbershopId);
+  await exigirEdicao(barbershopId);
 
   if (!clientId) throw new HttpsError("invalid-argument", "Escolha o cliente.");
   if (!planId) throw new HttpsError("invalid-argument", "Escolha o plano.");
@@ -474,6 +476,7 @@ export const cancelarMensalista = onCall<{
     throw new HttpsError("invalid-argument", "Assinatura não informada.");
   }
   exigirVinculo(request, barbershopId);
+  await exigirEdicao(barbershopId);
 
   const db = getFirestore();
   const shopRef = db.doc(`barbershops/${barbershopId}`);
@@ -552,6 +555,7 @@ export const gerarFaturasDoMes = onCall<{
   const { barbershopId } = request.data ?? {};
   if (!barbershopId) throw new HttpsError("invalid-argument", "Barbearia não informada.");
   exigirVinculo(request, barbershopId);
+  await exigirEdicao(barbershopId);
 
   const db = getFirestore();
   const shopRef = db.doc(`barbershops/${barbershopId}`);
@@ -587,6 +591,7 @@ export const registrarPagamentoDeMensalidade = onCall<{
     throw new HttpsError("invalid-argument", "Fatura não informada.");
   }
   exigirVinculo(request, barbershopId);
+  await exigirEdicao(barbershopId);
   if (!metodoValido(paymentMethod)) {
     throw new HttpsError("invalid-argument", "Informe como o cliente pagou.");
   }
