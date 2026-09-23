@@ -91,6 +91,11 @@ export default function AgendarPage() {
    * tinha para onde ir, e a confirmação automática não teria destinatário nem
    * depois de a Meta liberar o envio. */
   const [whatsapp, setWhatsapp] = useState("");
+  /* O nome era `user.displayName` — vazio para quem entra por e-mail — e o
+   * painel mostrava "Cliente" em toda reserva do app: o dono não sabia quem
+   * vinha às 14h (rodada E2E de 23/09). Agora é perguntado aqui, junto do
+   * WhatsApp, e lembrado no perfil. */
+  const [nome, setNome] = useState("");
 
   /* Pré-preenche com o que a pessoa já informou numa reserva anterior. O
    * documento é dela e atravessa barbearias: quem corta em duas não digita o
@@ -103,17 +108,19 @@ export default function AgendarPage() {
     let cancelado = false;
     lerPerfil(user.uid)
       .then((perfil) => {
-        if (cancelado || !perfil?.whatsapp) return;
-        setWhatsapp((atual) => atual || mascararWhatsapp(perfil.whatsapp));
+        if (cancelado) return;
+        if (perfil?.whatsapp) setWhatsapp((atual) => atual || mascararWhatsapp(perfil.whatsapp));
+        const conhecido = perfil?.name || user.displayName || "";
+        if (conhecido) setNome((atual) => atual || conhecido);
       })
       .catch(() => undefined);
     return () => {
       cancelado = true;
     };
-  }, [user?.uid]);
+  }, [user?.uid, user?.displayName]);
 
   const whatsappOk = whatsappValido(whatsapp);
-  const politicaCancelamento = tenant.policies.cancellation;
+  const nomeOk = nome.trim().length >= 2;
 
   /**
    * A reserva é criada no SERVIDOR.
@@ -126,6 +133,10 @@ export default function AgendarPage() {
    */
   async function confirmarReserva() {
     if (!selectedDay || !selectedSlot) return;
+    if (!nomeOk) {
+      setErroReserva("Informe seu nome — é como a barbearia vai te reconhecer na agenda.");
+      return;
+    }
     if (!whatsappOk) {
       setErroReserva("Informe um WhatsApp válido com DDD — é por ele que a barbearia fala com você.");
       return;
@@ -141,7 +152,7 @@ export default function AgendarPage() {
         date: selectedDay.iso,
         time: selectedSlot.time,
         paymentOrigin: "in_person",
-        clientName: user?.displayName ?? undefined,
+        clientName: nome.trim(),
         clientWhatsapp: normalizarWhatsapp(whatsapp),
       });
 
@@ -149,7 +160,7 @@ export default function AgendarPage() {
        * fora do caminho de erro: falhar em salvar o perfil não pode derrubar um
        * agendamento que já está gravado. */
       if (user?.uid) {
-        void salvarPerfil(user.uid, { whatsapp }).catch(() => undefined);
+        void salvarPerfil(user.uid, { whatsapp, name: nome.trim() }).catch(() => undefined);
       }
 
       setStep(4);
@@ -257,7 +268,7 @@ export default function AgendarPage() {
   const ctaDisabled =
     (step === 1 && selectedServiceIds.length === 0) ||
     (step === 2 && !selectedSlot) ||
-    (step === 3 && !whatsappOk);
+    (step === 3 && (!whatsappOk || !nomeOk));
   const ctaLabel = step === 3 ? "Confirmar reserva" : "Continuar";
 
   function toggleService(id: string) {
@@ -519,6 +530,23 @@ export default function AgendarPage() {
               não existia, toda reserva nascia sem número e o dono descobria o
               cliente só quando ele aparecia — ou não aparecia. */}
           <div className="flex flex-col gap-1.5">
+            <label htmlFor="cliente-nome" className="text-xs uppercase tracking-wider text-ink-muted">
+              Seu nome
+            </label>
+            <input
+              id="cliente-nome"
+              name="name"
+              type="text"
+              autoComplete="name"
+              maxLength={80}
+              placeholder="Como te chamam no salão"
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              className="min-h-12 rounded-xl border border-border bg-surface px-4 text-sm text-ink outline-none focus-visible:ring-2 focus-visible:ring-gold"
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
             <label htmlFor="cliente-whatsapp" className="text-xs uppercase tracking-wider text-ink-muted">
               Seu WhatsApp
             </label>
@@ -600,13 +628,13 @@ export default function AgendarPage() {
             * tinha corrigido, e que aqui, do lado de quem paga, tinha ficado. */}
           <Card className="flex gap-2 bg-surface-raised text-xs text-ink-muted">
             <Clock size={14} className="mt-0.5 shrink-0 text-gold-strong" />
+            {/* O pagamento é no salão: nada é cobrado agora. A frase anterior
+                prometia "100% de volta" e ameaçava "retemos 25%" sobre um
+                dinheiro que não existe — logo abaixo de "sem cobrança". */}
             <p>
-              Cancelamento até {politicaCancelamento.fullRefundHours}h antes:
-              100% de volta. Entre {politicaCancelamento.fullRefundHours}h e{" "}
-              {politicaCancelamento.partialRefundHours}h: retemos{" "}
-              {politicaCancelamento.cancellationFeePct}% de taxa. Menos de{" "}
-              {politicaCancelamento.partialRefundHours}h ou não comparecimento:
-              sem reembolso.
+              Precisa desmarcar? Cancele pelo app, sem custo. Para reagendar,
+              faça até {tenant.policies.reschedule.minHoursBefore}h antes do
+              horário.
             </p>
           </Card>
         </div>

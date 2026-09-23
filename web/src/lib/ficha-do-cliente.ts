@@ -1,4 +1,4 @@
-import { isRevenue } from "@/lib/domain";
+import { EM_ABERTO, isRevenue } from "@/lib/domain";
 import type {
   BookingDoc,
   ClientDoc,
@@ -70,10 +70,13 @@ export function fichaDoCliente(params: {
     .filter((m) => m.kind === "venda" && m.clientId === params.cliente.id)
     .reduce((s, m) => s + m.value, 0);
 
-  /* Futuro = a partir de hoje, em qualquer estado que ainda ocupe a agenda.
-   * Ordenado por data e hora porque a coleção vem por data decrescente. */
+  /* Futuro = a partir de hoje, e só o que ainda vai acontecer (`EM_ABERTO`).
+   * "Não cancelado" deixava passar concluído, falta e expirado: o corte das
+   * 14h, já feito e pago, aparecia como "próximo atendimento" na ficha
+   * (rodada E2E de 23/09). Ordenado por data e hora porque a coleção vem por
+   * data decrescente. */
   const futuros = dele
-    .filter((b) => b.date >= params.hojeISO && !String(b.status).startsWith("cancelled"))
+    .filter((b) => b.date >= params.hojeISO && EM_ABERTO.includes(b.status))
     .sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`));
 
   return {

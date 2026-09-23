@@ -629,6 +629,21 @@ export type GatewayFeeDoc = {
 /* ------------------------------------------------------------------ */
 
 /** Reserva que ocupa horário na agenda. */
+/**
+ * O que ainda vai acontecer — o espelho de `EM_ABERTO` em `functions/src/booking.ts`.
+ *
+ * Diferente de `OCCUPIES_SLOT`, que inclui concluído e falta porque eles
+ * ocupam a cadeira. Usar aquela lista para "próximas reservas" fazia o corte
+ * de hoje às 14h, já feito e pago, aparecer como futuro, com "a pagar no
+ * salão" e os botões de cancelar e remarcar (rodada E2E de 23/09).
+ */
+export const EM_ABERTO: BookingStatus[] = [
+  "pending_payment",
+  "confirmed",
+  "confirmed_by_client",
+  "fit_in_requested",
+];
+
 export const OCCUPIES_SLOT: BookingStatus[] = [
   "pending_payment",
   "confirmed",
