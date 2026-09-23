@@ -263,6 +263,9 @@ export const ONBOARDING_WRITABLE_FIELDS = new Set([
   "schedule.closesAt",
   "schedule.slotMinutes",
   "schedule.breaks",
+  /* Entrou na tela do passo 3 em #25 e ficou fora daqui: o passo passou a ser
+   * recusado para TODA barbearia nova, e o onboarding não terminava. */
+  "schedule.perDay",
 ]);
 
 /** Marca um passo do onboarding como concluído. */
