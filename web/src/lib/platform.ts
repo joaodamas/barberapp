@@ -27,3 +27,23 @@ export function hasPlatformContact() {
 export function platformWhatsappUrl(mensagem: string) {
   return `https://wa.me/${PLATFORM_WHATSAPP}?text=${encodeURIComponent(mensagem)}`;
 }
+
+/**
+ * Cadastro self-service ABERTO?
+ *
+ * Fechado em 23/09: o Firebase Hosting não emite certificado para subdomínio
+ * novo (sem curinga, teto de 20 por domínio). Quem se cadastrava criava uma
+ * barbearia cujo endereço dava erro de certificado no navegador. Enquanto o
+ * balanceador com certificado curinga não entra, a contratação volta a ser
+ * pelo WhatsApp comercial. Espelho em `functions/src/signup.ts`.
+ */
+export const CADASTRO_ABERTO = false;
+
+const MENSAGEM_DE_CADASTRO =
+  "Olá! Quero testar o CorteHub na minha barbearia por 7 dias.";
+
+/** Para onde vai o "Testar 7 dias": o cadastro, ou a conversa enquanto ele está pausado. */
+export function destinoDoCadastro(): string {
+  if (CADASTRO_ABERTO) return "/criar-conta";
+  return hasPlatformContact() ? platformWhatsappUrl(MENSAGEM_DE_CADASTRO) : "/criar-conta";
+}

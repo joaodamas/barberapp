@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth-context";
 import { ROOT_DOMAIN } from "@/lib/tenant";
+import { CADASTRO_ABERTO, destinoDoCadastro, hasPlatformContact } from "@/lib/platform";
 import { slugSugerido, validateSlug } from "@/lib/slug";
 
 /**
@@ -186,6 +187,32 @@ export default function CriarContaPage() {
       setErro(mensagemDeErro(e));
       setCriando(false);
     }
+  }
+
+  /* Cadastro pausado (ver `CADASTRO_ABERTO`). Depois de todos os hooks: a
+   * ordem deles não pode depender de uma constante que um dia volta a ser
+   * `true`. */
+  if (!CADASTRO_ABERTO) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-canvas px-4">
+        <Card className="flex w-full max-w-md flex-col items-center gap-3 p-6 text-center">
+          <h1 className="text-xl text-ink">Cadastro por aqui volta em breve</h1>
+          <p className="text-sm text-ink-muted">
+            Estamos preparando o endereço próprio de cada barbearia. Enquanto isso,
+            a gente coloca a sua no ar pelo WhatsApp — os mesmos 7 dias de teste,
+            sem cartão.
+          </p>
+          {hasPlatformContact() && (
+            <a href={destinoDoCadastro()} target="_blank" rel="noopener noreferrer" className="w-full">
+              <Button className="w-full">Falar com a gente</Button>
+            </a>
+          )}
+          <Link href="/login" className="text-xs text-gold-strong">
+            Já tenho barbearia — entrar
+          </Link>
+        </Card>
+      </div>
+    );
   }
 
   if (estado === "carregando") {
