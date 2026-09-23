@@ -37,6 +37,11 @@ export function toTenant(id: string, data: Record<string, unknown>): Tenant {
     id,
     slug: String(data.slug ?? id),
     status: (data.status as Tenant["status"]) ?? "ativo",
+    /* Só entra se for número: qualquer outra coisa faria a tela prometer uma
+     * data de expurgo que o servidor (`venceuAJanela`) não reconhece. */
+    ...(typeof data.encerradaEmMs === "number" && Number.isFinite(data.encerradaEmMs)
+      ? { encerradaEmMs: data.encerradaEmMs }
+      : {}),
     plan,
     brand: { ...DEFAULT_TENANT.brand, ...brand },
     contact: { ...DEFAULT_TENANT.contact, ...contact },

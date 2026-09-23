@@ -9,6 +9,7 @@ import { patchTenant } from "@/lib/db/repository";
 import { formatBRL } from "@/lib/format";
 import { EditorDeFormasDePagamento } from "@/components/formas-de-pagamento-editor";
 import { ComecarDoZero } from "@/components/comecar-do-zero";
+import { EncerrarConta } from "@/components/encerrar-conta";
 import {
   formasDoTenant,
   taxasEmBranco,
@@ -350,6 +351,20 @@ export default function ConfiguracoesPage() {
           </p>
         </div>
         <ComecarDoZero />
+      </Card>
+
+      {/* A saída, depois de tudo e com moldura própria, pelo mesmo motivo do
+          bloco acima: é a ação mais pesada da tela. Os 30 dias estão escritos
+          ao lado do botão, não só no modal — é o que a torna reversível. */}
+      <Card className="flex flex-col gap-4 border-danger/30 md:p-6">
+        <div>
+          <h2 className="text-sm font-semibold text-ink md:text-base">Sair do CorteHub</h2>
+          <p className="mt-1 text-xs text-ink-muted md:text-sm">
+            Encerrar não apaga nada na hora. É a janela para exportar o que você
+            precisar e para voltar atrás.
+          </p>
+        </div>
+        <EncerrarConta />
       </Card>
     </div>
   );

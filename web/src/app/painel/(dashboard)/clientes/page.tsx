@@ -11,6 +11,7 @@ import { contar } from "@/lib/plural";
 import { mascararWhatsapp } from "@/lib/whatsapp-numero";
 import { combinaComBusca } from "@/lib/clientes-busca";
 import { listaDeClientes, type FichaDoCliente } from "@/lib/ficha-do-cliente";
+import { DireitosDoTitular } from "@/components/direitos-do-titular";
 import {
   useBookings,
   useClients,
@@ -208,6 +209,10 @@ export default function ClientesPage() {
               O histórico completo de atendimentos e compras entra numa próxima
               versão desta ficha.
             </p>
+
+            {/* `key` pelo cliente: a confirmação digitada para um não pode
+                sobreviver à troca de ficha e valer para outro. */}
+            <DireitosDoTitular key={aberta.cliente.id} clientId={aberta.cliente.id} />
           </div>
         )}
       </Modal>
