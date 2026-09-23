@@ -27,6 +27,7 @@ export {
 export { creditLoyaltyOnCompletion, redeemLoyaltyReward } from "./loyalty";
 export { materializeFinancialsOnCompletion } from "./financial-events";
 export { changeInitialPassword } from "./account";
+export { trocarCodigoDeEntrada } from "./entrada";
 export { notifyBookingCreated } from "./whatsapp/notify";
 export { whatsappWebhook } from "./whatsapp/webhook";
 export {

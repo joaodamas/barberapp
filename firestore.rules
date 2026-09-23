@@ -119,6 +119,12 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    /* Códigos de entrada de uso único (`functions/src/entrada.ts`): valem uma
+     * sessão de dono. Só o Admin SDK toca aqui. */
+    match /entradas/{codigo} {
+      allow read, write: if false;
+    }
+
     match /platform_users/{userId} {
       /* Guarda o hash da senha provisória enquanto ela existe. Negado para
        * TODO MUNDO, inclusive o próprio dono e o suporte: só o Admin SDK
