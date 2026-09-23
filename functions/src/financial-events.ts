@@ -463,6 +463,37 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
 
     const efeito = decidirEfeito(antes.status, depois.status);
 
+    if (efeito === "nada") {
+      /* Sair de `completed` para um estado de cancelamento é contradição, e o
+       * fato financeiro FICA. O aviso existe porque nenhum caminho do produto
+       * deveria produzir isso: se aparecer no log, é escrita direta no banco ou
+       * uma tela nova sem guarda. */
+      if (antes.status === "completed" && depois.status !== "completed") {
+        console.warn(
+          `[financeiro] ${bookingId}: "${antes.status}" → "${depois.status}" ` +
+            `não reverte o fato financeiro. O atendimento aconteceu; devolver ` +
+            `valor de atendimento realizado é estorno, não cancelamento.`
+        );
+      }
+      return;
+    }
+
+    /* O evento pode estar VELHO. Gatilhos chegam atrasados e fora de ordem: num
+     * "concluir → desfazer" rápido, a reversão podia rodar antes da conclusão,
+     * e a conclusão vinha depois materializar receita e comissão numa reserva
+     * que já não estava concluída (auditoria da rodada E2E de 23/09). Quem
+     * manda é o estado ATUAL da reserva: se ele já não é o deste evento, um
+     * evento mais novo cuida — e este não faz nada. A mesma conferência se
+     * repete dentro da transação, no instante de gravar. */
+    const statusAgora = (await reservaRef.get()).get("status");
+    if (!estadoAindaVale(efeito, statusAgora)) {
+      console.info(
+        `[financeiro] ${bookingId}: evento ${event.id} (${efeito}) ignorado — ` +
+          `a reserva já está "${statusAgora}".`
+      );
+      return;
+    }
+
     if (efeito === "reverter") {
       /* Conclusão desfeita: o fato financeiro sai do acerto, mas NÃO some do
        * histórico — P1-7, D-2 fechada em 20/08.
@@ -478,10 +509,15 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
        * justificativa, e que o atendimento nunca teve. */
       const chave = chaveDoCiclo(event.id);
 
-      const [comissaoSnap, pagamentoSnap] = await Promise.all([
-        comissaoVigenteRef(db, barbershopId, bookingId, depois).get(),
-        pagamentoRef.get(),
+      await db.runTransaction(async (tx) => {
+      const [atual, comissaoSnap, pagamentoSnap] = await Promise.all([
+        tx.get(reservaRef),
+        tx.get(comissaoVigenteRef(db, barbershopId, bookingId, depois)),
+        tx.get(pagamentoRef),
       ]);
+      /* Conferido de novo DENTRO da transação: se a reserva foi concluída de
+       * novo entre a saída cedo e aqui, a transação relê e este evento para. */
+      if (!estadoAindaVale("reverter", atual.get("status"))) return;
 
       const congelado: CicloFinanceiro = {
         revertidoEm: chave,
@@ -503,86 +539,44 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
           : null,
       };
 
-      await Promise.all([
-        /* A linha negativa. Id derivado da reserva E do evento: um retry da
-         * mesma entrega sobrescreve em vez de somar duas vezes. */
-        comissaoSnap.exists && congelado.comissao?.staffId
-          ? db
-              .doc(
-                `barbershops/${barbershopId}/commissions/` +
-                  idDoEstornoDaComissaoDeServico(bookingId, chave)
-              )
-              .set({
-                ...estornoDaComissaoDeServico({
-                  bookingId,
-                  chave,
-                  staffId: congelado.comissao.staffId,
-                  uid: congelado.comissao.uid,
-                  staffName: congelado.comissao.staffName,
-                  date: String(depois.date ?? ""),
-                  commissionPct: congelado.comissao.commissionPct,
-                  commissionBase: congelado.comissao.commissionBase,
-                  commissionAmount: Number(comissaoSnap.get("commissionAmount")) || 0,
-                }),
-                createdAt: FieldValue.serverTimestamp(),
-              })
-          : Promise.resolve(),
-
-        /* O PAGAMENTO continua sendo apagado — D-2, segunda pergunta.
-         *
-         * Receita realizada de um atendimento que o dono acabou de dizer que
-         * não aconteceu não pode ficar de pé no caixa e no DRE. Mas o fato é
-         * preservado antes, para a reconclusão não o reinventar. */
-        pagamentoRef.delete().catch(() => undefined),
-
-        /* A cobertura sai junto — D2. Ela consumiu uma vaga da cota do mês, e
-         * desfazer a conclusão precisa devolver essa vaga: senão o cliente de
-         * um plano de quatro cortes perde um deles para um atendimento que o
-         * dono já disse que não aconteceu. */
-        /* `paymentMethod` sai junto com a cobertura.
-         *
-         * A perna de reversão apagava `cobertura` e deixava o método para trás:
-         * a reserva ficava "Não compareceu" exibindo "Crédito" na coluna
-         * Pagamento, sem pagamento nenhum no banco. Divergência
-         * booking × payment criada pelo produto — exatamente a que a decisão B
-         * do R1 declara impossível —, e permanente se ninguém concluir de novo.
-         *
-         * `null` e não `delete`: é o estado com que a reserva nasce
-         * (`booking.ts`), e a tela já sabe lê-lo como "a pagar no salão".
-         *
-         * A FORMA sai junto, e pelo mesmo motivo — só que ela reabriria o
-         * defeito por outra porta: a agenda passou a preferir o rótulo
-         * congelado, então uma reserva revertida com `paymentFormLabel` de pé
-         * voltaria a exibir "Crédito inserido" sob "Não compareceu". Limpar um
-         * e esquecer o outro é a mesma divergência com nome novo. */
-        reservaRef
-          .set(
-            {
-              cobertura: FieldValue.delete(),
-              paymentMethod: null,
-              paymentFormId: null,
-              paymentFormLabel: null,
-              cicloFinanceiro: congelado,
-            },
-            { merge: true }
-          )
-          .catch(() => undefined),
-      ]);
-      return;
-    }
-
-    if (efeito === "nada") {
-      /* Sair de `completed` para um estado de cancelamento é contradição, e o
-       * fato financeiro FICA. O aviso existe porque nenhum caminho do produto
-       * deveria produzir isso: se aparecer no log, é escrita direta no banco ou
-       * uma tela nova sem guarda. */
-      if (antes.status === "completed" && depois.status !== "completed") {
-        console.warn(
-          `[financeiro] ${bookingId}: "${antes.status}" → "${depois.status}" ` +
-            `não reverte o fato financeiro. O atendimento aconteceu; devolver ` +
-            `valor de atendimento realizado é estorno, não cancelamento.`
+      if (comissaoSnap.exists && congelado.comissao?.staffId) {
+        tx.set(
+          db.doc(
+            `barbershops/${barbershopId}/commissions/` +
+              idDoEstornoDaComissaoDeServico(bookingId, chave)
+          ),
+          {
+            ...estornoDaComissaoDeServico({
+              bookingId,
+              chave,
+              staffId: congelado.comissao.staffId,
+              uid: congelado.comissao.uid,
+              staffName: congelado.comissao.staffName,
+              date: String(depois.date ?? ""),
+              commissionPct: congelado.comissao.commissionPct,
+              commissionBase: congelado.comissao.commissionBase,
+              commissionAmount: Number(comissaoSnap.get("commissionAmount")) || 0,
+            }),
+            createdAt: FieldValue.serverTimestamp(),
+          }
         );
       }
+      if (pagamentoSnap.exists) tx.delete(pagamentoRef);
+      /* Sem `.catch(() => undefined)`: engolir o erro aqui deixava a reserva
+       * sem `cicloFinanceiro` — e a reconclusão seguinte recalculava com o
+       * percentual de HOJE, que é o P1-7 voltando pela janela. */
+      tx.set(
+        reservaRef,
+        {
+          cobertura: FieldValue.delete(),
+          paymentMethod: null,
+          paymentFormId: null,
+          paymentFormLabel: null,
+          cicloFinanceiro: congelado,
+        },
+        { merge: true }
+      );
+      });
       return;
     }
 
@@ -696,13 +690,18 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
         )
       : comissaoRef;
 
-    await Promise.all([
+    await db.runTransaction(async (tx) => {
+      /* Conferido de novo DENTRO da transação: se a conclusão foi desfeita
+       * entre a saída cedo e aqui, a transação relê e este evento para. */
+      const atual = await tx.get(reservaRef);
+      if (!estadoAindaVale("materializar", atual.get("status"))) return;
       /* O fato do atendimento passa a dizer como foi liquidado.
        *
        * Vai para a RESERVA, e não só para o pagamento, porque no caso coberto
        * não existe pagamento — e um fato que só se descreve pela ausência de
        * outro documento não é descrição nenhuma. */
-      reservaRef.set(
+      tx.set(
+        reservaRef,
         {
           cobertura,
           /* Qual linha passa a valer, para a PRÓXIMA reversão negar a certa. */
@@ -711,8 +710,8 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
             : {}),
         },
         { merge: true }
-      ),
-      comissaoDoCicloRef.set({
+      );
+      tx.set(comissaoDoCicloRef, {
         bookingId,
         staffId,
         /* O barbeiro lê a própria comissão pela regra `resource.data.uid ==
@@ -738,7 +737,7 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
         cobertoPeloPlano: coberto,
         ...commission,
         createdAt: FieldValue.serverTimestamp(),
-      }),
+      });
       /* COBERTO PELO PLANO NÃO GERA PAGAMENTO — D2, e é o coração do achado.
        *
        * A mensalidade já é a receita do plano, e ela tem lastro próprio:
@@ -751,9 +750,11 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
        * O `delete` cobre a reconclusão: um atendimento concluído como avulso e
        * depois reconhecido como coberto tem de perder o pagamento que já
        * existe. Deixá-lo seria receita fantasma sem tela onde reencontrá-la. */
-      coberto
-        ? pagamentoRef.delete().catch(() => undefined)
-        : pagamentoRef.set({
+      if (coberto) {
+        tx.delete(pagamentoRef);
+        return;
+      }
+      tx.set(pagamentoRef, {
             /* G1.6 declarou `PaymentDoc.origin` e deu o campo às três origens —
              * menos a esta, que já existia e passou despercebida. O serviço, que
              * é a maior fonte de receita, nascia sem dizer de onde veio.
@@ -768,7 +769,18 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
             date,
             ...payment,
             createdAt: FieldValue.serverTimestamp(),
-          }),
-    ]);
+          });
+    });
   }
 );
+
+/**
+ * O evento ainda descreve a reserva? Materializar exige que ela ESTEJA
+ * concluída; reverter exige que ela NÃO esteja. Qualquer outro caso é evento
+ * velho — ver o comentário no gatilho.
+ */
+export function estadoAindaVale(efeito: EfeitoFinanceiro, statusAtual: unknown): boolean {
+  if (efeito === "materializar") return statusAtual === "completed";
+  if (efeito === "reverter") return statusAtual !== "completed";
+  return false;
+}

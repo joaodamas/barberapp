@@ -8,6 +8,7 @@ import {
   taxaDoMetodo,
   type PaymentFees,
   decidirEfeito,
+  estadoAindaVale,
 } from "../financial-events";
 
 /**
@@ -406,5 +407,15 @@ describe("todo pagamento nasce dizendo de onde veio", () => {
      * da varredura acima continuar encontrando o arquivo. */
     const texto = readFileSync(resolve(SRC, "financial-events.ts"), "utf8");
     expect(texto).toMatch(/origin:\s*"servico"/);
+  });
+});
+
+describe("evento velho não age (rodada E2E de 23/09)", () => {
+  it("materializar só com a reserva AINDA concluída; reverter só com ela JÁ fora", () => {
+    expect(estadoAindaVale("materializar", "completed")).toBe(true);
+    expect(estadoAindaVale("materializar", "confirmed")).toBe(false);
+    expect(estadoAindaVale("reverter", "confirmed")).toBe(true);
+    expect(estadoAindaVale("reverter", "completed")).toBe(false);
+    expect(estadoAindaVale("nada", "completed")).toBe(false);
   });
 });

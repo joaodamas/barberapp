@@ -224,6 +224,10 @@ jobs:
           NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
           NEXT_PUBLIC_FIREBASE_APP_ID: ${{ vars.NEXT_PUBLIC_FIREBASE_APP_ID }}
           NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID: ${{ vars.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID }}
+          # WhatsApp COMERCIAL da plataforma. Nunca chegava ao build de
+          # produção: todo "falar com a gente" (upgrade de plano, cadastro
+          # pausado) ficava escondido no ar sem ninguém notar (23/09).
+          NEXT_PUBLIC_PLATFORM_WHATSAPP: ${{ vars.NEXT_PUBLIC_PLATFORM_WHATSAPP }}
         run: |
           set -euo pipefail
           if [ -z "${NEXT_PUBLIC_FIREBASE_PROJECT_ID:-}" ]; then
