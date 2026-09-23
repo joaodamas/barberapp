@@ -8,24 +8,31 @@ import { Pill } from "@/components/ui/pill";
 import { Button } from "@/components/ui/button";
 import { BarberPoleDivider } from "@/components/ui/barber-pole-divider";
 import { bookingStatusMeta } from "@/lib/booking-status";
-import { formatBRL, formatDatePtBR } from "@/lib/format";
+import { formatBRL, formatDatePtBR, toISODate } from "@/lib/format";
 import { useTenant } from "@/lib/tenant-context";
 import { useAuth } from "@/lib/auth-context";
-import { useLoyalty, useMyBookings, useServices } from "@/lib/db/use-shop-data";
-import { OCCUPIES_SLOT } from "@/lib/domain";
+import { useLoyalty, useMyBookings, usePlans, useServices } from "@/lib/db/use-shop-data";
+import { EM_ABERTO } from "@/lib/domain";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
 import { CalendarPlus } from "lucide-react";
+import { VitrineDaBarbearia } from "@/components/vitrine-da-barbearia";
 
 export default function InicioPage() {
   const tenant = useTenant();
-  const { user } = useAuth();
+  const authState = useAuth();
+  const { user } = authState;
   const { items: minhas, status } = useMyBookings(user?.uid);
   const { items: services } = useServices();
 
-  const hoje = new Date().toISOString().slice(0, 10);
+  /* Dia LOCAL: `toISOString()` é UTC, e depois das 21h o "hoje" virava amanhã
+   * — a reserva das 22h sumia do próximo agendamento. */
+  const hoje = toISODate(new Date());
+  /* Só o que ainda vai acontecer. `OCCUPIES_SLOT` inclui concluído e falta
+   * (eles ocupam a cadeira), e o corte já feito às 14h aparecia como "próximo
+   * agendamento" com "a pagar no salão". */
   const futuras = minhas
-    .filter((b) => b.date >= hoje && OCCUPIES_SLOT.includes(b.status))
+    .filter((b) => b.date >= hoje && EM_ABERTO.includes(b.status))
     .sort((a, b) => a.date.localeCompare(b.date));
   const nextBooking = futuras[0] ?? null;
 
@@ -37,12 +44,27 @@ export default function InicioPage() {
   const statusMeta = nextBooking ? bookingStatusMeta[nextBooking.status] : null;
 
   const loyalty = useLoyalty(user?.uid);
+  /* A oferta de mensalista vem dos planos QUE A BARBEARIA CRIOU. Era um texto
+   * fixo — "corte ilimitado a partir de R$ 149/mês" — mostrado em toda
+   * barbearia, inclusive nas que não têm plano nenhum, enquanto a tela de
+   * Planos da mesma barbearia dizia "Nenhum plano disponível". */
+  const { items: planos } = usePlans();
+  const ativos = planos.filter((p) => p.active !== false && Number(p.price) > 0);
+  const maisBarato = ativos.length
+    ? ativos.reduce((a, b) => (Number(b.price) < Number(a.price) ? b : a))
+    : null;
+  const mostraPlanos = tenant.features.subscriptions === true && maisBarato !== null;
   const stampsLeft = loyalty.faltam;
   const barbershop = {
     name: tenant.brand.name,
     address: tenant.contact.address,
     whatsapp: tenant.contact.whatsapp,
   };
+
+  /* Sem conta: a vitrine. Depois de todos os hooks — a ordem deles não pode
+   * depender de haver usuário. */
+  const { loading: carregandoConta } = authState;
+  if (!carregandoConta && !user) return <VitrineDaBarbearia />;
 
   return (
     <div className="grid grid-cols-1 gap-5 pt-1 md:grid-cols-[1fr_360px] md:items-start md:gap-x-10 md:gap-y-10 md:pt-2">
@@ -117,6 +139,7 @@ export default function InicioPage() {
         )}
       </section>
 
+      {mostraPlanos && maisBarato && (
       <Link href="/planos" className="md:col-start-2 md:row-start-2">
         <Card
           interactive
@@ -127,16 +150,19 @@ export default function InicioPage() {
           </div>
           <div className="flex-1">
             <p className="text-sm font-medium text-ink md:text-base">
-              Vire mensalista e economize
+              Vire mensalista
             </p>
             <p className="text-xs text-ink-muted md:text-sm">
-              Corte ilimitado a partir de R$ 149/mês
+              {ativos.length > 1 ? "Planos a partir de " : `${maisBarato.name} · `}
+              {formatBRL(Number(maisBarato.price))}/mês
             </p>
           </div>
           <ArrowRight size={16} className="shrink-0 text-ink-muted" />
         </Card>
       </Link>
+      )}
 
+      {loyalty.ativo && (
       <section aria-labelledby="fidelidade" className="md:col-start-2 md:row-start-3">
         <h2
           id="fidelidade"
@@ -151,7 +177,7 @@ export default function InicioPage() {
             </p>
             <p className="text-xs text-gold-strong md:text-sm">
               {loyalty.podeResgatar
-                ? `${loyalty.reward} liberado!`
+                ? `${loyalty.reward} liberado — mostre no balcão`
                 : `faltam ${stampsLeft} para ${loyalty.reward}`}
             </p>
           </div>
@@ -169,6 +195,7 @@ export default function InicioPage() {
           </div>
         </Card>
       </section>
+      )}
 
       <section aria-labelledby="localizacao" className="md:col-start-1 md:row-start-3">
         <h2

@@ -243,23 +243,40 @@ describe("G3 · WhatsApp único por barbearia", () => {
 /* Fusão: o balcão que depois vira conta                              */
 /* ================================================================== */
 
-describe("G3 · fusão do cadastro de balcão com a conta", () => {
-  it("o cadastro antigo é desativado e aponta para o novo", async () => {
+describe("sem fusão por telefone não verificado (rodada E2E de 23/09)", () => {
+  it("🔒 uma conta com o número de um cliente de balcão NÃO absorve o cadastro dele", async () => {
+    /* A fusão automática era sequestro de identidade: o WhatsApp não é
+     * verificado, e a conta que digitasse o número da vítima passava a
+     * receber as reservas de balcão dela. */
     await gravarComTravaDeHorario(pedido({ time: "15:00", name: "Seu Zé", whatsapp: "11944443333" }));
     const [balcao] = await clientes();
 
     await gravarComTravaDeHorario(
-      pedido({ time: "16:00", uid: "uid-do-ze", origin: "app", name: "Zé", whatsapp: "11944443333" })
+      pedido({ time: "16:00", uid: "uid-de-alguem", origin: "app", name: "Zé", whatsapp: "11944443333" })
     );
 
     const cs = await clientes();
     expect(cs).toHaveLength(2);
-
     const antigo = cs.find((c) => c.id === balcao.id)!;
-    const novo = cs.find((c) => c.id === "uid-do-ze")!;
-    expect(antigo.active).toBe(false);
-    expect(antigo.mergedInto).toBe("uid-do-ze");
-    expect(novo.active).toBe(true);
+    const conta = cs.find((c) => c.id === "uid-de-alguem")!;
+    expect(antigo.active).toBe(true);
+    expect(antigo.mergedInto ?? null).toBeNull();
+    // Indício para o dono conferir, não decisão.
+    expect(conta.mesmoNumeroQue).toBe(balcao.id);
+  });
+
+  it("🔒 o balcão nunca entrega a reserva a uma conta de app pelo número", async () => {
+    await gravarComTravaDeHorario(
+      pedido({ time: "15:00", uid: "uid-atacante", origin: "app", name: "X", whatsapp: "11922221111" })
+    );
+    // A vítima liga e o dono marca pelo balcão com o número dela.
+    await gravarComTravaDeHorario(pedido({ time: "16:00", name: "Vítima", whatsapp: "11922221111" }));
+
+    const nova = (await reservas()).find((r) => r.time === "16:00")!;
+    expect(nova.clientId).not.toBe("uid-atacante");
+    const cadastro = (await clientes()).find((c) => c.id === nova.clientId)!;
+    expect(cadastro.uid ?? null).toBeNull();
+    expect(cadastro.name).toBe("Vítima");
   });
 
   it("a reserva antiga CONTINUA apontando para o cadastro antigo", async () => {

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Check,
   Clock,
@@ -38,6 +39,31 @@ const STEP_LABELS: Record<Step, string> = {
   4: "Confirmação",
 };
 
+
+/**
+ * A escolha de quem ainda não tinha conta atravessa o login.
+ *
+ * Com a vitrine pública, o cliente escolhe serviço e horário antes de entrar.
+ * Perder essa escolha no caminho do login seria obrigá-lo a refazer tudo no
+ * momento exato em que ele já decidiu. Fica na sessão do navegador (não vai a
+ * servidor nenhum) e é consumida uma vez.
+ */
+const CHAVE_ESCOLHA = "agendar:escolha";
+type EscolhaGuardada = { serviceIds: string[]; staffId: string | null; dayIso: string; time: string };
+
+function consumirEscolha(): EscolhaGuardada | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const bruto = sessionStorage.getItem(CHAVE_ESCOLHA);
+    if (!bruto) return null;
+    sessionStorage.removeItem(CHAVE_ESCOLHA);
+    const e = JSON.parse(bruto) as EscolhaGuardada;
+    return Array.isArray(e.serviceIds) && e.dayIso && e.time ? e : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function AgendarPage() {
   const tenant = useTenant();
   const { items: servicosDoc, status: statusServicos } = useServices();
@@ -45,7 +71,8 @@ export default function AgendarPage() {
   const barbeirosAtivos = equipe.filter((b) => b.active !== false);
 
   const services = servicosDoc
-    .filter((s) => s.active !== false)
+    /* Sem preço, não está pronto para o cliente — o servidor recusa também. */
+    .filter((s) => s.active !== false && Number(s.price) > 0)
     .map((s) => ({
       id: s.id,
       name: s.name,
@@ -54,19 +81,29 @@ export default function AgendarPage() {
       priceFrom: s.priceFrom,
     }));
 
-  const [step, setStep] = useState<Step>(1);
-  const [staffId, setStaffId] = useState<string | null>(null);
+  /* Montada só depois de a autenticação resolver (o `AuthGuard` segura a
+   * tela antes), então ler a sessão aqui não desencontra da hidratação. */
+  const router = useRouter();
+  const [retomada] = useState(consumirEscolha);
+  const [step, setStep] = useState<Step>(retomada ? 3 : 1);
+  const [staffId, setStaffId] = useState<string | null>(retomada?.staffId ?? null);
   /* A resposta carrega a CHAVE que a originou, e a lista exibida é derivada
    * dela. Antes o efeito zerava o estado antes de cada busca — o que é setState
    * dentro de efeito e provoca render em cascata. Derivar resolve os dois
    * problemas de uma vez: não há limpeza a fazer, e a lista de um dia nunca
    * aparece sob o outro enquanto a consulta nova viaja. */
-  const [resposta, setResposta] = useState<{ chave: string; slots: string[] } | null>(null);
-  const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
-  const [selectedDayIndex, setSelectedDayIndex] = useState(() =>
-    firstBookableIndex(bookableDays())
+  const [resposta, setResposta] = useState<{ chave: string; slots: string[]; falhou?: boolean } | null>(null);
+  /* Incrementar refaz a consulta de horários — o "Tentar de novo". */
+  const [tentativa, setTentativa] = useState(0);
+  const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>(retomada?.serviceIds ?? []);
+  const [selectedDayIndex, setSelectedDayIndex] = useState(() => {
+    const dias = bookableDays();
+    const i = retomada ? dias.findIndex((d) => d.iso === retomada.dayIso) : -1;
+    return i >= 0 ? i : firstBookableIndex(dias);
+  });
+  const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(
+    retomada ? { time: retomada.time, available: true } : null
   );
-  const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
   const { user } = useAuth();
   /* D2 · o mensalista precisa se reconhecer ANTES de confirmar.
    *
@@ -91,6 +128,11 @@ export default function AgendarPage() {
    * tinha para onde ir, e a confirmação automática não teria destinatário nem
    * depois de a Meta liberar o envio. */
   const [whatsapp, setWhatsapp] = useState("");
+  /* O nome era `user.displayName` — vazio para quem entra por e-mail — e o
+   * painel mostrava "Cliente" em toda reserva do app: o dono não sabia quem
+   * vinha às 14h (rodada E2E de 23/09). Agora é perguntado aqui, junto do
+   * WhatsApp, e lembrado no perfil. */
+  const [nome, setNome] = useState("");
 
   /* Pré-preenche com o que a pessoa já informou numa reserva anterior. O
    * documento é dela e atravessa barbearias: quem corta em duas não digita o
@@ -103,17 +145,19 @@ export default function AgendarPage() {
     let cancelado = false;
     lerPerfil(user.uid)
       .then((perfil) => {
-        if (cancelado || !perfil?.whatsapp) return;
-        setWhatsapp((atual) => atual || mascararWhatsapp(perfil.whatsapp));
+        if (cancelado) return;
+        if (perfil?.whatsapp) setWhatsapp((atual) => atual || mascararWhatsapp(perfil.whatsapp));
+        const conhecido = perfil?.name || user.displayName || "";
+        if (conhecido) setNome((atual) => atual || conhecido);
       })
       .catch(() => undefined);
     return () => {
       cancelado = true;
     };
-  }, [user?.uid]);
+  }, [user?.uid, user?.displayName]);
 
   const whatsappOk = whatsappValido(whatsapp);
-  const politicaCancelamento = tenant.policies.cancellation;
+  const nomeOk = nome.trim().length >= 2;
 
   /**
    * A reserva é criada no SERVIDOR.
@@ -124,8 +168,29 @@ export default function AgendarPage() {
    * horário numa transação (dois toques simultâneos, um só ganha o slot) e
    * define o status, que as regras proíbem o cliente de escrever.
    */
-  async function confirmarReserva() {
+  function entrarParaConfirmar() {
     if (!selectedDay || !selectedSlot) return;
+    try {
+      sessionStorage.setItem(
+        CHAVE_ESCOLHA,
+        JSON.stringify({
+          serviceIds: selectedServiceIds,
+          staffId,
+          dayIso: selectedDay.iso,
+          time: selectedSlot.time,
+        } satisfies EscolhaGuardada)
+      );
+    } catch {}
+    router.push("/login?next=/agendar");
+  }
+
+  async function confirmarReserva() {
+    if (!user) return entrarParaConfirmar();
+    if (!selectedDay || !selectedSlot) return;
+    if (!nomeOk) {
+      setErroReserva("Informe seu nome — é como a barbearia vai te reconhecer na agenda.");
+      return;
+    }
     if (!whatsappOk) {
       setErroReserva("Informe um WhatsApp válido com DDD — é por ele que a barbearia fala com você.");
       return;
@@ -141,7 +206,7 @@ export default function AgendarPage() {
         date: selectedDay.iso,
         time: selectedSlot.time,
         paymentOrigin: "in_person",
-        clientName: user?.displayName ?? undefined,
+        clientName: nome.trim(),
         clientWhatsapp: normalizarWhatsapp(whatsapp),
       });
 
@@ -149,7 +214,7 @@ export default function AgendarPage() {
        * fora do caminho de erro: falhar em salvar o perfil não pode derrubar um
        * agendamento que já está gravado. */
       if (user?.uid) {
-        void salvarPerfil(user.uid, { whatsapp }).catch(() => undefined);
+        void salvarPerfil(user.uid, { whatsapp, name: nome.trim() }).catch(() => undefined);
       }
 
       setStep(4);
@@ -219,17 +284,18 @@ export default function AgendarPage() {
         if (!cancelado) setResposta({ chave: chaveDaConsulta, slots: r.slots ?? [] });
       } catch (err) {
         console.error("[agendar] falha ao buscar horários", err);
-        if (!cancelado) setResposta({ chave: chaveDaConsulta, slots: [] });
+        if (!cancelado) setResposta({ chave: chaveDaConsulta, slots: [], falhou: true });
       }
     })();
     return () => {
       cancelado = true;
     };
-  }, [step, diaIso, idDoBarbeiro, totalDuration, tenant.id, chaveDaConsulta]);
+  }, [step, diaIso, idDoBarbeiro, totalDuration, tenant.id, chaveDaConsulta, tentativa]);
 
   /* Só vale a resposta desta combinação de dia, barbeiro e duração. Trocar
    * qualquer uma volta a lista para "carregando" sem precisar limpá-la. */
-  const horariosLivres = resposta?.chave === chaveDaConsulta ? resposta.slots : null;
+  const respostaAtual = resposta?.chave === chaveDaConsulta ? resposta : null;
+  const horariosLivres = respostaAtual ? respostaAtual.slots : null;
 
   /* `availableSlots` devolve só o que está livre, então todo horário exibido é
    * agendável. O encaixe saiu da proposta em 17/08: ele existia aqui como
@@ -250,6 +316,7 @@ export default function AgendarPage() {
     diaFechado: !!selectedDay?.disabled,
     temProfissional: !!barbeiroEscolhido,
     horariosLivres,
+    falhou: respostaAtual?.falhou === true,
   });
 
   /* Rótulo e trava do CTA existiam duplicados na barra fixa do mobile e no
@@ -257,8 +324,8 @@ export default function AgendarPage() {
   const ctaDisabled =
     (step === 1 && selectedServiceIds.length === 0) ||
     (step === 2 && !selectedSlot) ||
-    (step === 3 && !whatsappOk);
-  const ctaLabel = step === 3 ? "Confirmar reserva" : "Continuar";
+    (step === 3 && !!user && (!whatsappOk || !nomeOk));
+  const ctaLabel = step === 3 ? (user ? "Confirmar reserva" : "Entrar para confirmar") : "Continuar";
 
   function toggleService(id: string) {
     setSelectedServiceIds((prev) =>
@@ -447,6 +514,19 @@ export default function AgendarPage() {
             </Card>
           ) : estadoDaLista === "carregando" ? (
             <LoadingRows rows={3} />
+          ) : estadoDaLista === "erro" ? (
+            <Card className="flex flex-col items-center gap-2 py-6 text-center text-sm text-ink-muted">
+              <span>Não conseguimos carregar os horários agora.</span>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setResposta(null);
+                  setTentativa((n) => n + 1);
+                }}
+              >
+                Tentar de novo
+              </Button>
+            </Card>
           ) : estadoDaLista === "sem-horario" ? (
             <Card className="flex flex-col gap-2 py-6 text-center text-sm text-ink-muted">
               <span>
@@ -518,6 +598,37 @@ export default function AgendarPage() {
               barbearia confirma, lembra e avisa de qualquer mudança. Enquanto
               não existia, toda reserva nascia sem número e o dono descobria o
               cliente só quando ele aparecia — ou não aparecia. */}
+          {!user && (
+            <Card className="flex flex-col gap-1 border-gold/30 bg-gold/5">
+              <p className="text-sm font-medium text-ink">Falta só entrar</p>
+              {/* Sem prometer o que não aconteceu: nada está reservado ainda. */}
+              <p className="text-xs text-ink-muted">
+                Entre ou crie sua conta para confirmar. Sua escolha fica salva, mas o
+                horário só é reservado quando você confirmar — se alguém marcar antes,
+                a gente avisa e você escolhe outro.
+              </p>
+            </Card>
+          )}
+
+          {user && (
+          <>
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="cliente-nome" className="text-xs uppercase tracking-wider text-ink-muted">
+              Seu nome
+            </label>
+            <input
+              id="cliente-nome"
+              name="name"
+              type="text"
+              autoComplete="name"
+              maxLength={80}
+              placeholder="Como te chamam no salão"
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              className="min-h-12 rounded-xl border border-border bg-surface px-4 text-sm text-ink outline-none focus-visible:ring-2 focus-visible:ring-gold"
+            />
+          </div>
+
           <div className="flex flex-col gap-1.5">
             <label htmlFor="cliente-whatsapp" className="text-xs uppercase tracking-wider text-ink-muted">
               Seu WhatsApp
@@ -541,6 +652,8 @@ export default function AgendarPage() {
                 : `É por aqui que ${tenant.brand.name} confirma seu horário e avisa se algo mudar.`}
             </p>
           </div>
+          </>
+          )}
 
           {/* Antes havia três botões de pagamento e dois nasciam desabilitados:
               o servidor recusa qualquer pagamento antecipado enquanto não
@@ -600,13 +713,13 @@ export default function AgendarPage() {
             * tinha corrigido, e que aqui, do lado de quem paga, tinha ficado. */}
           <Card className="flex gap-2 bg-surface-raised text-xs text-ink-muted">
             <Clock size={14} className="mt-0.5 shrink-0 text-gold-strong" />
+            {/* O pagamento é no salão: nada é cobrado agora. A frase anterior
+                prometia "100% de volta" e ameaçava "retemos 25%" sobre um
+                dinheiro que não existe — logo abaixo de "sem cobrança". */}
             <p>
-              Cancelamento até {politicaCancelamento.fullRefundHours}h antes:
-              100% de volta. Entre {politicaCancelamento.fullRefundHours}h e{" "}
-              {politicaCancelamento.partialRefundHours}h: retemos{" "}
-              {politicaCancelamento.cancellationFeePct}% de taxa. Menos de{" "}
-              {politicaCancelamento.partialRefundHours}h ou não comparecimento:
-              sem reembolso.
+              Precisa desmarcar? Cancele pelo app, sem custo. Para reagendar,
+              faça até {tenant.policies.reschedule.minHoursBefore}h antes do
+              horário.
             </p>
           </Card>
         </div>

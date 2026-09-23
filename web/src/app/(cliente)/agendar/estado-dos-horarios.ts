@@ -50,6 +50,12 @@ export type EstadoDosHorarios =
   | "carregando"
   /** O servidor respondeu: não há horário livre que caiba. */
   | "sem-horario"
+  /**
+   * A pergunta FALHOU. Diferente de "sem horário": dizer ao cliente que o
+   * barbeiro não tem horário quando a rede caiu é afirmar algo que ninguém
+   * verificou — e ele desiste de uma agenda que talvez esteja vazia.
+   */
+  | "erro"
   /** Há horário livre para mostrar. */
   | "com-horario";
 
@@ -57,13 +63,16 @@ export function estadoDosHorarios({
   diaFechado,
   temProfissional,
   horariosLivres,
+  falhou = false,
 }: {
   diaFechado: boolean;
   temProfissional: boolean;
   horariosLivres: HorariosLivres;
+  falhou?: boolean;
 }): EstadoDosHorarios {
   if (diaFechado) return "dia-fechado";
   if (!temProfissional) return "escolher-profissional";
+  if (falhou) return "erro";
   if (horariosLivres === null) return "carregando";
   return horariosLivres.length > 0 ? "com-horario" : "sem-horario";
 }

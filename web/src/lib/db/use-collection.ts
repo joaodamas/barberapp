@@ -29,7 +29,7 @@ export type CollectionState<T> = {
 
 export function useShopCollection<T extends DocumentData>(
   collectionName: Parameters<typeof subscribeToCollection>[1],
-  options?: ListOptions & { enabled?: boolean }
+  options?: ListOptions & { enabled?: boolean; publica?: boolean }
 ): CollectionState<T> {
   const { id: barbershopId } = useTenant();
   const { user, loading: authLoading } = useAuth();
@@ -41,6 +41,9 @@ export function useShopCollection<T extends DocumentData>(
   });
 
   const enabled = options?.enabled ?? true;
+  /* Coleção de vitrine (serviços, equipe, planos): as regras deixam ler sem
+   * conta, e a tela pública precisa dela antes de qualquer login. */
+  const publica = options?.publica === true;
   // Serializado porque `equals` é um objeto novo a cada render.
   const optionsKey = JSON.stringify({
     orderByField: options?.orderByField,
@@ -49,7 +52,7 @@ export function useShopCollection<T extends DocumentData>(
   });
 
   useEffect(() => {
-    if (authLoading || !user || !enabled) return;
+    if (authLoading || (!user && !publica) || !enabled) return;
 
     /* Sem `setState("carregando")` aqui de propósito, por duas razões: o React
      * Compiler desiste de otimizar o componente quando encontra setState no
@@ -70,7 +73,7 @@ export function useShopCollection<T extends DocumentData>(
     );
 
     return unsubscribe;
-  }, [barbershopId, collectionName, optionsKey, authLoading, user, enabled]);
+  }, [barbershopId, collectionName, optionsKey, authLoading, user, enabled, publica]);
 
   return state;
 }

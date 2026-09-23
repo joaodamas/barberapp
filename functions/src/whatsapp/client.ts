@@ -48,8 +48,12 @@ export type EnvioResultado =
  */
 export function normalizarNumero(bruto: string): string | null {
   const digitos = String(bruto ?? "").replace(/\D/g, "");
-  if (digitos.length < 10) return null;
-  return digitos.startsWith("55") ? digitos : `55${digitos}`;
+  /* Pelo comprimento, não pelo prefixo: 55 também é DDD (Santa Maria, RS), e
+   * "5599999…" com 11 dígitos é nacional — mandar sem o DDI é a falha
+   * silenciosa que o cabeçalho descreve. Espelho de `web/src/lib/whatsapp-numero.ts`. */
+  if (digitos.length === 10 || digitos.length === 11) return `55${digitos}`;
+  if ((digitos.length === 12 || digitos.length === 13) && digitos.startsWith("55")) return digitos;
+  return null;
 }
 
 /** Catálogo + valores nomeados → componentes da Graph API. */

@@ -159,7 +159,7 @@ export default function CriarContaPage() {
       const { callFunction } = await import("@/lib/firebase");
       const r = await callFunction<
         Record<string, unknown>,
-        { barbershopId: string; slug: string }
+        { barbershopId: string; slug: string; codigoDeEntrada?: string | null }
       >("signUpBarbershop", {
         slug: slug.trim().toLowerCase(),
         name: nome.trim(),
@@ -168,11 +168,19 @@ export default function CriarContaPage() {
         address: endereco.trim() || undefined,
       });
 
-      /* O claim `barbershops` acabou de ser gravado e o token em uso ainda não
-       * o tem — a função revoga o refresh token justamente para forçar a
-       * renovação. Recarregar no endereço novo entra já como dono; um
-       * `router.push` levaria o token velho e cairia no app do cliente. */
-      window.location.href = `https://${r.slug}.${ROOT_DOMAIN}/comecar`;
+      /* O endereço novo é outra ORIGEM, e a sessão do Firebase não atravessa
+       * origens: o comentário daqui dizia que ele "entrava já como dono", e
+       * ele caía no login (rodada E2E de 23/09). O código de uso único vai no
+       * fragmento — que o navegador não envia a servidor nenhum — e `/comecar`
+       * o troca por uma sessão. Sem código, cai no login, como antes.
+       *
+       * Protocolo e porta da página atual: `https://` fixo quebrava o
+       * redirecionamento no ambiente local (`http://…:3000`). */
+      const { protocol, port } = window.location;
+      const destino = `${protocol}//${r.slug}.${ROOT_DOMAIN}${port ? `:${port}` : ""}/comecar`;
+      window.location.href = r.codigoDeEntrada
+        ? `${destino}#entrada=${r.codigoDeEntrada}`
+        : destino;
     } catch (e) {
       console.error("[criar-conta] falha ao criar", e);
       setErro(mensagemDeErro(e));

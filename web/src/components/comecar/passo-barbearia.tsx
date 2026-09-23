@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { shortNameFrom, type Tenant } from "@/lib/tenant";
+import { normalizarWhatsapp } from "@/lib/whatsapp-numero";
 
 /** Paleta validada: toda cor aqui dá contraste ≥4,5:1 com texto escuro.
  *  Seletor livre deixaria o dono escolher um dourado claro e derrubar a
@@ -44,7 +45,7 @@ export function PassoBarbearia({
           "brand.shortName": shortNameFrom(nome),
           "brand.accentColor": cor,
           "contact.address": endereco.trim(),
-          "contact.whatsapp": digitos.startsWith("55") ? digitos : `55${digitos}`,
+          "contact.whatsapp": normalizarWhatsapp(digitos),
           "contact.instagram": instagram.trim() || null,
         });
       }}

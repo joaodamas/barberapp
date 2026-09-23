@@ -6,7 +6,7 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
-import { doc, getDoc, setDoc, deleteDoc, updateDoc } from "firebase/firestore";
+import { collection, deleteField, doc, getDoc, getDocs, setDoc, deleteDoc, updateDoc } from "firebase/firestore";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 /**
@@ -528,5 +528,219 @@ describe("a equipe", () => {
   it("🔒 barbeiro e cliente não alcançam o livro caixa", async () => {
     await assertFails(getDoc(doc(as(BARBEIRO_ALFA), `barbershops/${ALFA}/cash_entries`, "cx-1")));
     await assertFails(getDoc(doc(as(CLIENTE), `barbershops/${ALFA}/cash_entries`, "cx-1")));
+  });
+});
+
+describe("reserva: o painel fecha e marca falta — e só isso", () => {
+  /* A regra era `update, delete: if isStaffOf`, sem campo nenhum conferido, e
+   * o gatilho financeiro confia no documento. Rodada E2E de 23/09. */
+  const bk = (quem: { sub: string } & Record<string, unknown>) =>
+    doc(as(quem), `barbershops/${ALFA}/bookings`, "bk-1");
+
+  it("o dono conclui com o meio e a forma de pagamento", async () => {
+    await assertSucceeds(
+      updateDoc(bk(DONO_ALFA), {
+        status: "completed", paymentMethod: "credit", paymentFormId: "credito-1x", paymentFormLabel: "Crédito",
+      })
+    );
+  });
+
+  it("o barbeiro conclui o mensalista sem meio de pagamento (null)", async () => {
+    await assertSucceeds(
+      updateDoc(bk(BARBEIRO_ALFA), { status: "completed", paymentMethod: null, paymentFormId: null, paymentFormLabel: null })
+    );
+  });
+
+  it("marca falta", async () => {
+    await assertSucceeds(updateDoc(bk(DONO_ALFA), { status: "no_show" }));
+  });
+
+  it("🔒 não forja comissão, valor, cobertura, barbeiro nem cliente ao concluir", async () => {
+    for (const extra of [
+      { value: 99999 },
+      { staffId: "barbeiro-alfa" },
+      { clientId: "outra-conta" },
+      { cobertura: { tipo: "plano" } },
+      { cicloFinanceiro: { revertidoEm: "x", comissao: { commissionPct: 100 }, pagamento: { grossAmount: 99999 } } },
+    ]) {
+      await assertFails(updateDoc(bk(BARBEIRO_ALFA), { status: "completed", paymentMethod: "cash", ...extra }));
+      await assertFails(updateDoc(bk(DONO_ALFA), { status: "completed", paymentMethod: "cash", ...extra }));
+    }
+  });
+
+  it("🔒 não inventa meio de pagamento nem status fora do fechamento", async () => {
+    await assertFails(updateDoc(bk(DONO_ALFA), { status: "completed", paymentMethod: "bitcoin" }));
+    await assertFails(updateDoc(bk(DONO_ALFA), { status: "cancelled_by_shop" }));
+    await assertFails(updateDoc(bk(DONO_ALFA), { status: "confirmed", time: "23:00" }));
+  });
+
+  it("🔒 não reabre atendimento concluído direto no banco", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `barbershops/${ALFA}/bookings`, "bk-1"), { status: "completed" });
+    });
+    await assertFails(updateDoc(bk(DONO_ALFA), { status: "no_show" }));
+    await assertFails(updateDoc(bk(DONO_ALFA), { status: "completed", paymentMethod: "pix" }));
+  });
+
+  it("🔒 ninguém apaga reserva", async () => {
+    await assertFails(deleteDoc(bk(DONO_ALFA)));
+    await assertFails(deleteDoc(bk(BARBEIRO_ALFA)));
+  });
+});
+
+describe("vitrine pública e o que não é vitrine (rodada E2E de 23/09)", () => {
+  it("sem login: vê a barbearia, serviços, barbeiros e planos", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `barbershops/${ALFA}/staff`, "vit"), { name: "Zé", active: true });
+      await setDoc(doc(ctx.firestore(), `barbershops/${ALFA}/plans`, "p1"), { name: "Ilimitado", price: 149 });
+    });
+    await assertSucceeds(getDoc(doc(anon(), "barbershops", ALFA)));
+    await assertSucceeds(getDoc(doc(anon(), `barbershops/${ALFA}/services`, "corte")));
+    await assertSucceeds(getDoc(doc(anon(), `barbershops/${ALFA}/staff`, "vit")));
+    await assertSucceeds(getDoc(doc(anon(), `barbershops/${ALFA}/plans`, "p1")));
+  });
+
+  it("🔒 ninguém lista todas as barbearias", async () => {
+    await assertFails(getDocs(collection(anon(), "barbershops")));
+    await assertFails(getDocs(collection(as(CLIENTE), "barbershops")));
+    await assertFails(getDocs(collection(as(DONO_ALFA), "barbershops")));
+  });
+
+  it("🔒 salário e comissão: só o dono, e fora da ficha pública", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `barbershops/${ALFA}/staff_pay`, "vit"), { commissionPct: 50, salary: 2200 });
+      await setDoc(doc(ctx.firestore(), `barbershops/${ALFA}/staff`, "legado"), { name: "Antigo", commissionPct: 40 });
+    });
+    await assertSucceeds(getDoc(doc(as(DONO_ALFA), `barbershops/${ALFA}/staff_pay`, "vit")));
+    await assertFails(getDoc(doc(as(BARBEIRO_ALFA), `barbershops/${ALFA}/staff_pay`, "vit")));
+    await assertFails(getDoc(doc(as(CLIENTE), `barbershops/${ALFA}/staff_pay`, "vit")));
+    await assertFails(getDoc(doc(as(DONO_BETA), `barbershops/${ALFA}/staff_pay`, "vit")));
+    // A ficha pública não volta a receber remuneração…
+    await assertFails(setDoc(doc(as(DONO_ALFA), `barbershops/${ALFA}/staff`, "n"), { name: "N", commissionPct: 40 }));
+    await assertFails(updateDoc(doc(as(DONO_ALFA), `barbershops/${ALFA}/staff`, "legado"), { commissionPct: 60 }));
+    // …mas a ficha antiga continua editável, e o campo pode ser removido.
+    await assertSucceeds(updateDoc(doc(as(DONO_ALFA), `barbershops/${ALFA}/staff`, "legado"), { name: "Renomeado" }));
+    await assertSucceeds(updateDoc(doc(as(DONO_ALFA), `barbershops/${ALFA}/staff`, "legado"), { commissionPct: deleteField() }));
+  });
+
+  it("🔒 custo de produto não é vitrine", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `barbershops/${ALFA}/products`, "pomada"), { name: "Pomada", cost: 18 });
+    });
+    await assertFails(getDoc(doc(as(CLIENTE), `barbershops/${ALFA}/products`, "pomada")));
+    await assertFails(getDoc(doc(anon(), `barbershops/${ALFA}/products`, "pomada")));
+    await assertSucceeds(getDoc(doc(as(BARBEIRO_ALFA), `barbershops/${ALFA}/products`, "pomada")));
+  });
+
+  it("🔒 senha provisória não trocada: nenhum papel", async () => {
+    const PROVISORIO = { sub: "dono-provisorio", barbershops: { [ALFA]: "owner" }, mustChangePassword: true };
+    await assertFails(getDoc(doc(as(PROVISORIO), `barbershops/${ALFA}/expenses`, "exp-1")));
+    await assertFails(updateDoc(doc(as(PROVISORIO), "barbershops", ALFA), { "brand.name": "X" }));
+    await assertSucceeds(getDoc(doc(as(DONO_ALFA), `barbershops/${ALFA}/expenses`, "exp-1")));
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* Encerramento da conta — P0-5                                        */
+/* ------------------------------------------------------------------ */
+
+describe("o encerramento é do servidor", () => {
+  /* A barbearia encerrada há 2 dias, como `encerrarConta` a deixa. */
+  const DOIS_DIAS_ATRAS = Date.now() - 2 * 24 * 60 * 60 * 1000;
+
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), "barbershops", ALFA), {
+        status: "encerrada",
+        statusAntesDeEncerrar: "ativo",
+        encerradaEm: new Date(DOIS_DIAS_ATRAS),
+        encerradaEmMs: DOIS_DIAS_ATRAS,
+        encerradaPor: DONO_ALFA.sub,
+        encerramentoMotivo: null,
+      });
+    });
+  });
+
+  it("🔒 o dono NÃO antecipa o expurgo reescrevendo a data do encerramento", async () => {
+    /* `encerradaEmMs: 1` = "encerrada em 1970": o expurgo rodaria na
+     * madrugada seguinte, pulando a janela de 30 dias. */
+    await assertFails(updateDoc(doc(as(DONO_ALFA), "barbershops", ALFA), { encerradaEmMs: 1 }));
+    await assertFails(
+      updateDoc(doc(as(DONO_ALFA), "barbershops", ALFA), { encerradaEm: new Date(0) })
+    );
+  });
+
+  it("🔒 o dono NÃO impede o expurgo estragando a data", async () => {
+    /* Uma string faz `venceuAJanela` devolver falso para sempre — a conta
+     * nunca seria apagada, e a Política afirmaria que foi. */
+    await assertFails(
+      updateDoc(doc(as(DONO_ALFA), "barbershops", ALFA), { encerradaEmMs: "nunca" })
+    );
+  });
+
+  it("🔒 o dono NÃO reescreve quem encerrou, nem o motivo, nem o status a restaurar", async () => {
+    const ref = doc(as(DONO_ALFA), "barbershops", ALFA);
+    await assertFails(updateDoc(ref, { encerradaPor: "outra-pessoa" }));
+    await assertFails(updateDoc(ref, { encerramentoMotivo: "reescrito" }));
+    /* `statusAntesDeEncerrar` decide o que `reabrirConta` devolve: gravar
+     * "ativo" numa conta que era suspensa a destravaria ao reabrir. */
+    await assertFails(updateDoc(ref, { statusAntesDeEncerrar: "trial" }));
+  });
+
+  it("🔒 o dono NÃO destrava a reabertura apagando a marca do expurgo", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), "barbershops", ALFA), {
+        expurgo: { iniciadoEmMs: Date.now() },
+      });
+    });
+    await assertFails(updateDoc(doc(as(DONO_ALFA), "barbershops", ALFA), { expurgo: null }));
+  });
+
+  it("🔒 o dono NÃO apaga o rastro de uma suspensão", async () => {
+    await assertFails(
+      updateDoc(doc(as(DONO_ALFA), "barbershops", ALFA), { suspendedReason: null })
+    );
+    await assertFails(
+      updateDoc(doc(as(DONO_ALFA), "barbershops", ALFA), { suspendedAt: new Date() })
+    );
+  });
+
+  it("🔒 nem escondendo a mudança junto de uma edição legítima", async () => {
+    await assertFails(
+      updateDoc(doc(as(DONO_ALFA), "barbershops", ALFA), {
+        brand: { name: "Disfarce" },
+        encerradaEmMs: 1,
+      })
+    );
+  });
+
+  it("a lista nova não pegou campo que o dono edita", async () => {
+    /* O modo leitura da conta encerrada é decisão da TELA
+     * (`acessoDaBarbearia`), não desta regra. */
+    await assertSucceeds(
+      updateDoc(doc(as(DONO_ALFA), "barbershops", ALFA), { brand: { name: "Nova Marca" } })
+    );
+  });
+
+  it("o suporte da plataforma ainda corrige o encerramento, se precisar", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as(SUPORTE), "barbershops", ALFA), { encerradaEmMs: DOIS_DIAS_ATRAS - 1 })
+    );
+  });
+});
+
+describe("o arquivo fiscal do expurgo", () => {
+  it("🔒 ninguém alcança `arquivo_fiscal` pelo cliente — nem o dono, nem o suporte", async () => {
+    /* Cópia sem identificação dos registros fiscais de uma barbearia que já
+     * não existe. Só o Admin SDK lê; ver `data-deletion.ts`. */
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `arquivo_fiscal/${ALFA}/payments`, "pg-1"), { value: 90 });
+    });
+    for (const quem of [DONO_ALFA, SUPORTE, CLIENTE]) {
+      await assertFails(getDoc(doc(as(quem), `arquivo_fiscal/${ALFA}/payments`, "pg-1")));
+      await assertFails(
+        setDoc(doc(as(quem), `arquivo_fiscal/${ALFA}/payments`, "forjado"), { value: 1 })
+      );
+    }
   });
 });

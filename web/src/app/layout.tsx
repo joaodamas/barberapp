@@ -5,6 +5,7 @@ import { AuthProvider } from "@/lib/auth-context";
 import { TenantProvider } from "@/lib/tenant-context";
 import { getTenant, resolverTenant } from "@/lib/tenant-server";
 import { tenantCssVars } from "@/lib/tenant";
+import { iconesDaMarca } from "@/lib/monograma";
 import "./globals.css";
 
 /* Fontes AUTO-HOSPEDADAS, e não `next/font/google`.
@@ -70,10 +71,10 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     icons: {
       icon: [
-        { url: "/icons/favicon-32.png", sizes: "32x32", type: "image/png" },
+        { url: iconesDaMarca(brand).favicon, sizes: "32x32", type: "image/png" },
         { url: brand.logo, type: "image/svg+xml" },
       ],
-      apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180" }],
+      apple: [{ url: iconesDaMarca(brand).apple, sizes: "180x180" }],
     },
   };
 }

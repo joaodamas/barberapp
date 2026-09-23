@@ -9,18 +9,15 @@ import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { bookingStatusMeta } from "@/lib/booking-status";
 import { labelDoPagamento } from "@/lib/payment-method";
-import { formatBRL, formatDatePtBR } from "@/lib/format";
+import { formatBRL, formatDatePtBR, toISODate } from "@/lib/format";
 import { useTenant } from "@/lib/tenant-context";
 import { useAuth } from "@/lib/auth-context";
 import { useLoyalty, useMyBookings, useServices } from "@/lib/db/use-shop-data";
-import { OCCUPIES_SLOT } from "@/lib/domain";
+import { EM_ABERTO } from "@/lib/domain";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { bookableDays, firstBookableIndex } from "@/lib/slots";
-import {
-  cancellationPolicy,
-  refundAmountFor,
-  reschedulePolicy,
-} from "@/lib/business-rules";
+import { refundAmountFor } from "@/lib/business-rules";
+import type { TenantPolicies } from "@/lib/tenant";
 import type { Booking } from "@/lib/types";
 
 type Tab = "futuras" | "historico";
@@ -35,22 +32,29 @@ function hoursUntil(booking: Booking) {
  * Política de cancelamento — os percentuais e janelas vivem em
  * `lib/business-rules.ts`. Aqui só se monta o texto.
  */
-function refundFor(booking: Booking) {
+/**
+ * Quanto volta num cancelamento — pela política DA BARBEARIA.
+ *
+ * Usava as constantes da plataforma: numa barbearia com política própria a
+ * tela prometia uma coisa e `cancelBooking` gravava outra.
+ */
+function refundFor(booking: Booking, policy: TenantPolicies["cancellation"]) {
   const hours = hoursUntil(booking);
   const refund = refundAmountFor({
     value: booking.value,
     paymentMethod: booking.paymentMethod,
     hoursUntilStart: hours,
+    policy,
   });
 
   const label =
     refund.tier === "sem_pagamento"
-      ? "Como o pagamento seria no salão, não há valor a devolver."
+      ? "Você ainda não pagou nada, então não há valor a devolver."
       : refund.tier === "integral"
-        ? `Faltam mais de ${cancellationPolicy.fullRefundHours}h: você recebe ${formatBRL(refund?.amount ?? 0)} de volta (100%).`
+        ? `Faltam mais de ${policy.fullRefundHours}h: você recebe ${formatBRL(refund?.amount ?? 0)} de volta (100%).`
         : refund.tier === "parcial"
-          ? `Faltam menos de ${cancellationPolicy.fullRefundHours}h: retemos ${refund.retainedPct}% de taxa de cancelamento e devolvemos ${formatBRL(refund?.amount ?? 0)}.`
-          : `Faltam menos de ${cancellationPolicy.partialRefundHours}h para o horário: não há devolução prevista na política.`;
+          ? `Faltam menos de ${policy.fullRefundHours}h: retemos ${refund.retainedPct}% de taxa de cancelamento e devolvemos ${formatBRL(refund?.amount ?? 0)}.`
+          : `Faltam menos de ${policy.partialRefundHours}h para o horário: não há devolução prevista na política.`;
 
   return { hoursUntil: hours, ...refund, label };
 }
@@ -68,13 +72,28 @@ export default function ReservasPage() {
       id: string; name: string; durationMin: number;
     }>;
 
-  const hoje = new Date().toISOString().slice(0, 10);
-  const futuras = minhas.filter((b) => b.date >= hoje && OCCUPIES_SLOT.includes(b.status));
+  const cancelamento = tenant.policies.cancellation;
+  const remarcacao = tenant.policies.reschedule;
+
+  /* Dia LOCAL, e só o que ainda vai acontecer.
+   *
+   * Três defeitos juntos aqui (rodada E2E de 23/09): `toISOString()` é UTC e
+   * depois das 21h escondia as reservas da noite; `OCCUPIES_SLOT` inclui
+   * concluído e falta, então o corte já feito e pago aparecia como futuro,
+   * com "a pagar no salão" e botão de cancelar; e a tela mostrava UMA reserva
+   * — `futuras[length - 1]` — com o cliente podendo ter até três. */
+  const hoje = toISODate(new Date());
+  const futuras = minhas
+    .filter((b) => b.date >= hoje && EM_ABERTO.includes(b.status))
+    .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
   const bookingHistory = minhas.filter((b) => b.status === "completed");
 
   const [tab, setTab] = useState<Tab>("futuras");
-  const booking = (futuras[futuras.length - 1] ?? null) as (typeof minhas)[number] | null;
-  const statusMeta = booking ? bookingStatusMeta[booking.status] : null;
+  /* A reserva sobre a qual o modal age — escolhida no botão do cartão dela. */
+  const [selecionadaId, setSelecionadaId] = useState<string | null>(null);
+  const booking = (futuras.find((b) => b.id === selecionadaId) ?? futuras[0] ?? null) as
+    | (typeof minhas)[number]
+    | null;
   const bookingServices = booking ? getServicesByIds(booking.serviceIds) : [];
   const duracaoDaReserva = bookingServices.reduce((sum, s) => sum + s.durationMin, 0);
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
@@ -82,28 +101,8 @@ export default function ReservasPage() {
   const [dayIndex, setDayIndex] = useState(() => firstBookableIndex(bookableDays(new Date(), tenant.schedule)));
   const [time, setTime] = useState<string | null>(null);
   const [resposta, setResposta] = useState<{ chave: string; slots: string[] } | null>(null);
-  const [resgatando, setResgatando] = useState(false);
-  const [erroResgate, setErroResgate] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [erroReserva, setErroReserva] = useState<string | null>(null);
-
-  /* O resgate acontece no servidor: a transação lê o saldo e grava o resgate
-   * junto, senão dois toques no botão resgatam duas vezes com um saldo só. */
-  async function resgatar() {
-    setResgatando(true);
-    setErroResgate(null);
-    try {
-      const { callFunction } = await import("@/lib/firebase");
-      await callFunction("redeemLoyaltyReward", { barbershopId: tenant.id });
-    } catch (err) {
-      console.error("[fidelidade]", err);
-      setErroResgate(
-        (err as { message?: string })?.message ?? "Não foi possível resgatar agora."
-      );
-    } finally {
-      setResgatando(false);
-    }
-  }
 
   const days = useMemo(() => bookableDays(new Date(), tenant.schedule), [tenant.schedule]);
   const selectedDay = days[dayIndex];
@@ -158,35 +157,39 @@ export default function ReservasPage() {
   const horariosLivres = resposta?.chave === chaveDaConsulta ? resposta.slots : null;
   const slots = (horariosLivres ?? []).map((time) => ({ time, available: true }));
 
-  const active = !!booking;
-  const refund = booking ? refundFor(booking) : null;
+  const refund = booking ? refundFor(booking, cancelamento) : null;
 
   const totalSpentHistory = bookingHistory.reduce((s, b) => s + b.value, 0);
   const stampsLeft = loyalty.faltam;
 
   /* Reagendar era grátis, ilimitado e sem prazo — dava para reagendar 10 min
    * antes e cancelar depois com 100% de volta, anulando a política inteira. */
-  const horasAteReserva = booking ? hoursUntil(booking) : 0;
-  /* A contagem vem do DOCUMENTO — P1-13.
-   *
-   * Era um `useState(0)` que zerava com F5, e o servidor nunca soube da regra:
-   * `rescheduleBooking` validava só a janela de horas. A tela anunciava um
-   * limite de 2 que bastava recarregar a página para contornar.
-   *
-   * Agora quem barra é o servidor, dentro da transação que move o horário. Esta
-   * leitura existe para o botão dizer a verdade ANTES do toque — não é ela que
-   * aplica a regra. */
-  const remarcacoesFeitas = booking?.rescheduleCount ?? 0;
-  const podeReagendar =
-    active &&
-    horasAteReserva >= reschedulePolicy.minHoursBefore &&
-    remarcacoesFeitas < reschedulePolicy.maxPerBooking;
-  const motivoBloqueio =
-    horasAteReserva < reschedulePolicy.minHoursBefore
-      ? `Reagendamento só até ${reschedulePolicy.minHoursBefore}h antes — fale com a barbearia.`
-      : `Limite de ${reschedulePolicy.maxPerBooking} reagendamentos por reserva atingido.`;
+  /* A contagem vem do DOCUMENTO — P1-13: quem barra é o servidor, dentro da
+   * transação que move o horário. Esta leitura existe para o botão dizer a
+   * verdade ANTES do toque — não é ela que aplica a regra. */
+  function situacaoDaRemarcacao(b: (Booking & { rescheduleCount?: number }) | null) {
+    if (!b) return { pode: false, motivo: "" };
+    const horas = hoursUntil(b);
+    const feitas = b.rescheduleCount ?? 0;
+    if (horas < remarcacao.minHoursBefore) {
+      return {
+        pode: false,
+        motivo: `Reagendamento só até ${remarcacao.minHoursBefore}h antes — fale com a barbearia.`,
+      };
+    }
+    if (feitas >= remarcacao.maxPerBooking) {
+      return {
+        pode: false,
+        motivo: `Limite de ${remarcacao.maxPerBooking} reagendamentos por reserva atingido.`,
+      };
+    }
+    return { pode: true, motivo: "" };
+  }
+  const podeReagendar = situacaoDaRemarcacao(booking).pode;
 
-  function openReschedule() {
+  function openReschedule(id: string) {
+    setSelecionadaId(id);
+    setErroReserva(null);
     setDayIndex(firstBookableIndex(days));
     setTime(null);
     setRescheduleOpen(true);
@@ -285,72 +288,66 @@ export default function ReservasPage() {
         {status === "carregando" ? (
           <LoadingRows rows={2} />
         ) : tab === "futuras" ? (
-          active ? (
-            <Card className="flex flex-col gap-3 md:max-w-xl md:p-6">
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className="text-ink md:text-lg">
-                    {bookingServices.map((s) => s.name).join(" + ")}
-                  </p>
-                  {/* `capitalize` sobe TODA palavra e em português produz
-                      "Quarta-Feira, 19 De Agosto Às 14:00". Só a primeira. */}
-                  <p className="text-sm text-ink-muted first-letter:uppercase md:text-base">
-                    {booking ? `${formatDatePtBR(booking.date)} às ${booking.time}` : ""}
-                  </p>
-                  {/* FALTA AQUI: "com {staffName}".
-                    *
-                    * O servidor grava `staffName` na reserva desde que ela
-                    * nasce (`functions/src/booking.ts`), e nenhuma tela do
-                    * cliente mostra: quem escolheu o profissional no
-                    * agendamento não tem onde conferir a escolha depois, e
-                    * quem chega no salão não sabe por quem perguntar.
-                    *
-                    * Não foi implementado de propósito. `BookingDoc`, em
-                    * `lib/domain.ts`, não declara o campo — é o mesmo buraco
-                    * que o comentário de `durationMin` descreve ali — e
-                    * `domain.ts` é contrato compartilhado com o painel e com
-                    * a apuração financeira. Declarar um campo novo nele por
-                    * conta de uma tela do cliente é exatamente a mudança
-                    * "de uma linha" que o §25 manda parar e reportar. */}
-                </div>
-                {statusMeta && <Pill tone={statusMeta.tone}>{statusMeta.label}</Pill>}
-              </div>
-              <div className="flex items-center justify-between border-t border-border pt-2 text-sm md:pt-3 md:text-base">
-                <span className="text-ink-muted">
-                  {booking?.paymentMethod ? "Valor pago" : "A pagar no salão"}
-                </span>
-                <span className="font-display font-semibold text-ink md:text-lg">
-                  {formatBRL(booking?.value ?? 0)}
-                </span>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="secondary"
-                  className="flex-1"
-                  onClick={openReschedule}
-                  disabled={!podeReagendar}
-                  title={podeReagendar ? undefined : motivoBloqueio}
-                >
-                  Reagendar
-                </Button>
-                <Button
-                  variant="secondary"
-                  className="flex-1 text-danger"
-                  onClick={() => setCancelOpen(true)}
-                >
-                  Cancelar
-                </Button>
-              </div>
-              <p className="text-xs text-ink-muted md:text-sm">
-                Cancelamento até {cancellationPolicy.fullRefundHours}h antes: 100% de
-                volta. Entre {cancellationPolicy.fullRefundHours}h e{" "}
-                {cancellationPolicy.partialRefundHours}h: taxa de{" "}
-                {cancellationPolicy.cancellationFeePct}%.{" "}
-                {!podeReagendar && active && (
-                  <span className="text-gold-strong">{motivoBloqueio}</span>
-                )}
-              </p>
-            </Card>
+          futuras.length > 0 ? (
+            <div className="flex flex-col gap-3 md:max-w-xl">
+              {futuras.map((b) => {
+                const nomes = getServicesByIds(b.serviceIds).map((x) => x.name).join(" + ");
+                const meta = bookingStatusMeta[b.status];
+                const remarcar = situacaoDaRemarcacao(b);
+                return (
+                  <Card key={b.id} className="flex flex-col gap-3 md:p-6">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-ink md:text-lg">{nomes}</p>
+                        {/* `capitalize` sobe TODA palavra e em português produz
+                            "Quarta-Feira, 19 De Agosto Às 14:00". Só a primeira. */}
+                        <p className="text-sm text-ink-muted first-letter:uppercase md:text-base">
+                          {formatDatePtBR(b.date)} às {b.time}
+                        </p>
+                      </div>
+                      {meta && <Pill tone={meta.tone}>{meta.label}</Pill>}
+                    </div>
+                    <div className="flex items-center justify-between border-t border-border pt-2 text-sm md:pt-3 md:text-base">
+                      <span className="text-ink-muted">A pagar no salão</span>
+                      <span className="font-display font-semibold text-ink md:text-lg">
+                        {formatBRL(b.value ?? 0)}
+                      </span>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="secondary"
+                        className="flex-1"
+                        onClick={() => openReschedule(b.id)}
+                        disabled={!remarcar.pode}
+                        title={remarcar.pode ? undefined : remarcar.motivo}
+                      >
+                        Reagendar
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        className="flex-1 text-danger"
+                        onClick={() => {
+                          setSelecionadaId(b.id);
+                          setErroReserva(null);
+                          setCancelOpen(true);
+                        }}
+                      >
+                        Cancelar
+                      </Button>
+                    </div>
+                    {/* Pagamento no salão: nada foi cobrado, então falar em
+                        "100% de volta" e "retemos 25%" era prometer e ameaçar
+                        sobre um dinheiro que não existe. */}
+                    <p className="text-xs text-ink-muted md:text-sm">
+                      Cancelar pelo app não tem custo.{" "}
+                      {remarcar.pode
+                        ? `Dá para reagendar até ${remarcacao.minHoursBefore}h antes.`
+                        : <span className="text-gold-strong">{remarcar.motivo}</span>}
+                    </p>
+                  </Card>
+                );
+              })}
+            </div>
           ) : (
             <EmptyState
               icon={CalendarX2}
@@ -392,6 +389,7 @@ export default function ReservasPage() {
       </div>
 
       <div className="hidden md:col-start-2 md:row-start-2 md:flex md:flex-col md:gap-6">
+        {loyalty.ativo && (
         <section aria-labelledby="fidelidade-reservas">
           <h2
             id="fidelidade-reservas"
@@ -420,18 +418,16 @@ export default function ReservasPage() {
                 />
               ))}
             </div>
+            {/* O resgate é registrado por quem entrega a recompensa. O botão
+                que havia aqui zerava os carimbos e nada chegava ao dono. */}
             {loyalty.podeResgatar && (
-              <Button onClick={resgatar} disabled={resgatando}>
-                {resgatando ? "Resgatando…" : `Resgatar ${loyalty.reward}`}
-              </Button>
-            )}
-            {erroResgate && (
-              <p role="alert" className="text-xs text-danger">
-                {erroResgate}
+              <p className="rounded-lg bg-gold/10 p-2 text-xs text-gold-strong md:text-sm">
+                {loyalty.reward} liberado — é só avisar no balcão no próximo atendimento.
               </p>
             )}
           </Card>
         </section>
+        )}
 
         <section aria-labelledby="ajuda-reservas">
           <h2

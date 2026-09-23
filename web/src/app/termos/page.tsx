@@ -23,7 +23,7 @@ export default function TermosPage() {
   return (
     <DocumentoLegal
       titulo="Termos de Uso"
-      atualizadoEm="12 de agosto de 2026"
+      atualizadoEm="23 de setembro de 2026"
       resumo="Este é o contrato entre o CorteHub e a barbearia que o utiliza. Diz o que entregamos, o que esperamos de você, como funcionam teste e planos, e — a parte que mais importa — que os dados dos SEUS clientes são seus, e que você responde por eles perante a lei."
     >
       <Secao n={1} titulo="O que é o CorteHub">
@@ -151,7 +151,10 @@ export default function TermosPage() {
           </li>
           <li>
             Atender aos pedidos deles: cópia, correção, portabilidade e exclusão.
-            Nós damos o suporte técnico para você cumprir no prazo.
+            Nós damos o suporte técnico para você cumprir no prazo: na ficha de
+            cada cliente, em <strong className="text-ink">Clientes</strong>, estão{" "}
+            <strong className="text-ink">Exportar dados</strong> e{" "}
+            <strong className="text-ink">Anonimizar</strong>.
           </li>
           <li>
             Não usar os dados para finalidade incompatível com a que foi
@@ -181,7 +184,9 @@ export default function TermosPage() {
           O conteúdo que você cadastra continua seu. Enquanto a conta existir,
           você pode extraí-lo; encerrada a conta, há{" "}
           <strong className="text-ink">30 dias</strong> para exportar antes da
-          exclusão.
+          exclusão. O encerramento é feito em{" "}
+          <strong className="text-ink">Configurações → Encerrar conta</strong>, e
+          dentro desses 30 dias dá para reabrir.
         </p>
         <p>
           O software, a marca e a interface do CorteHub são nossos, e o contrato

@@ -6,7 +6,8 @@ import path from "node:path";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..", "..");
 const logoSvg = readFileSync(path.join(root, "o-siqueira-logo.svg"));
-const outDir = path.join(__dirname, "..", "public", "icons");
+// Ícones do PILOTO: toda outra barbearia ganha os dela gerados em `/icone/*`.
+const outDir = path.join(__dirname, "..", "public", "tenants", "osiqueira", "icons");
 mkdirSync(outDir, { recursive: true });
 
 const BG = "#0F0E0B";

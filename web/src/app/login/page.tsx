@@ -14,6 +14,7 @@ import {
   type ConfirmationResult,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
+import { destinoInterno } from "@/lib/destino-interno";
 import { useAuth } from "@/lib/auth-context";
 import { useTenant, useTenantIndisponivel } from "@/lib/tenant-context";
 import { Button } from "@/components/ui/button";
@@ -59,12 +60,6 @@ function messageFor(error: unknown, fallback: string) {
   return (code && AUTH_MESSAGES[code]) || fallback;
 }
 
-/** Aceita só caminho do próprio site, para a tela de entrar não virar ponte. */
-function destinoInterno(valor: string | null) {
-  if (!valor) return null;
-  if (!valor.startsWith("/") || valor.startsWith("//")) return null;
-  return valor;
-}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -109,7 +104,10 @@ export default function LoginPage() {
     /* Lido de `window` dentro do efeito, e não por `useSearchParams`: o hook
      * obrigaria esta tela a viver sob um limite de Suspense para não derrubar
      * a pré-renderização, e o valor só é usado aqui, depois da hidratação. */
-    const next = destinoInterno(new URLSearchParams(window.location.search).get("next"));
+    const next = destinoInterno(
+      new URLSearchParams(window.location.search).get("next"),
+      window.location.origin
+    );
     if (next) {
       router.replace(next);
       return;

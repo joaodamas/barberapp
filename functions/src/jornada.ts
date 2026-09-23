@@ -267,6 +267,47 @@ export function capacidadeDaData(params: {
 }
 
 /**
+ * Quantos horários ainda estão LIVRES hoje — de agora em diante, por barbeiro.
+ *
+ * O painel mostrava capacidade do dia inteiro menos o NÚMERO de reservas: às
+ * 18h ainda dizia "16 horários livres" contando a manhã que já passou, e um
+ * "Corte + barba" de 60 min descontava um slot só (rodada E2E de 23/09).
+ *
+ * Um horário está livre se começa depois de `agora` e não se sobrepõe a
+ * nenhuma reserva que ocupa cadeira daquele barbeiro, pela duração real dela.
+ */
+export function horariosLivresRestantes(params: {
+  schedule: EntradaDeJornada | null | undefined;
+  weekday: number;
+  date: string;
+  /** "HH:mm" de agora no fuso da barbearia; ausente = o dia todo (data futura). */
+  agora?: string;
+  barbeiros: string[];
+  ocupadas: Array<{ staffId?: string; time?: string; durationMin?: number }>;
+}): number {
+  const jornada = jornadaDoDia(params);
+  if (!jornada.aberto) return 0;
+  const grade = Number(params.schedule?.slotMinutes) || 30;
+  const agoraMin = params.agora ? paraMinutos(params.agora) : null;
+  const inicios = horariosDaJornada({ jornada, slotMinutes: grade })
+    .map((h) => paraMinutos(h) as number)
+    .filter((t) => agoraMin === null || t >= agoraMin);
+
+  let livres = 0;
+  for (const barbeiro of params.barbeiros) {
+    const janelas = params.ocupadas
+      .filter((o) => o.staffId === barbeiro || (!o.staffId && params.barbeiros.length === 1))
+      .map((o) => {
+        const ini = paraMinutos(String(o.time ?? ""));
+        return ini === null ? null : ([ini, ini + (Number(o.durationMin) || grade)] as const);
+      })
+      .filter(Boolean) as Array<readonly [number, number]>;
+    livres += inicios.filter((t) => !janelas.some(([de, ate]) => t < ate && t + grade > de)).length;
+  }
+  return livres;
+}
+
+/**
  * Monta a exceção que vai para o banco, sem nenhum campo `undefined`.
  *
  * Parece detalhe de estilo e não é. O `stripUndefined` do repositório é **raso**:

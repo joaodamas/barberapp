@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { DoorClosed } from "lucide-react";
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
@@ -18,13 +18,25 @@ import { EstadoCentral } from "@/components/ui/estado-central";
 export function AuthGuard({
   children,
   requireOwner,
+  publicoEm,
 }: {
   children: React.ReactNode;
   requireOwner?: boolean;
+  /**
+   * Caminhos que abrem SEM conta — a vitrine (decisão de 23/09).
+   *
+   * Quem abria o link da barbearia sem conta via só uma tela de login, sem
+   * preço, serviço ou endereço, e sem saber de que barbearia se tratava. A
+   * conta passa a ser pedida no único ato que precisa dela: confirmar a
+   * reserva. Com conta, tudo segue igual — inclusive trocar senha e onboarding.
+   */
+  publicoEm?: string[];
 }) {
   const { user, claims, loading } = useAuth();
   const tenant = useTenant();
   const router = useRouter();
+  const pathname = usePathname();
+  const vitrine = !user && !!publicoEm?.includes(pathname);
 
   /* O vínculo agora é por barbearia. `claims.role` é o modelo single-tenant
    * antigo, mantido enquanto houver token não renovado em circulação. */
@@ -62,11 +74,11 @@ export function AuthGuard({
       router.replace("/comecar");
       return;
     }
-    if (authorized) return;
-    /* Sem conta → login. Com conta e sem vínculo NÃO redireciona mais: explica
-     * e oferece as duas saídas reais. */
-    if (!user) router.replace("/login");
-  }, [loading, authorized, user, router, precisaOnboarding, precisaTrocarSenha]);
+    if (authorized || vitrine) return;
+    /* Sem conta → login, voltando para onde estava. Com conta e sem vínculo
+     * NÃO redireciona mais: explica e oferece as duas saídas reais. */
+    if (!user) router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+  }, [loading, authorized, user, router, precisaOnboarding, precisaTrocarSenha, vitrine, pathname]);
 
   if (semVinculo) {
     return (
@@ -99,6 +111,8 @@ export function AuthGuard({
       </div>
     );
   }
+
+  if (!loading && vitrine) return <>{children}</>;
 
   if (loading || !authorized || precisaOnboarding || precisaTrocarSenha) {
     return (

@@ -26,9 +26,14 @@ export type TenantBrand = {
   name: string;
   /** Nome curto para o ícone na tela inicial (máx. ~12 caracteres). */
   shortName: string;
-  /** Caminho do logo quadrado e do horizontal. */
+  /** Caminho do logo quadrado e do horizontal. Sem logo próprio: `/marca.svg`. */
   logo: string;
   logoHorizontal: string;
+  /**
+   * Pasta com os PNG do PWA (`icon-192.png`, `maskable-512.png`…) de quem tem
+   * ícone próprio. Ausente, os ícones são gerados do monograma em `/icone/*`.
+   */
+  icones?: string;
   /** Cor de destaque. Vira `--color-gold` em tempo de execução. */
   accentColor: string;
   /** Cor do tema do navegador e do splash do PWA. */
@@ -133,7 +138,7 @@ export type TenantPolicies = {
   cancellation: typeof defaultCancellationPolicy;
   reschedule: typeof defaultReschedulePolicy;
   booking: TenantBookingPolicy;
-  loyalty: typeof defaultLoyaltyPolicy;
+  loyalty: import("./business-rules").LoyaltyPolicy;
   commissionSplit: TenantCommissionSplit;
   /** Alíquota do Simples Nacional sobre a receita bruta, em %. */
   taxRatePct: number;
@@ -271,6 +276,12 @@ export type Tenant = {
    * está correndo. Ver `functions/src/data-deletion.ts`.
    */
   status: "ativo" | "suspenso" | "trial" | "encerrada";
+  /**
+   * Quando o dono encerrou — só existe com `status: "encerrada"`. É a base da
+   * data de expurgo que Configurações mostra; escrito só pelo servidor
+   * (`encerrarConta`), e a regra impede o dono de reescrevê-lo.
+   */
+  encerradaEmMs?: number;
   /**
    * Plano contratado. Decide o que `acessoDaBarbearia` libera.
    *

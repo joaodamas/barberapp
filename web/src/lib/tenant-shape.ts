@@ -1,3 +1,4 @@
+import { MARCA_GERADA } from "@/lib/monograma";
 import {
   DEFAULT_LOCALE,
   DEFAULT_PAYMENT_FEES,
@@ -37,8 +38,13 @@ export function toTenant(id: string, data: Record<string, unknown>): Tenant {
     id,
     slug: String(data.slug ?? id),
     status: (data.status as Tenant["status"]) ?? "ativo",
+    /* Só entra se for número: qualquer outra coisa faria a tela prometer uma
+     * data de expurgo que o servidor (`venceuAJanela`) não reconhece. */
+    ...(typeof data.encerradaEmMs === "number" && Number.isFinite(data.encerradaEmMs)
+      ? { encerradaEmMs: data.encerradaEmMs }
+      : {}),
     plan,
-    brand: { ...DEFAULT_TENANT.brand, ...brand },
+    brand: normalizarMarca(brand),
     contact: { ...DEFAULT_TENANT.contact, ...contact },
     /* Barbearia sem `locale` gravado herda o padrão da plataforma. Nunca
      * `undefined`: `Intl` com fuso indefinido cai no fuso do SERVIDOR, que é
@@ -61,6 +67,7 @@ export function toTenant(id: string, data: Record<string, unknown>): Tenant {
       ...PLATFORM_DEFAULT_POLICIES,
       ...policies,
       booking: { ...PLATFORM_DEFAULT_POLICIES.booking, ...(policies.booking ?? {}) },
+      loyalty: normalizarFidelidade(policies.loyalty),
       paymentFees: { ...DEFAULT_PAYMENT_FEES, ...(policies.paymentFees ?? {}) },
     },
     /* Derivar do plano, não do catálogo completo.
@@ -148,4 +155,38 @@ function toOnboarding(raw: unknown): Tenant["onboarding"] {
     completedAt: toISO(value.completedAt),
     sharedLink: value.sharedLink === true,
   };
+}
+
+/**
+ * Fidelidade só existe ligada de forma explícita, e a meta tem piso de 1:
+ * `stampsForReward: 0` fazia `podeResgatar` verdadeiro para sempre.
+ */
+function normalizarFidelidade(
+  raw: Partial<Tenant["policies"]["loyalty"]> | undefined
+): Tenant["policies"]["loyalty"] {
+  const base = PLATFORM_DEFAULT_POLICIES.loyalty;
+  const meta = Math.floor(Number(raw?.stampsForReward));
+  return {
+    enabled: raw?.enabled === true,
+    stampsForReward: Number.isFinite(meta) && meta >= 1 ? meta : base.stampsForReward,
+    reward: typeof raw?.reward === "string" && raw.reward.trim() ? raw.reward.trim() : base.reward,
+  };
+}
+
+/**
+ * `/logo.svg` e `/logo-horizontal.svg` eram o selo d'O Siqueira gravado como
+ * padrão por `signUpBarbershop` e `provisionBarbershop` em TODA barbearia nova.
+ * Lidos agora como "sem logo": vira o monograma da própria barbearia. O piloto
+ * aponta para `/tenants/osiqueira/…` (script `migrar-marca-do-piloto.mjs`).
+ */
+const LOGOS_HERDADOS = new Set(["/logo.svg", "/logo-horizontal.svg"]);
+
+function normalizarMarca(raw: Partial<Tenant["brand"]>): Tenant["brand"] {
+  const marca = { ...DEFAULT_TENANT.brand, ...raw };
+  const semLogo = (v: unknown) => typeof v !== "string" || !v.trim() || LOGOS_HERDADOS.has(v);
+  /* A plataforma (domínio raiz) mantém a marca CorteHub; barbearia sem logo
+   * próprio ganha o monograma dela, nunca a marca de outra. */
+  if (semLogo(raw.logo)) marca.logo = MARCA_GERADA;
+  if (semLogo(raw.logoHorizontal)) marca.logoHorizontal = marca.logo;
+  return marca;
 }

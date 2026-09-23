@@ -15,13 +15,15 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { SignOutButton } from "@/components/sign-out-button";
+import { ExcluirMinhaConta } from "@/components/excluir-minha-conta";
 import { ProfileIdentity } from "@/components/profile-identity";
 import { OwnerPanelLink } from "@/components/owner-panel-link";
 import { useAuth } from "@/lib/auth-context";
 import { formatBRL } from "@/lib/format";
 import { useTenant, usePolicies } from "@/lib/tenant-context";
 import { lerPerfil, mascararWhatsapp, salvarPerfil, whatsappValido } from "@/lib/db/perfil";
-import { useLoyalty, useMyBookings } from "@/lib/db/use-shop-data";
+import { useLoyalty, useMinhasAssinaturas, useMyBookings } from "@/lib/db/use-shop-data";
+import { assinaturaAtivaDe, termosDoPlano } from "@/lib/booking-status";
 
 type MenuKey = "dados" | "plano" | "notificacoes" | "politica" | "ajuda";
 
@@ -45,7 +47,9 @@ export default function PerfilPage() {
   const { user } = useAuth();
   const tenant = useTenant();
   const { items: minhas } = useMyBookings(user?.uid);
-  const politica = usePolicies().cancellation;
+  const remarcacao = usePolicies().reschedule;
+  const { items: assinaturas } = useMinhasAssinaturas(user?.uid);
+  const minhaAssinatura = assinaturaAtivaDe(assinaturas, user?.uid);
 
   const bookingHistory = minhas.filter((b) => b.status === "completed");
   const loyalty = useLoyalty(user?.uid);
@@ -148,6 +152,10 @@ export default function PerfilPage() {
         <OwnerPanelLink className="md:hidden" />
 
         <SignOutButton className="self-start" />
+
+        {/* Longe dos itens do menu e depois de "Sair": é o único botão desta
+            tela que não se desfaz. */}
+        <ExcluirMinhaConta />
       </div>
 
       <div className="hidden md:col-start-2 md:row-start-1 md:flex md:flex-col md:gap-6">
@@ -277,11 +285,25 @@ export default function PerfilPage() {
             <div className="flex items-center gap-3 rounded-xl border border-border bg-surface-raised px-4 py-3">
               <Sparkles size={18} className="shrink-0 text-gold-strong" />
               <div>
-                <p className="text-sm text-ink">Planos de mensalista</p>
-                <p className="text-xs text-ink-muted">
-                  Hoje você paga por atendimento avulso. A assinatura é
-                  combinada direto com a barbearia.
-                </p>
+                {/* Dizia "hoje você paga avulso" até para quem é mensalista
+                    (rodada E2E de 23/09). */}
+                {minhaAssinatura ? (
+                  <>
+                    <p className="text-sm text-ink">Você é mensalista · {minhaAssinatura.planName}</p>
+                    <p className="text-xs text-ink-muted">
+                      {termosDoPlano(minhaAssinatura)}. Mudanças no plano são combinadas direto
+                      com a barbearia.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm text-ink">Planos de mensalista</p>
+                    <p className="text-xs text-ink-muted">
+                      Hoje você paga por atendimento avulso. A assinatura é
+                      combinada direto com a barbearia.
+                    </p>
+                  </>
+                )}
               </div>
             </div>
             <div className="flex flex-col gap-1 rounded-xl border border-border px-4 py-3 text-sm">
@@ -323,34 +345,26 @@ export default function PerfilPage() {
         )}
 
         {openMenu === "politica" && (
+          /* Só o que o produto FAZ hoje. O texto anterior falava em devolução
+           * de 100% e taxa de 25% — sem pagamento antecipado não há o que
+           * devolver —, prometia "pagamento antecipado após faltas" e
+           * "prioridade no reagendamento", que não existem (rodada E2E de
+           * 23/09). Quando o pagamento pelo app entrar, a faixa de devolução
+           * volta, com a política desta barbearia. */
           <div className="flex flex-col gap-3 text-sm text-ink-muted">
             <p>
-              <strong className="text-ink">
-                Até {politica.fullRefundHours}h antes:
-              </strong>{" "}
-              cancelamento com 100% de devolução do valor pago.
+              <strong className="text-ink">Pagamento no salão:</strong> nada é cobrado
+              na reserva, então cancelar pelo app não tem custo.
             </p>
             <p>
-              <strong className="text-ink">
-                Entre {politica.fullRefundHours}h e{" "}
-                {politica.partialRefundHours}h antes:
-              </strong>{" "}
-              retemos {politica.cancellationFeePct}% de taxa de cancelamento e
-              devolvemos o restante.
+              <strong className="text-ink">Reagendar:</strong> pelo app, até{" "}
+              {remarcacao.minHoursBefore}h antes do horário, no máximo{" "}
+              {remarcacao.maxPerBooking} vezes por reserva. Depois disso, fale com a
+              barbearia.
             </p>
             <p>
-              <strong className="text-ink">
-                Menos de {politica.partialRefundHours}h antes:
-              </strong>{" "}
-              não há devolução — o horário dificilmente é reocupado em cima da hora.
-            </p>
-            <p>
-              Reservas com pagamento no salão não têm valor a devolver, mas faltas repetidas
-              passam a exigir pagamento antecipado nas próximas reservas.
-            </p>
-            <p>
-              Se a barbearia precisar cancelar, você recebe 100% de volta e prioridade no
-              reagendamento.
+              Se precisar faltar, avise: o horário fica reservado para você e ninguém
+              mais consegue usá-lo.
             </p>
           </div>
         )}

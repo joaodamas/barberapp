@@ -18,10 +18,36 @@ import type {
  * `barbershopId` vem do tenant, nunca da tela.
  */
 export const useServices = () =>
-  useShopCollection<ServiceDoc>("services", { orderByField: "price" });
+  useShopCollection<ServiceDoc>("services", { orderByField: "price", publica: true });
 
 /** A equipe. `order` primeiro para o dono controlar a sequência na tela. */
-export const useStaff = () => useShopCollection<StaffDoc>("staff", { orderByField: "order" });
+export const useStaff = () =>
+  useShopCollection<StaffDoc>("staff", { orderByField: "order", publica: true });
+
+/**
+ * A equipe COM a remuneração — para as telas do dono.
+ *
+ * `staff` é vitrine (o cliente lê, sem login); comissão e salário moram em
+ * `staff_pay`, que só o dono lê. Ficha antiga ainda pode ter os campos na
+ * própria `staff` até a migração rodar: o que está em `staff_pay` vence.
+ */
+export function useStaffComRemuneracao() {
+  const equipe = useStaff();
+  const pay = useShopCollection<Pick<StaffDoc, "commissionPct" | "salary">>("staffPay");
+  const porId = new Map(pay.items.map((p) => [p.id, p]));
+  return {
+    ...equipe,
+    /* Sem acesso a `staff_pay` (equipe, não dono) a equipe ainda aparece —
+     * só sem a remuneração, que não é dela para ver. */
+    status: equipe.status === "pronto" && pay.status === "carregando" ? "carregando" : equipe.status,
+    items: equipe.items.map((s) => {
+      const p = porId.get(s.id);
+      return p
+        ? { ...s, commissionPct: p.commissionPct ?? s.commissionPct, salary: p.salary ?? s.salary }
+        : s;
+    }),
+  } as typeof equipe;
+}
 
 /** Comissões apuradas — escritas pelo servidor na conclusão do atendimento. */
 export const useCommissions = () =>
@@ -62,7 +88,8 @@ export const useCashEntries = () =>
     direction: "desc",
   });
 
-export const usePlans = () => useShopCollection<PlanDoc>("plans", { orderByField: "price" });
+export const usePlans = () =>
+  useShopCollection<PlanDoc>("plans", { orderByField: "price", publica: true });
 
 export const useProducts = () =>
   useShopCollection<ProductDoc>("products", { orderByField: "name" });
@@ -149,6 +176,8 @@ export function useLoyalty(clientId: string | undefined) {
 
   return {
     ...saldoDeFidelidade(items, tenant.policies.loyalty.stampsForReward),
+    /** Programa ligado pelo dono E incluído no plano. Desligado, a tela não promete nada. */
+    ativo: tenant.features.loyalty === true && tenant.policies.loyalty.enabled === true,
     reward: tenant.policies.loyalty.reward,
     transacoes: items,
     status,

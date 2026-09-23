@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { desfechoDoCancelamento } from "../booking";
+import {
+  NOME_MAX,
+  dataValida,
+  desfechoDoCancelamento,
+  horaValida,
+  jornadaDoBarbeiro,
+  nomeLimpo,
+} from "../booking";
 
 /**
  * O cancelamento é o caminho onde a barbearia toca em dinheiro do CLIENTE, e
@@ -80,5 +87,52 @@ describe("quem cancelou fica registrado", () => {
     const cliente = desfechoDoCancelamento({ ...base, horasAteOAtendimento: 10 });
     const dono = desfechoDoCancelamento({ ...base, horasAteOAtendimento: 10, peloDono: true });
     expect(dono.refund).toBe(cliente.refund);
+  });
+});
+
+describe("formato de data, hora e nome — o que chega pela callable", () => {
+  it("recusa hora que casava `\\d{2}:\\d{2}` e não existe", () => {
+    for (const h of ["99:99", "24:00", "25:00", "12:60", "9:00", "", undefined]) {
+      expect(horaValida(h), String(h)).toBe(false);
+    }
+    for (const h of ["00:00", "09:30", "19:45", "23:59"]) expect(horaValida(h), h).toBe(true);
+  });
+
+  it("recusa data que casa o formato e não o calendário", () => {
+    for (const d of ["2026-02-31", "2026-13-01", "2026-00-10", "26-09-29", "2026-9-29"]) {
+      expect(dataValida(d), d).toBe(false);
+    }
+    for (const d of ["2026-09-29", "2028-02-29"]) expect(dataValida(d), d).toBe(true);
+  });
+
+  it("limita o nome e desfaz espaços, sem inventar um", () => {
+    expect(nomeLimpo("x".repeat(5000))).toHaveLength(NOME_MAX);
+    expect(nomeLimpo("  João   Balcão ")).toBe("João Balcão");
+    expect(nomeLimpo(undefined)).toBe("");
+  });
+});
+
+describe("jornadaDoBarbeiro — uma régua só para criar e remarcar", () => {
+  const loja = {
+    schedule: { weekdays: [1, 2, 3, 4, 5, 6], opensAt: "09:00", closesAt: "19:00", breaks: [{ from: "12:00", to: "14:00" }], slotMinutes: 30 },
+  };
+  const semJornada = { get: () => undefined };
+  const comFolgaNaTerca = {
+    get: (k: string) =>
+      k === "schedule" ? { weekdays: [1, 3, 4, 5, 6], opensAt: "10:00", closesAt: "18:00", slotMinutes: 20 } : "Zé",
+  };
+
+  it("sem jornada própria, vale a da loja", () => {
+    const r = jornadaDoBarbeiro({ barbeiro: semJornada, shop: loja, date: "2026-09-29", timeZone: "America/Sao_Paulo" });
+    expect(r.doDia.aberto).toBe(true);
+    expect(r.slotMinutes).toBe(30);
+    expect(r.temJornadaPropria).toBe(false);
+  });
+
+  it("a folga do barbeiro fecha o dia dele mesmo com a loja aberta", () => {
+    // 29/09/2026 é terça.
+    const r = jornadaDoBarbeiro({ barbeiro: comFolgaNaTerca, shop: loja, date: "2026-09-29", timeZone: "America/Sao_Paulo" });
+    expect(r.doDia.aberto).toBe(false);
+    expect(r.slotMinutes).toBe(20);
   });
 });

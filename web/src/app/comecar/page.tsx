@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Check, Loader2 } from "lucide-react";
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useAuth } from "@/lib/auth-context";
 import { useTenant } from "@/lib/tenant-context";
+import { useEntradaPorCodigo } from "@/lib/entrada-por-codigo";
 import { PassoBarbearia } from "@/components/comecar/passo-barbearia";
 import { PassoServicos } from "@/components/comecar/passo-servicos";
 import { PassoHorarios } from "@/components/comecar/passo-horarios";
@@ -58,8 +59,23 @@ export default function ComecarPage() {
 
   const indice = ONBOARDING_STEPS.indexOf(step);
   const meta = PASSOS[step];
+  const entrada = useEntradaPorCodigo(tenant.slug);
+  const entrando = entrada === "entrando";
 
-  if (loading) {
+  /* Redirecionar é efeito, não render: `router.replace` no corpo do
+   * componente disparava "Cannot update a component while rendering a
+   * different component" no console (rodada E2E de 23/09). E espera a troca
+   * do código de entrada — senão mandaria ao login quem estava entrando.
+   *
+   * O onboarding é a segunda porta: a primeira é a senha provisória. Sem a
+   * checagem dela dá para pular a troca digitando /comecar na barra. */
+  useEffect(() => {
+    if (loading || entrando) return;
+    if (!user) router.replace("/login?next=/comecar");
+    else if (claims.mustChangePassword) router.replace("/trocar-senha");
+  }, [loading, entrando, user, claims.mustChangePassword, router]);
+
+  if (loading || entrando) {
     return (
       <div className="flex min-h-screen items-center justify-center overflow-y-auto bg-canvas md:h-full">
         <Loader2 className="h-8 w-8 animate-spin text-gold-strong" />
@@ -67,17 +83,7 @@ export default function ComecarPage() {
     );
   }
 
-  if (!user) {
-    router.replace("/login");
-    return null;
-  }
-
-  /* O onboarding é a segunda porta: a primeira é a senha provisória. Sem esta
-   * checagem dá para pular a troca digitando /comecar na barra de endereço. */
-  if (claims.mustChangePassword) {
-    router.replace("/trocar-senha");
-    return null;
-  }
+  if (!user || claims.mustChangePassword) return null;
 
   async function concluirPasso(dados?: Record<string, unknown>) {
     setSaving(true);

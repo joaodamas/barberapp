@@ -90,3 +90,25 @@ describe("o que entra na reserva é o que sai da máscara", () => {
     expect(normalizarWhatsapp(exibido)).toBe("5511961733047");
   });
 });
+
+describe("DDD 55 — Santa Maria e região (RS)", () => {
+  /* `^55` era removido sempre: "(55) 99999-1234" virava 9 dígitos, o cliente
+   * não conseguia confirmar a reserva e o balcão dizia "número incompleto"
+   * (rodada E2E de 23/09). */
+  it("é número válido, com e sem o DDI", () => {
+    expect(whatsappValido("(55) 99999-1234")).toBe(true);
+    expect(whatsappValido("55999991234")).toBe(true);
+    expect(whatsappValido("5555999991234")).toBe(true);
+    expect(whatsappValido("(55) 3222-1234")).toBe(true);
+  });
+
+  it("ganha o DDI na frente, sem perder o DDD", () => {
+    expect(normalizarWhatsapp("(55) 99999-1234")).toBe("5555999991234");
+    expect(normalizarWhatsapp("5555999991234")).toBe("5555999991234");
+  });
+
+  it("aparece com o DDD na máscara", () => {
+    expect(mascararWhatsapp("55999991234")).toBe("(55) 99999-1234");
+    expect(mascararWhatsapp("5555999991234")).toBe("(55) 99999-1234");
+  });
+});

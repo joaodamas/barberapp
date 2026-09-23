@@ -281,6 +281,22 @@ bloqueador que depende do relógio, não de trabalho.
 
 ---
 
+### 2.8 Rodada E2E de 23/09 — 5 P0 e 18 P1, corrigidos no código, nenhum provado em produção
+
+Achados e correções em [`QA-E2E-2026-09-23.md`](./QA-E2E-2026-09-23.md) §9.
+O mais grave: **nenhuma barbearia nova conseguia terminar o onboarding**
+desde #25, com a suíte verde. Tudo está 🟡 até rodar no domínio publicado, e
+quatro passos manuais pós-deploy estão listados lá (marca do piloto,
+remuneração da equipe, papel de IAM, índices).
+
+Continua 🔴: `DRY_RUN` do expurgo (decisão consciente, agora com a rotina
+corrigida) e revisão jurídica da LGPD.
+
+⚪ **WhatsApp fica por último — decisão do dono em 23/09:** só entra depois
+que todo o resto estiver rodando em produção. A condição para ligar o envio
+continua de pé: verificar o número do cliente (OTP) antes da primeira
+mensagem, senão o número da plataforma vira canal de spam (P1-18).
+
 ## 3. 🟡 Em validação
 
 Código existe, testes passam, produção não viu.

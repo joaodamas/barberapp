@@ -3,6 +3,7 @@ import { getAuth } from "firebase-admin/auth";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { featuresFor, type PlanId } from "./plans";
 import { politicasIniciais } from "./financial-events";
+import { criarCodigoDeEntrada } from "./entrada";
 
 /**
  * Cadastro self-service de uma barbearia.
@@ -163,8 +164,9 @@ export const signUpBarbershop = onCall<SignUpInput>(async (request) => {
       brand: {
         name,
         shortName: shortNameFrom(name),
-        logo: "/logo.svg",
-        logoHorizontal: "/logo-horizontal.svg",
+        /* Sem logo: o app mostra o monograma DESTA barbearia (`/marca.svg`).
+         * Gravava "/logo.svg" — o selo d'O Siqueira, o piloto — e toda
+         * barbearia nova nascia com a marca de outra (rodada E2E de 23/09). */
         accentColor: request.data?.accentColor ?? "#b8863a",
         themeColor: "#ffffff",
         panelLabel: "Painel do dono",
@@ -230,10 +232,19 @@ export const signUpBarbershop = onCall<SignUpInput>(async (request) => {
   await auth.setCustomUserClaims(uid, claims);
   await auth.revokeRefreshTokens(uid);
 
+  /* Para a tela entrar já logada no endereço novo — ver `entrada.ts`. Falhar
+   * aqui não pode desfazer a barbearia criada: sem código, o dono entra com
+   * a senha, como antes. */
+  const codigoDeEntrada = await criarCodigoDeEntrada(uid, slug).catch((e) => {
+    console.error("[signup] código de entrada não gerado", e);
+    return null;
+  });
+
   return {
     barbershopId: shopRef.id,
     slug,
     trialEndsAt: trial.endsAt.toISOString(),
+    codigoDeEntrada,
   };
 });
 

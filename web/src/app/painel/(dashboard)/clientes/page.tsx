@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Search, Users } from "lucide-react";
 import { Pill } from "@/components/ui/pill";
 import { Modal } from "@/components/ui/modal";
+import { FidelidadeNaFicha } from "@/components/fidelidade-na-ficha";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
 import { formatBRL, formatDatePtBR, toISODate } from "@/lib/format";
@@ -11,6 +12,7 @@ import { contar } from "@/lib/plural";
 import { mascararWhatsapp } from "@/lib/whatsapp-numero";
 import { combinaComBusca } from "@/lib/clientes-busca";
 import { listaDeClientes, type FichaDoCliente } from "@/lib/ficha-do-cliente";
+import { DireitosDoTitular } from "@/components/direitos-do-titular";
 import {
   useBookings,
   useClients,
@@ -193,6 +195,8 @@ export default function ClientesPage() {
               </div>
             )}
 
+            <FidelidadeNaFicha clientId={aberta.cliente.id} />
+
             {aberta.mensalista && (
               <div className="rounded-xl border border-border bg-surface-raised p-3">
                 <p className="text-[11px] uppercase tracking-wide text-ink-muted">Mensalista</p>
@@ -208,6 +212,10 @@ export default function ClientesPage() {
               O histórico completo de atendimentos e compras entra numa próxima
               versão desta ficha.
             </p>
+
+            {/* `key` pelo cliente: a confirmação digitada para um não pode
+                sobreviver à troca de ficha e valer para outro. */}
+            <DireitosDoTitular key={aberta.cliente.id} clientId={aberta.cliente.id} />
           </div>
         )}
       </Modal>

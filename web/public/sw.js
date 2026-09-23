@@ -17,9 +17,11 @@ const CACHE_NAME = `barbearia-${VERSAO}`;
 const OFFLINE_URL = "/offline";
 const APP_SHELL = [
   OFFLINE_URL,
-  "/logo.svg",
-  "/icons/icon-192.png",
-  "/icons/icon-512.png",
+  /* A marca DESTA barbearia — o worker é por origem, e cada subdomínio
+   * pré-cacheia a sua. Eram os arquivos do piloto, iguais para todas. */
+  "/marca.svg",
+  "/icone/192",
+  "/icone/512",
 ];
 
 self.addEventListener("install", (event) => {

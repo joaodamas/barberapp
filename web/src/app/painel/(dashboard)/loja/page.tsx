@@ -14,6 +14,7 @@ import { RecursoBloqueado } from "@/components/recurso-bloqueado";
 import { VenderProduto } from "@/components/vender-produto";
 import { EntradaDeEstoque } from "@/components/entrada-de-estoque";
 import { DesfazerVenda } from "@/components/desfazer-venda";
+import { soAvisaSeGravou } from "@/lib/so-avisa-se-gravou";
 import { createDoc } from "@/lib/db/repository";
 import type { Doc } from "@/lib/db/repository";
 import type { ProductDoc } from "@/lib/domain";
@@ -93,7 +94,7 @@ function LojaConteudo() {
     setModalOpen(true);
   }
 
-  function saveProduct() {
+  async function saveProduct() {
     // O clique não fazia nada e nenhuma mensagem aparecia.
     if (!form.name.trim()) {
       setFormError("Informe o nome do produto.");
@@ -104,17 +105,22 @@ function LojaConteudo() {
       return;
     }
     setFormError(null);
-    void createDoc(barbershopId, "products", {
-      name: form.name.trim(),
-      cost: preview.cost,
-      price: Math.round(preview.price * 100) / 100,
-      stock: Number(form.stock) || 0,
-      minStock: Number(form.minStock) || 0,
-    }).catch((err) => {
-      console.error("[loja] falha ao cadastrar", err);
-      setFormError("Não foi possível cadastrar. Tente de novo.");
+    /* Grava primeiro; fecha depois. O modal fechava na mesma linha em que a
+     * escrita saía, e o erro caía num modal já fechado — o dono via o produto
+     * "cadastrado" e ele não existia (o padrão "dispara e esquece" do
+     * HANDOFF §3.1, achado na rodada E2E de 23/09). */
+    const r = await soAvisaSeGravou({
+      gravar: () =>
+        createDoc(barbershopId, "products", {
+          name: form.name.trim(),
+          cost: preview.cost,
+          price: Math.round(preview.price * 100) / 100,
+          stock: Number(form.stock) || 0,
+          minStock: Number(form.minStock) || 0,
+        }),
+      avisar: () => setModalOpen(false),
     });
-    setModalOpen(false);
+    if (!r.ok) setFormError(r.erro);
   }
 
   return (

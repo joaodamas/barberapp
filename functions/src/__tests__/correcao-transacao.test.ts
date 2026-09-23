@@ -296,7 +296,7 @@ describe("T3 · o histórico fica parado", () => {
     expect((await lerPagamento()).date).toBe(ATENDIMENTO_EM);
   });
 
-  it("🔒 a reserva só muda `paymentMethod` — status, valor e data ficam", async () => {
+  it("🔒 a reserva só muda o meio e a forma — status, valor e data ficam", async () => {
     await semearAtendimentoConcluido("pix");
     const antes = await lerReserva();
 
@@ -306,7 +306,10 @@ describe("T3 · o histórico fica parado", () => {
     const mudaram = Object.keys(depois).filter(
       (k) => JSON.stringify(depois[k]) !== JSON.stringify(antes[k])
     );
-    expect(mudaram).toEqual(["paymentMethod"]);
+    /* Desde #26 a correção grava também a FORMA (é ela que decide a taxa).
+     * Este teste parou em `["paymentMethod"]` e ficou vermelho na `main` sem
+     * ninguém rodar a suíte de emulador (achado na rodada E2E de 23/09). */
+    expect(mudaram.sort()).toEqual(["paymentFormId", "paymentFormLabel", "paymentMethod"]);
     expect(depois.status).toBe("completed");
     expect(depois.value).toBe(BRUTO);
   });
@@ -456,7 +459,7 @@ describe("T4 e cenário 9 · corrigir duas vezes", () => {
     expect((await lerPagamento()).paymentMethod).toBe("credit");
   });
 
-  it("o evento guarda de/para dos quatro campos, quem e quando", async () => {
+  it("o evento guarda de/para dos campos que mudaram, quem e quando", async () => {
     await semearAtendimentoConcluido("pix");
 
     await corrigir({ metodo: "credit", chave: "k1" });
@@ -471,12 +474,16 @@ describe("T4 e cenário 9 · corrigir duas vezes", () => {
       "feeAmount",
       "feePct",
       "netAmount",
+      "paymentFormId",
+      "paymentFormLabel",
       "paymentMethod",
     ]);
     expect(Object.keys(detail.para).sort()).toEqual([
       "feeAmount",
       "feePct",
       "netAmount",
+      "paymentFormId",
+      "paymentFormLabel",
       "paymentMethod",
     ]);
     expect(detail.de.paymentMethod).toBe("pix");
