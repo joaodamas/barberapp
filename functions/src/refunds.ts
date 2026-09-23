@@ -1,4 +1,5 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { exigirEdicao } from "./acesso";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { hojeNoFuso, localeDoDocumento } from "./locale";
 import type { PaymentMethod } from "./financial-events";
@@ -593,6 +594,7 @@ export const registrarEstorno = onCall<EstornoInput>(async (request) => {
   if (papel !== "owner") {
     throw new HttpsError("permission-denied", "Só o dono registra estorno.");
   }
+  await exigirEdicao(barbershopId);
 
   if (!motivoValido(data.reason)) {
     throw new HttpsError("invalid-argument", "Diga por que o valor está sendo devolvido.");

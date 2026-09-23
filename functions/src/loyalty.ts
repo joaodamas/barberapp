@@ -1,4 +1,5 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { exigirEdicao } from "./acesso";
 import { onDocumentUpdated } from "firebase-functions/v2/firestore";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { decidirEfeito, estadoAindaVale } from "./financial-events";
@@ -145,6 +146,7 @@ export const redeemLoyaltyReward = onCall<{ barbershopId: string; clientId: stri
         "O resgate é registrado no balcão, por quem entrega a recompensa."
       );
     }
+    await exigirEdicao(barbershopId);
 
     const db = getFirestore();
     const shopRef = db.doc(`barbershops/${barbershopId}`);

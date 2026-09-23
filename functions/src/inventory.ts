@@ -1,4 +1,5 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { exigirEdicao } from "./acesso";
 import { percentualDoCadastro } from "./remuneracao";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { hojeNoFuso, localeDoDocumento } from "./locale";
@@ -586,6 +587,7 @@ export const registrarVendaDeProduto = onCall<VendaInput>(async (request) => {
   if (papel !== "owner" && papel !== "staff") {
     throw new HttpsError("permission-denied", "Só quem trabalha na barbearia registra venda.");
   }
+  await exigirEdicao(barbershopId);
 
   for (const item of itens) {
     if (!item?.productId) throw new HttpsError("invalid-argument", "Produto não informado.");
@@ -814,6 +816,7 @@ export const registrarEntradaDeEstoque = onCall<{
   if (papel !== "owner" && papel !== "staff") {
     throw new HttpsError("permission-denied", "Só quem trabalha na barbearia dá entrada.");
   }
+  await exigirEdicao(barbershopId);
 
   if (!quantidadeValida(quantity)) {
     throw new HttpsError(

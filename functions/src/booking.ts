@@ -1,4 +1,5 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { exigirEdicao } from "./acesso";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { diaDaSemanaNoFuso, hojeNoFuso, instanteNoFuso, localeDoDocumento } from "./locale";
 import { horarioDisponivel, janelasOcupadas, podeRemarcar } from "./agenda";
@@ -546,6 +547,7 @@ export const createBookingAtCounter = onCall<ReservaNoBalcaoInput>(async (reques
       "Só quem trabalha na barbearia marca pelo balcão."
     );
   }
+  await exigirEdicao(barbershopId);
 
   const db = getFirestore();
   const shopRef = db.doc(`barbershops/${barbershopId}`);
@@ -1136,10 +1138,25 @@ export const cancelBooking = onCall<{ barbershopId: string; bookingId: string }>
       peloDono: ehDono && booking.clientId !== uid,
     });
 
-    await bookingRef.update({
-      status,
-      cancelledAt: FieldValue.serverTimestamp(),
-      refundedAmount: refund,
+    /* O status lido lá em cima é de antes da gravação. Se o dono concluiu o
+     * atendimento nesse meio-tempo, `update` direto passava por cima: o
+     * atendimento pago virava "cancelado", o caixa ficava com o dinheiro e o
+     * DRE perdia a receita (auditoria de 23/09). A transação relê e recusa. */
+    await db.runTransaction(async (tx) => {
+      const atual = await tx.get(bookingRef);
+      if (!EM_ABERTO.includes(atual.get("status"))) {
+        throw new HttpsError(
+          "failed-precondition",
+          atual.get("status") === "completed"
+            ? "Esse atendimento acabou de ser concluído e não pode ser cancelado. Fale com a barbearia."
+            : "Essa reserva não está mais aberta."
+        );
+      }
+      tx.update(bookingRef, {
+        status,
+        cancelledAt: FieldValue.serverTimestamp(),
+        refundedAmount: refund,
+      });
     });
 
     return { refund, horasAteOAtendimento: Math.round(horas) };
