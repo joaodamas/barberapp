@@ -19,7 +19,7 @@ export default async function ClienteLayout({
   const { brand } = await getTenant();
 
   return (
-    <AuthGuard>
+    <AuthGuard publicoEm={["/", "/agendar", "/planos"]}>
         {/* Sem isto, quem navega por teclado passa por toda a sidebar
             antes de chegar ao conteúdo. */}
         <a

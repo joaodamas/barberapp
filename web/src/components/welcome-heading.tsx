@@ -17,7 +17,7 @@ export function WelcomeHeading() {
 
   return (
     <div>
-      <p className="text-sm text-ink-muted md:text-base">Bem-vindo de volta,</p>
+      <p className="text-sm text-ink-muted md:text-base">Olá,</p>
       <h1 className="text-2xl text-ink md:text-4xl md:tracking-tight">
         {loading ? <span className="inline-block h-8 w-32 animate-pulse rounded bg-surface-raised" /> : firstName}
       </h1>

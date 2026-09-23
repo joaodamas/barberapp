@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Check,
   Clock,
@@ -38,6 +39,31 @@ const STEP_LABELS: Record<Step, string> = {
   4: "Confirmação",
 };
 
+
+/**
+ * A escolha de quem ainda não tinha conta atravessa o login.
+ *
+ * Com a vitrine pública, o cliente escolhe serviço e horário antes de entrar.
+ * Perder essa escolha no caminho do login seria obrigá-lo a refazer tudo no
+ * momento exato em que ele já decidiu. Fica na sessão do navegador (não vai a
+ * servidor nenhum) e é consumida uma vez.
+ */
+const CHAVE_ESCOLHA = "agendar:escolha";
+type EscolhaGuardada = { serviceIds: string[]; staffId: string | null; dayIso: string; time: string };
+
+function consumirEscolha(): EscolhaGuardada | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const bruto = sessionStorage.getItem(CHAVE_ESCOLHA);
+    if (!bruto) return null;
+    sessionStorage.removeItem(CHAVE_ESCOLHA);
+    const e = JSON.parse(bruto) as EscolhaGuardada;
+    return Array.isArray(e.serviceIds) && e.dayIso && e.time ? e : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function AgendarPage() {
   const tenant = useTenant();
   const { items: servicosDoc, status: statusServicos } = useServices();
@@ -54,19 +80,27 @@ export default function AgendarPage() {
       priceFrom: s.priceFrom,
     }));
 
-  const [step, setStep] = useState<Step>(1);
-  const [staffId, setStaffId] = useState<string | null>(null);
+  /* Montada só depois de a autenticação resolver (o `AuthGuard` segura a
+   * tela antes), então ler a sessão aqui não desencontra da hidratação. */
+  const router = useRouter();
+  const [retomada] = useState(consumirEscolha);
+  const [step, setStep] = useState<Step>(retomada ? 3 : 1);
+  const [staffId, setStaffId] = useState<string | null>(retomada?.staffId ?? null);
   /* A resposta carrega a CHAVE que a originou, e a lista exibida é derivada
    * dela. Antes o efeito zerava o estado antes de cada busca — o que é setState
    * dentro de efeito e provoca render em cascata. Derivar resolve os dois
    * problemas de uma vez: não há limpeza a fazer, e a lista de um dia nunca
    * aparece sob o outro enquanto a consulta nova viaja. */
   const [resposta, setResposta] = useState<{ chave: string; slots: string[] } | null>(null);
-  const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
-  const [selectedDayIndex, setSelectedDayIndex] = useState(() =>
-    firstBookableIndex(bookableDays())
+  const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>(retomada?.serviceIds ?? []);
+  const [selectedDayIndex, setSelectedDayIndex] = useState(() => {
+    const dias = bookableDays();
+    const i = retomada ? dias.findIndex((d) => d.iso === retomada.dayIso) : -1;
+    return i >= 0 ? i : firstBookableIndex(dias);
+  });
+  const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(
+    retomada ? { time: retomada.time, available: true } : null
   );
-  const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
   const { user } = useAuth();
   /* D2 · o mensalista precisa se reconhecer ANTES de confirmar.
    *
@@ -131,7 +165,24 @@ export default function AgendarPage() {
    * horário numa transação (dois toques simultâneos, um só ganha o slot) e
    * define o status, que as regras proíbem o cliente de escrever.
    */
+  function entrarParaConfirmar() {
+    if (!selectedDay || !selectedSlot) return;
+    try {
+      sessionStorage.setItem(
+        CHAVE_ESCOLHA,
+        JSON.stringify({
+          serviceIds: selectedServiceIds,
+          staffId,
+          dayIso: selectedDay.iso,
+          time: selectedSlot.time,
+        } satisfies EscolhaGuardada)
+      );
+    } catch {}
+    router.push("/login?next=/agendar");
+  }
+
   async function confirmarReserva() {
+    if (!user) return entrarParaConfirmar();
     if (!selectedDay || !selectedSlot) return;
     if (!nomeOk) {
       setErroReserva("Informe seu nome — é como a barbearia vai te reconhecer na agenda.");
@@ -268,8 +319,8 @@ export default function AgendarPage() {
   const ctaDisabled =
     (step === 1 && selectedServiceIds.length === 0) ||
     (step === 2 && !selectedSlot) ||
-    (step === 3 && (!whatsappOk || !nomeOk));
-  const ctaLabel = step === 3 ? "Confirmar reserva" : "Continuar";
+    (step === 3 && !!user && (!whatsappOk || !nomeOk));
+  const ctaLabel = step === 3 ? (user ? "Confirmar reserva" : "Entrar para confirmar") : "Continuar";
 
   function toggleService(id: string) {
     setSelectedServiceIds((prev) =>
@@ -529,6 +580,20 @@ export default function AgendarPage() {
               barbearia confirma, lembra e avisa de qualquer mudança. Enquanto
               não existia, toda reserva nascia sem número e o dono descobria o
               cliente só quando ele aparecia — ou não aparecia. */}
+          {!user && (
+            <Card className="flex flex-col gap-1 border-gold/30 bg-gold/5">
+              <p className="text-sm font-medium text-ink">Falta só entrar</p>
+              {/* Sem prometer o que não aconteceu: nada está reservado ainda. */}
+              <p className="text-xs text-ink-muted">
+                Entre ou crie sua conta para confirmar. Sua escolha fica salva, mas o
+                horário só é reservado quando você confirmar — se alguém marcar antes,
+                a gente avisa e você escolhe outro.
+              </p>
+            </Card>
+          )}
+
+          {user && (
+          <>
           <div className="flex flex-col gap-1.5">
             <label htmlFor="cliente-nome" className="text-xs uppercase tracking-wider text-ink-muted">
               Seu nome
@@ -569,6 +634,8 @@ export default function AgendarPage() {
                 : `É por aqui que ${tenant.brand.name} confirma seu horário e avisa se algo mudar.`}
             </p>
           </div>
+          </>
+          )}
 
           {/* Antes havia três botões de pagamento e dois nasciam desabilitados:
               o servidor recusa qualquer pagamento antecipado enquanto não

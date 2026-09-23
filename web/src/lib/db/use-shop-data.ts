@@ -18,10 +18,11 @@ import type {
  * `barbershopId` vem do tenant, nunca da tela.
  */
 export const useServices = () =>
-  useShopCollection<ServiceDoc>("services", { orderByField: "price" });
+  useShopCollection<ServiceDoc>("services", { orderByField: "price", publica: true });
 
 /** A equipe. `order` primeiro para o dono controlar a sequência na tela. */
-export const useStaff = () => useShopCollection<StaffDoc>("staff", { orderByField: "order" });
+export const useStaff = () =>
+  useShopCollection<StaffDoc>("staff", { orderByField: "order", publica: true });
 
 /**
  * A equipe COM a remuneração — para as telas do dono.
@@ -87,7 +88,8 @@ export const useCashEntries = () =>
     direction: "desc",
   });
 
-export const usePlans = () => useShopCollection<PlanDoc>("plans", { orderByField: "price" });
+export const usePlans = () =>
+  useShopCollection<PlanDoc>("plans", { orderByField: "price", publica: true });
 
 export const useProducts = () =>
   useShopCollection<ProductDoc>("products", { orderByField: "name" });

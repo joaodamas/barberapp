@@ -16,10 +16,12 @@ import { EM_ABERTO } from "@/lib/domain";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
 import { CalendarPlus } from "lucide-react";
+import { VitrineDaBarbearia } from "@/components/vitrine-da-barbearia";
 
 export default function InicioPage() {
   const tenant = useTenant();
-  const { user } = useAuth();
+  const authState = useAuth();
+  const { user } = authState;
   const { items: minhas, status } = useMyBookings(user?.uid);
   const { items: services } = useServices();
 
@@ -58,6 +60,11 @@ export default function InicioPage() {
     address: tenant.contact.address,
     whatsapp: tenant.contact.whatsapp,
   };
+
+  /* Sem conta: a vitrine. Depois de todos os hooks — a ordem deles não pode
+   * depender de haver usuário. */
+  const { loading: carregandoConta } = authState;
+  if (!carregandoConta && !user) return <VitrineDaBarbearia />;
 
   return (
     <div className="grid grid-cols-1 gap-5 pt-1 md:grid-cols-[1fr_360px] md:items-start md:gap-x-10 md:gap-y-10 md:pt-2">
