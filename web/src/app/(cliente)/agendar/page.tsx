@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -133,6 +133,11 @@ export default function AgendarPage() {
    * vinha às 14h (rodada E2E de 23/09). Agora é perguntado aqui, junto do
    * WhatsApp, e lembrado no perfil. */
   const [nome, setNome] = useState("");
+  /* Uma chave por TENTATIVA de confirmar: repetida se a rede falhar no meio,
+   * trocada depois do sucesso. O servidor deriva dela o id da reserva, e a
+   * repetição devolve a mesma reserva em vez de "esse horário acabou de ser
+   * reservado" (ver `idDaReservaPorChave`). */
+  const chaveDaTentativa = useRef<string | null>(null);
 
   /* Pré-preenche com o que a pessoa já informou numa reserva anterior. O
    * documento é dela e atravessa barbearias: quem corta em duas não digita o
@@ -199,7 +204,9 @@ export default function AgendarPage() {
     setErroReserva(null);
     try {
       const { callFunction } = await import("@/lib/firebase");
+      chaveDaTentativa.current ??= crypto.randomUUID();
       await callFunction("createBooking", {
+        chave: chaveDaTentativa.current,
         barbershopId: tenant.id,
         serviceIds: selectedServiceIds,
         staffId: barbeiroEscolhido?.id,
@@ -217,6 +224,7 @@ export default function AgendarPage() {
         void salvarPerfil(user.uid, { whatsapp, name: nome.trim() }).catch(() => undefined);
       }
 
+      chaveDaTentativa.current = null;
       setStep(4);
     } catch (err) {
       const msg = (err as { message?: string })?.message;

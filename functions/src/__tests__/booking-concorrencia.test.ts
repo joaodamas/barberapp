@@ -188,7 +188,7 @@ describe("dois clientes no mesmo segundo", () => {
         `janela ${i} começa em ${janelas[i].inicio} e a anterior termina em ${janelas[i - 1].fim}`
       ).toBe(true);
     }
-  });
+  }, 60_000); // 50 transações disputando o mesmo horário: sob carga, 20s não bastam — e o que falhava era o prazo, nunca a sobreposição (23/09).
 });
 
 describe("o que NÃO pode ser recusado", () => {

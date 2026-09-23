@@ -4,6 +4,7 @@ import {
   dataValida,
   desfechoDoCancelamento,
   horaValida,
+  idDaReservaPorChave,
   jornadaDoBarbeiro,
   nomeLimpo,
 } from "../booking";
@@ -134,5 +135,20 @@ describe("jornadaDoBarbeiro — uma régua só para criar e remarcar", () => {
     const r = jornadaDoBarbeiro({ barbeiro: comFolgaNaTerca, shop: loja, date: "2026-09-29", timeZone: "America/Sao_Paulo" });
     expect(r.doDia.aberto).toBe(false);
     expect(r.slotMinutes).toBe(20);
+  });
+});
+
+describe("idempotência da criação (rodada E2E de 23/09)", () => {
+  it("mesma pessoa e mesma chave → mesmo id; outra pessoa → outro id", () => {
+    const a = idDaReservaPorChave("uid-1", "b7a1c0de-0000-4000-8000-000000000001");
+    expect(a).toMatch(/^app_[0-9a-f]{32}$/);
+    expect(idDaReservaPorChave("uid-1", "b7a1c0de-0000-4000-8000-000000000001")).toBe(a);
+    expect(idDaReservaPorChave("uid-2", "b7a1c0de-0000-4000-8000-000000000001")).not.toBe(a);
+  });
+
+  it("sem chave válida, o Firestore gera o id (comportamento anterior)", () => {
+    for (const c of [undefined, "", "curta", "com espaço aqui!!", "x".repeat(65), 123]) {
+      expect(idDaReservaPorChave("uid-1", c), String(c)).toBeUndefined();
+    }
   });
 });
