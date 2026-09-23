@@ -32,7 +32,7 @@ export default async function PrivacidadePage() {
   return (
     <DocumentoLegal
       titulo="Política de Privacidade"
-      atualizadoEm="12 de agosto de 2026"
+      atualizadoEm="23 de setembro de 2026"
       resumo="O CorteHub é a ferramenta que a barbearia usa para gerenciar a agenda dela. Quem decide guardar seus dados é a barbearia; nós só operamos o sistema por conta dela. Esta página diz exatamente quem responde por quê, que dados existem, onde eles ficam — inclusive fora do Brasil — e como pedir cópia ou exclusão."
     >
       <Secao n={1} titulo="Quem é responsável pelo quê">
@@ -220,7 +220,8 @@ export default async function PrivacidadePage() {
           </li>
           <li>
             <strong className="text-ink">Registros fiscais e contábeis:</strong>{" "}
-            pelo prazo que a lei exigir, mesmo após a exclusão do restante.
+            pelo prazo que a lei exigir, mesmo após a exclusão do restante — sem
+            nome nem telefone de ninguém.
           </li>
         </ul>
       </Secao>
@@ -238,6 +239,14 @@ export default async function PrivacidadePage() {
             {barbearia ? `à ${barbearia}, ` : "à barbearia onde você se atende, "}
             que é a controladora. Ela usa o CorteHub para atender ao pedido, e
             nós a apoiamos no prazo legal.
+          </li>
+          <li>
+            <strong className="text-ink">Se você tem conta no app</strong> — a
+            conta é do CorteHub, e não de uma barbearia, e você mesmo a exclui em{" "}
+            <strong className="text-ink">Perfil → Excluir minha conta</strong>.
+            Isso apaga seu login e seu perfil e tira seu nome e telefone de todas
+            as barbearias; o valor dos atendimentos fica no caixa delas, sem
+            identificar você.
           </li>
           <li>
             <strong className="text-ink">Se você é dono de barbearia</strong> —

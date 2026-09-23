@@ -277,6 +277,12 @@ export type Tenant = {
    */
   status: "ativo" | "suspenso" | "trial" | "encerrada";
   /**
+   * Quando o dono encerrou — só existe com `status: "encerrada"`. É a base da
+   * data de expurgo que Configurações mostra; escrito só pelo servidor
+   * (`encerrarConta`), e a regra impede o dono de reescrevê-lo.
+   */
+  encerradaEmMs?: number;
+  /**
    * Plano contratado. Decide o que `acessoDaBarbearia` libera.
    *
    * Obrigatório e já normalizado: `tenant-shape` resolve ausência e valor

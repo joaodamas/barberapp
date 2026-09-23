@@ -15,6 +15,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { SignOutButton } from "@/components/sign-out-button";
+import { ExcluirMinhaConta } from "@/components/excluir-minha-conta";
 import { ProfileIdentity } from "@/components/profile-identity";
 import { OwnerPanelLink } from "@/components/owner-panel-link";
 import { useAuth } from "@/lib/auth-context";
@@ -148,6 +149,10 @@ export default function PerfilPage() {
         <OwnerPanelLink className="md:hidden" />
 
         <SignOutButton className="self-start" />
+
+        {/* Longe dos itens do menu e depois de "Sair": é o único botão desta
+            tela que não se desfaz. */}
+        <ExcluirMinhaConta />
       </div>
 
       <div className="hidden md:col-start-2 md:row-start-1 md:flex md:flex-col md:gap-6">
