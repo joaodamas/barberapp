@@ -71,7 +71,8 @@ export default function AgendarPage() {
   const barbeirosAtivos = equipe.filter((b) => b.active !== false);
 
   const services = servicosDoc
-    .filter((s) => s.active !== false)
+    /* Sem preço, não está pronto para o cliente — o servidor recusa também. */
+    .filter((s) => s.active !== false && Number(s.price) > 0)
     .map((s) => ({
       id: s.id,
       name: s.name,

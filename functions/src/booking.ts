@@ -409,6 +409,17 @@ export async function validarPedido(params: {
     if (!snap.exists) throw new HttpsError("failed-precondition", "Serviço indisponível.");
     const s = snap.data() ?? {};
     if (s.active === false) throw new HttpsError("failed-precondition", `"${s.name}" não está disponível.`);
+    /* O cadastro semeia quatro serviços ATIVOS a R$ 0,00 e o onboarding exige
+     * preço em um só: o cliente agendava "Barba" por zero, a confirmação dizia
+     * R$ 0,00 e o DRE registrava receita e comissão zeradas (rodada E2E de
+     * 23/09). Serviço sem preço não está pronto para o cliente. O balcão
+     * continua podendo — cortesia é decisão de quem está na cadeira. */
+    if (params.exigirAntecedencia && !(Number(s.price) > 0)) {
+      throw new HttpsError(
+        "failed-precondition",
+        `"${s.name}" ainda não tem preço definido. Fale com a barbearia.`
+      );
+    }
     value += Number(s.price) || 0;
     durationMin += Number(s.durationMin) || 0;
     nomes.push(String(s.name ?? ""));
