@@ -1,3 +1,4 @@
+import { MARCA_GERADA } from "@/lib/monograma";
 import {
   DEFAULT_LOCALE,
   DEFAULT_PAYMENT_FEES,
@@ -38,7 +39,7 @@ export function toTenant(id: string, data: Record<string, unknown>): Tenant {
     slug: String(data.slug ?? id),
     status: (data.status as Tenant["status"]) ?? "ativo",
     plan,
-    brand: { ...DEFAULT_TENANT.brand, ...brand },
+    brand: normalizarMarca(brand),
     contact: { ...DEFAULT_TENANT.contact, ...contact },
     /* Barbearia sem `locale` gravado herda o padrão da plataforma. Nunca
      * `undefined`: `Intl` com fuso indefinido cai no fuso do SERVIDOR, que é
@@ -165,4 +166,22 @@ function normalizarFidelidade(
     stampsForReward: Number.isFinite(meta) && meta >= 1 ? meta : base.stampsForReward,
     reward: typeof raw?.reward === "string" && raw.reward.trim() ? raw.reward.trim() : base.reward,
   };
+}
+
+/**
+ * `/logo.svg` e `/logo-horizontal.svg` eram o selo d'O Siqueira gravado como
+ * padrão por `signUpBarbershop` e `provisionBarbershop` em TODA barbearia nova.
+ * Lidos agora como "sem logo": vira o monograma da própria barbearia. O piloto
+ * aponta para `/tenants/osiqueira/…` (script `migrar-marca-do-piloto.mjs`).
+ */
+const LOGOS_HERDADOS = new Set(["/logo.svg", "/logo-horizontal.svg"]);
+
+function normalizarMarca(raw: Partial<Tenant["brand"]>): Tenant["brand"] {
+  const marca = { ...DEFAULT_TENANT.brand, ...raw };
+  const semLogo = (v: unknown) => typeof v !== "string" || !v.trim() || LOGOS_HERDADOS.has(v);
+  /* A plataforma (domínio raiz) mantém a marca CorteHub; barbearia sem logo
+   * próprio ganha o monograma dela, nunca a marca de outra. */
+  if (semLogo(raw.logo)) marca.logo = MARCA_GERADA;
+  if (semLogo(raw.logoHorizontal)) marca.logoHorizontal = marca.logo;
+  return marca;
 }

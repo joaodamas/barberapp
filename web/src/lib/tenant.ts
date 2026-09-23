@@ -26,9 +26,14 @@ export type TenantBrand = {
   name: string;
   /** Nome curto para o ícone na tela inicial (máx. ~12 caracteres). */
   shortName: string;
-  /** Caminho do logo quadrado e do horizontal. */
+  /** Caminho do logo quadrado e do horizontal. Sem logo próprio: `/marca.svg`. */
   logo: string;
   logoHorizontal: string;
+  /**
+   * Pasta com os PNG do PWA (`icon-192.png`, `maskable-512.png`…) de quem tem
+   * ícone próprio. Ausente, os ícones são gerados do monograma em `/icone/*`.
+   */
+  icones?: string;
   /** Cor de destaque. Vira `--color-gold` em tempo de execução. */
   accentColor: string;
   /** Cor do tema do navegador e do splash do PWA. */

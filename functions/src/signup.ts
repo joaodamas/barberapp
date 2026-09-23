@@ -163,8 +163,9 @@ export const signUpBarbershop = onCall<SignUpInput>(async (request) => {
       brand: {
         name,
         shortName: shortNameFrom(name),
-        logo: "/logo.svg",
-        logoHorizontal: "/logo-horizontal.svg",
+        /* Sem logo: o app mostra o monograma DESTA barbearia (`/marca.svg`).
+         * Gravava "/logo.svg" — o selo d'O Siqueira, o piloto — e toda
+         * barbearia nova nascia com a marca de outra (rodada E2E de 23/09). */
         accentColor: request.data?.accentColor ?? "#b8863a",
         themeColor: "#ffffff",
         panelLabel: "Painel do dono",

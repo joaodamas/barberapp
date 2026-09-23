@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { getTenant } from "@/lib/tenant-server";
+import { iconesDaMarca } from "@/lib/monograma";
 
 /**
  * Manifest por barbearia.
@@ -12,6 +13,7 @@ export const dynamic = "force-dynamic";
 
 export default async function manifest(): Promise<MetadataRoute.Manifest> {
   const { brand } = await getTenant();
+  const icones = iconesDaMarca(brand);
 
   return {
     name: brand.name,
@@ -24,21 +26,12 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
     background_color: brand.themeColor,
     theme_color: brand.themeColor,
     lang: "pt-BR",
+    /* Os PNG de `/icons` eram do piloto e iam para o manifest de todas. */
     icons: [
-      { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
-      { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
-      {
-        src: "/icons/maskable-192.png",
-        sizes: "192x192",
-        type: "image/png",
-        purpose: "maskable",
-      },
-      {
-        src: "/icons/maskable-512.png",
-        sizes: "512x512",
-        type: "image/png",
-        purpose: "maskable",
-      },
+      { src: icones.i192, sizes: "192x192", type: "image/png" },
+      { src: icones.i512, sizes: "512x512", type: "image/png" },
+      { src: icones.m192, sizes: "192x192", type: "image/png", purpose: "maskable" },
+      { src: icones.m512, sizes: "512x512", type: "image/png", purpose: "maskable" },
     ],
   };
 }
