@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Search, Users } from "lucide-react";
 import { Pill } from "@/components/ui/pill";
 import { Modal } from "@/components/ui/modal";
+import { FidelidadeNaFicha } from "@/components/fidelidade-na-ficha";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
 import { formatBRL, formatDatePtBR, toISODate } from "@/lib/format";
@@ -192,6 +193,8 @@ export default function ClientesPage() {
                 </p>
               </div>
             )}
+
+            <FidelidadeNaFicha clientId={aberta.cliente.id} />
 
             {aberta.mensalista && (
               <div className="rounded-xl border border-border bg-surface-raised p-3">

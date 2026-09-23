@@ -149,6 +149,8 @@ export function useLoyalty(clientId: string | undefined) {
 
   return {
     ...saldoDeFidelidade(items, tenant.policies.loyalty.stampsForReward),
+    /** Programa ligado pelo dono E incluído no plano. Desligado, a tela não promete nada. */
+    ativo: tenant.features.loyalty === true && tenant.policies.loyalty.enabled === true,
     reward: tenant.policies.loyalty.reward,
     transacoes: items,
     status,

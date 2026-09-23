@@ -2,6 +2,29 @@ import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { onDocumentUpdated } from "firebase-functions/v2/firestore";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { decidirEfeito } from "./financial-events";
+import { featuresFor, toPlanId } from "./plans";
+
+/**
+ * O programa existe quando o DONO o ligou e o plano dele inclui fidelidade.
+ *
+ * Antes, bastava a barbearia existir: o app do cliente mostrava "faltam 10
+ * para 1 corte grátis" com a política padrão da plataforma, sem o dono ter
+ * decidido nada — a plataforma prometia um corte grátis em nome dele. E o
+ * resgate funcionava até no plano sem fidelidade (rodada E2E de 23/09).
+ *
+ * `features` gravado vence o derivado do plano, como no resto do produto.
+ */
+export function fidelidadeAtiva(shop: FirebaseFirestore.DocumentData | undefined): boolean {
+  if (!shop) return false;
+  const doPlano = shop.features?.loyalty ?? featuresFor(toPlanId(shop.plan)).loyalty;
+  return doPlano === true && shop.policies?.loyalty?.enabled === true;
+}
+
+/** Meta de carimbos com piso: `stampsForReward: 0` liberava resgates sem fim. */
+export function metaDeCarimbos(shop: FirebaseFirestore.DocumentData | undefined): number {
+  const meta = Math.floor(Number(shop?.policies?.loyalty?.stampsForReward));
+  return Number.isFinite(meta) && meta >= 1 ? meta : 10;
+}
 
 /**
  * Fidelidade por transação, não por contagem.
@@ -45,6 +68,10 @@ export const creditLoyaltyOnCompletion = onDocumentUpdated(
     const efeito = decidirEfeito(antes.status, depois.status);
 
     if (efeito === "materializar") {
+      /* Carimbo só com o programa ligado: ligar depois não pode transformar
+       * o histórico inteiro em recompensas que o dono não planejou dar. */
+      const shop = (await db.doc(`barbershops/${barbershopId}`).get()).data();
+      if (!fidelidadeAtiva(shop)) return;
       await ref.set({
         clientId: depois.clientId,
         kind: "credito" satisfies LoyaltyKind,
@@ -71,44 +98,74 @@ export const creditLoyaltyOnCompletion = onDocumentUpdated(
  * A transação lê o saldo e grava o resgate junto: dois toques simultâneos no
  * botão não podem resgatar duas vezes com um saldo só.
  */
-export const redeemLoyaltyReward = onCall<{ barbershopId: string }>(async (request) => {
-  const uid = request.auth?.uid;
-  if (!uid) throw new HttpsError("unauthenticated", "Entre na sua conta.");
+/**
+ * O resgate é registrado por quem ENTREGA o corte grátis.
+ *
+ * Era o cliente quem apertava "resgatar" no app: a transação zerava os
+ * carimbos dele e nada chegava ao dono — nenhum aviso, nenhuma marca na
+ * agenda. O cliente perdia o saldo e pagava o corte inteiro no balcão. Um
+ * resgate que só um dos dois lados enxerga não aconteceu.
+ *
+ * Agora o app do cliente diz "mostre no balcão", e o dono (ou a equipe)
+ * registra aqui no momento em que entrega. Vale também para o cliente de
+ * balcão, que não tem conta e nunca conseguia resgatar.
+ */
+export const redeemLoyaltyReward = onCall<{ barbershopId: string; clientId: string }>(
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) throw new HttpsError("unauthenticated", "Entre na sua conta.");
 
-  const barbershopId = request.data?.barbershopId;
-  if (!barbershopId) throw new HttpsError("invalid-argument", "Informe a barbearia.");
+    const barbershopId = request.data?.barbershopId;
+    const clientId = String(request.data?.clientId ?? "").trim();
+    if (!barbershopId || !clientId) {
+      throw new HttpsError("invalid-argument", "Informe a barbearia e o cliente.");
+    }
 
-  const db = getFirestore();
-  const shopRef = db.doc(`barbershops/${barbershopId}`);
-  const txRef = shopRef.collection("loyalty_transactions");
-
-  return db.runTransaction(async (tx) => {
-    const shop = await tx.get(shopRef);
-    if (!shop.exists) throw new HttpsError("not-found", "Barbearia não encontrada.");
-
-    const policy = shop.data()?.policies?.loyalty ?? {};
-    const meta: number = policy.stampsForReward ?? 10;
-    const recompensa: string = policy.reward ?? "1 corte grátis";
-
-    const snapshot = await tx.get(txRef.where("clientId", "==", uid));
-    const saldo = snapshot.docs.reduce((total, d) => total + (d.data().stamps ?? 0), 0);
-
-    if (saldo < meta) {
+    const papel = (request.auth?.token.barbershops as Record<string, string> | undefined)?.[
+      barbershopId
+    ];
+    if (papel !== "owner" && papel !== "staff") {
       throw new HttpsError(
-        "failed-precondition",
-        `Faltam ${meta - saldo} carimbo(s) para resgatar.`
+        "permission-denied",
+        "O resgate é registrado no balcão, por quem entrega a recompensa."
       );
     }
 
-    tx.set(txRef.doc(), {
-      clientId: uid,
-      kind: "resgate" satisfies LoyaltyKind,
-      // Negativo: o saldo é a soma, então resgate subtrai.
-      stamps: -meta,
-      rewardLabel: recompensa,
-      at: FieldValue.serverTimestamp(),
-    });
+    const db = getFirestore();
+    const shopRef = db.doc(`barbershops/${barbershopId}`);
+    const txRef = shopRef.collection("loyalty_transactions");
 
-    return { saldoAnterior: saldo, saldoAtual: saldo - meta, recompensa };
-  });
-});
+    return db.runTransaction(async (tx) => {
+      const shop = await tx.get(shopRef);
+      if (!shop.exists) throw new HttpsError("not-found", "Barbearia não encontrada.");
+      if (!fidelidadeAtiva(shop.data())) {
+        throw new HttpsError("failed-precondition", "O programa de fidelidade está desligado.");
+      }
+
+      const meta = metaDeCarimbos(shop.data());
+      const recompensa: string = shop.data()?.policies?.loyalty?.reward || "1 corte grátis";
+
+      const snapshot = await tx.get(txRef.where("clientId", "==", clientId));
+      const saldo = snapshot.docs.reduce((total, d) => total + (d.data().stamps ?? 0), 0);
+
+      if (saldo < meta) {
+        throw new HttpsError(
+          "failed-precondition",
+          `Faltam ${meta - saldo} carimbo(s) para resgatar.`
+        );
+      }
+
+      tx.set(txRef.doc(), {
+        clientId,
+        kind: "resgate" satisfies LoyaltyKind,
+        // Negativo: o saldo é a soma, então resgate subtrai.
+        stamps: -meta,
+        rewardLabel: recompensa,
+        registradoPor: uid,
+        at: FieldValue.serverTimestamp(),
+      });
+
+      return { saldoAnterior: saldo, saldoAtual: saldo - meta, recompensa };
+    });
+  }
+);

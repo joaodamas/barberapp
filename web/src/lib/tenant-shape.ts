@@ -61,6 +61,7 @@ export function toTenant(id: string, data: Record<string, unknown>): Tenant {
       ...PLATFORM_DEFAULT_POLICIES,
       ...policies,
       booking: { ...PLATFORM_DEFAULT_POLICIES.booking, ...(policies.booking ?? {}) },
+      loyalty: normalizarFidelidade(policies.loyalty),
       paymentFees: { ...DEFAULT_PAYMENT_FEES, ...(policies.paymentFees ?? {}) },
     },
     /* Derivar do plano, não do catálogo completo.
@@ -147,5 +148,21 @@ function toOnboarding(raw: unknown): Tenant["onboarding"] {
       : [],
     completedAt: toISO(value.completedAt),
     sharedLink: value.sharedLink === true,
+  };
+}
+
+/**
+ * Fidelidade só existe ligada de forma explícita, e a meta tem piso de 1:
+ * `stampsForReward: 0` fazia `podeResgatar` verdadeiro para sempre.
+ */
+function normalizarFidelidade(
+  raw: Partial<Tenant["policies"]["loyalty"]> | undefined
+): Tenant["policies"]["loyalty"] {
+  const base = PLATFORM_DEFAULT_POLICIES.loyalty;
+  const meta = Math.floor(Number(raw?.stampsForReward));
+  return {
+    enabled: raw?.enabled === true,
+    stampsForReward: Number.isFinite(meta) && meta >= 1 ? meta : base.stampsForReward,
+    reward: typeof raw?.reward === "string" && raw.reward.trim() ? raw.reward.trim() : base.reward,
   };
 }

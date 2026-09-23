@@ -133,7 +133,7 @@ export type TenantPolicies = {
   cancellation: typeof defaultCancellationPolicy;
   reschedule: typeof defaultReschedulePolicy;
   booking: TenantBookingPolicy;
-  loyalty: typeof defaultLoyaltyPolicy;
+  loyalty: import("./business-rules").LoyaltyPolicy;
   commissionSplit: TenantCommissionSplit;
   /** Alíquota do Simples Nacional sobre a receita bruta, em %. */
   taxRatePct: number;

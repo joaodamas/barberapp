@@ -177,10 +177,24 @@ export function splitSale(params: {
 /* Fidelidade (PRD §9)                                                 */
 /* ------------------------------------------------------------------ */
 
-export const loyaltyPolicy = {
+export type LoyaltyPolicy = {
+  /**
+   * Ligado pelo DONO, em Ajustes. Ausente = desligado.
+   *
+   * Sem este campo, toda barbearia exibia "faltam 10 para 1 corte grátis" com
+   * os valores abaixo — a plataforma prometendo um corte grátis em nome de um
+   * dono que nunca decidiu isso (rodada E2E de 23/09).
+   */
+  enabled: boolean;
+  stampsForReward: number;
+  reward: string;
+};
+
+export const loyaltyPolicy: LoyaltyPolicy = {
+  enabled: false,
   stampsForReward: 10,
   reward: "1 corte grátis",
-} as const;
+};
 
 /* ------------------------------------------------------------------ */
 /* Catálogos de configuração                                           */
