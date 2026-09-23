@@ -1,3 +1,5 @@
+import { readFileSync, readdirSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { validateSlug, ONBOARDING_WRITABLE_FIELDS, TRIAL_DAYS, TRIAL_PLAN } from "../signup";
 import { featuresFor, toPlanId } from "../plans";
@@ -66,12 +68,18 @@ describe("campos graváveis pelo onboarding", () => {
   });
 
   it("libera o que as telas do onboarding realmente mandam", () => {
-    const enviadosPelasTelas = [
-      "brand.name", "brand.shortName", "brand.accentColor",
-      "contact.address", "contact.whatsapp", "contact.instagram",
-      "schedule.weekdays", "schedule.opensAt", "schedule.closesAt",
-      "schedule.slotMinutes", "schedule.breaks",
-    ];
+    /* Lido do código das telas, não de uma lista escrita à mão: a lista
+     * anterior parou no que existia antes de #25, continuou verde, e o passo 3
+     * passou a ser recusado para toda barbearia nova (`schedule.perDay`). */
+    const pasta = resolve(__dirname, "../../../web/src/components/comecar");
+    const enviadosPelasTelas = new Set<string>();
+    for (const arquivo of readdirSync(pasta)) {
+      const fonte = readFileSync(resolve(pasta, arquivo), "utf8");
+      for (const m of fonte.matchAll(/"((?:brand|contact|schedule)\.[A-Za-z.]+)"\s*:/g)) {
+        enviadosPelasTelas.add(m[1]);
+      }
+    }
+    expect(enviadosPelasTelas.size).toBeGreaterThan(0);
     for (const campo of enviadosPelasTelas) {
       expect(ONBOARDING_WRITABLE_FIELDS.has(campo), campo).toBe(true);
     }

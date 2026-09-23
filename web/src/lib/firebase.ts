@@ -33,6 +33,8 @@ export const firebaseApp = getApps().length ? getApp() : initializeApp(firebaseC
  * Firestore/Storage/Functions/Analytics pesam mais de 400 KB, e cobrar isso de
  * quem só abriu a tela de agendar atrasa toda navegação. */
 export const auth = getAuth(firebaseApp);
+/* Sem isto os e-mails de verificação e de senha saem em inglês. */
+auth.languageCode = "pt-BR";
 
 /* Emulador local: permite exercitar cadastro, regras e onboarding de verdade
  * sem tocar no projeto de produção. Ligado por NEXT_PUBLIC_USE_EMULATOR. */

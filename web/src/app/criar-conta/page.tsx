@@ -95,6 +95,47 @@ export default function CriarContaPage() {
           ? "precisa-verificar"
           : "formulario";
 
+  /* A tela afirma "Enviamos um link" — e nada enviava: o cadastro por e-mail
+   * não dispara verificação, e o único `sendEmailVerification` era o do botão
+   * "Reenviar". O dono esperava um e-mail que não existia. Envia uma vez por
+   * sessão ao chegar aqui sem verificação; o botão continua para o reenvio. */
+  const verificacaoEnviada = useRef(false);
+  useEffect(() => {
+    if (!user || user.emailVerified || verificacaoEnviada.current) return;
+    verificacaoEnviada.current = true;
+    const chave = `verificacao-enviada:${user.uid}`;
+    try {
+      if (sessionStorage.getItem(chave)) return;
+    } catch {}
+    void (async () => {
+      try {
+        const { sendEmailVerification } = await import("firebase/auth");
+        await sendEmailVerification(user);
+        try {
+          sessionStorage.setItem(chave, "1");
+        } catch {}
+      } catch (e) {
+        console.error("[criar-conta] falha ao enviar verificação", e);
+        setErro("Não conseguimos enviar o link de confirmação. Use \"Reenviar o link\".");
+      }
+    })();
+  }, [user]);
+
+  /* Recarregar a página não basta: o token em cache continua dizendo
+   * `email_verified: false` por até uma hora, e o servidor recusava a criação
+   * com "Confirme seu e-mail" logo depois de a tela liberar o formulário. */
+  async function jaConfirmei() {
+    if (user) {
+      try {
+        await user.reload();
+        await user.getIdToken(true);
+      } catch (e) {
+        console.error("[criar-conta] falha ao atualizar a verificação", e);
+      }
+    }
+    window.location.reload();
+  }
+
   async function reenviarVerificacao() {
     if (!user) return;
     try {
@@ -190,7 +231,7 @@ export default function CriarContaPage() {
                 Reenviar o link
               </Button>
             )}
-            <Button onClick={() => window.location.reload()}>Já confirmei</Button>
+            <Button onClick={jaConfirmei}>Já confirmei</Button>
           </Card>
         )}
 
