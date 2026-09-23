@@ -1,4 +1,5 @@
 import { onDocumentUpdated } from "firebase-functions/v2/firestore";
+import { percentualDoCadastro } from "./remuneracao";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { valoresDoPagamento } from "./payments";
 import { formasDoTenant, type FormaDePagamento } from "./formas-de-pagamento";
@@ -646,7 +647,14 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
       formaId: (depois.paymentFormId ?? null) as string | null,
       origem: (depois.paymentOrigin ?? null) as PaymentOrigin | null,
       // Gravado como `null` no cadastro inicial, não ausente.
-      commissionPctDoBarbeiro: pctCongelado ?? staffSnap?.get("commissionPct") ?? null,
+      commissionPctDoBarbeiro:
+        pctCongelado ??
+        ((await percentualDoCadastro(
+          db.doc(`barbershops/${barbershopId}`),
+          staffId ? String(staffId) : null,
+          staffSnap
+        )) as number | null) ??
+        null,
       padraoPct,
       fees,
     });

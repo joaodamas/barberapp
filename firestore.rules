@@ -28,8 +28,15 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    /* Senha provisória ainda não trocada: nenhum papel em barbearia nenhuma.
+     *
+     * A trava existia só na interface — quem tivesse a senha que viajou pelo
+     * WhatsApp usava o SDK com acesso de dono completo, sem nunca trocá-la
+     * (rodada E2E de 23/09). A troca é pela callable, que não passa por aqui. */
     function memberships() {
-      return isSignedIn() && 'barbershops' in request.auth.token
+      return isSignedIn()
+          && 'barbershops' in request.auth.token
+          && request.auth.token.get('mustChangePassword', false) != true
         ? request.auth.token.barbershops
         : {};
     }
@@ -131,7 +138,12 @@ service cloud.firestore {
        * sem login: é o que o servidor lê para pintar a página antes de saber
        * quem está acessando, e é informação de vitrine — a mesma que está na
        * fachada. Contrato e cobrança ficam na subcoleção `private`. */
-      allow read: if true;
+      allow get: if true;
+      /* Ler UMA barbearia é vitrine; LISTAR todas não é. Com `read: if true`
+       * qualquer pessoa, sem login, enumerava toda a base — inclusive quem
+       * está suspenso por inadimplência (rodada E2E de 23/09). O servidor
+       * resolve o tenant por `slugs/{slug}` → `get`, nunca por listagem. */
+      allow list: if isPlatformAdmin();
       // Criar e excluir barbearia é ato da plataforma, não do lojista.
       allow create, delete: if isPlatformAdmin();
 
@@ -168,29 +180,52 @@ service cloud.firestore {
 
       /* -------- catálogo: cliente lê, dono escreve -------- */
 
+      /* Vitrine pública (decisão de 23/09): quem abre o link da barbearia
+       * vê serviços, preços, barbeiros e planos ANTES de criar conta — o
+       * login só é pedido para confirmar a reserva. É a mesma informação da
+       * fachada; o que não é vitrine (remuneração, custo de produto) mora
+       * fora destas coleções. */
       match /services/{serviceId} {
-        allow read: if isSignedIn();
+        allow read: if true;
         allow write: if isOwnerOf(barbershopId);
       }
 
       /* -------- a equipe -------- */
 
       match /staff/{staffId} {
-        /* Legível por quem está logado, como o catálogo: o CLIENTE precisa
-         * ver os barbeiros para escolher com quem vai cortar. É vitrine —
-         * nome e serviços que a pessoa atende, nada mais. Comissão fica em
-         * `commissions`, que o cliente não alcança. */
-        allow read: if isSignedIn();
-        allow write: if isOwnerOf(barbershopId);
+        /* Vitrine: o cliente escolhe com quem vai cortar. Nome, serviços e
+         * jornada — nada mais.
+         *
+         * O comentário anterior dizia que a comissão ficava em `commissions`,
+         * e não era verdade: a tela de Equipe gravava `commissionPct` e
+         * `salary` aqui, e qualquer conta logada lia o salário de todo barbeiro
+         * de toda barbearia. A remuneração foi para `staff_pay`, e a ficha
+         * pública não pode voltar a recebê-la. */
+        allow read: if true;
+        allow create: if isOwnerOf(barbershopId)
+          && !request.resource.data.keys().hasAny(['commissionPct', 'salary']);
+        /* Ficha antiga ainda tem os campos: editar o nome continua valendo, e
+         * REMOVÊ-los também (é o que a tela faz ao salvar a remuneração).
+         * Gravar ou alterar, não. */
+        allow update: if isOwnerOf(barbershopId)
+          && !request.resource.data.diff(resource.data).addedKeys().hasAny(['commissionPct', 'salary'])
+          && !request.resource.data.diff(resource.data).changedKeys().hasAny(['commissionPct', 'salary']);
+        allow delete: if isOwnerOf(barbershopId);
+      }
+
+      match /staff_pay/{staffId} {
+        allow read, write: if isOwnerOf(barbershopId);
       }
 
       match /plans/{planId} {
-        allow read: if isSignedIn();
+        allow read: if true;
         allow write: if isOwnerOf(barbershopId);
       }
 
+      /* Produto é da loja, não da vitrine: `cost` é quanto o dono pagou, e o
+       * app do cliente não lê produto nenhum. */
       match /products/{productId} {
-        allow read: if isSignedIn();
+        allow read: if isStaffOf(barbershopId);
         allow write: if isOwnerOf(barbershopId);
       }
 
@@ -276,7 +311,7 @@ service cloud.firestore {
       }
 
       match /schedules/{scheduleId} {
-        allow read: if isSignedIn();
+        allow read: if true;
         allow write: if isOwnerOf(barbershopId);
       }
 

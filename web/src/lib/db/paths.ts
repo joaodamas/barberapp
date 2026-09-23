@@ -20,6 +20,8 @@ export const COLLECTIONS = {
 export const SHOP_COLLECTIONS = {
   members: "members",
   staff: "staff",
+  /** Comissão e salário — fora da ficha pública. Só o dono lê. */
+  staffPay: "staff_pay",
   services: "services",
   plans: "plans",
   products: "products",

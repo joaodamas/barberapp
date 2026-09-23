@@ -6,8 +6,9 @@ import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
-import { useServices, useStaff } from "@/lib/db/use-shop-data";
-import { createDoc, patchDoc, removeDoc } from "@/lib/db/repository";
+import { useServices, useStaffComRemuneracao } from "@/lib/db/use-shop-data";
+import { createDoc, patchDoc, putDoc, removeDoc } from "@/lib/db/repository";
+import { deleteField } from "firebase/firestore";
 import { useTenant } from "@/lib/tenant-context";
 import { contarDeTotal } from "@/lib/plural";
 
@@ -33,7 +34,7 @@ export default function EquipePage() {
   /* Do tenant, não da constante da plataforma: a barbearia que combinou 50/50
    * via 40% aqui e o split correto no DRE — duas telas, dois números. */
   const padraoDaCasa = tenant.policies.commissionSplit.barberPct;
-  const { items: equipe, status, error } = useStaff();
+  const { items: equipe, status, error } = useStaffComRemuneracao();
   const { items: servicos } = useServices();
   const [erro, setErro] = useState<string | null>(null);
 
@@ -48,7 +49,6 @@ export default function EquipePage() {
         active: true,
         uid: null,
         serviceIds: [],
-        commissionPct: null,
         schedule: null,
         order: equipe.length + 1,
       });
@@ -61,7 +61,16 @@ export default function EquipePage() {
   async function salvar(id: string, campo: string, valor: unknown) {
     setErro(null);
     try {
-      await patchDoc(tenant.id, "staff", id, { [campo]: valor });
+      /* Comissão e salário vão para `staff_pay`, que só o dono lê: na ficha
+       * pública (`staff`) qualquer pessoa leria o salário do barbeiro. A
+       * ficha antiga perde os campos na mesma gravação, para não ficar uma
+       * cópia velha exposta. */
+      if (campo === "commissionPct" || campo === "salary") {
+        await putDoc(tenant.id, "staffPay", id, { [campo]: valor });
+        await patchDoc(tenant.id, "staff", id, { [campo]: deleteField() });
+      } else {
+        await patchDoc(tenant.id, "staff", id, { [campo]: valor });
+      }
     } catch (e) {
       console.error("[equipe] falha ao salvar", e);
       setErro("Não foi possível salvar. Verifique a conexão.");

@@ -1,4 +1,5 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { percentualDoCadastro } from "./remuneracao";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { hojeNoFuso, localeDoDocumento } from "./locale";
 import {
@@ -641,6 +642,9 @@ export const registrarVendaDeProduto = onCall<VendaInput>(async (request) => {
     throw new HttpsError("failed-precondition", "Esse profissional não está ativo.");
   }
 
+  const pctDoVendedor = vendedorSnap?.exists
+    ? await percentualDoCadastro(shopRef, staffId, vendedorSnap)
+    : null;
   const vendedor = vendedorSnap?.exists
     ? {
         staffId: staffId as string,
@@ -654,7 +658,7 @@ export const registrarVendaDeProduto = onCall<VendaInput>(async (request) => {
          * "40% do lucro". Não aparecia na verificação de 18/08 só porque a
          * venda foi feita com um barbeiro que tem percentual próprio. */
         commissionPct: percentualDaComissao({
-          doProfissional: vendedorSnap.get("commissionPct"),
+          doProfissional: pctDoVendedor,
           padrao: padraoDaCasa(politicas),
         }),
       }

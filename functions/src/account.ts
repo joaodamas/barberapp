@@ -45,6 +45,18 @@ export const changeInitialPassword = onCall<{ newPassword: string }>(async (requ
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Entre na sua conta.");
 
+  /* Só quem está preso na troca obrigatória. Sem esta guarda, qualquer conta
+   * trocava a própria senha aqui sem reautenticar — e, com as sessões
+   * derrubadas logo abaixo, um token vazado (vale 1h) virava tomada
+   * permanente da conta, com o dono legítimo expulso. Trocar senha fora do
+   * primeiro acesso é pelo fluxo do Firebase, que exige login recente. */
+  if (request.auth?.token.mustChangePassword !== true) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Sua senha já foi definida. Para trocá-la, use \"Esqueci a senha\" na tela de entrar."
+    );
+  }
+
   const nova = String(request.data?.newPassword ?? "");
   const problema = validatePassword(nova);
   if (problema) throw new HttpsError("invalid-argument", problema);

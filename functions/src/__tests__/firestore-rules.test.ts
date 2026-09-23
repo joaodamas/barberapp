@@ -6,7 +6,7 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
-import { doc, getDoc, setDoc, deleteDoc, updateDoc } from "firebase/firestore";
+import { collection, deleteField, doc, getDoc, getDocs, setDoc, deleteDoc, updateDoc } from "firebase/firestore";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 /**
@@ -585,5 +585,57 @@ describe("reserva: o painel fecha e marca falta — e só isso", () => {
   it("🔒 ninguém apaga reserva", async () => {
     await assertFails(deleteDoc(bk(DONO_ALFA)));
     await assertFails(deleteDoc(bk(BARBEIRO_ALFA)));
+  });
+});
+
+describe("vitrine pública e o que não é vitrine (rodada E2E de 23/09)", () => {
+  it("sem login: vê a barbearia, serviços, barbeiros e planos", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `barbershops/${ALFA}/staff`, "vit"), { name: "Zé", active: true });
+      await setDoc(doc(ctx.firestore(), `barbershops/${ALFA}/plans`, "p1"), { name: "Ilimitado", price: 149 });
+    });
+    await assertSucceeds(getDoc(doc(anon(), "barbershops", ALFA)));
+    await assertSucceeds(getDoc(doc(anon(), `barbershops/${ALFA}/services`, "corte")));
+    await assertSucceeds(getDoc(doc(anon(), `barbershops/${ALFA}/staff`, "vit")));
+    await assertSucceeds(getDoc(doc(anon(), `barbershops/${ALFA}/plans`, "p1")));
+  });
+
+  it("🔒 ninguém lista todas as barbearias", async () => {
+    await assertFails(getDocs(collection(anon(), "barbershops")));
+    await assertFails(getDocs(collection(as(CLIENTE), "barbershops")));
+    await assertFails(getDocs(collection(as(DONO_ALFA), "barbershops")));
+  });
+
+  it("🔒 salário e comissão: só o dono, e fora da ficha pública", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `barbershops/${ALFA}/staff_pay`, "vit"), { commissionPct: 50, salary: 2200 });
+      await setDoc(doc(ctx.firestore(), `barbershops/${ALFA}/staff`, "legado"), { name: "Antigo", commissionPct: 40 });
+    });
+    await assertSucceeds(getDoc(doc(as(DONO_ALFA), `barbershops/${ALFA}/staff_pay`, "vit")));
+    await assertFails(getDoc(doc(as(BARBEIRO_ALFA), `barbershops/${ALFA}/staff_pay`, "vit")));
+    await assertFails(getDoc(doc(as(CLIENTE), `barbershops/${ALFA}/staff_pay`, "vit")));
+    await assertFails(getDoc(doc(as(DONO_BETA), `barbershops/${ALFA}/staff_pay`, "vit")));
+    // A ficha pública não volta a receber remuneração…
+    await assertFails(setDoc(doc(as(DONO_ALFA), `barbershops/${ALFA}/staff`, "n"), { name: "N", commissionPct: 40 }));
+    await assertFails(updateDoc(doc(as(DONO_ALFA), `barbershops/${ALFA}/staff`, "legado"), { commissionPct: 60 }));
+    // …mas a ficha antiga continua editável, e o campo pode ser removido.
+    await assertSucceeds(updateDoc(doc(as(DONO_ALFA), `barbershops/${ALFA}/staff`, "legado"), { name: "Renomeado" }));
+    await assertSucceeds(updateDoc(doc(as(DONO_ALFA), `barbershops/${ALFA}/staff`, "legado"), { commissionPct: deleteField() }));
+  });
+
+  it("🔒 custo de produto não é vitrine", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `barbershops/${ALFA}/products`, "pomada"), { name: "Pomada", cost: 18 });
+    });
+    await assertFails(getDoc(doc(as(CLIENTE), `barbershops/${ALFA}/products`, "pomada")));
+    await assertFails(getDoc(doc(anon(), `barbershops/${ALFA}/products`, "pomada")));
+    await assertSucceeds(getDoc(doc(as(BARBEIRO_ALFA), `barbershops/${ALFA}/products`, "pomada")));
+  });
+
+  it("🔒 senha provisória não trocada: nenhum papel", async () => {
+    const PROVISORIO = { sub: "dono-provisorio", barbershops: { [ALFA]: "owner" }, mustChangePassword: true };
+    await assertFails(getDoc(doc(as(PROVISORIO), `barbershops/${ALFA}/expenses`, "exp-1")));
+    await assertFails(updateDoc(doc(as(PROVISORIO), "barbershops", ALFA), { "brand.name": "X" }));
+    await assertSucceeds(getDoc(doc(as(DONO_ALFA), `barbershops/${ALFA}/expenses`, "exp-1")));
   });
 });

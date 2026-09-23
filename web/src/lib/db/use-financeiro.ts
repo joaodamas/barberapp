@@ -3,7 +3,7 @@
 import { useTenant } from "@/lib/tenant-context";
 import {
   useBookings, useExpenses, useInventoryMovements,
-  useCommissions, usePayments, useProducts, useServices, useStaff,
+  useCommissions, usePayments, useProducts, useServices, useStaffComRemuneracao,
   useSubscribers, useRefunds, useSubscriptionInvoices, useCashEntries, combineStatus,
 } from "@/lib/db/use-shop-data";
 import { fluxoDiario, movimentosDeCaixa, resumoDoFluxo } from "@/lib/fluxo-de-caixa";
@@ -43,7 +43,7 @@ export function useFinanceiro(mes: string, horizonte: Horizonte = "mensal") {
   const movements = useInventoryMovements();
   const subscribers = useSubscribers();
   const services = useServices();
-  const staff = useStaff();
+  const staff = useStaffComRemuneracao();
   const commissions = useCommissions();
   const payments = usePayments();
   const refunds = useRefunds();

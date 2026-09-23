@@ -23,6 +23,31 @@ export const useServices = () =>
 /** A equipe. `order` primeiro para o dono controlar a sequência na tela. */
 export const useStaff = () => useShopCollection<StaffDoc>("staff", { orderByField: "order" });
 
+/**
+ * A equipe COM a remuneração — para as telas do dono.
+ *
+ * `staff` é vitrine (o cliente lê, sem login); comissão e salário moram em
+ * `staff_pay`, que só o dono lê. Ficha antiga ainda pode ter os campos na
+ * própria `staff` até a migração rodar: o que está em `staff_pay` vence.
+ */
+export function useStaffComRemuneracao() {
+  const equipe = useStaff();
+  const pay = useShopCollection<Pick<StaffDoc, "commissionPct" | "salary">>("staffPay");
+  const porId = new Map(pay.items.map((p) => [p.id, p]));
+  return {
+    ...equipe,
+    /* Sem acesso a `staff_pay` (equipe, não dono) a equipe ainda aparece —
+     * só sem a remuneração, que não é dela para ver. */
+    status: equipe.status === "pronto" && pay.status === "carregando" ? "carregando" : equipe.status,
+    items: equipe.items.map((s) => {
+      const p = porId.get(s.id);
+      return p
+        ? { ...s, commissionPct: p.commissionPct ?? s.commissionPct, salary: p.salary ?? s.salary }
+        : s;
+    }),
+  } as typeof equipe;
+}
+
 /** Comissões apuradas — escritas pelo servidor na conclusão do atendimento. */
 export const useCommissions = () =>
   useShopCollection<CommissionDoc>("commissions", {
