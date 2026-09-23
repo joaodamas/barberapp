@@ -38,7 +38,28 @@ type CriarReservaInput = {
 };
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-const HORA = /^\d{2}:\d{2}$/;
+/* Estrito de propósito: `\d{2}:\d{2}` aceitava "99:99", que passava pela
+ * validação e estourava lá dentro como INTERNAL — e "25:00" no balcão virava
+ * reserva gravada num horário que não existe. */
+const HORA = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+
+/** Data de calendário que existe: `2026-02-31` casa o formato e não o calendário. */
+export function dataValida(date: unknown): date is string {
+  if (typeof date !== "string" || !ISO_DATE.test(date)) return false;
+  const [a, m, d] = date.split("-").map(Number);
+  const dt = new Date(Date.UTC(a, m - 1, d));
+  return dt.getUTCFullYear() === a && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+}
+
+export function horaValida(time: unknown): time is string {
+  return typeof time === "string" && HORA.test(time);
+}
+
+/** Nome livre vindo do cliente: sem teto, 5.000 caracteres viravam a linha da agenda. */
+export const NOME_MAX = 80;
+export function nomeLimpo(nome: unknown): string {
+  return String(nome ?? "").replace(/\s+/g, " ").trim().slice(0, NOME_MAX);
+}
 
 /** Status que ocupam um horário na agenda. */
 const OCUPAM_SLOT = [
@@ -62,8 +83,8 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
   if (!Array.isArray(serviceIds) || serviceIds.length === 0) {
     throw new HttpsError("invalid-argument", "Escolha pelo menos um serviço.");
   }
-  if (!ISO_DATE.test(date ?? "")) throw new HttpsError("invalid-argument", "Data inválida.");
-  if (!HORA.test(time ?? "")) throw new HttpsError("invalid-argument", "Horário inválido.");
+  if (!dataValida(date)) throw new HttpsError("invalid-argument", "Data inválida.");
+  if (!horaValida(time)) throw new HttpsError("invalid-argument", "Horário inválido.");
   /* Só existe um caminho hoje: o cliente acerta no salão. Quando o gateway
    * entrar, `online` passa a ser aceito aqui e desemboca na mesma coleção
    * `payments` — acréscimo, não reescrita. */
@@ -146,7 +167,7 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
     cliente: {
       barbershopId,
       uid,
-      name: request.data?.clientName ?? request.auth?.token.name,
+      name: nomeLimpo(request.data?.clientName ?? request.auth?.token.name) || undefined,
       whatsapp: request.data?.clientWhatsapp,
       origin: "app",
     },
@@ -154,7 +175,7 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
       clientId: uid,
       staffId,
       staffName: pedido.staffName,
-      clientName: String(request.data?.clientName ?? request.auth?.token.name ?? "Cliente"),
+      clientName: nomeLimpo(request.data?.clientName ?? request.auth?.token.name) || "Cliente",
       clientWhatsapp: String(request.data?.clientWhatsapp ?? "").replace(/\D/g, ""),
       serviceIds,
       serviceNames: nomes,
@@ -178,6 +199,69 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
 /* ================================================================== */
 /* Validação compartilhada pelos dois caminhos de criação             */
 /* ================================================================== */
+
+/**
+ * A jornada que vale para UM barbeiro numa data: a dele quando ele tem uma,
+ * senão a da loja — e a grade que acompanha.
+ *
+ * Existia só dentro de `validarPedido`. O reagendamento remontava a conta à
+ * mão, só com a jornada da LOJA e sem conferir a hora: aceitava 23:00, o meio
+ * do almoço e o dia de folga do barbeiro. Duas fontes para a mesma pergunta,
+ * a correção aplicada só numa — o padrão que esta função existe para impedir.
+ */
+export function jornadaDoBarbeiro(params: {
+  barbeiro: Pick<FirebaseFirestore.DocumentSnapshot, "get">;
+  shop: FirebaseFirestore.DocumentData;
+  date: string;
+  timeZone: string;
+}) {
+  const schedule = params.shop.schedule ?? {};
+  const policies = params.shop.policies ?? {};
+  const jornadaDele = params.barbeiro.get("schedule");
+  const doDia = jornadaDoDia({
+    schedule: {
+      weekdays: jornadaDele?.weekdays ?? policies.openWeekdays ?? schedule.weekdays,
+      opensAt: jornadaDele?.opensAt ?? schedule.opensAt,
+      closesAt: jornadaDele?.closesAt ?? schedule.closesAt,
+      breaks: jornadaDele?.breaks ?? schedule.breaks,
+      perDay: jornadaDele?.perDay ?? schedule.perDay,
+      exceptions: jornadaDele?.exceptions ?? schedule.exceptions,
+    },
+    weekday: diaDaSemanaNoFuso(params.date, params.timeZone),
+    date: params.date,
+  });
+  const slotMinutes: number =
+    Number(jornadaDele?.slotMinutes) || Number(schedule.slotMinutes) || 30;
+  return { doDia, slotMinutes, temJornadaPropria: Boolean(jornadaDele) };
+}
+
+/** Por que o dia está fechado, na frase que o cliente merece ler. */
+function motivoDeDiaFechado(
+  doDia: ReturnType<typeof jornadaDoDia>,
+  barbeiro: Pick<FirebaseFirestore.DocumentSnapshot, "get">,
+  temJornadaPropria: boolean
+) {
+  /* A exceção diz mais do que o dia da semana: quem tenta marcar num feriado
+   * merece ler "fechado neste dia", e não uma frase que sugere que a
+   * barbearia nunca abre às quintas. */
+  if (doDia.origem === "excecao") {
+    return `A barbearia não atende neste dia${doDia.nota ? ` — ${doDia.nota}` : ""}.`;
+  }
+  return temJornadaPropria
+    ? `${barbeiro.get("name")} não atende neste dia.`
+    : "A barbearia não abre neste dia.";
+}
+
+/** Horizonte padrão para o cliente — o mesmo `maxAdvanceDays` da tela. */
+const HORIZONTE_CLIENTE_DIAS = 60;
+/** O balcão marca retorno e pacote com folga, mas não em 2028. */
+const HORIZONTE_BALCAO_DIAS = 365;
+
+function alemDoHorizonte(date: string, timeZone: string, dias: number) {
+  const [a, m, d] = hojeNoFuso(timeZone).split("-").map(Number);
+  const limite = new Date(Date.UTC(a, m - 1, d + dias)).toISOString().slice(0, 10);
+  return date > limite;
+}
 
 export type PedidoValidado = {
   staffId: string;
@@ -214,8 +298,22 @@ export async function validarPedido(params: {
   exigirAntecedencia: boolean;
 }): Promise<PedidoValidado> {
   const { shopRef, shop, locale, serviceIds, date, time } = params;
-  const schedule = shop.schedule ?? {};
   const policies = shop.policies ?? {};
+
+  /* Formato aqui, e não só no handler: o balcão não validava nada, e "25:00"
+   * chegava à agenda. */
+  if (!dataValida(date)) throw new HttpsError("invalid-argument", "Data inválida.");
+  if (!horaValida(time)) throw new HttpsError("invalid-argument", "Horário inválido.");
+
+  const horizonte = params.exigirAntecedencia
+    ? Number(policies.booking?.maxAdvanceDays) || HORIZONTE_CLIENTE_DIAS
+    : HORIZONTE_BALCAO_DIAS;
+  if (alemDoHorizonte(date, locale.timeZone, horizonte)) {
+    throw new HttpsError(
+      "failed-precondition",
+      `Dá para marcar com até ${horizonte} dias de antecedência.`
+    );
+  }
 
   /* ---- Qual barbeiro ----
    *
@@ -260,35 +358,14 @@ export async function validarPedido(params: {
   }
 
   /* ---- A barbearia abre nesse dia? ---- */
-  const diaSemana = diaDaSemanaNoFuso(date, locale.timeZone);
-  /* Jornada do BARBEIRO quando ele tem uma; senão a da loja. Folga na segunda
-   * e entrada às 10h são o normal de uma equipe. */
-  const jornadaDele = barbeiro.get("schedule");
-  const doDia = jornadaDoDia({
-    schedule: {
-      weekdays: jornadaDele?.weekdays ?? policies.openWeekdays ?? schedule.weekdays,
-      opensAt: jornadaDele?.opensAt ?? schedule.opensAt,
-      closesAt: jornadaDele?.closesAt ?? schedule.closesAt,
-      breaks: jornadaDele?.breaks ?? schedule.breaks,
-      perDay: jornadaDele?.perDay ?? schedule.perDay,
-      exceptions: jornadaDele?.exceptions ?? schedule.exceptions,
-    },
-    weekday: diaSemana,
+  const { doDia, slotMinutes, temJornadaPropria } = jornadaDoBarbeiro({
+    barbeiro,
+    shop,
     date,
+    timeZone: locale.timeZone,
   });
   if (!doDia.aberto) {
-    /* A exceção diz mais do que o dia da semana: quem tenta marcar num feriado
-     * merece ler "fechado neste dia", e não uma frase que sugere que a
-     * barbearia nunca abre às quintas. */
-    const porExcecao = doDia.origem === "excecao";
-    throw new HttpsError(
-      "failed-precondition",
-      porExcecao
-        ? `A barbearia não atende neste dia${doDia.nota ? ` — ${doDia.nota}` : ""}.`
-        : jornadaDele
-          ? `${barbeiro.get("name")} não atende neste dia.`
-          : "A barbearia não abre neste dia."
-    );
+    throw new HttpsError("failed-precondition", motivoDeDiaFechado(doDia, barbeiro, temJornadaPropria));
   }
 
   /* ---- Antecedência ---- */
@@ -336,12 +413,6 @@ export async function validarPedido(params: {
     durationMin += Number(s.durationMin) || 0;
     nomes.push(String(s.name ?? ""));
   }
-
-  /* Grade da jornada: do barbeiro quando ele tem uma, senão da loja. É a
-   * duração assumida para reserva antiga, gravada antes de `durationMin`
-   * existir. */
-  const slotMinutes: number =
-    Number(jornadaDele?.slotMinutes) || Number(schedule.slotMinutes) || 30;
 
   /* Serviço cadastrado sem duração ocuparia ZERO minuto e não bloquearia nada —
    * a janela seria vazia e toda reserva seguinte caberia dentro dela. A grade é
@@ -487,7 +558,7 @@ export const createBookingAtCounter = onCall<ReservaNoBalcaoInput>(async (reques
     exigirAntecedencia: false,
   });
 
-  const nome = String(request.data?.clientName ?? "").trim();
+  const nome = nomeLimpo(request.data?.clientName);
   const whatsapp = String(request.data?.clientWhatsapp ?? "").replace(/\D/g, "");
   const escolhido = String(request.data?.clientId ?? "").trim();
 
@@ -788,8 +859,8 @@ export const rescheduleBooking = onCall<{
   if (!barbershopId || !bookingId) {
     throw new HttpsError("invalid-argument", "Reserva não informada.");
   }
-  if (!ISO_DATE.test(date ?? "")) throw new HttpsError("invalid-argument", "Data inválida.");
-  if (!HORA.test(time ?? "")) throw new HttpsError("invalid-argument", "Horário inválido.");
+  if (!dataValida(date)) throw new HttpsError("invalid-argument", "Data inválida.");
+  if (!horaValida(time)) throw new HttpsError("invalid-argument", "Horário inválido.");
 
   const db = getFirestore();
   const shopRef = db.doc(`barbershops/${barbershopId}`);
@@ -812,37 +883,52 @@ export const rescheduleBooking = onCall<{
 
   const shop = shopSnap.data() ?? {};
   const policies = shop.policies ?? {};
-  const schedule = shop.schedule ?? {};
-
   const locale = localeDoDocumento(shop);
-  const diaSemana = diaDaSemanaNoFuso(date, locale.timeZone);
-  const doDia = jornadaDoDia({
-    schedule: {
-      weekdays: policies.openWeekdays ?? schedule.weekdays,
-      opensAt: schedule.opensAt,
-      closesAt: schedule.closesAt,
-      breaks: schedule.breaks,
-      perDay: schedule.perDay,
-      exceptions: schedule.exceptions,
-    },
-    weekday: diaSemana,
-    date,
-  });
-  if (!doDia.aberto) {
-    throw new HttpsError(
-      "failed-precondition",
-      doDia.origem === "excecao"
-        ? `A barbearia não atende neste dia${doDia.nota ? ` — ${doDia.nota}` : ""}.`
-        : "A barbearia não abre neste dia."
-    );
+
+  /* A mesma régua da criação — `jornadaDoBarbeiro` e `horariosDaJornada`.
+   * Antes, aqui havia uma cópia que olhava só a jornada da LOJA e nunca a
+   * hora: remarcar para 23:00, para o meio do almoço ou para a folga do
+   * barbeiro passava, e era a porta dos fundos da validação que a criação
+   * fecha. */
+  const staffRef = booking.staffId ? shopRef.collection("staff").doc(String(booking.staffId)) : null;
+  const barbeiroSnap = staffRef ? await staffRef.get() : null;
+  if (barbeiroSnap && (!barbeiroSnap.exists || barbeiroSnap.get("active") === false)) {
+    throw new HttpsError("failed-precondition", "Esse barbeiro não está disponível. Fale com a barbearia.");
+  }
+  /* Reserva antiga, sem `staffId`: vale a jornada da loja. */
+  const barbeiro = barbeiroSnap ?? { get: () => undefined };
+
+  if (alemDoHorizonte(date, locale.timeZone, ehDono ? HORIZONTE_BALCAO_DIAS : Number(policies.booking?.maxAdvanceDays) || HORIZONTE_CLIENTE_DIAS)) {
+    throw new HttpsError("failed-precondition", "Essa data está longe demais para remarcar.");
   }
 
-  const minutosMinimos: number = policies.booking?.minAdvanceMinutes ?? 60;
-  if (instanteNoFuso(date, time, locale.timeZone).getTime() - Date.now() < minutosMinimos * 60_000) {
-    throw new HttpsError(
-      "failed-precondition",
-      `Reservas precisam de ao menos ${minutosMinimos} minutos de antecedência.`
-    );
+  const { doDia, slotMinutes, temJornadaPropria } = jornadaDoBarbeiro({
+    barbeiro,
+    shop,
+    date,
+    timeZone: locale.timeZone,
+  });
+  if (!doDia.aberto) {
+    throw new HttpsError("failed-precondition", motivoDeDiaFechado(doDia, barbeiro, temJornadaPropria));
+  }
+
+  const duracaoDaReserva = Number(booking.durationMin) || slotMinutes;
+
+  if (!ehDono) {
+    const minutosMinimos: number = policies.booking?.minAdvanceMinutes ?? 60;
+    if (instanteNoFuso(date, time, locale.timeZone).getTime() - Date.now() < minutosMinimos * 60_000) {
+      throw new HttpsError(
+        "failed-precondition",
+        `Reservas precisam de ao menos ${minutosMinimos} minutos de antecedência.`
+      );
+    }
+    if (!horariosDaJornada({ jornada: doDia, slotMinutes, duracao: duracaoDaReserva }).includes(time)) {
+      throw new HttpsError("failed-precondition", "Esse horário não está no expediente deste dia.");
+    }
+  } else if (date < hojeNoFuso(locale.timeZone)) {
+    /* O dono segue a régua do balcão: pode lançar fora do expediente, nunca
+     * num dia que já passou. */
+    throw new HttpsError("failed-precondition", "Não dá para remarcar para um dia que já passou.");
   }
 
   /* Janela de remarcação: depois dela o horário já está reservado perto demais
@@ -875,10 +961,14 @@ export const rescheduleBooking = onCall<{
 
   /* Mesma conta de janela do `createBooking` — remarcar não pode ser a porta
    * dos fundos para a sobreposição que a criação passou a barrar. */
-  const slotMinutes: number = Number(schedule.slotMinutes) || 30;
-  const duracaoDaReserva = Number(booking.durationMin) || slotMinutes;
-
   await db.runTransaction(async (tx) => {
+    /* O status lido lá em cima é de antes da transação. Se o dono concluiu ou
+     * cancelou nesse meio-tempo, remarcar forçaria `confirmed` e ressuscitaria
+     * um atendimento já fechado — apagando o pagamento que ele registrou. */
+    const atual = await tx.get(bookingRef);
+    if (!EM_ABERTO.includes(atual.get("status"))) {
+      throw new HttpsError("failed-precondition", "Essa reserva não está mais aberta.");
+    }
     const doDia = await tx.get(shopRef.collection("bookings").where("date", "==", date));
 
     const ocupadas = janelasOcupadas(
