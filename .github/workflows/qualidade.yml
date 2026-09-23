@@ -110,5 +110,8 @@ jobs:
       # estavam vermelhas na `main` desde #26 sem ninguém saber, enquanto três
       # testes de isolamento afirmavam vazamentos que a rodada E2E fechou.
       # Suíte que não roda não protege. Em série (`--no-file-parallelism`):
-      # elas limpam o banco entre testes.
+      # elas limpam o banco entre testes. `TZ=America/Sao_Paulo` no script:
+      # várias montam "hoje" e "agora" pelo relógio da máquina assumindo o
+      # fuso da barbearia semeada (ver `balcao.test.ts`), e o runner é UTC —
+      # na primeira execução aqui, "agora" virou 3h no futuro.
       - run: npm run test:emulador
