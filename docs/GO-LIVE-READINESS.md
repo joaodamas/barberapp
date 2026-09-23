@@ -281,7 +281,30 @@ bloqueador que depende do relógio, não de trabalho.
 
 ---
 
-### 2.8 Rodada E2E de 23/09 — 5 P0 e 18 P1, corrigidos no código, nenhum provado em produção
+### 2.8 Rodada E2E de 23/09 — 5 P0 e 18 P1, corrigidos e PUBLICADOS
+
+**Publicado em 23/09**, run `35893555673` (commit `a2574e4`): índices,
+regras, functions e hosting. Aprovação do portão `producao` feita pela
+ferramenta **a pedido explícito do dono** — exceção registrada à regra da
+seção 8 do HANDOFF. Pós-deploy executado no mesmo dia: remuneração da equipe
+migrada (0 fichas expostas depois), marca do piloto em `/tenants/osiqueira/`,
+`roles/iam.serviceAccountTokenCreator` concedido à conta das functions.
+
+✅ **Validado no domínio publicado** (`osiqueira.jpproject.com.br`, 23/09,
+só leitura e fluxo anônimo):
+- vitrine sem conta mostra os serviços e preços reais; `/agendar` abre sem
+  conta; `/reservas` manda ao login com `next`;
+- selo do piloto no topo (`/tenants/osiqueira/logo.svg`) e manifest com os
+  ícones dele; `/marca.svg` e `/icone/192` respondem;
+- `/login?next=/%5Cexample.com` não sai do domínio;
+- `trocarCodigoDeEntrada` publicada (código inventado é recusado).
+
+🟡 **Publicado, não provado em produção** — exige conta e escrita real:
+fluxos do dono (concluir, fidelidade, equipe), agendamento e remarcação,
+DRE, login automático pós-cadastro (depende do papel de IAM recém-concedido),
+funções de LGPD.
+
+#### Como estava antes da publicação
 
 Achados e correções em [`QA-E2E-2026-09-23.md`](./QA-E2E-2026-09-23.md) §9.
 O mais grave: **nenhuma barbearia nova conseguia terminar o onboarding**
