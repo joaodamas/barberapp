@@ -59,6 +59,8 @@ export type ClientDoc = {
    * com conta no app. Nulo no caso normal.
    */
   mergedInto?: string | null;
+  /** Indício, não decisão: cadastro de balcão com o mesmo WhatsApp. */
+  mesmoNumeroQue?: string;
 };
 
 /** Só dígitos. "(11) 98888-7777" e "11988887777" são a mesma pessoa. */
@@ -104,6 +106,13 @@ export async function acharClientePorWhatsapp(params: {
   db: Firestore;
   barbershopId: string;
   whatsapp: string;
+  /**
+   * Só cadastros de balcão (`uid: null`). É o que o BALCÃO usa: o número de
+   * uma conta de app foi digitado pela própria pessoa, sem verificação, e
+   * reusar esse cadastro entregaria ao dono da conta a reserva de quem ligou
+   * — com nome, horário e o poder de cancelar (rodada E2E de 23/09).
+   */
+  soDeBalcao?: boolean;
 }): Promise<{ id: string; dados: ClientDoc } | null> {
   if (!whatsappServeComoChave(params.whatsapp)) return null;
 
@@ -117,7 +126,9 @@ export async function acharClientePorWhatsapp(params: {
   /* `active !== false` e não `active === true`: cadastro anterior ao campo não
    * o tem, e tratá-lo como inativo criaria um segundo cadastro para alguém que
    * já existe — o oposto do que esta função serve para evitar. */
-  const vivo = encontrados.docs.find((d) => d.data().active !== false);
+  const vivo = encontrados.docs.find(
+    (d) => d.data().active !== false && (!params.soDeBalcao || !d.data().uid)
+  );
   return vivo ? { id: vivo.id, dados: vivo.data() as ClientDoc } : null;
 }
 
@@ -147,13 +158,14 @@ export async function acharClientePorWhatsapp(params: {
  * | balcão, número conhecido | o que já existe | **reusa**, não duplica |
  * | balcão, número novo | gerado | cria com `uid: null` |
  *
- * ## A fusão
+ * ## Sem fusão por telefone
  *
- * Quando alguém que já era cliente de balcão aparece com conta, o cadastro
- * antigo é marcado `active: false` com `mergedInto` apontando para o novo. As
- * reservas antigas **continuam apontando para o id antigo**: reescrever
- * histórico para arrumar um cadastro seria trocar o fato pelo cadastro. O
- * ponteiro fica gravado para quem for reconciliar depois.
+ * Até 23/09, quem aparecia com conta e o mesmo WhatsApp de um cliente de
+ * balcão absorvia o cadastro dele (`active: false`, `mergedInto`). Como o
+ * número não é verificado, isso era sequestro de identidade. Agora os dois
+ * cadastros convivem; o de conta ganha `mesmoNumeroQue` como indício, e o
+ * balcão só reusa cadastro de balcão. `mergedInto` antigo continua sendo
+ * lido (histórico e LGPD).
  */
 export async function resolverCliente(params: {
   tx: Transaction;
@@ -174,6 +186,7 @@ export async function resolverCliente(params: {
     db: params.db,
     barbershopId: params.barbershopId,
     whatsapp,
+    soDeBalcao: !params.uid,
   });
 
   /* Com conta o id é o uid, e é isso que mantém as regras do Firestore válidas
@@ -181,19 +194,21 @@ export async function resolverCliente(params: {
    * verdadeiro porque referência e identidade coincidem. */
   if (params.uid) {
     const jaEraEu = existente?.id === params.uid;
-    const paraFundir =
+    /* SEM fusão automática. Ela acontecia pelo WhatsApp que a pessoa digitou,
+     * sem verificação nenhuma: qualquer conta que informasse o número de um
+     * cliente de balcão absorvia o cadastro dele — e, com ele, as próximas
+     * reservas do balcão, os carimbos e a leitura dos pagamentos. Quando era
+     * a pessoa certa, a fusão ainda deixava o plano de mensalista e os
+     * carimbos presos no cadastro antigo (rodada E2E de 23/09).
+     *
+     * O número em comum fica registrado como INDÍCIO para o dono conferir,
+     * nunca como decisão. */
+    const mesmoNumeroQue =
       existente && !jaEraEu && !existente.dados.uid ? existente.id : null;
 
     return {
       id: params.uid,
       gravar: (tx) => {
-        if (paraFundir) {
-          tx.update(clientes.doc(paraFundir), {
-            active: false,
-            mergedInto: params.uid,
-            mergedAt: FieldValue.serverTimestamp(),
-          });
-        }
         tx.set(
           clientes.doc(params.uid as string),
           {
@@ -204,6 +219,7 @@ export async function resolverCliente(params: {
             ...(whatsappServeComoChave(whatsapp) ? { whatsapp } : {}),
             origin: params.origin,
             active: true,
+            ...(mesmoNumeroQue ? { mesmoNumeroQue } : {}),
             /* Quem foi anonimizado a pedido e volta a agendar com a conta é um
              * tratamento NOVO: o selo sai junto com a volta do nome, senão o
              * cadastro afirmaria "anonimizado" com o nome escrito ao lado. Ver

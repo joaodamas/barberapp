@@ -18,7 +18,7 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, it } from "vitest";
 
 /**
  * Isolamento multi-tenant — ATAQUE SISTEMÁTICO.
@@ -216,11 +216,11 @@ describe("1 · o dono da Alfa NÃO lê nenhuma coleção da Beta", () => {
       clients: "cli-1",
     };
 
-    /* `services`, `staff`, `plans`, `products` e `schedules` são legíveis por
-     * QUALQUER autenticado, de propósito: o cliente precisa ver o catálogo e os
-     * barbeiros para escolher. São vitrine, e o comentário das regras diz isso.
-     * O que não pode vazar é operação e dinheiro. */
-    const vitrine = ["services", "staff", "plans", "products", "schedules"];
+    /* `services`, `staff`, `plans` e `schedules` são vitrine — legíveis até
+     * sem login desde 23/09. `products` saiu: `cost` é quanto o dono pagou, e
+     * o app do cliente não lê produto nenhum. A remuneração do barbeiro saiu
+     * de `staff` para `staff_pay`. O que não pode vazar é operação e dinheiro. */
+    const vitrine = ["services", "staff", "plans", "schedules"];
 
     const alvo = doc(db, `barbershops/${BETA}/${colecao}`, idPorColecao[colecao]);
 
@@ -607,26 +607,18 @@ describe("9 · quanto a plataforma expõe de si mesma", () => {
     await assertSucceeds(getDoc(doc(anon, "barbershops", BETA)));
   });
 
-  it("⚠️ e a LISTA de todas as barbearias também é", async () => {
-    /* Consequência de `allow read: if true` no documento: a permissão vale para
-     * a listagem da coleção. Qualquer pessoa, sem login, enumera todas as
-     * barbearias da plataforma — nome, slug, status e plano.
-     *
-     * Não vaza operação nem dinheiro; vaza o MAPA COMERCIAL: quantos clientes a
-     * plataforma tem, quem são, quem está suspenso e quem paga o plano de cima.
-     * Um concorrente lê isso numa requisição.
-     *
-     * Registrado como achado, e não corrigido aqui: fechar a listagem sem
-     * fechar a leitura por id exige separar as duas permissões, e a resolução
-     * do subdomínio depende da segunda. */
+  it("🔒 a LISTA de todas as barbearias não é", async () => {
+    /* Era `allow read: if true`, que vale para a listagem: qualquer pessoa,
+     * sem login, enumerava a base — nome, status, plano e quem está suspenso
+     * por inadimplência. Registrado aqui como achado; fechado em 23/09 com
+     * `get` público e `list` só da plataforma. */
     const anon = testEnv.unauthenticatedContext().firestore();
-    const todas = await assertSucceeds(getDocs(collection(anon, "barbershops")));
-    expect(todas.size).toBeGreaterThanOrEqual(2);
+    await assertFails(getDocs(collection(anon, "barbershops")));
+    await assertFails(getDocs(collection(as(DONO_ALFA), "barbershops")));
   });
 
-  it("⚠️ o índice de slugs também é enumerável", async () => {
+  it("🔒 o índice de slugs também não é enumerável", async () => {
     const anon = testEnv.unauthenticatedContext().firestore();
-    const slugs = await assertSucceeds(getDocs(collection(anon, "slugs")));
-    expect(slugs.size).toBeGreaterThanOrEqual(2);
+    await assertFails(getDocs(collection(anon, "slugs")));
   });
 });

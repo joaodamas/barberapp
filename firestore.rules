@@ -436,8 +436,10 @@ service cloud.firestore {
 
     match /slugs/{slug} {
       // Precisa ser legível sem login: é o que traduz "osiqueira.dominio.com"
-      // em um barbershopId antes de qualquer autenticação.
-      allow read: if true;
+      // em um barbershopId antes de qualquer autenticação. Só por `get`:
+      // listar o índice é enumerar a base de clientes da plataforma.
+      allow get: if true;
+      allow list: if isPlatformAdmin();
       allow write: if isPlatformAdmin();
     }
 
