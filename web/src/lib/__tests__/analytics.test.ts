@@ -644,6 +644,27 @@ describe("mão de obra", () => {
     expect(comissao.total).toBe(80); // 50 + 30, não 40 + 40
   });
 
+  it("concluir, desfazer e concluir de novo soma o ciclo — em qualquer ordem de leitura", () => {
+    /* Três documentos para a mesma reserva: +20, −20, +20. O mapa ficava com o
+     * último lido, e quando era o estorno o barbeiro aparecia com −R$ 20 e o
+     * DRE mostrava margem de 140% (rodada E2E de 23/09). */
+    const doc = (id: string, amount: number, base: number) =>
+      ({ id, origin: "servico", bookingId: "1", staffId: "a", uid: null, staffName: "Zé",
+         date: "2026-07-10", commissionPct: 40, commissionBase: base, commissionAmount: amount }) as Doc<CommissionDoc>;
+    const ciclo = [doc("comissao_1", 20, 50), doc("comissao_estorno_1_x", -20, -50), doc("comissao_1_y", 20, 50)];
+    for (const ordem of [ciclo, [...ciclo].reverse(), [ciclo[0], ciclo[2], ciclo[1]]]) {
+      const comissao = comissoesDeServico({
+        bookings: [bk({ id: "1", staffId: "a", value: 50, date: "2026-07-10" })],
+        staff: [st({ id: "a", commissionPct: 90 })], // o cadastro mudou; o congelado vence
+        periodo: P8,
+        policies: PLATFORM_DEFAULT_POLICIES,
+        commissions: ordem,
+      });
+      expect(comissao.total).toBe(20);
+      expect(comissao.porBarbeiro[0].pct).toBe(40);
+    }
+  });
+
   it("sem percentual próprio cai no padrão da barbearia", () => {
     // O cadastro inicial grava `commissionPct: null`, não ausente.
     const comissao = comissoesDeServico({

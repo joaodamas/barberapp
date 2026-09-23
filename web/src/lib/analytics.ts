@@ -427,6 +427,38 @@ export type ComissaoDeBarbeiro = {
  * o outro sem nada ter piorado — e mantém o ponto de equilíbrio na definição
  * padrão (custo fixo ÷ margem de contribuição).
  */
+
+/**
+ * Uma reserva pode ter VÁRIAS comissões congeladas, e o saldo é a soma.
+ *
+ * O ledger de `functions/src/comissoes.ts` foi desenhado para somar: concluir,
+ * desfazer e concluir de novo grava +20, −20 e +20, e o saldo é R$ 20,00. Aqui
+ * o mapa era `bookingId → documento`, e ficava com o ÚLTIMO lido — que dependia
+ * da ordem dos ids. Quando o estorno vencia, o barbeiro aparecia com −R$ 20 e o
+ * DRE mostrou margem de contribuição de 140% e resultado maior que a receita
+ * (rodada E2E de 23/09).
+ *
+ * Percentual e nome vêm de um documento positivo: o estorno nega valor e base,
+ * não o percentual, e é o ciclo vigente que diz quanto o barbeiro ganha.
+ */
+export function somarPorReserva(docs: CommissionDoc[]): Map<string | undefined, CommissionDoc> {
+  const porReserva = new Map<string | undefined, CommissionDoc>();
+  for (const c of docs) {
+    const atual = porReserva.get(c.bookingId);
+    if (!atual) {
+      porReserva.set(c.bookingId, { ...c });
+      continue;
+    }
+    const positivo = c.commissionAmount > 0 ? c : atual.commissionAmount > 0 ? atual : c;
+    porReserva.set(c.bookingId, {
+      ...positivo,
+      commissionBase: atual.commissionBase + c.commissionBase,
+      commissionAmount: atual.commissionAmount + c.commissionAmount,
+    });
+  }
+  return porReserva;
+}
+
 export function comissoesDeServico(params: {
   bookings: Doc<BookingDoc>[];
   staff: Doc<StaffDoc>[];
@@ -468,13 +500,11 @@ export function comissoesDeServico(params: {
    *
    * `indexarPagamentos` já tratava exatamente este buraco em `payments`. A
    * assimetria entre as duas camadas era o defeito. */
-  const congelada = new Map(
-    (params.commissions ?? [])
-      .filter((c) => {
-        const origem = c.origin ?? (c.bookingId ? "servico" : undefined);
-        return origem === "servico" && dentroDoPeriodo(c.date, periodo);
-      })
-      .map((c) => [c.bookingId, c])
+  const congelada = somarPorReserva(
+    (params.commissions ?? []).filter((c) => {
+      const origem = c.origin ?? (c.bookingId ? "servico" : undefined);
+      return origem === "servico" && dentroDoPeriodo(c.date, periodo);
+    })
   );
 
   for (const b of bookings) {
