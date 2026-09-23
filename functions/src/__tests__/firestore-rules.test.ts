@@ -530,3 +530,60 @@ describe("a equipe", () => {
     await assertFails(getDoc(doc(as(CLIENTE), `barbershops/${ALFA}/cash_entries`, "cx-1")));
   });
 });
+
+describe("reserva: o painel fecha e marca falta — e só isso", () => {
+  /* A regra era `update, delete: if isStaffOf`, sem campo nenhum conferido, e
+   * o gatilho financeiro confia no documento. Rodada E2E de 23/09. */
+  const bk = (quem: { sub: string } & Record<string, unknown>) =>
+    doc(as(quem), `barbershops/${ALFA}/bookings`, "bk-1");
+
+  it("o dono conclui com o meio e a forma de pagamento", async () => {
+    await assertSucceeds(
+      updateDoc(bk(DONO_ALFA), {
+        status: "completed", paymentMethod: "credit", paymentFormId: "credito-1x", paymentFormLabel: "Crédito",
+      })
+    );
+  });
+
+  it("o barbeiro conclui o mensalista sem meio de pagamento (null)", async () => {
+    await assertSucceeds(
+      updateDoc(bk(BARBEIRO_ALFA), { status: "completed", paymentMethod: null, paymentFormId: null, paymentFormLabel: null })
+    );
+  });
+
+  it("marca falta", async () => {
+    await assertSucceeds(updateDoc(bk(DONO_ALFA), { status: "no_show" }));
+  });
+
+  it("🔒 não forja comissão, valor, cobertura, barbeiro nem cliente ao concluir", async () => {
+    for (const extra of [
+      { value: 99999 },
+      { staffId: "barbeiro-alfa" },
+      { clientId: "outra-conta" },
+      { cobertura: { tipo: "plano" } },
+      { cicloFinanceiro: { revertidoEm: "x", comissao: { commissionPct: 100 }, pagamento: { grossAmount: 99999 } } },
+    ]) {
+      await assertFails(updateDoc(bk(BARBEIRO_ALFA), { status: "completed", paymentMethod: "cash", ...extra }));
+      await assertFails(updateDoc(bk(DONO_ALFA), { status: "completed", paymentMethod: "cash", ...extra }));
+    }
+  });
+
+  it("🔒 não inventa meio de pagamento nem status fora do fechamento", async () => {
+    await assertFails(updateDoc(bk(DONO_ALFA), { status: "completed", paymentMethod: "bitcoin" }));
+    await assertFails(updateDoc(bk(DONO_ALFA), { status: "cancelled_by_shop" }));
+    await assertFails(updateDoc(bk(DONO_ALFA), { status: "confirmed", time: "23:00" }));
+  });
+
+  it("🔒 não reabre atendimento concluído direto no banco", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `barbershops/${ALFA}/bookings`, "bk-1"), { status: "completed" });
+    });
+    await assertFails(updateDoc(bk(DONO_ALFA), { status: "no_show" }));
+    await assertFails(updateDoc(bk(DONO_ALFA), { status: "completed", paymentMethod: "pix" }));
+  });
+
+  it("🔒 ninguém apaga reserva", async () => {
+    await assertFails(deleteDoc(bk(DONO_ALFA)));
+    await assertFails(deleteDoc(bk(BARBEIRO_ALFA)));
+  });
+});

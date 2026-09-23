@@ -243,7 +243,36 @@ service cloud.firestore {
 
         // Cancelar e reagendar passam por Cloud Function: aplicam a política,
         // calculam o reembolso e registram a ocorrência.
-        allow update, delete: if isStaffOf(barbershopId);
+        //
+        /* O painel grava direto só DUAS coisas: fechar o atendimento (status +
+         * meio e forma de pagamento, na mesma escrita) e marcar falta. Nada
+         * além disso.
+         *
+         * A regra era `update, delete: if isStaffOf` — sem campo nenhum
+         * conferido. O gatilho financeiro confia em `cicloFinanceiro`,
+         * `cobertura`, `staffId` e `value` do documento, então um barbeiro
+         * concluía a reserva de um colega em nome próprio com 100% de comissão
+         * sobre R$ 99.999, marcava "coberto por plano" para o dinheiro sumir do
+         * caixa, trocava o `clientId` para outra conta ler nome e telefone, ou
+         * apagava a reserva deixando pagamento órfão. O dono tinha o mesmo
+         * poder, e "financeiro escrito só pelo servidor" não valia (rodada E2E
+         * de 23/09, provado com teste de regra).
+         *
+         * Transição só a partir de reserva em aberto: reabrir um atendimento
+         * concluído mexe em dinheiro congelado e é do servidor. */
+        allow update: if isStaffOf(barbershopId)
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['status', 'paymentMethod', 'paymentFormId', 'paymentFormLabel'])
+          && resource.data.status in ['pending_payment', 'confirmed', 'confirmed_by_client', 'fit_in_requested']
+          && (
+            (request.resource.data.status == 'completed'
+              && request.resource.data.get('paymentMethod', null) in [null, 'pix', 'cash', 'debit', 'credit'])
+            || (request.resource.data.status == 'no_show'
+              && !request.resource.data.diff(resource.data).affectedKeys()
+                    .hasAny(['paymentMethod', 'paymentFormId', 'paymentFormLabel']))
+          );
+        /* Histórico não se apaga: reserva errada se cancela. */
+        allow delete: if false;
       }
 
       match /schedules/{scheduleId} {
