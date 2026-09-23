@@ -52,6 +52,7 @@ export default function FinanceiroPage() {
       .filter((s) => s.status !== "cancelado")
       .reduce((t, s) => t + s.price, 0),
   };
+  const mensalidadePendente = Math.max(0, Math.round((mrr.billed - receita.mensalidades) * 100) / 100);
   const ativos = raw.subscribers.filter((s) => s.status === "ativo");
   const commercialStats = {
     newSubscribers: ativos.length,
@@ -145,9 +146,15 @@ export default function FinanceiroPage() {
             value={apuracao.valor("receitaRealizada", formatBRL(r.grossRevenue))}
             caption={apuracao.legenda(
               "receitaRealizada",
-              mrr.billed > 0
-                ? `${formatBRL(mrr.billed)} de mensalidade contratada não entram aqui`
-                : "atendimentos e vendas com desfecho registrado"
+              /* Só o que AINDA NÃO foi pago. A frase dizia "R$ 110 de
+               * mensalidade contratada não entram aqui" ao lado de uma receita
+               * que já incluía os R$ 110 pagos — no clone do piloto (23/09) o
+               * dono leria que faltava dinheiro que já tinha entrado. */
+              mensalidadePendente > 0
+                ? `${formatBRL(mensalidadePendente)} de mensalidade ainda não paga — entra quando for recebida`
+                : receita.mensalidades > 0
+                  ? `inclui ${formatBRL(receita.mensalidades)} de mensalidades recebidas`
+                  : "atendimentos e vendas com desfecho registrado"
             )}
           />
           {/* "Despesas" descrevia outra coisa: o valor é o CUSTO TOTAL — CMV,
