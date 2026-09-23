@@ -204,6 +204,12 @@ export async function resolverCliente(params: {
             ...(whatsappServeComoChave(whatsapp) ? { whatsapp } : {}),
             origin: params.origin,
             active: true,
+            /* Quem foi anonimizado a pedido e volta a agendar com a conta é um
+             * tratamento NOVO: o selo sai junto com a volta do nome, senão o
+             * cadastro afirmaria "anonimizado" com o nome escrito ao lado. Ver
+             * `docs/LGPD-DIREITOS-DO-TITULAR.md` §3.2. */
+            anonimizadoEm: FieldValue.delete(),
+            anonimizadoPor: FieldValue.delete(),
             updatedAt: FieldValue.serverTimestamp(),
             /* `createdAt` só na criação. Reescrevê-lo a cada reserva
              * transformaria "cliente desde" em "última visita". */

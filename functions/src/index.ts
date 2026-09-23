@@ -54,6 +54,11 @@ export {
   reabrirConta,
   expurgarContasEncerradas,
 } from "./data-deletion";
+export {
+  exportarDadosDoCliente,
+  anonimizarCliente,
+  excluirMinhaConta,
+} from "./titular";
 export { TEMPLATES } from "./whatsapp/templates";
 export type {
   TemplateDef,

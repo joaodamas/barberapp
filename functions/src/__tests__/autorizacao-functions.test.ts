@@ -209,6 +209,17 @@ describe("as guardas dizem o que verificam", () => {
     }
   });
 
+  it("exportarDadosDoCliente e anonimizarCliente são só do dono daquela barbearia", () => {
+    /* Entregar o histórico de alguém e apagar quem ele é são atos do
+     * controlador — ver docs/LGPD-DIREITOS-DO-TITULAR.md §2. */
+    for (const nome of ["exportarDadosDoCliente", "anonimizarCliente"]) {
+      const f = HANDLERS.find((h) => h.nome === nome)!;
+      expect(f, nome).toBeDefined();
+      expect(/ehDono/.test(f.corpo), nome).toBe(true);
+      expect(/"staff"/.test(f.corpo), nome).toBe(false);
+    }
+  });
+
   it("cancelBooking e rescheduleBooking aceitam o dono da reserva OU o da barbearia", () => {
     for (const nome of ["cancelBooking", "rescheduleBooking"]) {
       const f = HANDLERS.find((h) => h.nome === nome)!;
