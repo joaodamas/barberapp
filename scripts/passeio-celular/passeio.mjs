@@ -118,7 +118,15 @@ const browser = await chromium.launch();
 
 for (const [aparelho, cfg] of APARELHOS) {
   const celular = aparelho !== "pc-1366";
-  const ctx = await browser.newContext({ ...cfg, locale: "pt-BR", timezoneId: "America/Sao_Paulo" });
+  /* `bypassCSP`: a CSP de produção tem `upgrade-insecure-requests`, e aqui
+     não há HTTPS — o navegador trocava cada JS e CSS para https:// e nada
+     carregava. A CSP em si não é o que este passeio examina. */
+  const ctx = await browser.newContext({
+    ...cfg,
+    locale: "pt-BR",
+    timezoneId: "America/Sao_Paulo",
+    bypassCSP: true,
+  });
   const page = await ctx.newPage();
   let erros = [];
   page.on("console", (m) => m.type() === "error" && erros.push(m.text().slice(0, 200)));
