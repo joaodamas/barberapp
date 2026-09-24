@@ -570,10 +570,12 @@ export default function PainelHojePage() {
           <h2 className="text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
             Agenda
           </h2>
+          {/* No celular quem marca é o "+" da barra; o mesmo botão aqui era
+              a segunda porta para a mesma ação, lado a lado na tela. */}
           <Button
             variant="secondary"
             onClick={() => setBalcaoAberto(true)}
-            className="min-h-9 px-3 text-xs"
+            className="hidden min-h-9 px-3 text-xs md:inline-flex"
           >
             <CalendarPlus size={14} />
             Marcar atendimento

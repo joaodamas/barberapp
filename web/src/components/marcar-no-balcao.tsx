@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import { Check, Search, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
-import { Pill } from "@/components/ui/pill";
 import { formatBRL, formatDatePtBR, toISODate } from "@/lib/format";
 import { useTenant } from "@/lib/tenant-context";
 import { useClients, useServices, useStaff } from "@/lib/db/use-shop-data";
@@ -260,6 +259,8 @@ export function MarcarNoBalcao({
             <Button variant="secondary" onClick={() => { limpar(); }} className="flex-1">
               Marcar outro
             </Button>
+            {/* Aberto da própria agenda, "Ver na agenda" só fechava — a
+                reserva já está na tela de trás. */}
             <Button
               onClick={() => {
                 fechar();
@@ -267,7 +268,7 @@ export function MarcarNoBalcao({
               }}
               className="flex-1"
             >
-              Ver na agenda
+              {aoVerNaAgenda ? "Ver na agenda" : "Pronto"}
             </Button>
           </div>
         }
@@ -300,14 +301,22 @@ export function MarcarNoBalcao({
               {erro}
             </p>
           )}
-          <div className="flex gap-2">
-            <Button variant="secondary" onClick={fechar} className="flex-1">
-              Cancelar
-            </Button>
-            <Button onClick={confirmar} disabled={!podeConfirmar || salvando} className="flex-1">
-              {salvando ? "Marcando…" : "Confirmar reserva"}
-            </Button>
-          </div>
+          {/* O botão diz O QUE vai ser marcado. Antes havia um cartão "Resumo"
+              repetindo o que já estava selecionado logo acima, e um "Cancelar"
+              ao lado do X do próprio modal — dois jeitos de fechar, duas
+              leituras da mesma escolha (apontado pelo dono em 24/09). */}
+          <Button onClick={confirmar} disabled={!podeConfirmar || salvando} className="w-full">
+            {salvando
+              ? "Marcando…"
+              : podeConfirmar
+                ? `Marcar ${dia!.iso === toISODate(new Date()) ? "hoje" : `${dia!.iso.slice(8, 10)}/${dia!.iso.slice(5, 7)}`} às ${hora} · ${formatBRL(valorTotal)}`
+                : "Marcar atendimento"}
+          </Button>
+          {podeConfirmar && (
+            <p className="text-center text-[11px] text-ink-muted">
+              {duracaoTotal} min · pagamento no atendimento
+            </p>
+          )}
         </div>
       }
     >
@@ -315,7 +324,7 @@ export function MarcarNoBalcao({
         {/* ---- 1 · serviço ---- */}
         <section className="flex flex-col gap-2">
           <p className="text-[11px] uppercase tracking-wide text-ink-muted">
-            1 · O que vai fazer
+            O que vai fazer
           </p>
           <div className="flex flex-wrap gap-2">
             {catalogo.map((s) => {
@@ -352,10 +361,12 @@ export function MarcarNoBalcao({
           )}
         </section>
 
-        {/* ---- 2 · barbeiro ---- */}
+        {/* ---- 2 · barbeiro ----
+            Com um barbeiro só a seção não pergunta nada — ele já vem escolhido. */}
+        {ativos.length > 1 && (
         <section className="flex flex-col gap-2">
           <p className="text-[11px] uppercase tracking-wide text-ink-muted">
-            2 · Com quem
+            Com quem
           </p>
           <div className="flex flex-wrap gap-2">
             {barbeirosQueFazem.map((b) => (
@@ -385,10 +396,11 @@ export function MarcarNoBalcao({
             </p>
           )}
         </section>
+        )}
 
         {/* ---- 3 · quando ---- */}
         <section className="flex flex-col gap-2">
-          <p className="text-[11px] uppercase tracking-wide text-ink-muted">3 · Quando</p>
+          <p className="text-[11px] uppercase tracking-wide text-ink-muted">Quando</p>
           <div className="flex gap-1.5 overflow-x-auto pb-1">
             {dias.slice(0, 14).map((d, i) => (
               <button
@@ -414,7 +426,9 @@ export function MarcarNoBalcao({
 
           {!barbeiroId ? (
             <p className="text-xs text-ink-muted">
-              Escolha o serviço e o barbeiro para ver os horários livres.
+              {ativos.length > 1
+                ? "Escolha o serviço e o barbeiro para ver os horários livres."
+                : "Escolha o serviço para ver os horários livres."}
             </p>
           ) : horariosLivres === null ? (
             <p className="text-xs text-ink-muted">Carregando horários…</p>
@@ -446,7 +460,7 @@ export function MarcarNoBalcao({
 
         {/* ---- 4 · quem ---- */}
         <section className="flex flex-col gap-2">
-          <p className="text-[11px] uppercase tracking-wide text-ink-muted">4 · Para quem</p>
+          <p className="text-[11px] uppercase tracking-wide text-ink-muted">Para quem</p>
 
           {clienteEscolhido ? (
             <div className="flex items-center justify-between gap-2 rounded-xl border border-gold/60 bg-gold/5 px-3 py-2">
@@ -549,25 +563,6 @@ export function MarcarNoBalcao({
           )}
         </section>
 
-        {/* ---- resumo ---- */}
-        {podeConfirmar && (
-          <section className="flex flex-col gap-1 rounded-xl border border-border bg-surface-raised p-3">
-            <p className="text-[11px] uppercase tracking-wide text-ink-muted">Resumo</p>
-            <p className="text-sm text-ink">
-              {clienteEscolhido?.name ?? nomeNovo} · {escolhidos.map((s) => s.name).join(" + ")}
-            </p>
-            <p className="text-xs text-ink-muted">
-              {formatDatePtBR(dia!.iso)} às {hora} · {duracaoTotal} min ·{" "}
-              {ativos.find((b) => b.id === barbeiroId)?.name}
-            </p>
-            <div className="mt-1 flex items-center justify-between">
-              <Pill tone="gold">{formatBRL(valorTotal)}</Pill>
-              {/* O produto não recebe pagamento antecipado. Dizer isso aqui
-                  evita que o dono espere uma etapa de cobrança que não existe. */}
-              <span className="text-[11px] text-ink-muted">pagamento no atendimento</span>
-            </div>
-          </section>
-        )}
       </div>
     </Modal>
   );
