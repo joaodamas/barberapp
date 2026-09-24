@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
-import { onAuthStateChanged, type User } from "firebase/auth";
+import { onIdTokenChanged, type User } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 
 type Claims = {
@@ -32,8 +32,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    * instante (o redirect do login, o AuthGuard) decide errado. */
   const [state, setState] = useState<AuthState>(initialState);
 
+  /* `onIdTokenChanged`, e não `onAuthStateChanged`.
+   *
+   * `onAuthStateChanged` só dispara quando QUEM está logado muda. Na troca da
+   * senha provisória a tela entra de novo com a MESMA conta — o token novo
+   * já não tem `mustChangePassword`, mas o contexto continuava com as
+   * permissões antigas, e o painel devolvia para /trocar-senha num laço
+   * (24/09, primeiro acesso real de um dono em produção). O mesmo valia para
+   * qualquer permissão concedida depois do login. `onIdTokenChanged` dispara
+   * em entrada, saída e todo token novo — as permissões seguem o token. */
   useEffect(() => {
-    return onAuthStateChanged(auth, async (user) => {
+    return onIdTokenChanged(auth, async (user) => {
       if (!user) {
         setState({ user: null, claims: {}, loading: false });
         return;
