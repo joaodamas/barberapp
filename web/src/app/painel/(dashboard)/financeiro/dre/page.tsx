@@ -302,7 +302,9 @@ function DreConteudo() {
     <div className="flex flex-col gap-6 pt-1 md:gap-8 md:pt-2">
       <Voltar />
 
-      <div className="flex items-center justify-between gap-3">
+      {/* Empilhado no celular: lado a lado, o seletor de mês espremia o título
+          em cinco linhas e empurrava a tela 13px além dos 320px. */}
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           {/* O menu passou a dizer "Quanto sobrou" e a tela continuava dizendo
               "DRE Gerencial": o dono clicava num nome e chegava em outro. UX-01
