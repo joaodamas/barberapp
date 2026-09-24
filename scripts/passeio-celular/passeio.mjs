@@ -135,9 +135,15 @@ for (const [aparelho, cfg] of APARELHOS) {
 
   /* Dono. */
   await page.goto(BASE + "/login", { waitUntil: "domcontentloaded" });
-  await page.getByRole("textbox", { name: "E-mail" }).fill("dono@osiqueira.teste");
-  await page.getByRole("textbox", { name: "Senha" }).fill("dono12345");
-  await page.getByRole("button", { name: "Entrar", exact: true }).click({ timeout: 30000 });
+  /* Preencher antes da hidratação não chega ao estado do React e o "Entrar"
+     fica desabilitado: preenche de novo até ele habilitar. */
+  const entrar = page.getByRole("button", { name: "Entrar", exact: true });
+  for (let i = 0; i < 20 && !(await entrar.isEnabled()); i++) {
+    await page.getByRole("textbox", { name: "E-mail" }).fill("dono@osiqueira.teste");
+    await page.getByRole("textbox", { name: "Senha" }).fill("dono12345");
+    await page.waitForTimeout(500);
+  }
+  await entrar.click({ timeout: 30000 });
   await page.waitForURL(/\/painel/, { timeout: 60000 });
 
   for (const rota of PAINEL) await visitar(rota, nomeDe(rota));
