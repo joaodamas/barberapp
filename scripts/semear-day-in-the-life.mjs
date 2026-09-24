@@ -14,7 +14,7 @@ import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 
-const PROJETO = "day-in-the-life";
+const PROJETO = process.env.PROJETO_EMULADOR ?? "day-in-the-life";
 
 if (!process.env.FIRESTORE_EMULATOR_HOST || !process.env.FIREBASE_AUTH_EMULATOR_HOST) {
   console.error(

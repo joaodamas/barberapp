@@ -71,7 +71,9 @@ export function Segmented<T extends string>({
             onClick={() => onChange(o.value)}
             className={cn(
               // min-h-11: alvo de toque de 44px, o dono usa isso em pé no salão.
-              "min-h-11 flex-1 cursor-pointer rounded-lg px-3 text-sm font-medium transition-colors",
+              // min-w-0 + texto menor no celular estreito: "Mensal · Trimestral ·
+              // Semestral · Anual" empurrava a tela para além dos 320px.
+              "min-h-11 min-w-0 flex-1 cursor-pointer rounded-lg px-1.5 text-xs font-medium transition-colors sm:px-3 sm:text-sm",
               ativo
                 ? "bg-gold text-ink"
                 : "text-ink-muted hover:bg-surface-raised hover:text-ink"

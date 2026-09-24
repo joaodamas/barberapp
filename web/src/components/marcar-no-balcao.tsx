@@ -413,13 +413,21 @@ export function MarcarNoBalcao({
                   setHora(null);
                 }}
                 className={
-                  "shrink-0 rounded-lg border px-2.5 py-1.5 text-[11px] transition-colors disabled:opacity-30 " +
+                  "min-h-10 shrink-0 rounded-lg border px-3 py-2 text-xs transition-colors disabled:opacity-30 " +
                   (i === diaIndex
                     ? "border-gold bg-gold/10 text-ink"
                     : "border-border text-ink-muted")
                 }
               >
-                {d.iso === toISODate(new Date()) ? "Hoje" : formatDatePtBR(d.iso)}
+                {/* Curto: por extenso ("segunda-feira, 28 de setembro") cabia
+                    um dia e meio na largura do celular. */}
+                {d.iso === toISODate(new Date())
+                  ? "Hoje"
+                  : new Date(`${d.iso}T12:00:00`).toLocaleDateString("pt-BR", {
+                      weekday: "short",
+                      day: "2-digit",
+                      month: "2-digit",
+                    })}
               </button>
             ))}
           </div>

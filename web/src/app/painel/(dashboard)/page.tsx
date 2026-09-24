@@ -427,7 +427,9 @@ export default function PainelHojePage() {
        * três colunas e o quarto vão fica livre. Apertar para `grid-cols-3` no
        * desktop mudaria a largura dos três, e largura de cartão é identidade —
        * §10.6, a identidade se reforça, não se inventa. */}
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-4 2xl:col-span-2">
+      {/* Três no celular, lado a lado: em duas colunas o terceiro ficava
+          sozinho numa linha, e a agenda descia meia tela (passeio de 24/09). */}
+      <div className="grid grid-cols-3 gap-2 md:grid-cols-4 md:gap-4 2xl:col-span-2">
         <Card className="flex flex-col items-center gap-1 p-3 text-center md:flex-row md:justify-start md:gap-3 md:p-5">
           <Scissors size={16} className="mx-auto text-gold-strong md:mx-0 md:h-9 md:w-9 md:shrink-0 md:rounded-xl md:bg-gold/10 md:p-2" />
           <div className="md:text-left">
@@ -659,7 +661,7 @@ export default function PainelHojePage() {
                   href={`https://wa.me/${digitos}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-ink-muted underline-offset-2 transition-colors hover:text-gold-strong hover:underline"
+                  className="alvo-toque text-ink-muted underline-offset-2 transition-colors hover:text-gold-strong hover:underline"
                 >
                   {formatPhonePtBR(digitos)}
                 </a>

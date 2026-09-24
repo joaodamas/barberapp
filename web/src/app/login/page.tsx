@@ -405,7 +405,7 @@ export default function LoginPage() {
                   setError(null);
                   setNotice(null);
                 }}
-                className="text-gold-strong transition-opacity hover:opacity-80"
+                className="alvo-toque text-gold-strong transition-opacity hover:opacity-80"
               >
                 {emailMode === "criar" ? "Já tenho conta" : "Criar uma conta"}
               </button>
@@ -414,7 +414,7 @@ export default function LoginPage() {
                   type="button"
                   onClick={handlePasswordReset}
                   disabled={busy}
-                  className="text-ink-muted transition-colors hover:text-ink disabled:opacity-40"
+                  className="alvo-toque text-ink-muted transition-colors hover:text-ink disabled:opacity-40"
                 >
                   Esqueci a senha
                 </button>

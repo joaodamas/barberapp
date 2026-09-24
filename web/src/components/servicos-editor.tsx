@@ -138,9 +138,14 @@ export function EditorDeServicos({
     });
   }
 
+  /* No celular: nome, olho e lixeira numa linha; duração e preço na de baixo.
+   * Cada campo empilhado fazia um serviço ocupar meia tela, com o olho e a
+   * lixeira em linhas próprias — e com tudo na segunda linha o preço ficava
+   * com 5px a 320px (passeio de 24/09). `order-*` só no celular; no desktop
+   * vale a ordem das colunas do cabeçalho. */
   const colunas = permiteDesativar
-    ? "md:grid-cols-[1fr_110px_120px_44px_44px]"
-    : "md:grid-cols-[1fr_110px_120px_44px]";
+    ? "grid-cols-[104px_1fr_44px_44px] md:grid-cols-[1fr_110px_120px_44px_44px]"
+    : "grid-cols-[104px_1fr_44px] md:grid-cols-[1fr_110px_120px_44px]";
 
   if (status === "erro") {
     return (
@@ -176,18 +181,21 @@ export function EditorDeServicos({
       {servicos.map((s) => {
         const oculto = s.active === false;
         return (
-          <div key={s.id} className={`grid gap-2 md:items-center ${colunas}`}>
+          <div
+            key={s.id}
+            className={`grid items-center gap-2 border-b border-border pb-3 last:border-0 last:pb-0 md:border-0 md:pb-0 ${colunas}`}
+          >
             <input
               aria-label="Nome do serviço"
               value={s.name}
               onChange={(e) => atualizar(s.id, "name", e.target.value)}
               onBlur={() => salvarLinha(s)}
               placeholder="Corte"
-              className={`rounded-xl border border-border bg-surface-raised px-3 py-2.5 text-sm ${
+              className={`order-1 min-w-0 rounded-xl border border-border bg-surface-raised px-3 py-2.5 text-sm md:order-none col-span-2 md:col-span-1 ${
                 oculto ? "text-ink-muted line-through" : "text-ink"
               }`}
             />
-            <div className="flex items-center gap-2">
+            <div className="order-4 flex min-w-0 items-center gap-2 md:order-none">
               <input
                 aria-label="Duração em minutos"
                 type="number"
@@ -209,7 +217,11 @@ export function EditorDeServicos({
                 exibir "100,00" formatado, e ainda traz as setinhas de incremento
                 que não fazem sentido em dinheiro. A vírgula é como se digita
                 preço em português, e `atualizar` já normaliza para ponto. */}
-            <div className="flex items-center gap-1.5 rounded-xl border border-border bg-surface-raised px-3 py-2.5 focus-within:border-gold/40">
+            <div
+              className={`order-5 flex min-w-0 items-center gap-1.5 rounded-xl border border-border bg-surface-raised px-3 py-2.5 focus-within:border-gold/40 md:order-none md:col-span-1 ${
+                permiteDesativar ? "col-span-3" : "col-span-2"
+              }`}
+            >
               <span aria-hidden className="text-sm text-ink-muted">
                 R$
               </span>
@@ -242,7 +254,7 @@ export function EditorDeServicos({
                     : "Visível para o cliente"
                 }
                 onClick={() => alternarVisibilidade(s)}
-                className={`flex h-11 w-11 items-center justify-center rounded-xl transition-colors ${
+                className={`order-2 flex h-11 w-11 items-center md:order-none justify-center rounded-xl transition-colors ${
                   oculto
                     ? "text-ink-muted hover:bg-surface-raised hover:text-ink"
                     : "text-success hover:bg-success/10"
@@ -256,7 +268,7 @@ export function EditorDeServicos({
               type="button"
               aria-label={`Remover ${s.name || "serviço sem nome"}`}
               onClick={() => setAExcluir(s)}
-              className="flex h-11 w-11 items-center justify-center rounded-xl text-ink-muted transition-colors hover:bg-danger/10 hover:text-danger"
+              className="order-3 flex h-11 w-11 md:order-none items-center justify-center rounded-xl text-ink-muted transition-colors hover:bg-danger/10 hover:text-danger"
             >
               <Trash2 size={16} />
             </button>

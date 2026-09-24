@@ -136,7 +136,7 @@ export function VitrineDaBarbearia() {
 
         <p className="text-center text-xs text-ink-muted">
           Já é cliente?{" "}
-          <Link href="/login?next=/" className="font-medium text-gold-strong">
+          <Link href="/login?next=/" className="alvo-toque font-medium text-gold-strong">
             Entrar
           </Link>
         </p>
