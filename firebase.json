@@ -8,7 +8,6 @@
     ],
     "frameworksBackend": {
       "region": "southamerica-east1",
-      "minInstances": 1,
       "memory": "512MiB"
     }
   },
