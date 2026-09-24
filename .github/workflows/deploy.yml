@@ -238,12 +238,11 @@ jobs:
             echo "::error::o app web aponta para '$NEXT_PUBLIC_FIREBASE_PROJECT_ID' e o deploy é de '$PROJETO'."
             exit 1
           fi
-          # `--force` só aqui, e por um motivo só: o servidor de renderização
-          # tem `minInstances: 1` (firebase.json), que aumenta o custo mínimo, e
-          # a CLI recusa publicar sem confirmação explícita. O custo foi aprovado
-          # pelo dono em 24/09 — partidas a frio de 4–8s eram o maior atraso do
-          # app. No escopo `--only hosting` não há exclusão de função a forçar.
-          firebase deploy --only hosting --project "$PROJETO" --non-interactive --force
+          # Sem `--force`. A instância mínima do SSR NÃO mora no firebase.json:
+          # o Hosting framework-aware fixa cada versão por etiqueta (pinTags) e a
+          # CLI recusa `minInstances` junto disso. Ela é aplicada no SERVIÇO do
+          # Cloud Run (nível de serviço, independente da revisão) — ver DEPLOY.md.
+          firebase deploy --only hosting --project "$PROJETO" --non-interactive
 
       # ── Sempre, mesmo se algo acima falhou ──────────────────────────────
       - name: Apagar a credencial do runner
