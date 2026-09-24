@@ -69,7 +69,8 @@ jobs:
           NEXT_PUBLIC_FIREBASE_PROJECT_ID: demo-passeio
         run: |
           firebase emulators:start --only auth,firestore,functions --project demo-passeio > emulador.log 2>&1 &
-          until curl -s -o /dev/null http://127.0.0.1:8080 && curl -s -o /dev/null http://127.0.0.1:9099 && curl -s -o /dev/null http://127.0.0.1:5001; do sleep 2; done
+          # A porta 5001 responde antes de as funções carregarem; o sinal certo é o do log.
+          until grep -q "All emulators ready" emulador.log; do sleep 2; done
           (cd web && npx next start -p 3000 > ../web.log 2>&1 &)
           until curl -s -o /dev/null http://127.0.0.1:3000; do sleep 2; done
           # firebase-admin do próprio passeio, para não depender de node_modules de outro pacote.

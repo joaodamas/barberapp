@@ -45,7 +45,10 @@ async function marcar(dados) {
       headers: { "content-type": "application/json", authorization: `Bearer ${login.idToken}` },
       body: JSON.stringify({ data: { barbershopId: SHOP, ...dados } }),
     }
-  ).then((x) => x.json());
+  ).then(async (x) => {
+    const corpo = await x.text();
+    try { return JSON.parse(corpo); } catch { return { error: { message: corpo.slice(0, 200) } }; }
+  });
   if (r.error) console.warn("  não marcou", dados.date, dados.time, r.error.message);
   else console.log("  marcado", dados.date, dados.time, dados.clientName);
 }
