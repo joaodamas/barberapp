@@ -8,6 +8,7 @@ import {
   CalendarPlus,
   CalendarX,
   Check,
+  ChevronLeft,
   ChevronRight,
   CreditCard,
   HelpCircle,
@@ -80,6 +81,14 @@ export default function PainelHojePage() {
   const hoje = toISODate(new Date());
   const bookings = todas.filter((b) => b.date === hoje);
 
+  /* O dia que a AGENDA mostra — os números do topo continuam sendo de hoje.
+   * A agenda só mostrava hoje: o dono não tinha onde ver amanhã, nem conferir
+   * ontem (pedido em 24/09). `null` é "hoje" e acompanha o relógio: aberta
+   * de um dia para o outro, a tela não fica presa na data de ontem. */
+  const [diaEscolhido, setDiaEscolhido] = useState<string | null>(null);
+  const dia = diaEscolhido ?? hoje;
+  const ehHoje = dia === hoje;
+
   const agora = useRelogio();
   const toleranciaAtrasoMin = tenant.policies.booking.lateToleranceMinutes;
 
@@ -115,7 +124,8 @@ export default function PainelHojePage() {
    * em `bookings` ao dono e à equipe (`firestore.rules:246`), então o campo pode
    * faltar sem que nenhuma tela tenha errado. Encontrado em 20/08, ao semear uma
    * reserva pelo Admin SDK sem o campo. */
-  const bookingsDoDia = bookings
+  const reservasDaAgenda = todas.filter((b) => b.date === dia);
+  const bookingsDoDia = reservasDaAgenda
     .slice()
     .sort((a, b) => (a.time ?? "").localeCompare(b.time ?? ""));
   const agendados = bookings.filter((b) => OCCUPIES_SLOT.includes(b.status));
@@ -345,7 +355,8 @@ export default function PainelHojePage() {
     const firstName = booking.clientName.split(" ")[0];
     const digitos = String(booking.clientWhatsapp ?? "").replace(/\D/g, "");
     if (!digitos) return;
-    const message = `Olá ${firstName}, seu horário das ${booking.time} de hoje foi cancelado. Qualquer coisa, é só chamar para remarcar. — ${brand.name}`;
+    const quando = booking.date === hoje ? "de hoje" : `do dia ${formatarDiaCurto(booking.date)}`;
+    const message = `Olá ${firstName}, seu horário das ${booking.time} ${quando} foi cancelado. Qualquer coisa, é só chamar para remarcar. — ${brand.name}`;
     window.open(`https://wa.me/${digitos}?text=${encodeURIComponent(message)}`, "_blank");
   }
 
@@ -384,8 +395,12 @@ export default function PainelHojePage() {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-5 pt-1 md:grid-cols-[1fr_360px] md:items-start md:gap-x-10 md:gap-y-10 md:pt-2">
-      <div className="md:col-span-2">
+    /* A coluna lateral só abre em tela LARGA (2xl). Era `md:`, com `1fr`: num
+     * notebook de 1366px a tabela da agenda (mín. 720px) não cabia ao lado dos
+     * 360px da coluna, e a tela inteira vazava pela direita — "Recebido hoje"
+     * e "Precisa de você" cortados (medido em 24/09). Abaixo disso, empilha. */
+    <div className="grid grid-cols-1 gap-5 pt-1 md:gap-8 md:pt-2 2xl:grid-cols-[minmax(0,1fr)_360px] 2xl:items-start 2xl:gap-x-10">
+      <div className="2xl:col-span-2">
         <p className="text-sm text-ink-muted md:text-base">Hoje</p>
         <h1 className="text-xl text-ink md:text-4xl md:tracking-tight">
           {new Date().toLocaleDateString("pt-BR", {
@@ -412,7 +427,7 @@ export default function PainelHojePage() {
        * três colunas e o quarto vão fica livre. Apertar para `grid-cols-3` no
        * desktop mudaria a largura dos três, e largura de cartão é identidade —
        * §10.6, a identidade se reforça, não se inventa. */}
-      <div className="grid grid-cols-2 gap-2 md:col-span-2 md:grid-cols-4 md:gap-4">
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-4 2xl:col-span-2">
         <Card className="flex flex-col items-center gap-1 p-3 text-center md:flex-row md:justify-start md:gap-3 md:p-5">
           <Scissors size={16} className="mx-auto text-gold-strong md:mx-0 md:h-9 md:w-9 md:shrink-0 md:rounded-xl md:bg-gold/10 md:p-2" />
           <div className="md:text-left">
@@ -477,7 +492,7 @@ export default function PainelHojePage() {
           Cada cartão também some pela SUA fonte, e não mais pela da agenda: a
           previsão morre com `bookings` ilegível, o recebido com `payments`. Era
           o mesmo gate para os dois porque os dois vinham de `bookings`. */}
-      <div className="grid gap-3 md:col-span-2 md:grid-cols-2 md:gap-4">
+      <div className="grid gap-3 md:grid-cols-2 md:gap-4 2xl:col-span-2">
         {!agendaIlegivel && (
           <Card className="flex flex-col gap-1 md:p-6">
             <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
@@ -510,73 +525,13 @@ export default function PainelHojePage() {
         )}
       </div>
 
-      {!agendaIlegivel && (
-      <section className="md:col-span-2">
-        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
-          Caixa de hoje
-        </h2>
-        <Card className="flex flex-col divide-y divide-border p-0 md:flex-row md:divide-x md:divide-y-0">
-          <div className="flex items-center gap-3 px-4 py-3 md:flex-1 md:p-5">
-            <Landmark size={16} className="shrink-0 text-gold-strong" />
-            <span className="flex-1 text-sm text-ink-muted">Pix</span>
-            <span className="font-display font-semibold text-ink">
-              {formatBRL(caixaHoje.pix)}
-            </span>
-          </div>
-          <div className="flex items-center gap-3 px-4 py-3 md:flex-1 md:p-5">
-            <CreditCard size={16} className="shrink-0 text-gold-strong" />
-            <span className="flex-1 text-sm text-ink-muted">Cartão</span>
-            <span className="font-display font-semibold text-ink">
-              {formatBRL(caixaHoje.cartao)}
-            </span>
-          </div>
-          <div className="flex items-center gap-3 px-4 py-3 md:flex-1 md:p-5">
-            <Wallet size={16} className="shrink-0 text-gold-strong" />
-            <span className="flex-1 text-sm text-ink-muted">Dinheiro</span>
-            <span className="font-display font-semibold text-ink">
-              {formatBRL(caixaHoje.dinheiro)}
-            </span>
-          </div>
-          {/* D31 · a quarta coluna, que existia no motor e em tela nenhuma.
-           *
-           * `caixaDoDia` devolve `naoInformado` desde `843b84c`, e nenhuma tela
-           * o consumia: o bloco continuava com três colunas enquanto o TOTAL
-           * conta todas as reservas recebidas. Um atendimento concluído sem
-           * meio de pagamento informado — estado que o servidor grava de
-           * propósito, com `paymentMethod: null` — entrava na conta e em coluna
-           * nenhuma. O dono somava as três na mão, não chegava no total, e a
-           * diferença não tinha onde ser explicada.
-           *
-           * Só aparece quando existe: uma coluna eternamente em R$ 0,00
-           * ensinaria que falta informar meio de pagamento em todo atendimento,
-           * que é o oposto do caso normal. */}
-          {caixaHoje.naoInformado > 0 && (
-            <div className="flex items-center gap-3 px-4 py-3 md:flex-1 md:p-5">
-              <HelpCircle size={16} className="shrink-0 text-ink-muted" />
-              <span className="flex-1 text-sm text-ink-muted">
-                Sem forma informada
-              </span>
-              <span className="font-display font-semibold text-ink">
-                {formatBRL(caixaHoje.naoInformado)}
-              </span>
-            </div>
-          )}
-        </Card>
-        {caixaHoje.naoInformado > 0 && (
-          <p className="mt-1.5 text-xs text-ink-muted">
-            Entrou no total, mas não dá para conferir contra a gaveta enquanto
-            não souber como foi pago.
-          </p>
-        )}
-      </section>
-      )}
 
       {acoesVisiveis.length > 0 && (
-        <section className="md:col-start-2 md:row-start-4">
+        <section className="2xl:col-start-2 2xl:row-start-4">
           <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
             Precisa de você
           </h2>
-          <div className="flex flex-col gap-2 md:gap-3">
+          <div className="flex flex-col gap-2 md:grid md:grid-cols-2 md:gap-3 2xl:flex">
             {acoesVisiveis.map((item) => (
               <ItemDeAcao key={item.id} item={item} onExecutar={executarIntencao} />
             ))}
@@ -601,8 +556,8 @@ export default function PainelHojePage() {
       <section
         className={
           semColunaLateral
-            ? "md:col-span-2"
-            : "md:col-start-1 md:row-start-4 md:row-span-2"
+            ? "2xl:col-span-2"
+            : "2xl:col-start-1 2xl:row-start-4 2xl:row-span-2"
         }
       >
         {/* D13 · o botão de marcar mora AQUI, na agenda do dia.
@@ -613,7 +568,7 @@ export default function PainelHojePage() {
          * cliente autenticado. */}
         <div className="mb-2 flex items-center justify-between gap-2">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
-            Agenda do dia
+            Agenda
           </h2>
           <Button
             variant="secondary"
@@ -624,13 +579,27 @@ export default function PainelHojePage() {
             Marcar atendimento
           </Button>
         </div>
+        <SeletorDeDia
+          dia={dia}
+          hoje={hoje}
+          total={status === "pronto" ? reservasDaAgenda.length : null}
+          aoMudar={(d) => setDiaEscolhido(d === hoje ? null : d)}
+        />
         {status === "carregando" && <LoadingRows rows={3} oQue="sua agenda" />}
         {status === "erro" && <ErroAoCarregar oQue="sua agenda" erro={erroDaAgenda} />}
-        {status === "pronto" && bookings.length === 0 && (
+        {status === "pronto" && reservasDaAgenda.length === 0 && (
           <EmptyState
             icon={CalendarCheck}
-            title="Nenhum horário marcado para hoje"
-            description="Marque quem chegou no balcão ou compartilhe seu link para receber agendamentos pelo app."
+            title={
+              ehHoje
+                ? "Nenhum horário marcado para hoje"
+                : `Nenhum horário em ${formatarDiaCurto(dia)}`
+            }
+            description={
+              dia < hoje
+                ? "Nada ficou registrado neste dia."
+                : "Marque quem chegou no balcão ou compartilhe seu link para receber agendamentos pelo app."
+            }
             actionLabel="Marcar atendimento"
             onAction={() => setBalcaoAberto(true)}
           />
@@ -656,7 +625,10 @@ export default function PainelHojePage() {
              * depois volta a ser atendimento pelo mesmo caminho. Sem
              * isso, um toque errado no "Não veio" viraria receita perdida
              * no relatório, e a única correção seria mexer no banco. */
-            const podeConcluir = emAberto || booking.status === "no_show";
+            /* Concluir é dizer que o corte ACONTECEU — num dia que ainda não
+             * chegou, isso seria o sistema afirmando o que não houve. */
+            const podeConcluir =
+              (emAberto || booking.status === "no_show") && booking.date <= hoje;
             /* Quem responde "isto está atrasado?" é o motor — a tela só
              * pergunta. Comparar minuto com tolerância aqui daria duas
              * verdades: a coluna lateral acusando o atraso e a linha ao
@@ -881,6 +853,67 @@ export default function PainelHojePage() {
           );
         })()}
       </section>
+
+      {!agendaIlegivel && (
+      <section className="2xl:col-span-2">
+        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
+          Caixa de hoje
+        </h2>
+        <Card className="flex flex-col divide-y divide-border p-0 md:flex-row md:divide-x md:divide-y-0">
+          <div className="flex items-center gap-3 px-4 py-3 md:flex-1 md:p-5">
+            <Landmark size={16} className="shrink-0 text-gold-strong" />
+            <span className="flex-1 text-sm text-ink-muted">Pix</span>
+            <span className="font-display font-semibold text-ink">
+              {formatBRL(caixaHoje.pix)}
+            </span>
+          </div>
+          <div className="flex items-center gap-3 px-4 py-3 md:flex-1 md:p-5">
+            <CreditCard size={16} className="shrink-0 text-gold-strong" />
+            <span className="flex-1 text-sm text-ink-muted">Cartão</span>
+            <span className="font-display font-semibold text-ink">
+              {formatBRL(caixaHoje.cartao)}
+            </span>
+          </div>
+          <div className="flex items-center gap-3 px-4 py-3 md:flex-1 md:p-5">
+            <Wallet size={16} className="shrink-0 text-gold-strong" />
+            <span className="flex-1 text-sm text-ink-muted">Dinheiro</span>
+            <span className="font-display font-semibold text-ink">
+              {formatBRL(caixaHoje.dinheiro)}
+            </span>
+          </div>
+          {/* D31 · a quarta coluna, que existia no motor e em tela nenhuma.
+           *
+           * `caixaDoDia` devolve `naoInformado` desde `843b84c`, e nenhuma tela
+           * o consumia: o bloco continuava com três colunas enquanto o TOTAL
+           * conta todas as reservas recebidas. Um atendimento concluído sem
+           * meio de pagamento informado — estado que o servidor grava de
+           * propósito, com `paymentMethod: null` — entrava na conta e em coluna
+           * nenhuma. O dono somava as três na mão, não chegava no total, e a
+           * diferença não tinha onde ser explicada.
+           *
+           * Só aparece quando existe: uma coluna eternamente em R$ 0,00
+           * ensinaria que falta informar meio de pagamento em todo atendimento,
+           * que é o oposto do caso normal. */}
+          {caixaHoje.naoInformado > 0 && (
+            <div className="flex items-center gap-3 px-4 py-3 md:flex-1 md:p-5">
+              <HelpCircle size={16} className="shrink-0 text-ink-muted" />
+              <span className="flex-1 text-sm text-ink-muted">
+                Sem forma informada
+              </span>
+              <span className="font-display font-semibold text-ink">
+                {formatBRL(caixaHoje.naoInformado)}
+              </span>
+            </div>
+          )}
+        </Card>
+        {caixaHoje.naoInformado > 0 && (
+          <p className="mt-1.5 text-xs text-ink-muted">
+            Entrou no total, mas não dá para conferir contra a gaveta enquanto
+            não souber como foi pago.
+          </p>
+        )}
+      </section>
+      )}
 
       {/* D13 · o caminho que faltava.
           A reserva criada aqui aparece na agenda acima assim que o servidor
@@ -1268,5 +1301,95 @@ function ItemDeAcao({
     >
       {conteudo}
     </button>
+  );
+}
+
+/** "qui., 25/09" — a data curta que cabe no botão e na mensagem ao cliente. */
+function formatarDiaCurto(iso: string) {
+  return new Date(`${iso}T12:00:00`).toLocaleDateString("pt-BR", {
+    weekday: "short",
+    day: "2-digit",
+    month: "2-digit",
+  });
+}
+
+function somarDias(iso: string, n: number) {
+  const d = new Date(`${iso}T12:00:00`);
+  d.setDate(d.getDate() + n);
+  return toISODate(d);
+}
+
+/**
+ * Anda a agenda um dia por vez, ou salta para qualquer data pelo calendário
+ * do próprio aparelho. "Hoje" volta com um toque — é o dia que o dono mais
+ * olha, e ele não deve precisar achar a data de hoje no calendário.
+ */
+function SeletorDeDia({
+  dia,
+  hoje,
+  total,
+  aoMudar,
+}: {
+  dia: string;
+  hoje: string;
+  total: number | null;
+  aoMudar: (dia: string) => void;
+}) {
+  const nome =
+    dia === hoje
+      ? "Hoje"
+      : dia === somarDias(hoje, 1)
+        ? "Amanhã"
+        : dia === somarDias(hoje, -1)
+          ? "Ontem"
+          : null;
+  const botao =
+    "flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-border bg-surface text-ink-muted transition-colors hover:border-gold hover:text-gold-strong";
+  return (
+    <div className="mb-3 flex items-center gap-2">
+      <button
+        type="button"
+        onClick={() => aoMudar(somarDias(dia, -1))}
+        aria-label="Dia anterior"
+        className={botao}
+      >
+        <ChevronLeft size={18} />
+      </button>
+      {/* O input de data cobre o rótulo inteiro, invisível: o toque abre o
+          calendário nativo — no celular é a roda de datas que o dono já conhece. */}
+      <label className="relative flex h-10 min-w-0 flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border border-border bg-surface px-3 text-sm text-ink md:flex-none md:min-w-56">
+        <span className="truncate font-medium">{nome ?? formatarDiaCurto(dia)}</span>
+        {nome && <span className="text-ink-muted">{formatarDiaCurto(dia)}</span>}
+        {total !== null && (
+          <span className="hidden text-xs text-ink-muted sm:inline">
+            · {contar(total, "horário", "horários")}
+          </span>
+        )}
+        <input
+          type="date"
+          value={dia}
+          onChange={(e) => e.target.value && aoMudar(e.target.value)}
+          aria-label="Escolher o dia da agenda"
+          className="absolute inset-0 cursor-pointer opacity-0"
+        />
+      </label>
+      <button
+        type="button"
+        onClick={() => aoMudar(somarDias(dia, 1))}
+        aria-label="Próximo dia"
+        className={botao}
+      >
+        <ChevronRight size={18} />
+      </button>
+      {dia !== hoje && (
+        <button
+          type="button"
+          onClick={() => aoMudar(hoje)}
+          className="flex h-10 shrink-0 cursor-pointer items-center rounded-xl bg-gold/15 px-3 text-sm font-medium text-gold-strong"
+        >
+          Hoje
+        </button>
+      )}
+    </div>
   );
 }
