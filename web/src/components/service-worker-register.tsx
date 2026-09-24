@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
  * Registra o service worker e resolve a troca de versão.
@@ -25,6 +25,9 @@ import { useEffect, useState } from "react";
 export function ServiceWorkerRegister() {
   const [temAtualizacao, setTemAtualizacao] = useState(false);
   const [atualizando, setAtualizando] = useState(false);
+  /* Marcado quando ESTE código manda o worker novo assumir — sem interação,
+   * ou quando a pessoa aceita a atualização. Ver `aoTrocarControlador`. */
+  const pedimosATroca = useRef(false);
 
   useEffect(() => {
     if (process.env.NODE_ENV !== "production") return;
@@ -46,7 +49,10 @@ export function ServiceWorkerRegister() {
     function resolverTroca(worker: ServiceWorker) {
       if (cancelado) return;
       if (interagiu) setTemAtualizacao(true);
-      else worker.postMessage("SKIP_WAITING");
+      else {
+        pedimosATroca.current = true;
+        worker.postMessage("SKIP_WAITING");
+      }
     }
 
     navigator.serviceWorker
@@ -74,9 +80,18 @@ export function ServiceWorkerRegister() {
       })
       .catch((err) => console.error("Falha ao registrar service worker", err));
 
+    /* Recarrega SÓ quando fomos nós que pedimos a troca de versão.
+     *
+     * Na primeira visita da vida o worker se instala, o `clients.claim()` do
+     * `activate` assume a aba e o navegador dispara `controllerchange` — e
+     * este handler recarregava a página incondicionalmente, ~1s depois de ela
+     * aparecer. Todo cliente que abria o link da barbearia pela primeira vez
+     * perdia o que estava digitando; num celular lento, isso caía em cima do
+     * login e do agendamento (medido em 24/09: e-mail e senha digitados
+     * sumiam, e o "Entrar" ficava desabilitado sem explicação). */
     let recarregando = false;
     const aoTrocarControlador = () => {
-      if (recarregando) return;
+      if (recarregando || !pedimosATroca.current) return;
       recarregando = true;
       window.location.reload();
     };
@@ -111,6 +126,7 @@ export function ServiceWorkerRegister() {
 
       const esperando = registration?.waiting;
       if (esperando) {
+        pedimosATroca.current = true;
         esperando.postMessage("SKIP_WAITING");
         // Se o `controllerchange` não vier em 3s, força na mão.
         setTimeout(() => window.location.reload(), 3000);
