@@ -298,6 +298,19 @@ textarea {
   border-color: var(--color-ink-muted);
 }
 
+/* No celular, campo com fonte menor que 16px faz o Safari do iPhone dar ZOOM
+ * na página ao receber o toque — e ela fica ampliada depois. Medido em 24/09:
+ * os 73 campos do produto estavam abaixo de 16px (45 só em Serviços), ou seja,
+ * cada toque num preço fazia a tela pular. 16px no celular; no desktop segue o
+ * tamanho de cada tela. */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
 /* Tabelas financeiras rolam na horizontal no celular (min-w de 480–720px).
  * Sem indicação, o usuário não descobre que há coluna à direita: uma sombra
  * na borda aparece só enquanto houver conteúdo fora da tela. */
