@@ -357,3 +357,17 @@ table th {
     stroke-dashoffset: 0;
   }
 }
+
+/* Item de grade não pode ser alargado pelo próprio conteúdo.
+ *
+ * O mínimo automático de um item de grade é a largura do conteúdo: um texto
+ * com `truncate` ou uma tabela com rolagem lateral dentro dele empurrava a
+ * coluna, e a página inteira ficava mais larga que o celular — Financeiro,
+ * Quanto sobrou, Projeção e Números a 320px (passeio de 24/09). No celular o
+ * navegador "afasta o zoom" para caber, e tudo fica miúdo sem vazar à vista.
+ * Em `@layer base` para que um `min-w-*` explícito continue valendo. */
+@layer base {
+  main .grid > * {
+    min-width: 0;
+  }
+}

@@ -166,7 +166,7 @@ export function LivroCaixa({ competencia }: { competencia?: string }) {
           </p>
           {/* Diz de que saldo se trata. "Saldo" sozinho seria lido como saldo do
               caixa inteiro, que esta tela não calcula. */}
-          <p className="text-[10px] text-ink-muted">destes lançamentos</p>
+          <p className="text-[11px] text-ink-muted">destes lançamentos</p>
         </Card>
       </div>
 

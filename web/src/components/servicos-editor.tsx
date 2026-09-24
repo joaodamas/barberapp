@@ -138,9 +138,12 @@ export function EditorDeServicos({
     });
   }
 
+  /* No celular: nome numa linha, e duração, preço e ações na de baixo. Cada
+   * campo empilhado fazia um serviço ocupar meia tela, com o olho e a lixeira
+   * em linhas próprias (passeio de 24/09). */
   const colunas = permiteDesativar
-    ? "md:grid-cols-[1fr_110px_120px_44px_44px]"
-    : "md:grid-cols-[1fr_110px_120px_44px]";
+    ? "grid-cols-[88px_1fr_44px_44px] md:grid-cols-[1fr_110px_120px_44px_44px]"
+    : "grid-cols-[88px_1fr_44px] md:grid-cols-[1fr_110px_120px_44px]";
 
   if (status === "erro") {
     return (
@@ -176,14 +179,17 @@ export function EditorDeServicos({
       {servicos.map((s) => {
         const oculto = s.active === false;
         return (
-          <div key={s.id} className={`grid gap-2 md:items-center ${colunas}`}>
+          <div
+            key={s.id}
+            className={`grid items-center gap-2 border-b border-border pb-3 last:border-0 last:pb-0 md:border-0 md:pb-0 ${colunas}`}
+          >
             <input
               aria-label="Nome do serviço"
               value={s.name}
               onChange={(e) => atualizar(s.id, "name", e.target.value)}
               onBlur={() => salvarLinha(s)}
               placeholder="Corte"
-              className={`rounded-xl border border-border bg-surface-raised px-3 py-2.5 text-sm ${
+              className={`col-span-full rounded-xl border border-border bg-surface-raised px-3 py-2.5 text-sm md:col-span-1 ${
                 oculto ? "text-ink-muted line-through" : "text-ink"
               }`}
             />

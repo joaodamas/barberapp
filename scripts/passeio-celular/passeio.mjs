@@ -45,9 +45,12 @@ const PUBLICO = ["/", "/agendar", "/planos", "/login"];
 const nomeDe = (rota) => (rota === "/" ? "vitrine" : rota.replace(/^\//, "").replace(/\//g, "_"));
 
 /** O que a foto não diz. Tudo medido no DOM da tela já pronta. */
-async function medir(page) {
-  return page.evaluate(() => {
-    const vw = window.innerWidth;
+async function medir(page, larguraDoAparelho) {
+  return page.evaluate((larguraDoAparelho) => {
+    /* A largura DO APARELHO, não `innerWidth`: quando a página vaza, o
+       navegador do celular afasta o zoom e `innerWidth` cresce junto — a
+       medição dizia "não vaza" com a tela inteira miúda (Financeiro a 320px). */
+    const vw = larguraDoAparelho;
     const visivel = (el) => {
       const s = getComputedStyle(el);
       const r = el.getBoundingClientRect();
@@ -70,7 +73,9 @@ async function medir(page) {
       .filter(Boolean);
 
     const botoesPequenos = [...document.querySelectorAll("button, a[href], [role=button], input, select")]
-      .filter((el) => visivel(el) && !el.closest("[aria-hidden=true]"))
+      /* `alvo-toque` já tem 44px de área sensível no ::after; o link de pular
+         para o conteúdo só aparece no foco do teclado. */
+      .filter((el) => visivel(el) && !el.closest("[aria-hidden=true]") && !el.classList.contains("alvo-toque") && !el.matches(".sr-only, .sr-only *"))
       .filter((el) => {
         const r = el.getBoundingClientRect();
         return r.height < 32 || r.width < 32;
@@ -86,15 +91,15 @@ async function medir(page) {
       .map((el) => `${texto(el)} (${getComputedStyle(el).fontSize})`);
 
     return {
-      larguraDaPagina: document.documentElement.scrollWidth,
+      larguraDaPagina: Math.max(document.documentElement.scrollWidth, window.innerWidth),
       larguraDaTela: vw,
-      vazaDeLado: document.documentElement.scrollWidth > vw + 1,
+      vazaDeLado: Math.max(document.documentElement.scrollWidth, window.innerWidth) > vw + 1,
       alturaDaPagina: document.documentElement.scrollHeight,
       saemPelaDireita: [...new Set(saemPelaDireita)].slice(0, 15),
       botoesPequenos: [...new Set(botoesPequenos)].slice(0, 20),
       textoMiudo: [...new Set(textoMiudo)].slice(0, 15),
     };
-  });
+  }, larguraDoAparelho);
 }
 
 async function pronta(page) {
@@ -145,7 +150,7 @@ for (const [aparelho, cfg] of APARELHOS) {
     const ms = Date.now() - t0;
     const arquivo = `${aparelho}__${nome}.png`;
     await page.screenshot({ path: SAIDA + arquivo, fullPage: true });
-    const m = await medir(page);
+    const m = await medir(page, cfg.viewport.width);
     relatorio.push({ aparelho, tela: nome, rota, ms, erros: [...new Set(erros)], ...m, arquivo });
     console.log(aparelho, nome, ms + "ms", m.vazaDeLado ? "VAZA" : "", m.saemPelaDireita.length ? "SAI:" + m.saemPelaDireita.length : "");
   }
@@ -206,7 +211,7 @@ for (const [aparelho, cfg] of APARELHOS) {
     await page.waitForTimeout(2500);
     await dialogo.getByRole("button", { name: /^\d\d:\d\d$/ }).first().click().catch(() => {});
     await page.screenshot({ path: `${SAIDA}${aparelho}__marcar_escolhido.png` });
-    const marcar = await medir(page);
+    const marcar = await medir(page, cfg.viewport.width);
     relatorio.push({ aparelho, tela: "marcar_atendimento", ...marcar, arquivo: `${aparelho}__marcar_escolhido.png` });
   }
 
