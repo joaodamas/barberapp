@@ -144,8 +144,8 @@ export function EditorDeServicos({
    * com 5px a 320px (passeio de 24/09). `order-*` só no celular; no desktop
    * vale a ordem das colunas do cabeçalho. */
   const colunas = permiteDesativar
-    ? "grid-cols-[1fr_1fr_44px_44px] md:grid-cols-[1fr_110px_120px_44px_44px]"
-    : "grid-cols-[1fr_1fr_44px] md:grid-cols-[1fr_110px_120px_44px]";
+    ? "grid-cols-[104px_1fr_44px_44px] md:grid-cols-[1fr_110px_120px_44px_44px]"
+    : "grid-cols-[104px_1fr_44px] md:grid-cols-[1fr_110px_120px_44px]";
 
   if (status === "erro") {
     return (
