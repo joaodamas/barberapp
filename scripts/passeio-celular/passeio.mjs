@@ -98,9 +98,17 @@ async function medir(page) {
 }
 
 async function pronta(page) {
-  /* "Pronta" = sem esqueleto de carregamento na tela. */
+  /* "Pronta" = com texto na tela e sem esqueleto de carregamento. Só o
+     esqueleto não bastava: antes de o app montar não há esqueleto nenhum, e a
+     foto saía em branco. */
   await page
-    .waitForFunction(() => !document.querySelector('[aria-busy="true"], .animate-pulse'), null, { timeout: 15000 })
+    .waitForFunction(
+      () =>
+        document.body.innerText.trim().length > 30 &&
+        !document.querySelector('[aria-busy="true"], .animate-pulse'),
+      null,
+      { timeout: 20000 }
+    )
     .catch(() => {});
   await page.waitForTimeout(600);
 }
