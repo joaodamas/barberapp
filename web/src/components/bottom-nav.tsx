@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Lock, MoreHorizontal } from "lucide-react";
@@ -31,7 +31,24 @@ export function BottomNav({ items }: { items: NavItem[] }) {
   const { features } = useAcesso();
 
   const { barra, mais } = menuDoCelular(items, MAX_VISIVEL);
-  const algumNoMaisAtivo = mais.some((d) => rotaAtiva(d.href, pathname, d.exato));
+
+  /* Com o "Mais" aberto, a página de trás continuava rolando sob o dedo, e
+   * não havia como fechar pelo teclado (medido em 24/09). Trava a rolagem do
+   * fundo e fecha com Esc. */
+  useEffect(() => {
+    if (!maisAberto) return;
+    const anterior = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const aoTeclar = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMaisAberto(false);
+    };
+    window.addEventListener("keydown", aoTeclar);
+    return () => {
+      document.body.style.overflow = anterior;
+      window.removeEventListener("keydown", aoTeclar);
+    };
+  }, [maisAberto]);
+  const algumNoMaisAtivo = mais.some((d) => !d.titulo && rotaAtiva(d.href, pathname, d.exato));
 
   return (
     <>
@@ -48,6 +65,16 @@ export function BottomNav({ items }: { items: NavItem[] }) {
         {maisAberto && (
           <ul className="mx-auto flex max-h-[60vh] max-w-md flex-col overflow-y-auto border-b border-border px-2 py-2">
             {mais.map((destino) => {
+              if (destino.titulo) {
+                return (
+                  <li
+                    key={destino.href}
+                    className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider text-ink-muted"
+                  >
+                    {destino.label}
+                  </li>
+                );
+              }
               const active = rotaAtiva(destino.href, pathname, destino.exato);
               const Icon = destino.icon;
               const bloqueado = !!destino.feature && !features[destino.feature];

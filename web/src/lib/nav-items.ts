@@ -251,6 +251,8 @@ export type DestinoDeMenu = {
   filho: boolean;
   /** Como comparar com a rota atual — ver `rotaAtiva`. */
   exato: boolean;
+  /** Linha de título de seção, não um destino. */
+  titulo?: boolean;
 };
 
 /**
@@ -296,6 +298,12 @@ export function menuDoCelular(
         filho: false,
         exato: ehRaizDaArea(item, items),
       });
+    }
+    /* Os filhos de um item que ESTÁ na barra (Finanças) apareciam soltos no
+     * topo do "Mais" — "Quanto sobrou", "Fluxo de caixa" — sem dizer de onde
+     * eram. O título da seção vai antes deles. */
+    if (naBarra.has(item.href) && item.children?.some((f) => f.href !== item.href)) {
+      mais.push({ href: `${item.href}#secao`, label: item.shortLabel ?? item.label, titulo: true, filho: false, exato: true });
     }
     for (const filho of item.children ?? []) {
       /* O filho que aponta para o próprio pai (Resumo → /painel/financeiro,
