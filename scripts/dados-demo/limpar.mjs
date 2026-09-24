@@ -34,6 +34,11 @@ const ALVOS = [
   ["clients", "demo-"],
   ["expenses", "demo-"],
   ["products", "demo-"],
+  /* planos.mjs */
+  ["plans", "demo-"],
+  ["subscriptions", "demo-"],
+  ["subscription_invoices", "fatura_demo-"],
+  ["payments", "pagamento_fatura_fatura_demo-"],
 ];
 
 let total = 0;
