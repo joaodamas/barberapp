@@ -123,6 +123,10 @@ for (const [aparelho, cfg] of APARELHOS) {
   let erros = [];
   page.on("console", (m) => m.type() === "error" && erros.push(m.text().slice(0, 200)));
   page.on("pageerror", (e) => erros.push("PAGEERROR " + e.message.slice(0, 200)));
+  /* Diagnóstico no log do job: o que falhou de carregar e o que o console reclamou. */
+  page.on("requestfailed", (r) => console.log("  [falhou]", r.url().slice(0, 120), r.failure()?.errorText));
+  page.on("response", (r) => r.status() >= 400 && console.log("  [" + r.status() + "]", r.url().slice(0, 120)));
+  page.on("console", (m) => m.type() === "error" && console.log("  [console]", m.text().slice(0, 200)));
 
   async function visitar(rota, nome, antes) {
     erros = [];
