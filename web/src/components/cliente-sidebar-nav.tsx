@@ -4,7 +4,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/cn";
-import { clienteNavItems, rotaAtiva } from "@/lib/nav-items";
+import { LogIn } from "lucide-react";
+import { clienteNavItems, clienteNavVisitante, rotaAtiva } from "@/lib/nav-items";
+import { useAuth } from "@/lib/auth-context";
 import { SidebarUserFooter } from "@/components/sidebar-user-footer";
 import { OwnerPanelLink } from "@/components/owner-panel-link";
 import { useTenant } from "@/lib/tenant-context";
@@ -12,6 +14,8 @@ import { useTenant } from "@/lib/tenant-context";
 export function ClienteSidebarNav() {
   const pathname = usePathname();
   const { brand } = useTenant();
+  const { user, loading } = useAuth();
+  const itens = user ? clienteNavItems : clienteNavVisitante;
 
   return (
     <aside className="hidden shrink-0 bg-surface/60 md:flex md:h-full md:w-64 md:flex-col md:overflow-hidden md:border-r md:border-border md:shadow-[8px_0_32px_-24px_rgba(15,23,42,0.28)]">
@@ -30,7 +34,7 @@ export function ClienteSidebarNav() {
       <div className="mx-6 mb-6 h-px bg-gradient-to-r from-border via-border to-transparent" />
 
       <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-4 pb-2">
-        {clienteNavItems.map((item) => {
+        {itens.map((item) => {
           /* A mesma comparação estava copiada nas três navegações, cada uma
              com a sua exceção de raiz escrita à mão. Agora a regra mora em
              `rotaAtiva`, e a exceção de "/" vale para quem a chamar. */
@@ -73,11 +77,21 @@ export function ClienteSidebarNav() {
 
       <OwnerPanelLink className="mx-4 mt-4" />
 
-      <SidebarUserFooter
-        href="/perfil"
-        caption="Ver perfil"
-        fallbackName="Cliente"
-      />
+      {user ? (
+        <SidebarUserFooter href="/perfil" caption="Ver perfil" fallbackName="Cliente" />
+      ) : (
+        /* Enquanto a sessão carrega, nada: piscar "Entrar" para quem já está
+           logado seria o mesmo erro ao contrário. */
+        !loading && (
+          <Link
+            href={`/login?next=${encodeURIComponent(pathname)}`}
+            className="mx-4 mb-4 mt-2 flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border bg-surface-raised/60 px-3 text-sm font-medium text-ink transition-colors hover:border-gold/40"
+          >
+            <LogIn size={16} className="text-gold-strong" />
+            Entrar
+          </Link>
+        )
+      )}
     </aside>
   );
 }
