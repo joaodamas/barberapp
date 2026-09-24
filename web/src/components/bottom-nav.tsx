@@ -3,9 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Lock, MoreHorizontal, type LucideIcon } from "lucide-react";
+import { Lock, MoreHorizontal, X, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { itemAtivo, menuDoCelular, rotaAtiva, type NavItem } from "@/lib/nav-items";
+import { itemAtivo, menuDoCelular, rotaAtiva, secoesDoMais, type NavItem } from "@/lib/nav-items";
 import { useAcesso } from "@/lib/tenant-context";
 
 /**
@@ -36,7 +36,9 @@ export function BottomNav({ items, acao }: { items: NavItem[]; acao?: AcaoCentra
      `tenant.features` cru: senão o menu promete o que a tela nega. */
   const { features } = useAcesso();
 
-  const { barra, mais } = menuDoCelular(items, acao ? MAX_VISIVEL - 1 : MAX_VISIVEL);
+  const visiveis = acao ? MAX_VISIVEL - 1 : MAX_VISIVEL;
+  const { barra, mais } = menuDoCelular(items, visiveis);
+  const secoes = secoesDoMais(items, visiveis);
 
   /* Com o "Mais" aberto, a página de trás continuava rolando sob o dedo, e
    * não havia como fechar pelo teclado (medido em 24/09). Trava a rolagem do
@@ -54,7 +56,9 @@ export function BottomNav({ items, acao }: { items: NavItem[]; acao?: AcaoCentra
       window.removeEventListener("keydown", aoTeclar);
     };
   }, [maisAberto]);
-  const algumNoMaisAtivo = mais.some((d) => !d.titulo && rotaAtiva(d.href, pathname, d.exato));
+  const algumNoMaisAtivo = secoes.some((sec) =>
+    sec.destinos.some((d) => rotaAtiva(d.href, pathname, d.exato))
+  ) && !barra.some((i) => itemAtivo(i, pathname, items));
 
   return (
     <>
@@ -69,55 +73,72 @@ export function BottomNav({ items, acao }: { items: NavItem[]; acao?: AcaoCentra
 
       <nav className="safe-bottom sticky bottom-0 z-30 border-t border-border bg-surface/95 backdrop-blur md:hidden">
         {maisAberto && (
-          <ul className="mx-auto flex max-h-[60vh] max-w-md flex-col overflow-y-auto border-b border-border px-2 py-2">
-            {mais.map((destino) => {
-              if (destino.titulo) {
-                return (
-                  <li
-                    key={destino.href}
-                    className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider text-ink-muted"
-                  >
-                    {destino.label}
-                  </li>
-                );
-              }
-              const active = rotaAtiva(destino.href, pathname, destino.exato);
-              const Icon = destino.icon;
-              const bloqueado = !!destino.feature && !features[destino.feature];
-              return (
-                <li key={destino.href}>
-                  <Link
-                    href={destino.href}
-                    aria-current={active ? "page" : undefined}
-                    // Fecha no clique, não num efeito sobre `pathname`: a folha
-                    // ficaria aberta por um render sobre a tela nova.
-                    onClick={() => setMaisAberto(false)}
-                    className={cn(
-                      "flex min-h-12 items-center gap-3 rounded-xl px-3 text-sm font-medium transition-colors",
-                      // O filho é identificado pelo recuo e pela ausência de
-                      // ícone — o mesmo desenho que a barra lateral já usa para
-                      // submenu no desktop. Não é padrão novo.
-                      destino.filho && "pl-11 text-ink-muted",
-                      active ? "bg-gold/10 text-gold-strong" : "text-ink-muted"
-                    )}
-                  >
-                    {Icon && <Icon size={20} strokeWidth={active ? 2.4 : 1.8} />}
-                    {destino.label}
-                    {/* A lateral mostrava cadeado e a barra de baixo não: o
-                        mesmo item dizia duas coisas diferentes conforme o
-                        tamanho da tela. */}
-                    {bloqueado && (
-                      <Lock
-                        size={13}
-                        className="ml-auto shrink-0 text-ink-muted/70"
-                        aria-label="Não incluído no seu plano"
-                      />
-                    )}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+          /* Grade compacta por seção, não lista: 14 linhas não cabiam, o "+"
+           * cobria a última e Serviços/Equipe sumiam sem sinal de rolagem.
+           * Quatro por linha cabem inteiras até no iPhone SE. */
+          <div className="mx-auto max-h-[75vh] max-w-md overflow-y-auto rounded-t-3xl border-b border-border px-3 pb-3 pt-2">
+            <div className="mb-1 flex items-center justify-between">
+              <p className="font-display text-base text-ink">Menu</p>
+              <button
+                type="button"
+                onClick={() => setMaisAberto(false)}
+                aria-label="Fechar menu"
+                className="flex h-10 w-10 items-center justify-center rounded-full text-ink-muted hover:bg-surface-raised"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            {secoes.map((secao) => (
+              <section key={secao.titulo} className="mt-2">
+                <p className="mb-1.5 px-1 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
+                  {secao.titulo}
+                </p>
+                <ul className="grid grid-cols-4 gap-1.5">
+                  {secao.destinos.map((destino) => {
+                    const active = rotaAtiva(destino.href, pathname, destino.exato);
+                    const Icon = destino.icon;
+                    const bloqueado = !!destino.feature && !features[destino.feature];
+                    return (
+                      <li key={destino.href}>
+                        <Link
+                          href={destino.href}
+                          aria-current={active ? "page" : undefined}
+                          // Fecha no clique, não num efeito sobre `pathname`: a folha
+                          // ficaria aberta por um render sobre a tela nova.
+                          onClick={() => setMaisAberto(false)}
+                          className={cn(
+                            "relative flex h-full min-h-16 flex-col items-center justify-center gap-1 rounded-xl border px-0.5 py-1.5 text-center text-[11px] font-medium leading-tight transition-colors",
+                            active
+                              ? "border-gold/40 bg-gold/10 text-gold-strong"
+                              : "border-border bg-surface text-ink"
+                          )}
+                        >
+                          {Icon && (
+                            <Icon
+                              size={20}
+                              strokeWidth={active ? 2.4 : 1.8}
+                              className={active ? "text-gold-strong" : "text-ink-muted"}
+                            />
+                          )}
+                          {destino.label}
+                          {/* A lateral mostrava cadeado e a barra de baixo não: o
+                              mesmo item dizia duas coisas diferentes conforme o
+                              tamanho da tela. */}
+                          {bloqueado && (
+                            <Lock
+                              size={12}
+                              className="absolute right-1.5 top-1.5 text-ink-muted/70"
+                              aria-label="Não incluído no seu plano"
+                            />
+                          )}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            ))}
+          </div>
         )}
 
         <ul className="mx-auto flex max-w-md items-stretch justify-between px-1">
@@ -134,7 +155,14 @@ export function BottomNav({ items, acao }: { items: NavItem[]; acao?: AcaoCentra
                     acao.aoTocar();
                   }}
                   aria-label={acao.rotulo}
-                  className="-mt-5 flex h-14 w-14 items-center justify-center rounded-full bg-gold text-ink shadow-[0_8px_20px_-6px_rgba(15,23,42,0.45)] ring-4 ring-surface transition-transform active:scale-95"
+                  /* Com o menu aberto o "+" desce para dentro da barra: saltado,
+                     ele cobria a última linha da grade. */
+                  className={cn(
+                    "flex items-center justify-center rounded-full bg-gold text-ink transition-all active:scale-95",
+                    maisAberto
+                      ? "h-11 w-11"
+                      : "-mt-5 h-14 w-14 shadow-[0_8px_20px_-6px_rgba(15,23,42,0.45)] ring-4 ring-surface"
+                  )}
                 >
                   <acao.icone size={26} strokeWidth={2.4} />
                 </button>

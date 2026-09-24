@@ -1,5 +1,14 @@
 import {
+  ArrowLeftRight,
   BarChart3,
+  Clock,
+  LineChart,
+  Link2,
+  Percent,
+  PiggyBank,
+  Receipt,
+  Scissors,
+  UsersRound,
   CalendarClock,
   CalendarPlus,
   Home,
@@ -37,6 +46,8 @@ export type NavChild = {
    * simplesmente não sabiam expressá-la.
    */
   feature?: RecursoDePlano;
+  /** Ícone na grade do "Mais" do celular. A barra lateral não o usa. */
+  icon?: LucideIcon;
 };
 
 export type NavItem = {
@@ -137,13 +148,13 @@ export const painelNavItems: NavItem[] = [
        * "nome de negócio, não de sistema", e são as palavras do próprio dono.
        * Não virou "Resultado do mês" porque "resultado" é a tradução educada
        * do mesmo termo contábil, e porque colidiria com "Resumo" logo acima. */
-      { href: "/painel/financeiro/dre", label: "Quanto sobrou", feature: "advancedFinance" },
-      { href: "/painel/financeiro/fluxo-caixa", label: "Fluxo de caixa", feature: "advancedFinance" },
+      { href: "/painel/financeiro/dre", label: "Quanto sobrou", feature: "advancedFinance", icon: PiggyBank },
+      { href: "/painel/financeiro/fluxo-caixa", label: "Fluxo de caixa", feature: "advancedFinance", icon: ArrowLeftRight },
       /* Era só "Projeção" — projeção do quê. O par com a linha de cima é o que
        * ensina a diferença: fluxo é o caixa que já aconteceu, projeção é o
        * mesmo caixa à frente. E é o título que a própria tela já usa. */
-      { href: "/painel/financeiro/projecao", label: "Projeção de caixa", feature: "advancedFinance" },
-      { href: "/painel/financeiro/despesas", label: "Despesas", feature: "advancedFinance" },
+      { href: "/painel/financeiro/projecao", label: "Projeção de caixa", feature: "advancedFinance", icon: LineChart },
+      { href: "/painel/financeiro/despesas", label: "Despesas", feature: "advancedFinance", icon: Receipt },
     ],
   },
   /* D26 · Clientes é área de primeira classe.
@@ -185,11 +196,11 @@ export const painelNavItems: NavItem[] = [
     label: "Ajustes",
     icon: Settings,
     children: [
-      { href: "/painel/configuracoes", label: "Taxas e regras" },
-      { href: "/painel/horarios", label: "Horários" },
-      { href: "/painel/meu-link", label: "Meu link" },
-      { href: "/painel/servicos", label: "Serviços" },
-      { href: "/painel/equipe", label: "Equipe" },
+      { href: "/painel/configuracoes", label: "Taxas e regras", icon: Percent },
+      { href: "/painel/horarios", label: "Horários", icon: Clock },
+      { href: "/painel/meu-link", label: "Meu link", icon: Link2 },
+      { href: "/painel/servicos", label: "Serviços", icon: Scissors },
+      { href: "/painel/equipe", label: "Equipe", icon: UsersRound },
     ],
   },
 ];
@@ -321,4 +332,55 @@ export function menuDoCelular(
   }
 
   return { barra, mais };
+}
+
+/**
+ * O "Mais" do celular em SEÇÕES, para a grade de ícones.
+ *
+ * Era uma lista de 14 linhas em que os subitens não tinham ícone e ficavam
+ * recuados — parecia layout quebrado —, o "+" do centro da barra cobria a
+ * última linha visível e Serviços e Equipe ficavam escondidos sem sinal de
+ * rolagem (prints do dono, 24/09). Em seções e em grade, tudo cabe à vista.
+ *
+ * Mesma divisão da barra que `menuDoCelular`: o que está na barra não se
+ * repete, e o filho que aponta para o próprio pai só entra quando o pai NÃO
+ * está na barra (Ajustes → "Taxas e regras").
+ */
+export type SecaoDoMais = { titulo: string; destinos: DestinoDeMenu[] };
+
+export function secoesDoMais(items: NavItem[], maxVisivel: number): SecaoDoMais[] {
+  const naBarra = new Set(items.slice(0, maxVisivel - 1).map((i) => i.href));
+  const secoes: SecaoDoMais[] = [];
+  let gestao: SecaoDoMais | null = null;
+
+  for (const item of items) {
+    if (item.children?.length) {
+      const destinos = item.children
+        .filter((f) => !(naBarra.has(item.href) && f.href === item.href))
+        .map((f) => ({
+          href: f.href,
+          label: f.label,
+          feature: f.feature,
+          icon: f.icon ?? item.icon,
+          filho: true,
+          exato: true,
+        }));
+      if (destinos.length) secoes.push({ titulo: item.shortLabel ?? item.label, destinos });
+      continue;
+    }
+    if (naBarra.has(item.href)) continue;
+    if (!gestao) {
+      gestao = { titulo: "Gestão", destinos: [] };
+      secoes.push(gestao);
+    }
+    gestao.destinos.push({
+      href: item.href,
+      label: item.label,
+      feature: item.feature,
+      icon: item.icon,
+      filho: false,
+      exato: ehRaizDaArea(item, items),
+    });
+  }
+  return secoes;
 }
