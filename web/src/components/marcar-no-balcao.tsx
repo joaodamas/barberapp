@@ -51,10 +51,13 @@ export function MarcarNoBalcao({
   open,
   onClose,
   aoMarcar,
+  aoVerNaAgenda,
 }: {
   open: boolean;
   onClose: () => void;
   aoMarcar?: (r: { bookingId: string; clientId: string }) => void;
+  /** Aberto fora da tela Hoje (o "+" da barra), "Ver na agenda" precisa LEVAR lá. */
+  aoVerNaAgenda?: () => void;
 }) {
   const tenant = useTenant();
   const { items: servicos } = useServices();
@@ -114,7 +117,13 @@ export function MarcarNoBalcao({
    * serviço, ele nunca esteve escolhido. */
   const barbeiroId = barbeirosQueFazem.some((b) => b.id === barbeiroClicado)
     ? barbeiroClicado
-    : null;
+    : /* Com uma cadeira só, não há o que escolher: o dono de barbearia solo
+       * tinha de tocar no próprio nome para ver os horários (rodada E2E de
+       * 23/09). Com o serviço escolhido e um único barbeiro que o faz, ele já
+       * vem marcado — do mesmo jeito derivado, sem efeito. */
+      servicosEscolhidos.length > 0 && barbeirosQueFazem.length === 1
+      ? barbeirosQueFazem[0].id
+      : null;
 
   /* ---- Horários livres, do SERVIDOR ----
    *
@@ -251,7 +260,13 @@ export function MarcarNoBalcao({
             <Button variant="secondary" onClick={() => { limpar(); }} className="flex-1">
               Marcar outro
             </Button>
-            <Button onClick={fechar} className="flex-1">
+            <Button
+              onClick={() => {
+                fechar();
+                aoVerNaAgenda?.();
+              }}
+              className="flex-1"
+            >
               Ver na agenda
             </Button>
           </div>

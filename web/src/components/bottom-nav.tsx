@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Lock, MoreHorizontal } from "lucide-react";
+import { Lock, MoreHorizontal, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { itemAtivo, menuDoCelular, rotaAtiva, type NavItem } from "@/lib/nav-items";
 import { useAcesso } from "@/lib/tenant-context";
@@ -23,14 +23,20 @@ import { useAcesso } from "@/lib/tenant-context";
  */
 const MAX_VISIVEL = 5;
 
-export function BottomNav({ items }: { items: NavItem[] }) {
+/**
+ * A ação que mais se repete, no centro da barra — o "+" de marcar atendimento
+ * no painel. Com ela, a barra cede um lugar: três destinos, a ação e o "Mais".
+ */
+export type AcaoCentral = { rotulo: string; icone: LucideIcon; aoTocar: () => void };
+
+export function BottomNav({ items, acao }: { items: NavItem[]; acao?: AcaoCentral }) {
   const pathname = usePathname();
   const [maisAberto, setMaisAberto] = useState(false);
   /* Mesma fonte que as telas usam para bloquear (`useAcesso`), e não o
      `tenant.features` cru: senão o menu promete o que a tela nega. */
   const { features } = useAcesso();
 
-  const { barra, mais } = menuDoCelular(items, MAX_VISIVEL);
+  const { barra, mais } = menuDoCelular(items, acao ? MAX_VISIVEL - 1 : MAX_VISIVEL);
 
   /* Com o "Mais" aberto, a página de trás continuava rolando sob o dedo, e
    * não havia como fechar pelo teclado (medido em 24/09). Trava a rolagem do
@@ -115,11 +121,26 @@ export function BottomNav({ items }: { items: NavItem[] }) {
         )}
 
         <ul className="mx-auto flex max-w-md items-stretch justify-between px-1">
-          {barra.map((item) => {
+          {barra.map((item, indice) => {
             const active = itemAtivo(item, pathname, items);
             const Icon = item.icon;
             const bloqueado = !!item.feature && !features[item.feature];
-            return (
+            const antesDaAcao = acao && indice === 2 ? (
+              <li key="acao-central" className="flex flex-1 items-center justify-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMaisAberto(false);
+                    acao.aoTocar();
+                  }}
+                  aria-label={acao.rotulo}
+                  className="-mt-5 flex h-14 w-14 items-center justify-center rounded-full bg-gold text-ink shadow-[0_8px_20px_-6px_rgba(15,23,42,0.45)] ring-4 ring-surface transition-transform active:scale-95"
+                >
+                  <acao.icone size={26} strokeWidth={2.4} />
+                </button>
+              </li>
+            ) : null;
+            return [antesDaAcao,
               <li key={item.href} className="flex-1">
                 <Link
                   href={item.href}
@@ -145,8 +166,8 @@ export function BottomNav({ items }: { items: NavItem[] }) {
                   </span>
                   <span className="whitespace-nowrap">{item.shortLabel ?? item.label}</span>
                 </Link>
-              </li>
-            );
+              </li>,
+            ];
           })}
 
           {mais.length > 0 && (
