@@ -82,6 +82,18 @@ export const clienteNavItems: NavItem[] = [
 ];
 
 /**
+ * O que o VISITANTE vê — quem abriu o link da barbearia sem conta.
+ *
+ * Mostrar "Reservas" e "Perfil" a quem não tem nenhum, com um cartão "Cliente"
+ * e botão de sair no rodapé, dizia que ele já estava dentro de uma conta
+ * (apontado pelo dono em 24/09). O que ele pode fazer antes de entrar é ver,
+ * agendar e conhecer os planos.
+ */
+export const clienteNavVisitante: NavItem[] = clienteNavItems.filter((i) =>
+  ["/", "/agendar", "/planos"].includes(i.href)
+);
+
+/**
  * O menu do painel — só o dono chega aqui.
  *
  * `AuthGuard requireOwner` cobre a rota inteira: barbeiro e cliente nunca veem
