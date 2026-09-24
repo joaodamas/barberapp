@@ -1,0 +1,10 @@
+{
+  "name": "passeio-celular",
+  "private": true,
+  "type": "module",
+  "description": "Passeio tela a tela no celular e no PC, contra o emulador — roda no GitHub (.github/workflows/passeio-celular.yml), nunca na máquina do dono.",
+  "dependencies": {
+    "firebase-admin": "^13.0.0",
+    "playwright": "1.55.0"
+  }
+}
