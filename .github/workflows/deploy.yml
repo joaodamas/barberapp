@@ -238,11 +238,16 @@ jobs:
             echo "::error::o app web aponta para '$NEXT_PUBLIC_FIREBASE_PROJECT_ID' e o deploy é de '$PROJETO'."
             exit 1
           fi
-          # Sem `--force`. A instância mínima do SSR NÃO mora no firebase.json:
-          # o Hosting framework-aware fixa cada versão por etiqueta (pinTags) e a
-          # CLI recusa `minInstances` junto disso. Ela é aplicada no SERVIÇO do
-          # Cloud Run (nível de serviço, independente da revisão) — ver DEPLOY.md.
-          firebase deploy --only hosting --project "$PROJETO" --non-interactive
+          # A instância mínima do SSR NÃO mora no firebase.json: o Hosting
+          # framework-aware fixa cada versão por etiqueta (pinTags) e a CLI
+          # recusa `minInstances` junto disso. Ela fica no SERVIÇO do Cloud Run
+          # (nível de serviço, vale para qualquer revisão) — ver DEPLOY.md.
+          #
+          # `--force` porque, quando a região do SSR muda, a CLI precisa apagar
+          # a função da região anterior e, sem terminal, recusa (24/09: de SP de
+          # volta a us-central1). No escopo `--only hosting` a única função que
+          # a CLI toca é a do próprio SSR.
+          firebase deploy --only hosting --project "$PROJETO" --non-interactive --force
 
       # ── Sempre, mesmo se algo acima falhou ──────────────────────────────
       - name: Apagar a credencial do runner
