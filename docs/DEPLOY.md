@@ -29,6 +29,45 @@ resolvida pelo subdomínio, então nada é pré-renderizado. Isso significa que
 | Cloud Storage | `gcf-v2-sources-523105044821-us-central1` e o bucket de upload |
 | IAM | `allUsers` como invoker do serviço Run (o site é público) |
 
+### O servidor de renderização (SSR) — o que foi medido em 24/09
+
+| | |
+|---|---|
+| Região | `us-central1` (em `firebase.json` → `hosting.frameworksBackend.region`) |
+| Memória | `512MiB` (era 256 — apertado para o Next) |
+| Instância mínima | **1, no SERVIÇO do Cloud Run** — ver abaixo |
+
+**Por que a instância mínima não está no `firebase.json`.** O Hosting
+framework-aware fixa cada versão do SSR por etiqueta (`pinTags`), e a CLI recusa
+`minInstances` junto disso ("not currently compatible"). Ela é aplicada no
+serviço, em nível de serviço, e vale para qualquer revisão:
+
+```
+gcloud run services update ssraxonbarber --region us-central1 \
+  --project axon-barber --min=1
+```
+
+Conferir depois de cada deploy do Hosting (a anotação é
+`run.googleapis.com/minScale: '1'` no serviço). Sem ela, o servidor dorme e a
+primeira visita depois do ócio espera 4–8s (medido: 6 partidas a frio em 24h,
+p99 4,3s).
+
+**Por que NÃO São Paulo.** Tentado e revertido em 24/09. O Firebase Hosting
+encaminha as requisições por uma origem nos EUA; com o SSR em SP cada troca de
+tela vira BR → EUA → SP → EUA → BR:
+
+| Caminho (navegação sem cache, mediana) | Tempo |
+|---|---|
+| SSR em SP, direto no Cloud Run | 119 ms |
+| SSR em SP, via Hosting | 368 ms |
+| SSR nos EUA, via Hosting | 290 ms |
+
+Os 119 ms só vêm tirando o Hosting do caminho — o balanceador
+(`cortehub-lb-ip`) apontando direto para um Cloud Run em SP. Enquanto o Hosting
+estiver na frente, a transferência internacional também não some: o dado passa
+pelos EUA do mesmo jeito. A troca de região exige `--force` na etapa do Hosting
+(a CLI precisa apagar a função da região anterior) — está no `deploy.yml`.
+
 ### `--only functions:<nomes>`
 
 17 functions em `southamerica-east1`, mais os mesmos serviços de build:
