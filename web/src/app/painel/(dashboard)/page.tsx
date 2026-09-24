@@ -20,6 +20,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/cn";
 import { Pill } from "@/components/ui/pill";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
@@ -170,10 +171,17 @@ export default function PainelHojePage() {
     agora,
     toleranciaAtrasoMin,
   });
+  /* O atendimento atrasado de HOJE já está na agenda logo abaixo, com os
+   * mesmos botões — no "Precisa de você" ele aparecia duas vezes na mesma
+   * tela (apontado pelo dono em 24/09). Fica só na agenda, em destaque.
+   * Com a agenda mostrando outro dia, ele volta para cá: senão sumiria. */
+  const itensSoDaColuna = itensDeAcao.filter(
+    (i) => !(ehHoje && i.id.startsWith("atendimento-atrasado:"))
+  );
   const { visiveis: acoesVisiveis, ocultos: acoesOcultas } =
-    repartirParaExibicao(itensDeAcao);
+    repartirParaExibicao(itensSoDaColuna);
 
-  const semColunaLateral = itensDeAcao.length === 0;
+  const semColunaLateral = itensSoDaColuna.length === 0;
   const [balcaoAberto, setBalcaoAberto] = useState(false);
   const [aFechar, setAFechar] = useState<Doc<BookingDoc> | null>(null);
   const [faltaDe, setFaltaDe] = useState<Doc<BookingDoc> | null>(null);
@@ -779,17 +787,23 @@ export default function PainelHojePage() {
                   (rodada E2E de 23/09). */}
               <div className="flex flex-col gap-2 md:hidden">
                 {linhas.map((l) => (
-                  <Card key={l.booking.id} className="flex flex-col gap-2 p-4">
+                  <Card
+                    key={l.booking.id}
+                    className={cn(
+                      "flex flex-col gap-2 p-4",
+                      l.atrasado && "border-danger/40 bg-danger/5"
+                    )}
+                  >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="font-display text-lg text-gold-strong">
                           {l.booking.time}
-                          {l.atrasado && (
-                            <span className="ml-2 font-sans text-xs text-danger">
-                              {l.atrasoMin} min atrasado
-                            </span>
-                          )}
                         </p>
+                        {l.atrasado && (
+                          <p className="text-xs font-medium text-danger">
+                            Em aberto há {l.atrasoMin} min — atendeu ou não veio?
+                          </p>
+                        )}
                         <p className="truncate text-sm font-medium text-ink">{l.booking.clientName}</p>
                         <p className="truncate text-xs text-ink-muted">
                           {l.bookingServices.map((x) => x.name).join(" + ")}
@@ -823,7 +837,10 @@ export default function PainelHojePage() {
                     {linhas.map((l) => (
                       <tr
                         key={l.booking.id}
-                        className="border-b border-border/60 transition-colors last:border-0 hover:bg-surface-raised/60"
+                        className={cn(
+                          "border-b border-border/60 transition-colors last:border-0",
+                          l.atrasado ? "bg-danger/5 hover:bg-danger/10" : "hover:bg-surface-raised/60"
+                        )}
                       >
                         <td className="whitespace-nowrap px-4 py-3 font-display text-gold-strong md:px-6">
                           {l.booking.time}
