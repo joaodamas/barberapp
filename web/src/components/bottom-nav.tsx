@@ -7,7 +7,6 @@ import { Lock, MoreHorizontal, X, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { itemAtivo, menuDoCelular, rotaAtiva, secoesDoMais, type NavItem } from "@/lib/nav-items";
 import { useAcesso } from "@/lib/tenant-context";
-import { TIPO_DE_NAVEGACAO } from "@/components/transicao-de-tela";
 
 /**
  * Navegação do celular.
@@ -81,11 +80,7 @@ export function BottomNav({ items, acao }: { items: NavItem[]; acao?: AcaoCentra
         />
       )}
 
-      <nav
-        className="safe-bottom sticky bottom-0 z-30 border-t border-border bg-surface/95 backdrop-blur md:hidden"
-        // Parada na troca de tela: ver `TransicaoDeTela`.
-        style={{ viewTransitionName: "barra-de-baixo" }}
-      >
+      <nav className="safe-bottom sticky bottom-0 z-30 border-t border-border bg-surface/95 backdrop-blur md:hidden">
         {maisAberto && (
           /* Grade compacta por seção, não lista: 14 linhas não cabiam, o "+"
            * cobria a última e Serviços/Equipe sumiam sem sinal de rolagem.
@@ -116,7 +111,6 @@ export function BottomNav({ items, acao }: { items: NavItem[]; acao?: AcaoCentra
                       <li key={destino.href}>
                         <Link
                           href={destino.href}
-                          transitionTypes={TIPO_DE_NAVEGACAO.aba}
                           aria-current={active ? "page" : undefined}
                           // Fecha no clique, não num efeito sobre `pathname`: a folha
                           // ficaria aberta por um render sobre a tela nova.
@@ -187,7 +181,6 @@ export function BottomNav({ items, acao }: { items: NavItem[]; acao?: AcaoCentra
               <li key={item.href} className="flex-1">
                 <Link
                   href={item.href}
-                  transitionTypes={TIPO_DE_NAVEGACAO.aba}
                   // Fecha já no toque; a troca de tela fecharia de qualquer
                   // jeito, mas só depois de a tela nova carregar.
                   onClick={() => setMaisAberto(false)}

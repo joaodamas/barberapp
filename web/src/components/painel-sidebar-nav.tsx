@@ -8,7 +8,6 @@ import { cn } from "@/lib/cn";
 import { itemAtivo, painelNavItems, rotaAtiva } from "@/lib/nav-items";
 import { SidebarUserFooter } from "@/components/sidebar-user-footer";
 import { useAcesso, useTenant } from "@/lib/tenant-context";
-import { TIPO_DE_NAVEGACAO } from "@/components/transicao-de-tela";
 
 export function PainelSidebarNav() {
   const pathname = usePathname();
@@ -30,7 +29,6 @@ export function PainelSidebarNav() {
        sair inalcançável. Agora só a lista de navegação rola, e quem é dono do
        espaço restante é ela — o rodapé fica sempre ancorado embaixo. */
     <aside
-      style={{ viewTransitionName: "lateral" }}
       className="hidden shrink-0 bg-surface/60 md:flex md:h-full md:w-64 md:flex-col md:overflow-hidden md:border-r md:border-border md:shadow-[8px_0_32px_-24px_rgba(15,23,42,0.28)]">
       <Link
         href="/painel"
@@ -61,7 +59,6 @@ export function PainelSidebarNav() {
             <div key={item.href}>
               <Link
                 href={item.href}
-                transitionTypes={TIPO_DE_NAVEGACAO.aba}
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors duration-150",
@@ -110,7 +107,6 @@ export function PainelSidebarNav() {
                       <Link
                         key={child.href}
                         href={child.href}
-                        transitionTypes={TIPO_DE_NAVEGACAO.aba}
                         aria-current={childActive ? "page" : undefined}
                         className={cn(
                           "flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm transition-colors duration-150",
