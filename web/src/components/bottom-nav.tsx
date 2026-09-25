@@ -7,6 +7,7 @@ import { Lock, MoreHorizontal, X, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { itemAtivo, menuDoCelular, rotaAtiva, secoesDoMais, type NavItem } from "@/lib/nav-items";
 import { useAcesso } from "@/lib/tenant-context";
+import { TIPO_DE_NAVEGACAO } from "@/components/transicao-de-tela";
 
 /**
  * Navegação do celular.
@@ -67,16 +68,20 @@ export function BottomNav({ items, acao }: { items: NavItem[]; acao?: AcaoCentra
           type="button"
           aria-label="Fechar menu"
           onClick={() => setMaisAberto(false)}
-          className="fixed inset-0 z-20 bg-black/50 md:hidden"
+          className="fundo-escurece fixed inset-0 z-20 bg-black/50 md:hidden"
         />
       )}
 
-      <nav className="safe-bottom sticky bottom-0 z-30 border-t border-border bg-surface/95 backdrop-blur md:hidden">
+      <nav
+        className="safe-bottom sticky bottom-0 z-30 border-t border-border bg-surface/95 backdrop-blur md:hidden"
+        // Parada na troca de tela: ver `TransicaoDeTela`.
+        style={{ viewTransitionName: "barra-de-baixo" }}
+      >
         {maisAberto && (
           /* Grade compacta por seção, não lista: 14 linhas não cabiam, o "+"
            * cobria a última e Serviços/Equipe sumiam sem sinal de rolagem.
            * Quatro por linha cabem inteiras até no iPhone SE. */
-          <div className="mx-auto max-h-[75vh] max-w-md overflow-y-auto rounded-t-3xl border-b border-border px-3 pb-3 pt-2">
+          <div className="gaveta-sobe mx-auto max-h-[75vh] max-w-md overflow-y-auto rounded-t-3xl border-b border-border px-3 pb-3 pt-2">
             <div className="mb-1 flex items-center justify-between">
               <p className="font-display text-base text-ink">Menu</p>
               <button
@@ -102,6 +107,7 @@ export function BottomNav({ items, acao }: { items: NavItem[]; acao?: AcaoCentra
                       <li key={destino.href}>
                         <Link
                           href={destino.href}
+                          transitionTypes={TIPO_DE_NAVEGACAO.aba}
                           aria-current={active ? "page" : undefined}
                           // Fecha no clique, não num efeito sobre `pathname`: a folha
                           // ficaria aberta por um render sobre a tela nova.
@@ -172,6 +178,7 @@ export function BottomNav({ items, acao }: { items: NavItem[]; acao?: AcaoCentra
               <li key={item.href} className="flex-1">
                 <Link
                   href={item.href}
+                  transitionTypes={TIPO_DE_NAVEGACAO.aba}
                   aria-current={active ? "page" : undefined}
                   className={cn(
                     "relative flex min-h-14 flex-col items-center justify-center gap-1 py-2 text-[11px] font-medium transition-colors",

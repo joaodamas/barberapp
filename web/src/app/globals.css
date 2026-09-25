@@ -371,3 +371,200 @@ table th {
     min-width: 0;
   }
 }
+
+/* ==========================================================================
+ * Movimento
+ * ==========================================================================
+ *
+ * Três durações e duas curvas para o produto inteiro. O movimento aqui não é
+ * enfeite: ele diz de onde veio o que apareceu (a gaveta sobe da barra, a
+ * tela seguinte vem da direita). Por isso é curto — 150 a 250ms. Mais que isso
+ * o dono, em pé no balcão, fica esperando a animação acabar para tocar.
+ *
+ * A SAÍDA é mais rápida que a ENTRADA: o que sai não deve disputar atenção com
+ * o que chega.
+ *
+ * E nada disto afirma resultado. Animação de "deu certo" só pode tocar depois
+ * que o servidor gravou (lente de confiança); estas aqui só acompanham a
+ * navegação e a abertura de painéis, que já aconteceram quando tocam. */
+:root {
+  --mov-saida: 120ms;
+  --mov-entrada: 200ms;
+  --mov-gaveta: 240ms;
+  /* Desacelera no fim: chega rápido e pousa. */
+  --curva-chegada: cubic-bezier(0.22, 1, 0.36, 1);
+  --curva-saida: cubic-bezier(0.4, 0, 1, 1);
+}
+
+@keyframes mov-aparece {
+  from { opacity: 0; }
+}
+@keyframes mov-some {
+  to { opacity: 0; }
+}
+@keyframes mov-desliza {
+  from { translate: var(--mov-deslocamento) 0; }
+}
+@keyframes mov-desliza-saindo {
+  to { translate: var(--mov-deslocamento) 0; }
+}
+@keyframes mov-sobe {
+  from { translate: 0 100%; }
+}
+@keyframes mov-sobe-pouco {
+  from { opacity: 0; translate: 0 8px; scale: 0.98; }
+}
+
+/* --- Troca de tela (ver `components/transicao-de-tela.tsx`) --------------- */
+
+/* Cabeçalho, barra de baixo e lateral ficam parados: são a referência que diz
+ * que foi o conteúdo que trocou, e não o app inteiro. Sem `display: none` no
+ * retrato antigo, os dois (antigo e novo) apareceriam sobrepostos por um
+ * instante. */
+::view-transition-group(cabecalho),
+::view-transition-group(barra-de-baixo),
+::view-transition-group(lateral) {
+  animation-name: none;
+  z-index: 10;
+}
+::view-transition-old(cabecalho),
+::view-transition-old(barra-de-baixo),
+::view-transition-old(lateral) {
+  display: none;
+}
+::view-transition-new(cabecalho),
+::view-transition-new(barra-de-baixo),
+::view-transition-new(lateral) {
+  animation-name: none;
+}
+
+/* O conteúdo muda de altura de uma tela para outra; o grupo acompanha no
+ * mesmo tempo da entrada, para não sobrar um degrau no fim. */
+::view-transition-group(.nav-aba),
+::view-transition-group(.nav-avancar),
+::view-transition-group(.nav-voltar) {
+  animation-duration: var(--mov-entrada);
+  animation-timing-function: var(--curva-chegada);
+}
+
+/* Aba: telas irmãs, sem direção. Esmaece a que sai e sobe de leve a que
+ * chega — o suficiente para o olho registrar a troca. */
+::view-transition-old(.nav-aba) {
+  animation: var(--mov-saida) var(--curva-saida) both mov-some;
+}
+::view-transition-new(.nav-aba) {
+  animation: var(--mov-entrada) var(--curva-chegada) 60ms both mov-sobe-pouco;
+}
+
+/* Avançar e voltar: desliza pouco (32px). Suficiente para dizer o sentido sem
+ * fazer o olho perseguir a tela de um lado a outro. */
+::view-transition-old(.nav-avancar) {
+  --mov-deslocamento: -32px;
+  animation:
+    var(--mov-saida) var(--curva-saida) both mov-some,
+    var(--mov-entrada) var(--curva-saida) both mov-desliza-saindo;
+}
+::view-transition-new(.nav-avancar) {
+  --mov-deslocamento: 32px;
+  animation:
+    var(--mov-entrada) var(--curva-chegada) 60ms both mov-aparece,
+    var(--mov-entrada) var(--curva-chegada) both mov-desliza;
+}
+::view-transition-old(.nav-voltar) {
+  --mov-deslocamento: 32px;
+  animation:
+    var(--mov-saida) var(--curva-saida) both mov-some,
+    var(--mov-entrada) var(--curva-saida) both mov-desliza-saindo;
+}
+::view-transition-new(.nav-voltar) {
+  --mov-deslocamento: -32px;
+  animation:
+    var(--mov-entrada) var(--curva-chegada) 60ms both mov-aparece,
+    var(--mov-entrada) var(--curva-chegada) both mov-desliza;
+}
+
+/* --- Gaveta e fundo ------------------------------------------------------- */
+
+/* `@starting-style` anima a ENTRADA de um elemento recém-montado só com CSS:
+ * o navegador parte destes valores e transiciona para os normais. Navegador
+ * sem suporte simplesmente mostra o elemento pronto. */
+.fundo-escurece {
+  transition: opacity var(--mov-entrada) ease-out;
+}
+@starting-style {
+  .fundo-escurece {
+    opacity: 0;
+  }
+}
+
+/* O "Mais" sobe de dentro da barra. */
+.gaveta-sobe {
+  animation: var(--mov-gaveta) var(--curva-chegada) both mov-sobe-pouco;
+}
+
+/* O diálogo: no celular sobe da borda de baixo, inteiro, como gaveta; do `sm`
+ * para cima, onde ele é um cartão no meio da tela, só surge e cresce um
+ * pouco — subir 100% de um cartão centralizado seria movimento demais. */
+.modal-gaveta {
+  animation: var(--mov-gaveta) var(--curva-chegada) both mov-sobe;
+}
+@media (min-width: 640px) {
+  .modal-gaveta {
+    animation: var(--mov-entrada) var(--curva-chegada) both mov-sobe-pouco;
+  }
+}
+
+/* --- Dentro da tela ------------------------------------------------------- */
+
+/* A pílula das abas (`Segmented`) desliza até a opção escolhida. */
+.pilula-desliza {
+  transition:
+    left var(--mov-entrada) var(--curva-chegada),
+    width var(--mov-entrada) var(--curva-chegada);
+}
+
+/* A lista da agenda ao trocar de dia: entra pelo lado da seta tocada.
+ * Deslocamento de 12px, menor que o respiro lateral da tela (16px no
+ * celular), para a lista nunca passar da borda e abrir rolagem horizontal
+ * no meio da animação. */
+.dia-entra-depois {
+  --mov-deslocamento: 12px;
+  animation:
+    var(--mov-entrada) var(--curva-chegada) both mov-aparece,
+    var(--mov-entrada) var(--curva-chegada) both mov-desliza;
+}
+.dia-entra-antes {
+  --mov-deslocamento: -12px;
+  animation:
+    var(--mov-entrada) var(--curva-chegada) both mov-aparece,
+    var(--mov-entrada) var(--curva-chegada) both mov-desliza;
+}
+
+/* --- Redução de movimento ------------------------------------------------- */
+
+/* Quem pediu menos movimento ao sistema recebe tudo pronto: sem deslizar, sem
+ * subir. Zerar a duração (em vez de tirar a animação) mantém o estado final
+ * das animações com `both`. */
+@media (prefers-reduced-motion: reduce) {
+  /* Os seletores vão escritos um a um, e não por `::view-transition-old(*)`:
+   * é assim que `regras-do-design-system.test.ts` confere que toda animação
+   * nova ganhou o seu desligamento. */
+  ::view-transition-group(.nav-aba),
+  ::view-transition-group(.nav-avancar),
+  ::view-transition-group(.nav-voltar),
+  ::view-transition-old(.nav-aba),
+  ::view-transition-new(.nav-aba),
+  ::view-transition-old(.nav-avancar),
+  ::view-transition-old(.nav-voltar),
+  ::view-transition-new(.nav-avancar),
+  ::view-transition-new(.nav-voltar),
+  .fundo-escurece,
+  .gaveta-sobe,
+  .modal-gaveta,
+  .pilula-desliza,
+  .dia-entra-depois,
+  .dia-entra-antes {
+    animation: none;
+    transition: none;
+  }
+}

@@ -48,12 +48,29 @@ export function Segmented<T extends string>({
     botoes.current[destino]?.focus();
   }
 
+  /* A pílula dourada é UMA só e desliza até a opção escolhida, em vez de cada
+   * botão acender e apagar o próprio fundo: o movimento mostra de onde para
+   * onde a escolha foi. A conta reproduz o `p-1` e o `gap-1` do contêiner —
+   * cada opção tem (largura − 8px − vãos) / n, e a n-ésima começa depois de n
+   * opções e n vãos. Se o espaçamento mudar, muda aqui junto. */
+  const n = options.length;
+  const indice = Math.max(0, options.findIndex((o) => o.value === value));
+  const larguraDaOpcao = `((100% - 8px - ${n - 1} * 4px) / ${n})`;
+
   return (
     <div
       role="tablist"
       aria-label={label}
-      className="flex gap-1 rounded-xl border border-border bg-surface p-1"
+      className="relative flex gap-1 rounded-xl border border-border bg-surface p-1"
     >
+      <span
+        aria-hidden
+        className="pilula-desliza pointer-events-none absolute bottom-1 top-1 rounded-lg bg-gold"
+        style={{
+          width: `calc${larguraDaOpcao}`,
+          left: `calc(4px + ${indice} * (${larguraDaOpcao} + 4px))`,
+        }}
+      />
       {options.map((o, i) => {
         const ativo = o.value === value;
         return (
@@ -73,9 +90,9 @@ export function Segmented<T extends string>({
               // min-h-11: alvo de toque de 44px, o dono usa isso em pé no salão.
               // min-w-0 + texto menor no celular estreito: "Mensal · Trimestral ·
               // Semestral · Anual" empurrava a tela para além dos 320px.
-              "min-h-11 min-w-0 flex-1 cursor-pointer rounded-lg px-1.5 text-xs font-medium transition-colors sm:px-3 sm:text-sm",
+              "relative min-h-11 min-w-0 flex-1 cursor-pointer rounded-lg px-1.5 text-xs font-medium transition-colors sm:px-3 sm:text-sm",
               ativo
-                ? "bg-gold text-ink"
+                ? "text-ink"
                 : "text-ink-muted hover:bg-surface-raised hover:text-ink"
             )}
           >

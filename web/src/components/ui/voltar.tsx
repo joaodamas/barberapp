@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
+import { TIPO_DE_NAVEGACAO } from "@/components/transicao-de-tela";
 
 /**
  * Volta para a tela de cima.
@@ -22,6 +23,7 @@ export function Voltar({
   return (
     <Link
       href={href}
+      transitionTypes={TIPO_DE_NAVEGACAO.voltar}
       className="-ml-1 inline-flex min-h-11 items-center gap-1 text-sm text-ink-muted transition-colors hover:text-ink"
     >
       <ChevronLeft size={16} />

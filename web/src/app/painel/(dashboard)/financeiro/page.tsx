@@ -27,6 +27,7 @@ import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
 import { paymentGateways } from "@/lib/business-rules";
 import { composicaoDaReceita } from "@/lib/analytics";
+import { TIPO_DE_NAVEGACAO } from "@/components/transicao-de-tela";
 
 const REVENUE_BAR_SHADES = ["bg-gold", "bg-gold/75", "bg-gold/50", "bg-gold/30"];
 
@@ -107,7 +108,7 @@ export default function FinanceiroPage() {
         {/* Dizia "Fechamento do mês" e levava à tela que o menu chama "Quanto
             sobrou" — o terceiro nome para o mesmo destino, e o mais confuso
             dos três porque "fechamento" já é o subtítulo DESTA tela. */}
-        <Link href="/painel/financeiro/dre" className="hidden md:inline-flex">
+        <Link href="/painel/financeiro/dre" className="hidden md:inline-flex" transitionTypes={TIPO_DE_NAVEGACAO.avancar}>
           <Button variant="secondary">
             <FileDown size={16} />
             Ver quanto sobrou
@@ -420,7 +421,7 @@ export default function FinanceiroPage() {
       </>
       )}
 
-      <Link href="/painel/financeiro/dre" className="md:hidden">
+      <Link href="/painel/financeiro/dre" className="md:hidden" transitionTypes={TIPO_DE_NAVEGACAO.avancar}>
         <Button variant="secondary" className="w-full">
           <FileDown size={16} />
           Ver quanto sobrou
@@ -454,7 +455,7 @@ function QuickLinkCard({
   caption: string;
 }) {
   return (
-    <Link href={href}>
+    <Link href={href} transitionTypes={TIPO_DE_NAVEGACAO.avancar}>
       <Card interactive className="flex items-center gap-3 md:p-5">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gold/10 text-gold-strong">
           <Icon size={18} />
