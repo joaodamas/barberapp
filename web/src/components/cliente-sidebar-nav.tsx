@@ -10,7 +10,6 @@ import { useAuth } from "@/lib/auth-context";
 import { SidebarUserFooter } from "@/components/sidebar-user-footer";
 import { OwnerPanelLink } from "@/components/owner-panel-link";
 import { useTenant } from "@/lib/tenant-context";
-import { TIPO_DE_NAVEGACAO } from "@/components/transicao-de-tela";
 
 export function ClienteSidebarNav() {
   const pathname = usePathname();
@@ -20,7 +19,6 @@ export function ClienteSidebarNav() {
 
   return (
     <aside
-      style={{ viewTransitionName: "lateral" }}
       className="hidden shrink-0 bg-surface/60 md:flex md:h-full md:w-64 md:flex-col md:overflow-hidden md:border-r md:border-border md:shadow-[8px_0_32px_-24px_rgba(15,23,42,0.28)]">
       <Link href="/" className="flex items-center gap-3 px-6 pb-6 pt-8">
         <Image src={brand.logo} alt="" width={38} height={38} priority />
@@ -47,7 +45,6 @@ export function ClienteSidebarNav() {
             <Link
               key={item.href}
               href={item.href}
-              transitionTypes={TIPO_DE_NAVEGACAO.aba}
               aria-current={active ? "page" : undefined}
               className={cn(
                 "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors duration-150",
