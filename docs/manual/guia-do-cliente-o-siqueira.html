@@ -1,0 +1,490 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Guia do cliente · O Siqueira</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --preto: #12100C;
+    --preto-2: #1C1914;
+    --ouro: #C8A24B;
+    --ouro-escuro: #8C6A1E;
+    --creme: #EFE9DC;
+    --papel: #FBF9F4;
+    --tinta: #1E1B16;
+    --tinta-2: #5A5347;
+    --linha: #E4DCCB;
+  }
+  @page {
+    size: A4;
+    margin: 20mm 18mm 22mm 18mm;
+    @bottom-left {
+      content: "O Siqueira · Guia do cliente";
+      font: 500 8pt Manrope, sans-serif;
+      color: #9A917F;
+    }
+    @bottom-right {
+      content: counter(page);
+      font: 700 8pt Manrope, sans-serif;
+      color: #8C6A1E;
+    }
+  }
+  @page capa {
+    margin: 0;
+    @bottom-left { content: none; }
+    @bottom-right { content: none; }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body {
+    margin: 0;
+    font-family: Manrope, "Helvetica Neue", Arial, sans-serif;
+    font-size: 10pt;
+    line-height: 1.55;
+    color: var(--tinta);
+    background: #fff;
+  }
+
+  /* ---------- capa ---------- */
+  .capa {
+    page: capa;
+    height: 297mm;
+    width: 210mm;
+    background:
+      radial-gradient(ellipse at 50% 38%, #2A2419 0%, var(--preto) 62%);
+    color: var(--creme);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 34mm 22mm 20mm;
+    break-after: page;
+    /* Moldura dourada por contorno recuado, e não por elemento posicionado:
+     * qualquer filho `position: absolute` na capa fazia o Chrome repetir um
+     * bloco preto no pé de todas as páginas seguintes. */
+    outline: 0.6pt solid rgba(200,162,75,.55);
+    outline-offset: -14mm;
+  }
+  .capa .selo { width: 108mm; height: 108mm; margin-top: 6mm; filter: drop-shadow(0 10mm 18mm rgba(0,0,0,.55)); }
+  .capa .sobre {
+    margin-top: 16mm;
+    font: 700 8.5pt Manrope, sans-serif;
+    letter-spacing: .42em;
+    text-transform: uppercase;
+    color: var(--ouro);
+  }
+  .capa h1 {
+    font-family: Fraunces, Georgia, serif;
+    font-weight: 600;
+    font-size: 40pt;
+    line-height: 1.02;
+    margin: 5mm 0 0;
+    text-align: center;
+    letter-spacing: -.01em;
+  }
+  .capa h1 em { font-style: italic; color: var(--ouro); font-weight: 500; }
+  .capa .linha-ouro { width: 22mm; height: 1.2pt; background: var(--ouro); margin: 8mm 0 6mm; }
+  .capa .sub {
+    font-size: 11pt; color: #CFC6B2; text-align: center; max-width: 128mm; line-height: 1.6;
+  }
+  .capa .rodape {
+    margin-top: auto;
+    display: flex; gap: 10mm; align-items: center;
+    font-size: 8.5pt; color: #A99F8A; letter-spacing: .06em;
+  }
+  .capa .rodape b { color: var(--creme); font-weight: 600; }
+
+  /* ---------- miolo ---------- */
+  .parte {
+    break-before: page;
+    /* Sem margem negativa no topo: com a quebra de página antes, o Chrome
+     * pintava o fundo preto que sobrava no pé da página anterior. */
+    margin: 0 -18mm 10mm;
+    padding: 12mm 18mm 12mm;
+    background: var(--preto);
+    color: var(--creme);
+    position: relative;
+  }
+  .parte .num {
+    font: 700 8.5pt Manrope; letter-spacing: .4em; color: var(--ouro); text-transform: uppercase;
+  }
+  .parte h2 {
+    font-family: Fraunces, Georgia, serif; font-weight: 600; font-size: 28pt; line-height: 1.05;
+    margin: 3mm 0 3mm; color: #fff;
+  }
+  .parte p { margin: 0; color: #CFC6B2; font-size: 10.5pt; max-width: 150mm; }
+  .parte::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2.2mm;
+    background: repeating-linear-gradient(-45deg, var(--ouro) 0 3mm, var(--creme) 3mm 4.2mm, var(--preto) 4.2mm 7mm);
+  }
+
+  h3 {
+    font-family: Fraunces, Georgia, serif; font-weight: 600; font-size: 16pt;
+    margin: 9mm 0 1.5mm; color: var(--preto); break-after: avoid;
+    display: flex; align-items: baseline; gap: 3mm;
+  }
+  h3 .tag {
+    font: 700 7pt Manrope; letter-spacing: .18em; text-transform: uppercase;
+    color: var(--ouro-escuro); border: 0.8pt solid var(--ouro); border-radius: 20pt; padding: .4mm 2.2mm;
+    position: relative; top: -1pt;
+  }
+  h3 + .onde { margin-top: 0; }
+  .onde { font-size: 8.5pt; color: var(--tinta-2); margin: 0 0 3mm; }
+  .onde b { color: var(--ouro-escuro); font-weight: 700; }
+  h4 {
+    font-size: 10.5pt; font-weight: 800; margin: 5mm 0 1.5mm; color: var(--preto); break-after: avoid;
+  }
+  p { margin: 0 0 2.5mm; }
+  .lead { font-size: 11pt; color: var(--tinta-2); }
+
+  ul { margin: 0 0 3mm; padding-left: 4.5mm; }
+  li { margin: 0 0 1mm; }
+  li::marker { color: var(--ouro); }
+
+  ol.passos { list-style: none; padding: 0; margin: 2mm 0 4mm; counter-reset: p; }
+  ol.passos > li {
+    counter-increment: p; position: relative; padding: 0 0 0 10mm; margin: 0 0 2.4mm; break-inside: avoid;
+  }
+  ol.passos > li::before {
+    content: counter(p);
+    position: absolute; left: 0; top: -.2mm;
+    width: 6.4mm; height: 6.4mm; border-radius: 50%;
+    background: var(--preto); color: var(--ouro);
+    font: 800 8.5pt/6.4mm Manrope; text-align: center;
+  }
+  ol.passos > li:not(:last-child)::after {
+    content: ""; position: absolute; left: 3.1mm; top: 7mm; bottom: -2.4mm; width: 0.6pt; background: var(--linha);
+  }
+
+  /* rótulo de botão/tela, como aparece no app */
+  .bt {
+    display: inline-block; font-weight: 700; font-size: 8.8pt; line-height: 1.3;
+    padding: .3mm 2mm; border-radius: 1.6mm;
+    background: var(--creme); color: var(--preto); border: 0.6pt solid #D9CDB2;
+    white-space: nowrap;
+  }
+  .bt.ouro { background: var(--ouro); border-color: var(--ouro); color: var(--preto); }
+  .bt.escuro { background: var(--preto); border-color: var(--preto); color: var(--creme); }
+  .kbd {
+    font-weight: 800; letter-spacing: .08em; font-size: 8.8pt;
+    border: 0.8pt solid var(--preto); border-radius: 1mm; padding: 0 1.4mm;
+  }
+
+  .caixa {
+    border-radius: 3mm; padding: 3.2mm 4mm 2.2mm; margin: 3mm 0 4mm; break-inside: avoid;
+    background: var(--papel); border: 0.6pt solid var(--linha);
+  }
+  .caixa .titulo {
+    font: 800 7.5pt Manrope; letter-spacing: .2em; text-transform: uppercase; margin-bottom: 1.2mm; color: var(--ouro-escuro);
+  }
+  .caixa.importante { background: #FFF6E3; border-color: #EBCB85; }
+  .caixa.importante .titulo { color: #8A5A00; }
+  .caixa.escura { background: var(--preto); border-color: var(--preto); color: var(--creme); }
+  .caixa.escura .titulo { color: var(--ouro); }
+  .caixa.escura .bt { background: #2A251C; color: var(--creme); border-color: #3A3326; }
+  .caixa p:last-child, .caixa ul:last-child { margin-bottom: 1mm; }
+
+  .duas { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; }
+  .duas > div { break-inside: avoid; }
+
+  table { width: 100%; border-collapse: collapse; margin: 2mm 0 4mm; font-size: 9pt; break-inside: avoid; }
+  th {
+    text-align: left; font: 800 7.5pt Manrope; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--ouro-escuro); border-bottom: 1.2pt solid var(--preto); padding: 1.6mm 2mm;
+  }
+  td { border-bottom: 0.6pt solid var(--linha); padding: 1.8mm 2mm; vertical-align: top; }
+  td:first-child { font-weight: 700; width: 38%; }
+
+  /* sumário */
+  .sumario { break-before: page; }
+  .sumario h2 {
+    font-family: Fraunces, Georgia, serif; font-size: 26pt; font-weight: 600; margin: 4mm 0 1mm;
+  }
+  .sumario .intro { color: var(--tinta-2); margin-bottom: 8mm; max-width: 150mm; }
+  .toc { list-style: none; padding: 0; margin: 0; }
+  .toc > li {
+    display: grid; grid-template-columns: 14mm 1fr; gap: 2mm; padding: 4mm 0; border-top: 0.6pt solid var(--linha);
+  }
+  .toc .n { font-family: Fraunces, Georgia, serif; font-size: 20pt; color: var(--ouro); line-height: 1; }
+  .toc b { font-size: 11.5pt; display: block; }
+  .toc span { color: var(--tinta-2); font-size: 9pt; }
+
+  .check { list-style: none; padding: 0; }
+  .check li { padding-left: 8mm; position: relative; margin-bottom: 2.4mm; break-inside: avoid; }
+  .check li::before {
+    content: ""; position: absolute; left: 0; top: .6mm; width: 4.2mm; height: 4.2mm;
+    border: 1pt solid var(--preto); border-radius: 1mm;
+  }
+
+  .mapa { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3mm; margin: 3mm 0 5mm; }
+  .mapa > div {
+    border: 0.6pt solid var(--linha); border-radius: 2.4mm; padding: 2.6mm 3mm; background: var(--papel); break-inside: avoid;
+  }
+  .mapa b { display: block; font-size: 9.5pt; margin-bottom: .6mm; }
+  .mapa span { font-size: 8.3pt; color: var(--tinta-2); line-height: 1.45; display: block; }
+
+  .fim {
+    break-before: page; text-align: center; padding-top: 60mm;
+  }
+  .fim img { width: 46mm; }
+  .fim p { color: var(--tinta-2); max-width: 120mm; margin: 6mm auto 0; }
+  .avoid { break-inside: avoid; }
+</style>
+<body>
+
+<!-- ======================= CAPA ======================= -->
+<section class="capa">
+  <img class="selo" src="../../web/public/tenants/osiqueira/logo.svg" alt="O Siqueira">
+  <div class="sobre">Barbearia · desde 2012</div>
+  <h1>Agende pelo <em>app</em></h1>
+  <div class="linha-ouro"></div>
+  <div class="sub">Como marcar seu horário, reagendar, cancelar e acompanhar suas visitas na O Siqueira, direto do celular.</div>
+  <div class="rodape"><span><b>Guia do cliente</b></span><span>·</span><span>osiqueira.jpproject.com.br</span></div>
+</section>
+
+<!-- ======================= SUMÁRIO ======================= -->
+<section class="sumario">
+  <div class="onde"><b>Guia do cliente</b></div>
+  <h2>Seu horário na O Siqueira, sem ligar e sem esperar</h2>
+  <p class="intro">Pelo app você vê os serviços e os preços, escolhe o dia e o horário que ficam livres de verdade e recebe a confirmação na hora. O pagamento continua sendo no salão, do jeito que você preferir.</p>
+  <ol class="toc">
+    <li><div class="n">1</div><div><b>Abrir o app</b><span>O endereço e como deixar o app na tela do seu celular.</span></div></li>
+    <li><div class="n">2</div><div><b>Criar sua conta</b><span>Com a conta Google ou com e-mail e senha.</span></div></li>
+    <li><div class="n">3</div><div><b>Marcar um horário</b><span>Serviço, dia, horário e confirmação, passo a passo.</span></div></li>
+    <li><div class="n">4</div><div><b>Reagendar e cancelar</b><span>Como mudar o horário ou desmarcar, e até quando dá.</span></div></li>
+    <li><div class="n">5</div><div><b>Planos, fidelidade e seus dados</b><span>Mensalista, carimbos, perfil e como excluir a conta.</span></div></li>
+    <li><div class="n">6</div><div><b>Regras rápidas e dúvidas</b><span>Tudo o que você precisa saber, em uma página.</span></div></li>
+  </ol>
+</section>
+
+<!-- ======================= 1 ======================= -->
+<section class="parte">
+  <div class="num">Passo 1</div>
+  <h2>Abrir o app</h2>
+  <p>Não precisa baixar nada da loja de aplicativos: o app abre no navegador do celular.</p>
+</section>
+
+<div class="caixa escura">
+  <div class="titulo">Endereço</div>
+  <p style="font-size:15pt;font-weight:800;letter-spacing:.01em;margin:0 0 1mm;color:#fff">osiqueira.jpproject.com.br</p>
+  <p style="color:#CFC6B2">Você também encontra o link na bio do Instagram da barbearia e no QR code do balcão: é só apontar a câmera do celular.</p>
+</div>
+
+<h3>Deixe o app na tela do seu celular</h3>
+<p>Assim ele fica com o ícone da O Siqueira, junto com os seus outros aplicativos, e abre em tela cheia.</p>
+<div class="duas">
+  <div class="caixa">
+    <div class="titulo">iPhone (Safari)</div>
+    <ol class="passos">
+      <li>Abra o endereço no <b>Safari</b>.</li>
+      <li>Toque em <b>Compartilhar</b> (o quadrado com a seta para cima).</li>
+      <li>Escolha <b>Adicionar à Tela de Início</b> e toque em <b>Adicionar</b>.</li>
+    </ol>
+  </div>
+  <div class="caixa">
+    <div class="titulo">Android (Chrome)</div>
+    <ol class="passos">
+      <li>Abra o endereço no <b>Chrome</b>.</li>
+      <li>Toque no menu <b>⋮</b> no canto de cima.</li>
+      <li>Escolha <b>Instalar app</b> ou <b>Adicionar à tela inicial</b>.</li>
+    </ol>
+  </div>
+</div>
+
+<h3>O que você vê na primeira tela</h3>
+<ul>
+  <li>Os <b>serviços</b> da barbearia, com o tempo de cada um e o preço.</li>
+  <li>O botão <span class="bt ouro">Ver horários e agendar</span>. Você escolhe o horário <b>antes</b> de criar conta.</li>
+  <li>Os <b>planos de mensalista</b>, quando houver.</li>
+  <li>O endereço (tocando, abre o mapa) e os botões <span class="bt">WhatsApp</span> e <span class="bt">Ligar</span>.</li>
+</ul>
+
+<!-- ======================= 2 ======================= -->
+<section class="parte">
+  <div class="num">Passo 2</div>
+  <h2>Criar sua conta</h2>
+  <p>A conta é o que garante que o horário é seu. Ela é pedida só uma vez, na hora de confirmar a primeira reserva.</p>
+</section>
+
+<p>Você pode criar a conta antes, tocando em <span class="bt">Entrar</span>, ou deixar para o momento de confirmar o primeiro horário. Há dois jeitos:</p>
+<div class="duas">
+  <div class="caixa">
+    <div class="titulo">Com a sua conta Google</div>
+    <ol class="passos">
+      <li>Toque em <span class="bt">Continuar com Google</span>.</li>
+      <li>Escolha a sua conta Google.</li>
+      <li>Pronto. É o jeito mais rápido: não precisa criar senha.</li>
+    </ol>
+  </div>
+  <div class="caixa">
+    <div class="titulo">Com e-mail e senha</div>
+    <ol class="passos">
+      <li>Toque em <span class="bt">Criar uma conta</span>.</li>
+      <li>Informe seu <b>e-mail</b> e crie uma <b>senha</b> de pelo menos 6 caracteres.</li>
+      <li>Toque em <span class="bt ouro">Criar conta</span>.</li>
+    </ol>
+  </div>
+</div>
+<div class="caixa">
+  <div class="titulo">Esqueceu a senha?</div>
+  <p>Na tela de entrar, escreva seu e-mail e toque em <span class="bt">Esqueci a senha</span>. Você recebe um link por e-mail para criar uma senha nova.</p>
+</div>
+<div class="caixa">
+  <div class="titulo">A janela do Google não abriu?</div>
+  <p>O navegador pode estar bloqueando janelas. Libere as janelas (pop-ups) nas configurações do navegador, ou entre com e-mail e senha.</p>
+</div>
+
+<!-- ======================= 3 ======================= -->
+<section class="parte">
+  <div class="num">Passo 3</div>
+  <h2>Marcar um horário</h2>
+  <p>Quatro passos, com uma barra no topo mostrando em qual você está. Leva menos de um minuto.</p>
+</section>
+
+<p class="onde">Toque em <b>Agendar</b> no menu, ou em <b>Ver horários e agendar</b> na primeira tela</p>
+<ol class="passos">
+  <li><b>Escolha o serviço.</b> Toque em um ou mais serviços; dá para juntar, por exemplo, corte e barba. Embaixo aparece o tempo total e o valor. Toque em <span class="bt ouro">Continuar</span>.</li>
+  <li><b>Escolha o dia e o horário.</b> Aparecem os próximos 10 dias; os dias em que a barbearia não abre ficam apagados, com a palavra “fechado”. Toque no dia e depois em um dos horários livres. Os horários já levam em conta o tempo dos serviços que você escolheu.</li>
+  <li><b>Confira e confirme.</b> O app mostra o resumo: serviços, dia, hora, duração e total. Se você ainda não entrou, toque em <span class="bt ouro">Entrar para confirmar</span>: você entra ou cria a conta e volta direto para cá, com tudo escolhido. Na primeira vez, preencha <b>seu nome</b> e <b>seu WhatsApp</b> com DDD; nas próximas, eles já vêm preenchidos. Toque em <span class="bt ouro">Confirmar reserva</span>.</li>
+  <li><b>Pronto!</b> Aparece <span class="bt">Reserva confirmada!</span> com o dia e a hora. O horário é seu.</li>
+</ol>
+
+<div class="caixa importante">
+  <div class="titulo">Bom saber</div>
+  <ul>
+    <li><b>O pagamento é no salão</b>, no dia: Pix, dinheiro ou cartão. Nada é cobrado pelo app.</li>
+    <li>O horário só fica seu quando você toca em <b>Confirmar reserva</b>. Se outra pessoa marcar aquele horário antes, o app avisa e você escolhe outro.</li>
+    <li>Pelo app, dá para marcar a partir de <b>1 hora</b> de antecedência. Para um horário mais em cima, chame a barbearia no WhatsApp.</li>
+    <li>Você pode ter até <b>3 horários marcados</b> ao mesmo tempo.</li>
+    <li>Seu nome e seu WhatsApp ficam só com a O Siqueira, para cuidar do seu atendimento e falar com você se algo mudar.</li>
+  </ul>
+</div>
+
+<h3>Quando a barbearia tiver mais de um barbeiro</h3>
+<p>No passo 2 aparece <b>Com quem você quer cortar</b>. Escolha o profissional e os horários mostrados passam a ser os dele. Só aparece quem faz todos os serviços que você escolheu.</p>
+
+<h3>E se não aparecer horário?</h3>
+<p>Se o dia estiver cheio para o tempo dos serviços escolhidos, o app avisa e sugere outro dia. Se precisar de um encaixe, fale com a barbearia pelo WhatsApp: às vezes dá para ajeitar.</p>
+
+<!-- ======================= 4 ======================= -->
+<section class="parte">
+  <div class="num">Passo 4</div>
+  <h2>Reagendar e cancelar</h2>
+  <p>Surgiu um imprevisto? Você resolve pelo app, sem precisar ligar.</p>
+</section>
+
+<p class="onde">Toque em <b>Reservas</b> no menu</p>
+<p>Na aba <b>Futuras</b> ficam os seus horários marcados, com dia, hora, serviços e o valor a pagar no salão. Na aba <b>Histórico</b>, os atendimentos que você já fez. No topo, você vê quantas vezes já veio.</p>
+
+<div class="duas">
+  <div class="caixa">
+    <div class="titulo">Reagendar (mudar o horário)</div>
+    <ol class="passos">
+      <li>Na reserva, toque em <span class="bt">Reagendar</span>.</li>
+      <li>Escolha o novo dia e um dos horários livres.</li>
+      <li>Toque em <span class="bt ouro">Confirmar novo horário</span>.</li>
+    </ol>
+    <p>Dá para reagendar até <b>6 horas antes</b> do horário, no máximo <b>2 vezes</b> por reserva. O barbeiro continua o mesmo.</p>
+  </div>
+  <div class="caixa">
+    <div class="titulo">Cancelar (desmarcar)</div>
+    <ol class="passos">
+      <li>Na reserva, toque em <span class="bt">Cancelar</span>.</li>
+      <li>Leia o aviso: o horário volta a ficar livre para outra pessoa.</li>
+      <li>Toque em <span class="bt ouro">Confirmar cancelamento</span>.</li>
+    </ol>
+    <p>Cancelar <b>não tem custo</b>, porque você ainda não pagou nada. Se desistir, toque em <span class="bt">Manter reserva</span>.</p>
+  </div>
+</div>
+
+<div class="caixa importante">
+  <div class="titulo">Um pedido da casa</div>
+  <p>Se não for conseguir vir, <b>cancele pelo app assim que souber</b>. O horário volta para a agenda e outro cliente consegue ser atendido. Faltou o prazo para reagendar? Chame a barbearia no WhatsApp que ela resolve com você.</p>
+</div>
+
+<h3>Seu próximo horário, sempre à mão</h3>
+<p>Com a conta aberta, a primeira tela do app mostra o seu <b>próximo agendamento</b>: serviços, dia, hora e valor. O link <span class="bt">Ver detalhes / reagendar</span> leva direto para as suas reservas.</p>
+
+<!-- ======================= 5 ======================= -->
+<section class="parte">
+  <div class="num">Passo 5</div>
+  <h2>Planos, fidelidade e seus dados</h2>
+  <p>Para quem é de casa: vantagens para quem vem sempre, e o controle das suas informações.</p>
+</section>
+
+<h3>Planos de mensalista</h3>
+<p class="onde">Toque em <b>Planos</b> no menu</p>
+<p>Cada plano mostra o valor por mês e quanto você economiza em relação a pagar cada visita separada. Para assinar, toque em <span class="bt ouro">Falar com a barbearia</span>: o WhatsApp abre com a mensagem pronta.</p>
+<p>A assinatura é combinada com a barbearia, pelo WhatsApp ou no balcão. Assim que ela ativar o seu plano, na hora de agendar aparece <b>“Você é mensalista”</b>, e o que estiver incluído no plano não é cobrado de novo no salão. Até lá, você agenda normalmente e paga por atendimento.</p>
+
+<h3>Fidelidade</h3>
+<p>Quando a barbearia tem programa de fidelidade, cada atendimento vale um <b>carimbo</b>. Na primeira tela do app você vê quantos já tem e quantos faltam para ganhar a recompensa. Completou? O app mostra a recompensa liberada: é só avisar no balcão no próximo atendimento.</p>
+
+<h3>Seu perfil</h3>
+<p class="onde">Toque em <b>Perfil</b> no menu</p>
+<ul>
+  <li><b>Meus dados</b>: altere seu nome e seu WhatsApp e toque em <span class="bt">Salvar</span>. O e-mail não muda, porque é a identificação da sua conta.</li>
+  <li><b>Meu plano</b>: se você é mensalista, e quanto já investiu em atendimentos.</li>
+  <li><b>Política de cancelamento</b>: os prazos para reagendar e cancelar.</li>
+  <li><b>Ajuda</b>: WhatsApp, telefone, endereço e Instagram da barbearia.</li>
+  <li><span class="bt">Sair da conta</span>.</li>
+</ul>
+<p>A barbearia fala com você pelo WhatsApp do seu cadastro. Se não quiser mais receber mensagens, é só pedir a ela.</p>
+
+<div class="caixa">
+  <div class="titulo">Excluir sua conta</div>
+  <p>É um direito seu. Em <span class="bt">Excluir minha conta</span>, o app explica o que acontece: seu login e seu perfil são apagados, seu nome e seu telefone saem da barbearia, e os carimbos de fidelidade se perdem. Se você tiver um horário marcado ou plano ativo, cancele antes. Para confirmar, digite <span class="kbd">EXCLUIR</span>. Não dá para desfazer.</p>
+</div>
+
+<!-- ======================= 6 ======================= -->
+<section class="parte">
+  <div class="num">Resumo</div>
+  <h2>Regras rápidas e dúvidas</h2>
+  <p>Tudo o que você precisa saber, em uma página.</p>
+</section>
+
+<table>
+  <tr><th>Situação</th><th>Como funciona</th></tr>
+  <tr><td>Pagamento</td><td>No salão, no dia do atendimento: Pix, dinheiro ou cartão. Nada é cobrado pelo app.</td></tr>
+  <tr><td>Antecedência para marcar</td><td>A partir de 1 hora antes. Mais em cima que isso, só pelo WhatsApp.</td></tr>
+  <tr><td>Dias disponíveis</td><td>O app mostra os próximos 10 dias.</td></tr>
+  <tr><td>Horários ao mesmo tempo</td><td>Até 3 horários marcados.</td></tr>
+  <tr><td>Reagendar</td><td>Até 6 horas antes do horário, no máximo 2 vezes por reserva.</td></tr>
+  <tr><td>Cancelar</td><td>A qualquer momento, sem custo. Quanto antes, melhor para a agenda.</td></tr>
+  <tr><td>Plano de mensalista</td><td>Combinado com a barbearia, pelo WhatsApp ou no balcão.</td></tr>
+</table>
+
+<h3>Perguntas frequentes</h3>
+<div class="avoid">
+  <h4>Preciso criar conta para ver os horários?</h4>
+  <p>Não. Você vê os serviços, os preços e os horários livres sem conta. Ela só é pedida para confirmar.</p>
+</div>
+<div class="avoid">
+  <h4>Marquei, mas vou me atrasar. E agora?</h4>
+  <p>Avise a barbearia pelo WhatsApp. O botão fica na primeira tela do app e em Perfil › Ajuda.</p>
+</div>
+<div class="avoid">
+  <h4>Posso marcar para outra pessoa?</h4>
+  <p>A reserva fica no nome e no WhatsApp que você informar na confirmação. O ideal é cada pessoa marcar pela própria conta, para os horários e os carimbos de fidelidade ficarem com quem é atendido.</p>
+</div>
+<div class="avoid">
+  <h4>O app diz que já tenho horários demais.</h4>
+  <p>O limite é de 3 horários marcados ao mesmo tempo. Cancele um em Reservas antes de marcar outro.</p>
+</div>
+<div class="avoid">
+  <h4>Apareceu “Nova versão disponível”.</h4>
+  <p>Toque em <span class="bt ouro">Atualizar</span>. O app se atualiza sozinho e suas reservas continuam lá.</p>
+</div>
+<div class="avoid">
+  <h4>Estou sem internet.</h4>
+  <p>O app avisa “Sem conexão”. Sua reserva já confirmada continua salva; é só voltar quando a internet voltar.</p>
+</div>
+
+<section class="fim">
+  <img src="../../web/public/tenants/osiqueira/logo.svg" alt="">
+  <p>Ficou alguma dúvida? Chame a O Siqueira no WhatsApp: o botão fica na primeira tela do app.<br>Até o próximo corte.</p>
+</section>
+
+</body>
+</html>
