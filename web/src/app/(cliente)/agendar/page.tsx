@@ -21,6 +21,7 @@ import { contar } from "@/lib/plural";
 import { estadoDosHorarios } from "./estado-dos-horarios";
 import { bookableDays, firstBookableIndex } from "@/lib/slots";
 import { useAuth } from "@/lib/auth-context";
+import { alguemFaz, quemFaz } from "@/lib/quem-faz";
 import {
   lerPerfil,
   mascararWhatsapp,
@@ -71,8 +72,12 @@ export default function AgendarPage() {
   const barbeirosAtivos = equipe.filter((b) => b.active !== false);
 
   const services = servicosDoc
-    /* Sem preço, não está pronto para o cliente — o servidor recusa também. */
-    .filter((s) => s.active !== false && Number(s.price) > 0)
+    /* Sem preço, não está pronto para o cliente — o servidor recusa também.
+     * E sem ninguém da equipe que o faça, também não: o cliente escolheria um
+     * serviço sem horário possível. */
+    .filter(
+      (s) => s.active !== false && Number(s.price) > 0 && alguemFaz(barbeirosAtivos, s.id)
+    )
     .map((s) => ({
       id: s.id,
       name: s.name,
@@ -253,9 +258,12 @@ export default function AgendarPage() {
   // desistir de otimizar o componente inteiro.
   /* Quem escolhe o barbeiro quando há um só é o SISTEMA. Obrigar o cliente de
    * uma barbearia solo a escolher a única opção é atrito puro. */
+  /* Só entra quem faz TODOS os serviços escolhidos (`lib/quem-faz.ts`). Antes o
+   * barbeiro único era escolhido para qualquer serviço, e o servidor recusava a
+   * reserva no último passo. */
+  const aptos = quemFaz(barbeirosAtivos, selectedServiceIds);
   const barbeiroEscolhido =
-    barbeirosAtivos.find((b) => b.id === staffId) ??
-    (barbeirosAtivos.length === 1 ? barbeirosAtivos[0] : null);
+    aptos.find((b) => b.id === staffId) ?? (aptos.length === 1 ? aptos[0] : null);
 
   /* Os horários vêm do SERVIDOR.
    *
@@ -431,20 +439,15 @@ export default function AgendarPage() {
 
       {step === 2 && (
         <div className="flex flex-col gap-4 pb-24">
-          {/* Só aparece a partir do SEGUNDO barbeiro. Com um só, escolher a
-              única opção é atrito — o servidor preenche sozinho. */}
-          {barbeirosAtivos.length > 1 && (
+          {/* Só aparece quando há ESCOLHA: dois ou mais que fazem os serviços.
+              Com um só, escolher a única opção é atrito. */}
+          {aptos.length > 1 && (
             <div className="flex flex-col gap-2">
               <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
                 Com quem você quer cortar
               </p>
               <div className="flex gap-2 overflow-x-auto pb-1">
-                {barbeirosAtivos
-                  .filter((b) => {
-                    // Lista vazia significa TODOS os serviços, não nenhum.
-                    const faz: string[] = b.serviceIds ?? [];
-                    return faz.length === 0 || selectedServiceIds.every((id) => faz.includes(id));
-                  })
+                {aptos
                   .map((b) => {
                     const ativo = barbeiroEscolhido?.id === b.id;
                     return (
@@ -504,7 +507,16 @@ export default function AgendarPage() {
             })}
           </div>
 
-          {estadoDaLista === "dia-fechado" ? (
+          {aptos.length === 0 ? (
+            /* Cada serviço tem quem faça (os outros nem aparecem no passo 1),
+             * mas não a mesma pessoa: juntos, não cabem numa reserva só. */
+            <Card className="flex flex-col gap-2 py-6 text-center text-sm text-ink-muted">
+              <span>Ninguém da equipe faz esses serviços juntos.</span>
+              <span className="text-xs">
+                Volte e tire um deles, ou marque em duas reservas.
+              </span>
+            </Card>
+          ) : estadoDaLista === "dia-fechado" ? (
             <Card className="py-8 text-center text-sm text-ink-muted">
               A barbearia não abre neste dia. Escolha outra data.
             </Card>

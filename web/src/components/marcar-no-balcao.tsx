@@ -10,6 +10,7 @@ import { useClients, useServices, useStaff } from "@/lib/db/use-shop-data";
 import { bookableDays, firstBookableIndex } from "@/lib/slots";
 import { normalizarWhatsapp, whatsappValido, mascararWhatsapp } from "@/lib/whatsapp-numero";
 import { filtrarClientes } from "@/lib/clientes-busca";
+import { quemFaz } from "@/lib/quem-faz";
 import type { Doc } from "@/lib/db/repository";
 import type { ClientDoc } from "@/lib/domain";
 
@@ -98,12 +99,7 @@ export function MarcarNoBalcao({
    * mesma leitura do servidor. Duas interpretações diferentes para o mesmo campo
    * fariam a tela oferecer alguém que a function recusa. */
   const barbeirosQueFazem = useMemo(
-    () =>
-      ativos.filter((b) => {
-        const lista = b.serviceIds ?? [];
-        if (lista.length === 0) return true;
-        return servicosEscolhidos.every((id) => lista.includes(id));
-      }),
+    () => quemFaz(ativos, servicosEscolhidos),
     [ativos, servicosEscolhidos]
   );
 
