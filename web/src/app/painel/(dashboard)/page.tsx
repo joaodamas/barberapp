@@ -88,6 +88,10 @@ export default function PainelHojePage() {
    * de um dia para o outro, a tela não fica presa na data de ontem. */
   const [diaEscolhido, setDiaEscolhido] = useState<string | null>(null);
   const dia = diaEscolhido ?? hoje;
+  /* Para que lado a lista desliza ao trocar de dia: dia seguinte entra pela
+   * direita, anterior pela esquerda — o mesmo sentido das setas ‹ ›. `null`
+   * até a primeira troca, para a tela não abrir já deslizando. */
+  const [sentidoDoDia, setSentidoDoDia] = useState<"antes" | "depois" | null>(null);
   const ehHoje = dia === hoje;
 
   const agora = useRelogio();
@@ -595,8 +599,19 @@ export default function PainelHojePage() {
           dia={dia}
           hoje={hoje}
           total={status === "pronto" ? reservasDaAgenda.length : null}
-          aoMudar={(d) => setDiaEscolhido(d === hoje ? null : d)}
+          aoMudar={(d) => {
+            if (d === dia) return;
+            setSentidoDoDia(d > dia ? "depois" : "antes");
+            setDiaEscolhido(d === hoje ? null : d);
+          }}
         />
+        {/* `key` no dia: a lista de cada dia é outra, e remontar é o que faz a
+            entrada tocar de novo. Os dados de todos os dias já estão na
+            memória (`useBookings`), então não há carregamento no meio. */}
+        <div
+          key={dia}
+          className={sentidoDoDia ? `dia-entra-${sentidoDoDia}` : undefined}
+        >
         {status === "carregando" && <LoadingRows rows={3} oQue="sua agenda" />}
         {status === "erro" && <ErroAoCarregar oQue="sua agenda" erro={erroDaAgenda} />}
         {status === "pronto" && reservasDaAgenda.length === 0 && (
@@ -873,6 +888,7 @@ export default function PainelHojePage() {
             </>
           );
         })()}
+        </div>
       </section>
 
       {!agendaIlegivel && (

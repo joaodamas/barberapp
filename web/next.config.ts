@@ -70,6 +70,11 @@ const nextConfig: NextConfig = {
    * service worker — ver BUILD_ID acima. */
   env: { NEXT_PUBLIC_BUILD_ID: BUILD_ID },
 
+  /* Transição entre telas pelo `<ViewTransition>` do React (ver
+   * `components/transicao-de-tela.tsx`). Experimental no Next 16, mas o risco
+   * é baixo: navegador sem a API troca a tela como antes, sem animar. */
+  experimental: { viewTransition: true },
+
 
   /* O multi-tenant só é testável localmente com subdomínio de verdade
    * (osiqueira.lvh.me → 127.0.0.1). Sem liberar a origem, o servidor de

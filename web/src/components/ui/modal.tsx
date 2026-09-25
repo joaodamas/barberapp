@@ -95,9 +95,18 @@ export function Modal({
 
   if (!open) return null;
 
+  /* No celular o diálogo é uma GAVETA: encosta embaixo e sobe, e não flutua no
+   * meio da tela. É onde o polegar já está — o botão de confirmar fica ao
+   * alcance da mão que segura o aparelho — e é o mesmo gesto do "Mais", que
+   * sobe da barra. Do `sm` para cima volta a ser o cartão centralizado.
+   *
+   * Só a ENTRADA é animada (`modal-gaveta` e `fundo-escurece`, em
+   * `globals.css`). A saída pediria manter o diálogo montado depois do
+   * `open={false}`, e todo consumidor desmonta no fechar; fechar seco é o
+   * comportamento de antes e não engana ninguém. */
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+      className="fundo-escurece fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm sm:items-center sm:p-4"
       onClick={onClose}
       role="presentation"
     >
@@ -114,7 +123,10 @@ export function Modal({
         aria-describedby={description ? `${id}-descricao` : undefined}
         tabIndex={-1}
         padding="lg"
-        className={cn("max-h-[90vh] w-full max-w-lg overflow-y-auto", className)}
+        className={cn(
+          "modal-gaveta max-h-[88dvh] w-full max-w-lg overflow-y-auto rounded-b-none rounded-t-3xl pb-[calc(1rem+env(safe-area-inset-bottom))] sm:max-h-[90vh] sm:rounded-2xl sm:pb-4 md:pb-6",
+          className
+        )}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-start justify-between gap-3">
