@@ -32,7 +32,16 @@ export type AcaoCentral = { rotulo: string; icone: LucideIcon; aoTocar: () => vo
 
 export function BottomNav({ items, acao }: { items: NavItem[]; acao?: AcaoCentral }) {
   const pathname = usePathname();
-  const [maisAberto, setMaisAberto] = useState(false);
+  /* O "Mais" guarda a TELA em que foi aberto, e não um liga/desliga: aberto é
+   * "aberto nesta tela". Qualquer navegação — item da barra, voltar do
+   * navegador, link de dentro da página — fecha o menu sozinha, no mesmo
+   * render em que a tela nova aparece. Com um booleano, cada caminho de saída
+   * precisava lembrar de fechar, e os itens da barra não lembravam: tocar em
+   * Finanças com o menu aberto trocava a tela e deixava o menu por cima
+   * (relato do dono, 25/09). */
+  const [maisAbertoEm, setMaisAbertoEm] = useState<string | null>(null);
+  const maisAberto = maisAbertoEm === pathname;
+  const setMaisAberto = (abrir: boolean) => setMaisAbertoEm(abrir ? pathname : null);
   /* Mesma fonte que as telas usam para bloquear (`useAcesso`), e não o
      `tenant.features` cru: senão o menu promete o que a tela nega. */
   const { features } = useAcesso();
@@ -49,7 +58,7 @@ export function BottomNav({ items, acao }: { items: NavItem[]; acao?: AcaoCentra
     const anterior = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const aoTeclar = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setMaisAberto(false);
+      if (e.key === "Escape") setMaisAbertoEm(null);
     };
     window.addEventListener("keydown", aoTeclar);
     return () => {
@@ -179,6 +188,9 @@ export function BottomNav({ items, acao }: { items: NavItem[]; acao?: AcaoCentra
                 <Link
                   href={item.href}
                   transitionTypes={TIPO_DE_NAVEGACAO.aba}
+                  // Fecha já no toque; a troca de tela fecharia de qualquer
+                  // jeito, mas só depois de a tela nova carregar.
+                  onClick={() => setMaisAberto(false)}
                   aria-current={active ? "page" : undefined}
                   className={cn(
                     "relative flex min-h-14 flex-col items-center justify-center gap-1 py-2 text-[11px] font-medium transition-colors",
@@ -209,7 +221,7 @@ export function BottomNav({ items, acao }: { items: NavItem[]; acao?: AcaoCentra
             <li className="flex-1">
               <button
                 type="button"
-                onClick={() => setMaisAberto((v) => !v)}
+                onClick={() => setMaisAberto(!maisAberto)}
                 aria-expanded={maisAberto}
                 aria-label={maisAberto ? "Fechar mais opções" : "Mais opções"}
                 className={cn(
