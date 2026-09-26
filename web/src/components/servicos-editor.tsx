@@ -6,6 +6,7 @@ import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { putDoc, removeDoc, subscribeToCollection } from "@/lib/db/repository";
 import type { ServiceDoc } from "@/lib/domain";
+import { separarAPartirDe } from "@/lib/a-partir-de";
 
 /**
  * Tabela editável do cardápio da barbearia.
@@ -54,7 +55,9 @@ export function EditorDeServicos({
     () =>
       subscribeToCollection<ServiceDoc>(barbershopId, "services", {
         onData: (items) => {
-          const lista = items as Servico[];
+          /* O nome aparece já sem "a partir de" (ver `lib/a-partir-de.ts`); o
+           * próximo salvar grava o nome limpo e a marca ligada. */
+          const lista = (items as Servico[]).map(separarAPartirDe);
           setServicos(lista);
           setStatus("pronto");
           onChange?.(lista);
@@ -84,12 +87,16 @@ export function EditorDeServicos({
   async function salvarLinha(servico: Servico) {
     // Nome vazio é linha recém-criada que o dono ainda não preencheu.
     if (!servico.name.trim()) return;
+    /* Quem digitar "Luzes a partir de" no nome grava "Luzes" com a marca
+     * ligada: a marca é o lugar certo, e agora ela existe na tela. */
+    const limpo = separarAPartirDe(servico);
     try {
       setErroDeEscrita(null);
       await putDoc(barbershopId, "services", servico.id, {
-        name: servico.name.trim(),
+        name: limpo.name.trim(),
         durationMin: Math.max(servico.durationMin, 5),
         price: servico.price,
+        priceFrom: limpo.priceFrom === true,
         active: servico.active !== false,
       });
     } catch (e) {
@@ -111,6 +118,29 @@ export function EditorDeServicos({
       setErroDeEscrita("Não foi possível mudar a visibilidade. Tente de novo.");
       setServicos((prev) =>
         prev.map((s) => (s.id === servico.id ? { ...s, active: !proximo } : s))
+      );
+    }
+  }
+
+  async function alternarAPartirDe(servico: Servico) {
+    const proximo = servico.priceFrom !== true;
+    setServicos((prev) =>
+      prev.map((s) => (s.id === servico.id ? { ...s, priceFrom: proximo } : s))
+    );
+    try {
+      setErroDeEscrita(null);
+      /* O nome vai junto, já limpo. Com só a marca, um nome antigo ainda
+       * gravado como "Luzes a partir de" religaria a marca na próxima
+       * leitura, e desmarcar a caixa não teria efeito. */
+      await putDoc(barbershopId, "services", servico.id, {
+        ...(servico.name.trim() ? { name: servico.name.trim() } : {}),
+        priceFrom: proximo,
+      });
+    } catch (e) {
+      console.error("[servicos] falha ao marcar 'a partir de'", e);
+      setErroDeEscrita("Não foi possível mudar o preço. Tente de novo.");
+      setServicos((prev) =>
+        prev.map((s) => (s.id === servico.id ? { ...s, priceFrom: !proximo } : s))
       );
     }
   }
@@ -218,10 +248,11 @@ export function EditorDeServicos({
                 que não fazem sentido em dinheiro. A vírgula é como se digita
                 preço em português, e `atualizar` já normaliza para ponto. */}
             <div
-              className={`order-5 flex min-w-0 items-center gap-1.5 rounded-xl border border-border bg-surface-raised px-3 py-2.5 focus-within:border-gold/40 md:order-none md:col-span-1 ${
+              className={`order-5 flex min-w-0 flex-col gap-1 md:order-none md:col-span-1 ${
                 permiteDesativar ? "col-span-3" : "col-span-2"
               }`}
             >
+            <div className="flex min-w-0 items-center gap-1.5 rounded-xl border border-border bg-surface-raised px-3 py-2.5 focus-within:border-gold/40">
               <span aria-hidden className="text-sm text-ink-muted">
                 R$
               </span>
@@ -239,6 +270,19 @@ export function EditorDeServicos({
                 placeholder="0,00"
                 className="w-full bg-transparent text-sm text-ink outline-none"
               />
+            </div>
+            {/* Preço mínimo (luzes, pigmentação): o cliente vê "a partir de
+                R$ X". Era o que faltava na tela — sem isto, o dono escrevia
+                "a partir de" no nome do serviço. */}
+            <label className="flex cursor-pointer items-center gap-1.5 px-1 text-xs text-ink-muted">
+              <input
+                type="checkbox"
+                checked={s.priceFrom === true}
+                onChange={() => alternarAPartirDe(s)}
+                className="h-4 w-4 accent-[var(--color-gold)]"
+              />
+              Preço “a partir de”
+            </label>
             </div>
 
             {permiteDesativar && (
