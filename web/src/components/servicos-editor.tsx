@@ -129,7 +129,13 @@ export function EditorDeServicos({
     );
     try {
       setErroDeEscrita(null);
-      await putDoc(barbershopId, "services", servico.id, { priceFrom: proximo });
+      /* O nome vai junto, já limpo. Com só a marca, um nome antigo ainda
+       * gravado como "Luzes a partir de" religaria a marca na próxima
+       * leitura, e desmarcar a caixa não teria efeito. */
+      await putDoc(barbershopId, "services", servico.id, {
+        ...(servico.name.trim() ? { name: servico.name.trim() } : {}),
+        priceFrom: proximo,
+      });
     } catch (e) {
       console.error("[servicos] falha ao marcar 'a partir de'", e);
       setErroDeEscrita("Não foi possível mudar o preço. Tente de novo.");
