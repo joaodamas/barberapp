@@ -1,6 +1,8 @@
 "use client";
 
+import { useMemo } from "react";
 import { useShopCollection } from "@/lib/db/use-collection";
+import { separarAPartirDe } from "@/lib/a-partir-de";
 import { saldoDeFidelidade } from "@/lib/domain";
 import { useTenant } from "@/lib/tenant-context";
 import type {
@@ -17,8 +19,14 @@ import type {
  * Cada tela declara o que precisa e recebe `{ items, status }` — o
  * `barbershopId` vem do tenant, nunca da tela.
  */
-export const useServices = () =>
-  useShopCollection<ServiceDoc>("services", { orderByField: "price", publica: true });
+/* "a partir de" escrito no nome vira a marca do preço já na leitura — ver
+ * `lib/a-partir-de.ts`. Assim toda tela (vitrine, agendar, balcão, agenda) vê
+ * o mesmo cardápio, sem esperar o dono salvar cada serviço de novo. */
+export function useServices() {
+  const colecao = useShopCollection<ServiceDoc>("services", { orderByField: "price", publica: true });
+  const items = useMemo(() => colecao.items.map(separarAPartirDe), [colecao.items]);
+  return { ...colecao, items };
+}
 
 /** A equipe. `order` primeiro para o dono controlar a sequência na tela. */
 export const useStaff = () =>
