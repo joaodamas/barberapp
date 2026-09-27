@@ -243,7 +243,14 @@ describe("D13 · o barbeiro", () => {
 /* ================================================================== */
 
 describe("D13 · antecedência", () => {
+  /* Os dois primeiros casos usam HOJE, e a loja de teste fecha no domingo:
+   * rodados num domingo, recebiam "não abre neste dia" em vez da regra que
+   * testam (CI de 27/09). Abrir todos os dias isola a antecedência do calendário. */
+  const abrirTodosOsDias = () =>
+    shopRef().update({ "schedule.weekdays": [0, 1, 2, 3, 4, 5, 6] });
+
   it("o balcão marca AGORA — é o caso mais comum", async () => {
+    await abrirTodosOsDias();
     /* A pessoa já está na cadeira. Exigir 60 minutos de antecedência tornaria o
      * caminho inútil justamente onde ele mais serve. */
     const agora = new Date();
@@ -257,6 +264,7 @@ describe("D13 · antecedência", () => {
   });
 
   it("o APP continua exigindo antecedência — a regra tem destinatário", async () => {
+    await abrirTodosOsDias();
     /* Ela existe para o cliente não marcar às 14:55 um horário de 15:00 que o
      * barbeiro não veria a tempo. No balcão, quem marca é quem vai atender.
      * Afrouxar para os dois teria sido "fazer o teste passar". */
