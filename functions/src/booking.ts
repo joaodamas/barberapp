@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { exigirEdicao } from "./acesso";
+import { onSchedule } from "firebase-functions/v2/scheduler";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { diaDaSemanaNoFuso, hojeNoFuso, instanteNoFuso, localeDoDocumento } from "./locale";
 import { horarioDisponivel, janelasOcupadas, podeRemarcar } from "./agenda";
@@ -155,13 +156,17 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
   });
 
   const { staffId, value, durationMin, nomes, slotMinutes, duracaoDaReserva } = pedido;
-  let status: "confirmed" | "fit_in_requested" = "confirmed";
+  /* O status devolvido é o GRAVADO — definido a cada tentativa da transação,
+   * então vale o da tentativa que efetivou (revisão do PR #60): uma primeira
+   * tentativa que viu o horário ocupado não pode deixar "aguardando aprovação"
+   * para uma reserva que a repetição gravou confirmada. */
+  let status = "confirmed";
 
   /* ---- Grava checando conflito na mesma transação ---- */
   const bookingId = await gravarComTravaDeHorario({
     seOcupado: pedeEncaixe ? "pedirEncaixe" : "recusar",
-    aoVirarEncaixe: () => {
-      status = "fit_in_requested";
+    aoDefinirStatus: (gravado) => {
+      status = gravado;
     },
     idDaReserva: idDaReservaPorChave(uid, request.data?.chave),
     db,
@@ -210,6 +215,17 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
       createdAt: FieldValue.serverTimestamp(),
     },
   });
+
+  /* Repetição de um pedido que o barbeiro já respondeu (a resposta da
+   * primeira chamada se perdeu): dizer "confirmada" seria mentir. */
+  if (status !== "confirmed" && status !== "fit_in_requested") {
+    throw new HttpsError(
+      "failed-precondition",
+      status === "expired"
+        ? "Esse pedido de encaixe expirou sem resposta. Escolha outro horário."
+        : "Esse pedido de encaixe já foi respondido. Veja em Reservas."
+    );
+  }
 
   return { bookingId, value, status, durationMin, staffId };
 });
@@ -784,8 +800,12 @@ export async function gravarComTravaDeHorario(params: {
    * ocupa a agenda e espera o barbeiro — ver `responderEncaixe`.
    */
   seOcupado?: "recusar" | "pedirEncaixe";
-  /** Chamado dentro da transação quando o pedido virou encaixe. */
-  aoVirarEncaixe?: () => void;
+  /**
+   * Recebe o status gravado, a cada tentativa da transação — a última chamada
+   * é a da tentativa que efetivou. Numa repetição idempotente, é o status do
+   * documento que já existia.
+   */
+  aoDefinirStatus?: (status: string) => void;
 }): Promise<string> {
   const { db, shopRef, date, time, staffId } = params;
   const bookingRef = params.idDaReserva
@@ -804,7 +824,7 @@ export async function gravarComTravaDeHorario(params: {
       if (existente.exists) {
         /* A resposta da repetição tem de dizer o que foi GRAVADO: se a
          * primeira virou pedido de encaixe, "confirmado" seria mentira. */
-        if (existente.get("status") === "fit_in_requested") params.aoVirarEncaixe?.();
+        params.aoDefinirStatus?.(String(existente.get("status")));
         return;
       }
     }
@@ -895,7 +915,9 @@ export async function gravarComTravaDeHorario(params: {
       ...(virouEncaixe ? { status: "fit_in_requested", isFitIn: true } : {}),
       clientId: cadastro?.id ?? params.clientId,
     });
-    if (virouEncaixe) params.aoVirarEncaixe?.();
+    params.aoDefinirStatus?.(
+      virouEncaixe ? "fit_in_requested" : String(params.documento.status ?? "confirmed")
+    );
   });
 
   return bookingRef.id;
@@ -1317,3 +1339,44 @@ export const responderEncaixe = onCall<{
 
   return { status: resultado };
 });
+
+/**
+ * Pedido de encaixe que ninguém respondeu até a hora vira `expired`.
+ *
+ * Sem isto ele ficava `fit_in_requested` para sempre (revisão do PR #60):
+ * saía da lista do barbeiro, continuava contando como reserva ativa do
+ * cliente, e nunca chegava à tela dele o "sem resposta" que a tela promete.
+ *
+ * A cada 15 minutos, e não por minuto: o cliente vê "sem resposta" no máximo
+ * um quarto de hora depois — e a tela dele já trata o pedido vencido como tal
+ * nesse intervalo. Consulta por barbearia, com UMA igualdade: índice de
+ * campo único, que existe sem declarar; uma consulta de grupo de coleções
+ * exigiria índice novo.
+ */
+export const expirarEncaixes = onSchedule(
+  { schedule: "every 15 minutes", timeZone: "America/Sao_Paulo", region: "southamerica-east1" },
+  async () => {
+    const db = getFirestore();
+    const agora = Date.now();
+    const barbearias = await db.collection("barbershops").get();
+    for (const shop of barbearias.docs) {
+      const pedidos = await shop.ref
+        .collection("bookings")
+        .where("status", "==", "fit_in_requested")
+        .get();
+      if (pedidos.empty) continue;
+      const { timeZone } = localeDoDocumento(shop.data());
+      for (const d of pedidos.docs) {
+        const inicio = instanteNoFuso(String(d.get("date")), String(d.get("time")), timeZone);
+        if (inicio.getTime() > agora) continue;
+        /* Transação: o barbeiro pode estar aprovando neste instante, e
+         * aprovado não volta a expirado. */
+        await db.runTransaction(async (tx) => {
+          const atual = await tx.get(d.ref);
+          if (atual.get("status") !== "fit_in_requested") return;
+          tx.update(d.ref, { status: "expired", expiradoEm: FieldValue.serverTimestamp() });
+        });
+      }
+    }
+  }
+);

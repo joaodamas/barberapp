@@ -84,8 +84,22 @@ export default function ReservasPage() {
    * com "a pagar no salão" e botão de cancelar; e a tela mostrava UMA reserva
    * — `futuras[length - 1]` — com o cliente podendo ter até três. */
   const hoje = toISODate(new Date());
+  /* Pedido de encaixe cujo horário chegou sem resposta: o servidor o marca
+   * `expired` a cada 15 min (`expirarEncaixes`); até lá a tela já o trata assim,
+   * em vez de mostrar "aguardando" para um horário que passou. */
+  const [agoraMs, setAgoraMs] = useState<number | null>(null);
+  useEffect(() => {
+    const tique = () => setAgoraMs(Date.now());
+    tique();
+    const id = window.setInterval(tique, 60_000);
+    return () => window.clearInterval(id);
+  }, []);
+  const encaixeVencido = (b: (typeof minhas)[number]) =>
+    agoraMs !== null &&
+    b.status === "fit_in_requested" &&
+    new Date(`${b.date}T${b.time}:00`).getTime() <= agoraMs;
   const futuras = minhas
-    .filter((b) => b.date >= hoje && EM_ABERTO.includes(b.status))
+    .filter((b) => b.date >= hoje && EM_ABERTO.includes(b.status) && !encaixeVencido(b))
     .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
   /* A resposta do barbeiro a um pedido de encaixe precisa CHEGAR ao cliente.
    * Recusado ou sem resposta, o pedido sai de "em aberto" — e, sem esta lista,
@@ -93,7 +107,8 @@ export default function ReservasPage() {
   const encaixesRespondidos = minhas.filter(
     (b) =>
       b.date >= hoje &&
-      (b.status === "expired" ||
+      ((b.status === "expired" && b.isFitIn) ||
+        encaixeVencido(b) ||
         (b.status === "cancelled_by_shop" &&
           (b as { motivoCancelamento?: string }).motivoCancelamento === "encaixe_recusado"))
   );
@@ -313,13 +328,13 @@ export default function ReservasPage() {
                       </p>
                     </div>
                     <Pill tone="danger">
-                      {b.status === "expired" ? "Encaixe sem resposta" : "Encaixe recusado"}
+                      {b.status === "cancelled_by_shop" ? "Encaixe recusado" : "Encaixe sem resposta"}
                     </Pill>
                   </div>
                   <p className="text-xs text-ink-muted md:text-sm">
-                    {b.status === "expired"
-                      ? "O horário chegou antes de o barbeiro responder."
-                      : "O barbeiro não conseguiu te encaixar nesse horário."}{" "}
+                    {b.status === "cancelled_by_shop"
+                      ? "O barbeiro não conseguiu te encaixar nesse horário."
+                      : "O horário chegou antes de o barbeiro responder."}{" "}
                     Escolha outro horário livre.
                   </p>
                   <Link href="/agendar" className="self-start">

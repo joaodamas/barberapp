@@ -310,16 +310,16 @@ describe("encaixe (27/09)", () => {
   it("horário ocupado com pedido de encaixe grava o PEDIDO, sem ocupar a agenda", async () => {
     await gravarComTravaDeHorario(pedido({ clientId: "joao", time: "15:00" }));
 
-    let virou = false;
+    let gravado = "";
     await gravarComTravaDeHorario({
       ...pedido({ clientId: "maria", time: "15:00" }),
       seOcupado: "pedirEncaixe",
-      aoVirarEncaixe: () => {
-        virou = true;
+      aoDefinirStatus: (st) => {
+        gravado = st;
       },
     });
 
-    expect(virou).toBe(true);
+    expect(gravado).toBe("fit_in_requested");
     const maria = (await reservasNoBanco()).find((r) => r.clientId === "maria");
     expect(maria?.status).toBe("fit_in_requested");
     expect(maria?.isFitIn).toBe(true);
@@ -338,15 +338,15 @@ describe("encaixe (27/09)", () => {
   });
 
   it("horário que vagou vira reserva normal, sem esperar aprovação", async () => {
-    let virou = false;
+    let gravado = "";
     await gravarComTravaDeHorario({
       ...pedido({ clientId: "maria", time: "15:00" }),
       seOcupado: "pedirEncaixe",
-      aoVirarEncaixe: () => {
-        virou = true;
+      aoDefinirStatus: (st) => {
+        gravado = st;
       },
     });
-    expect(virou).toBe(false);
+    expect(gravado).toBe("confirmed");
     const maria = (await reservasNoBanco()).find((r) => r.clientId === "maria");
     expect(maria?.status).toBe("confirmed");
   });
@@ -355,5 +355,18 @@ describe("encaixe (27/09)", () => {
     await gravarComTravaDeHorario(pedido({ clientId: "joao", time: "15:00" }));
     const r = await correr([pedido({ clientId: "maria", time: "15:00" })]);
     expect(r.recusadas).toBe(1);
+  });
+});
+
+describe("encaixe · repetição da mesma tentativa", () => {
+  it("devolve o status GRAVADO, mesmo que o barbeiro já tenha respondido", async () => {
+    await gravarComTravaDeHorario(pedido({ clientId: "joao", time: "15:00" }));
+    const base = { ...pedido({ clientId: "maria", time: "15:00" }), seOcupado: "pedirEncaixe" as const, idDaReserva: "pedido-fixo" };
+    await gravarComTravaDeHorario(base);
+    await db.doc(`barbershops/${SHOP}/bookings/pedido-fixo`).update({ status: "cancelled_by_shop" });
+
+    let gravado = "";
+    await gravarComTravaDeHorario({ ...base, aoDefinirStatus: (st) => (gravado = st) });
+    expect(gravado).toBe("cancelled_by_shop");
   });
 });
