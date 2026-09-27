@@ -354,13 +354,13 @@
 </div>
 
 <h3 style="break-before: page">Agendar um horário</h3>
-<p class="onde">Menu <b>Agendar</b> · quatro passos, com a barra de progresso no topo</p>
+<p class="onde">Menu <b>Agendar</b> · três passos, com a barra de progresso no topo</p>
 <ol class="passos">
   <li><b>Serviços.</b> Tocar nos serviços desejados; dá para escolher mais de um (por exemplo, corte e barba). A barra de baixo mostra quantos serviços, o tempo total e o valor. Tocar em <span class="bt ouro">Continuar</span>.</li>
-  <li><b>Dia e horário.</b> Escolher o dia entre os próximos 10 dias (os dias em que a barbearia não abre aparecem apagados, com “fechado”) e depois um horário livre. A grade já considera o tempo total dos serviços escolhidos.</li>
+  <li><b>Dia e horário.</b> Escolher o dia entre os próximos 10 dias (os dias em que a barbearia não abre aparecem apagados, com “fechado”) e depois um horário. <b>Tocar no horário já leva para a confirmação.</b> A grade já considera o tempo total dos serviços escolhidos. Horários ocupados aparecem como <span class="bt">encaixe</span>: o cliente pode pedir, e o barbeiro aprova (veja “Pedidos de encaixe”).</li>
   <li><b>Confirmação.</b> O app mostra o resumo: serviços, dia, hora, duração e total. Quem ainda não entrou vê <span class="bt ouro">Entrar para confirmar</span>: entra ou cria a conta e volta direto para esta tela, com a escolha guardada. Na primeira vez, o cliente preenche <b>Seu nome</b> e <b>Seu WhatsApp</b> com DDD; nas próximas, os campos já vêm preenchidos. Tocar em <span class="bt ouro">Confirmar reserva</span>.</li>
-  <li><b>Pronto.</b> Aparece <span class="bt">Reserva confirmada!</span> com o dia e a hora, e o lembrete do valor a pagar no salão.</li>
 </ol>
+<p>Ao confirmar, aparece <span class="bt">Reserva confirmada!</span> com o dia e a hora, e o lembrete do valor a pagar no salão.</p>
 <div class="caixa importante">
   <div class="titulo">Bom saber</div>
   <ul>
@@ -464,6 +464,7 @@
 <h4>“Precisa de você”</h4>
 <p>O app junta aqui o que está pendente, até 3 de cada vez. Resolvendo os de cima, aparecem os próximos:</p>
 <ul>
+  <li><b>Pedido de encaixe</b> (sempre no topo) → <span class="bt ouro">Aprovar encaixe</span> ou <span class="bt">Recusar</span>. Veja abaixo.</li>
   <li><b>Atendimento feito sem pagamento registrado</b> → <span class="bt">Registrar pagamento</span>.</li>
   <li><b>Atendimento de dia anterior que ficou sem desfecho</b> → <span class="bt">Foi atendido</span> ou <span class="bt">Não veio</span>. Enquanto ficar assim, o valor não entra no faturamento do mês.</li>
   <li><b>Taxas da maquininha ainda não informadas</b> → <span class="bt">Configurar taxas</span>.</li>
@@ -499,6 +500,22 @@
 <div class="caixa">
   <div class="titulo">Cliente mensalista</div>
   <p>Para o mensalista, a janela mostra o plano dele e o botão <span class="bt ouro">Concluir sem cobrar</span>. O app confere a cota do mês: se o plano cobre, não há cobrança; se a cota já acabou, entra como avulso. Se o cliente pagar algo por fora do plano, basta escolher a forma de pagamento logo abaixo.</p>
+</div>
+
+<h3>Pedidos de encaixe</h3>
+<p>Quando um horário já está ocupado, o cliente pode pedir um <b>encaixe</b> nele pelo app. O pedido <b>não ocupa a agenda</b> e não tira o horário de ninguém: ele espera a decisão do barbeiro.</p>
+<ol class="passos">
+  <li>O pedido aparece no topo do <b>Precisa de você</b>: quem pediu, o dia, a hora, os serviços e o tempo. Na agenda do dia, ele aparece com a etiqueta <span class="bt">Encaixe pendente</span>. O cliente também é orientado a avisar a barbearia pelo WhatsApp, com a mensagem pronta.</li>
+  <li>Tocar em <span class="bt ouro">Aprovar encaixe</span> se der para atender, ou em <span class="bt">Recusar</span>.</li>
+  <li>Depois de gravado, aparece o botão <span class="bt">Avisar [cliente] no WhatsApp</span>, com a mensagem pronta de confirmação ou de recusa.</li>
+</ol>
+<div class="caixa">
+  <div class="titulo">Bom saber</div>
+  <ul>
+    <li>Aprovado, o encaixe entra na agenda como um atendimento normal, mesmo sobrepondo outro horário: é isso que encaixe quer dizer.</li>
+    <li>Se o horário chegar sem resposta, o pedido expira sozinho, e o cliente vê “sem resposta” no app.</li>
+    <li>Os encaixes atendidos aparecem separados em <b>De onde vem o dinheiro</b>, no Financeiro.</li>
+  </ul>
 </div>
 
 <h3>Quando o cliente não vem, ou desmarca</h3>
@@ -705,6 +722,7 @@
   <tr><td>Reagendar pelo app</td><td>Até <b>6 horas antes</b> do horário, no máximo <b>2 vezes</b> por reserva.</td></tr>
   <tr><td>Cancelar pelo app</td><td>A qualquer momento, <b>sem custo</b>: nada é pago antecipado.</td></tr>
   <tr><td>Atraso</td><td>Depois da tolerância (15 minutos, ajustável), o atendimento aparece como atrasado e o dono pode marcar a falta.</td></tr>
+  <tr><td>Encaixe</td><td>O cliente pede em horário ocupado; o barbeiro aprova ou recusa no <b>Precisa de você</b>. Sem resposta até a hora, expira sozinho.</td></tr>
   <tr><td>Pagamento</td><td><b>Sempre no salão.</b> O app registra quando o dono conclui o atendimento.</td></tr>
 </table>
 
