@@ -36,8 +36,10 @@ type Step = 1 | 2 | 3 | 4;
 const STEP_LABELS: Record<Step, string> = {
   1: "Serviços",
   2: "Dia e horário",
-  3: "Pagamento",
-  4: "Confirmação",
+  /* Era "Pagamento" — e nada se paga aqui: é onde o cliente confere e
+   * confirma. O nome errado fazia hesitar justamente no último toque. */
+  3: "Confirmar",
+  4: "Reserva confirmada",
 };
 
 
@@ -341,6 +343,18 @@ export default function AgendarPage() {
     (step === 1 && selectedServiceIds.length === 0) ||
     (step === 2 && !selectedSlot) ||
     (step === 3 && !!user && (!whatsappOk || !nomeOk));
+  /* Cada passo abre do TOPO. A troca de passo mantinha a rolagem: depois de
+   * descer a lista de serviços e tocar em "Continuar", o passo seguinte abria
+   * no meio, e o cliente precisava subir para achar os dias (relato do dono,
+   * 26/09). No celular quem rola é a janela; no computador, o `<main>`. */
+  const passoAnterior = useRef(step);
+  useEffect(() => {
+    if (passoAnterior.current === step) return;
+    passoAnterior.current = step;
+    window.scrollTo({ top: 0 });
+    document.getElementById("conteudo")?.scrollTo({ top: 0 });
+  }, [step]);
+
   const ctaLabel = step === 3 ? (user ? "Confirmar reserva" : "Entrar para confirmar") : "Continuar";
 
   function toggleService(id: string) {
@@ -362,16 +376,20 @@ export default function AgendarPage() {
           </button>
         )}
         <div>
-          <p className="text-xs uppercase tracking-wider text-ink-muted md:text-sm">
-            Passo {step} de 4
-          </p>
+          {/* São TRÊS passos. A tela de "reserva confirmada" é o resultado, não
+              uma etapa a cumprir — contá-la fazia o fluxo parecer mais longo. */}
+          {step < 4 && (
+            <p className="text-xs uppercase tracking-wider text-ink-muted md:text-sm">
+              Passo {step} de 3
+            </p>
+          )}
           <h1 className="text-xl text-ink md:text-3xl md:tracking-tight">{STEP_LABELS[step]}</h1>
         </div>
       </div>
 
       <div className="flex flex-col gap-5 md:col-start-1 md:gap-7">
       <div className="flex gap-1.5">
-        {([1, 2, 3, 4] as Step[]).map((s) => (
+        {([1, 2, 3] as Step[]).map((s) => (
           <span
             key={s}
             className={
@@ -571,7 +589,13 @@ export default function AgendarPage() {
                 <button
                   key={slot.time}
                   aria-pressed={active}
-                  onClick={() => setSelectedSlot(slot)}
+                  /* Tocar no horário JÁ é a decisão: segue direto para a
+                     confirmação, sem o "Continuar" lá embaixo. Errou? O
+                     "voltar" do topo traz de volta com tudo escolhido. */
+                  onClick={() => {
+                    setSelectedSlot(slot);
+                    setStep(3);
+                  }}
                   className={
                     "flex flex-col items-center rounded-xl border py-2.5 text-sm transition-colors " +
                     (active
@@ -887,7 +911,7 @@ export default function AgendarPage() {
 
           <div className="flex items-center justify-between text-sm">
             <span className="text-ink-muted">
-              {totalDuration > 0 ? `${totalDuration} min` : "Duração"}
+              {totalDuration > 0 ? `Total · ${totalDuration} min` : "Total"}
             </span>
             <span className="font-display text-lg font-semibold text-gold-strong">
               {formatBRL(totalPrice)}
