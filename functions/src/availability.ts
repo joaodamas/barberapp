@@ -154,12 +154,13 @@ export const availableSlots = onCall<{
   const intervalos = jornada.breaks.map((b) => [paraMinutos(b.from), paraMinutos(b.to)]);
 
   const livres: string[] = [];
+  /* Encaixe: horário DENTRO do expediente que só não está livre porque outra
+   * reserva o ocupa. O cliente pode pedir; quem decide se dá é o barbeiro
+   * (`responderEncaixe`). Fora do expediente, no almoço ou em cima da hora
+   * não entra — ali não há o que o barbeiro aprovar. */
+  const encaixes: string[] = [];
   for (let t = abre; t + duracao <= fecha; t += jornada.slotMinutes) {
     const hora = paraHora(t);
-    /* O atendimento INTEIRO precisa estar livre, e não só o minuto em que ele
-     * começa: um corte de 30 min às 15:30 não cabe se o combo das 15:00 vai
-     * até as 16:00. */
-    if (!janelaLivre({ inicio: t, fim: t + duracao }, ocupadas)) continue;
 
     /* O atendimento inteiro precisa caber: um combo de 60 min não pode começar
      * 30 min antes do almoço nem 30 min antes de fechar. */
@@ -169,8 +170,13 @@ export const availableSlots = onCall<{
     if (instanteNoFuso(date, hora, locale.timeZone).getTime() - Date.now() < minutosMinimos * 60_000) {
       continue;
     }
-    livres.push(hora);
+
+    /* O atendimento INTEIRO precisa estar livre, e não só o minuto em que ele
+     * começa: um corte de 30 min às 15:30 não cabe se o combo das 15:00 vai
+     * até as 16:00. */
+    if (janelaLivre({ inicio: t, fim: t + duracao }, ocupadas)) livres.push(hora);
+    else encaixes.push(hora);
   }
 
-  return { slots: livres, staffId: barbeiro.id };
+  return { slots: livres, encaixes, staffId: barbeiro.id };
 });

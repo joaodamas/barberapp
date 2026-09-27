@@ -514,3 +514,57 @@ describe("desfecho esquecido — o que ficou para trás", () => {
     ]);
   });
 });
+
+describe("encaixe aguardando o barbeiro (27/09)", () => {
+  const agora = new Date("2026-09-28T09:00:00");
+
+  it("pedido futuro vira item crítico com aprovar e recusar", async () => {
+    const { encaixesPendentes } = await import("@/lib/action-center");
+    const itens = encaixesPendentes({
+      todas: [bk({ id: "e1", status: "fit_in_requested", date: "2026-09-28", time: "10:00", clientName: "Ana" })],
+      agora,
+    });
+    expect(itens).toHaveLength(1);
+    expect(itens[0].severity).toBe("critical");
+    expect(itens[0].intent).toEqual({ kind: "responderEncaixe", bookingId: "e1", aprovar: true });
+    expect(itens[0].secondary?.intent).toEqual({ kind: "responderEncaixe", bookingId: "e1", aprovar: false });
+  });
+
+  it("pedido cujo horário já passou não pede mais resposta", async () => {
+    const { encaixesPendentes } = await import("@/lib/action-center");
+    const itens = encaixesPendentes({
+      todas: [bk({ id: "e1", status: "fit_in_requested", date: "2026-09-28", time: "08:30" })],
+      agora,
+    });
+    expect(itens).toEqual([]);
+  });
+
+  it("reserva normal ou encaixe já respondido não entram", async () => {
+    const { encaixesPendentes } = await import("@/lib/action-center");
+    const itens = encaixesPendentes({
+      todas: [
+        bk({ id: "a", status: "confirmed", date: "2026-09-28", time: "10:00" }),
+        bk({ id: "b", status: "cancelled_by_shop", date: "2026-09-28", time: "11:00" }),
+      ],
+      agora,
+    });
+    expect(itens).toEqual([]);
+  });
+
+  it("vem antes das outras pendências críticas", async () => {
+    const { avaliarOperacao } = await import("@/lib/action-center");
+    const itens = avaliarOperacao({
+      bookings: [bk({ id: "c", status: "completed", paymentMethod: null, date: "2026-09-28", time: "08:00" })],
+      todasAsReservas: [bk({ id: "e1", status: "fit_in_requested", date: "2026-09-28", time: "10:00" })],
+      hoje: "2026-09-28",
+      services: [sv({ id: "s", price: 30 })],
+      statusServicos: "pronto",
+      payments: [],
+      formas: formasDoTenant({}),
+      periodo: mesPeriodo("2026-09"),
+      agora,
+      toleranciaAtrasoMin: 15,
+    });
+    expect(itens[0].id).toBe("encaixe:e1");
+  });
+});
