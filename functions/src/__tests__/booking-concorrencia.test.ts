@@ -305,3 +305,55 @@ describe("teto de reservas por cliente, sob concorrência", () => {
     expect(gravadas).toBe(1);
   });
 });
+
+describe("encaixe (27/09)", () => {
+  it("horário ocupado com pedido de encaixe grava o PEDIDO, sem ocupar a agenda", async () => {
+    await gravarComTravaDeHorario(pedido({ clientId: "joao", time: "15:00" }));
+
+    let virou = false;
+    await gravarComTravaDeHorario({
+      ...pedido({ clientId: "maria", time: "15:00" }),
+      seOcupado: "pedirEncaixe",
+      aoVirarEncaixe: () => {
+        virou = true;
+      },
+    });
+
+    expect(virou).toBe(true);
+    const maria = (await reservasNoBanco()).find((r) => r.clientId === "maria");
+    expect(maria?.status).toBe("fit_in_requested");
+    expect(maria?.isFitIn).toBe(true);
+  });
+
+  it("o pedido de encaixe não tira o horário de ninguém", async () => {
+    // Cadeira livre às 16:00; um pedido de encaixe para as 16:00 sobre uma
+    // reserva das 15:30 às 16:30 não pode impedir quem marca 16:30.
+    await gravarComTravaDeHorario(pedido({ clientId: "joao", time: "15:30", duracaoDaReserva: 60 }));
+    await gravarComTravaDeHorario({
+      ...pedido({ clientId: "maria", time: "16:00", duracaoDaReserva: 30 }),
+      seOcupado: "pedirEncaixe",
+    });
+    const r = await correr([pedido({ clientId: "pedro", time: "16:30", duracaoDaReserva: 30 })]);
+    expect(r.gravadas).toBe(1);
+  });
+
+  it("horário que vagou vira reserva normal, sem esperar aprovação", async () => {
+    let virou = false;
+    await gravarComTravaDeHorario({
+      ...pedido({ clientId: "maria", time: "15:00" }),
+      seOcupado: "pedirEncaixe",
+      aoVirarEncaixe: () => {
+        virou = true;
+      },
+    });
+    expect(virou).toBe(false);
+    const maria = (await reservasNoBanco()).find((r) => r.clientId === "maria");
+    expect(maria?.status).toBe("confirmed");
+  });
+
+  it("sem pedir encaixe, horário ocupado continua recusado", async () => {
+    await gravarComTravaDeHorario(pedido({ clientId: "joao", time: "15:00" }));
+    const r = await correr([pedido({ clientId: "maria", time: "15:00" })]);
+    expect(r.recusadas).toBe(1);
+  });
+});

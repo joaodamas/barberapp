@@ -60,7 +60,8 @@ export type ActionIntent =
   | { kind: "navegar"; href: string }
   | { kind: "fecharAtendimento"; bookingId: string }
   | { kind: "corrigirPagamento"; bookingId: string }
-  | { kind: "marcarFalta"; bookingId: string };
+  | { kind: "marcarFalta"; bookingId: string }
+  | { kind: "responderEncaixe"; bookingId: string; aprovar: boolean };
 
 export type ActionItem = {
   /**
@@ -373,7 +374,59 @@ export function semServicoCadastrado(params: {
   ];
 }
 
-/* 4.3 — Encaixe aguardando resposta: REMOVIDA em 17/08.
+/**
+ * 4.3 — Pedido de encaixe aguardando o barbeiro. VOLTOU em 27/09.
+ *
+ * Crítico e no topo: o pedido tem hora marcada e perde o sentido quando ela
+ * chega — o cliente está esperando uma resposta para decidir se vem. Sai da
+ * lista sozinho quando o horário passa (o servidor recusa aprovar e marca
+ * `expired`), porque aprovar um encaixe das 10h às 11h seria mentir.
+ *
+ * Duas saídas, as duas legítimas: aprovar ou recusar. Nenhuma é a "padrão".
+ */
+export function encaixesPendentes(params: {
+  todas: Doc<BookingDoc>[];
+  agora: Date | null;
+}): ActionItem[] {
+  if (!params.agora) return [];
+  const agora = params.agora.getTime();
+  return params.todas
+    .filter(
+      (b) =>
+        b.status === "fit_in_requested" &&
+        new Date(`${b.date}T${b.time}:00`).getTime() > agora
+    )
+    .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))
+    .map((b) => ({
+      id: `encaixe:${b.id}`,
+      severity: "critical" as const,
+      urgency: 1 as const,
+      confidence: "real" as const,
+      title: `Pedido de encaixe: ${b.clientName} quer ${b.time} de ${formatarDia(b.date)}`,
+      /* `serviceNames` é gravado pelo servidor na criação e não está no tipo
+       * da tela, que resolve nomes pelo catálogo — aqui o nome do momento do
+       * pedido é o certo. */
+      reason: `${((b as { serviceNames?: string[] }).serviceNames ?? []).join(" + ") || "Serviço"} · ${
+        b.durationMin ?? "?"
+      } min. O horário já está ocupado — aprove só se conseguir atender.`,
+      actionLabel: "Aprovar encaixe",
+      intent: { kind: "responderEncaixe" as const, bookingId: b.id, aprovar: true },
+      secondary: {
+        actionLabel: "Recusar",
+        intent: { kind: "responderEncaixe" as const, bookingId: b.id, aprovar: false },
+      },
+    }));
+}
+
+function formatarDia(iso: string): string {
+  return new Date(`${iso}T12:00:00`).toLocaleDateString("pt-BR", {
+    weekday: "short",
+    day: "2-digit",
+    month: "2-digit",
+  });
+}
+
+/* 4.3 (histórico) — Encaixe aguardando resposta: REMOVIDA em 17/08.
  *
  * O encaixe saiu da proposta. Ele perdeu o caminho de criação quando a
  * disponibilidade passou a vir de `availableSlots`, que devolve só horários
@@ -421,6 +474,9 @@ export type EstadoOperacional = {
  */
 export function avaliarOperacao(estado: EstadoOperacional): ActionItem[] {
   const itens = [
+    ...(estado.todasAsReservas
+      ? encaixesPendentes({ todas: estado.todasAsReservas, agora: estado.agora })
+      : []),
     ...semServicoCadastrado({
       services: estado.services,
       statusConsulta: estado.statusServicos,

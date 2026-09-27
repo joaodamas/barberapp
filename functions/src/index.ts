@@ -34,6 +34,7 @@ export {
   createBooking,
   createBookingAtCounter,
   cancelBooking,
+  responderEncaixe,
   rescheduleBooking,
 } from "./booking";
 export { registrarVendaDeProduto, registrarEntradaDeEstoque } from "./inventory";
