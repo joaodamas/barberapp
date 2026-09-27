@@ -372,6 +372,53 @@ export default function PainelHojePage() {
     window.open(`https://wa.me/${digitos}?text=${encodeURIComponent(message)}`, "_blank");
   }
 
+  /**
+   * Resposta a um pedido de encaixe.
+   *
+   * O servidor decide o desfecho (pode ter expirado, ou o cliente pode ter
+   * cancelado no mesmo instante), e a tela mostra o que ele GRAVOU. O aviso ao
+   * cliente vem depois, como um botão que o dono toca: abrir o WhatsApp
+   * sozinho depois de uma espera é bloqueado pelo navegador do celular, e
+   * avisar antes de gravar é o defeito que `soAvisaSeGravou` documenta.
+   */
+  const [respondendoEncaixe, setRespondendoEncaixe] = useState(false);
+  const [respostaEncaixe, setRespostaEncaixe] = useState<
+    | { booking: Doc<BookingDoc>; status: "confirmed" | "cancelled_by_shop" | "expired" }
+    | { erro: string }
+    | null
+  >(null);
+
+  async function responderEncaixe(booking: Doc<BookingDoc>, aprovar: boolean) {
+    if (respondendoEncaixe) return;
+    setRespondendoEncaixe(true);
+    setRespostaEncaixe(null);
+    try {
+      const { callFunction } = await import("@/lib/firebase");
+      const r = await callFunction<
+        { barbershopId: string; bookingId: string; aprovar: boolean },
+        { status: "confirmed" | "cancelled_by_shop" | "expired" }
+      >("responderEncaixe", { barbershopId: tenant.id, bookingId: booking.id, aprovar });
+      setRespostaEncaixe({ booking, status: r.status });
+    } catch (err) {
+      setRespostaEncaixe({
+        erro: (err as { message?: string })?.message ?? "Não foi possível responder agora. Nada foi alterado.",
+      });
+    } finally {
+      setRespondendoEncaixe(false);
+    }
+  }
+
+  function linkDoAvisoDeEncaixe(booking: Doc<BookingDoc>, aprovado: boolean): string | null {
+    const digitos = String(booking.clientWhatsapp ?? "").replace(/\D/g, "");
+    if (!digitos) return null;
+    const nome = booking.clientName.split(" ")[0];
+    const quando = booking.date === hoje ? "hoje" : `no dia ${formatarDiaCurto(booking.date)}`;
+    const texto = aprovado
+      ? `Olá ${nome}! Seu encaixe está confirmado: ${quando} às ${booking.time}. Te esperamos! — ${brand.name}`
+      : `Olá ${nome}, infelizmente não consigo te encaixar ${quando} às ${booking.time}. Dá para escolher outro horário pelo app. — ${brand.name}`;
+    return `https://wa.me/${digitos}?text=${encodeURIComponent(texto)}`;
+  }
+
   /* A tela não decide nada: recebe a intenção que o motor declarou e sabe onde
    * ela acontece. `navegar` nem chega aqui — vira `Link` no próprio item. */
   function executarIntencao(intent: ActionIntent) {
@@ -382,6 +429,7 @@ export default function PainelHojePage() {
     const alvo = todas.find((b) => b.id === intent.bookingId);
     if (!alvo) return;
 
+    if (intent.kind === "responderEncaixe") return void responderEncaixe(alvo, intent.aprovar);
     if (intent.kind === "corrigirPagamento") return setACorrigir(alvo);
     if (intent.kind === "marcarFalta") return setFaltaDe(alvo);
 
@@ -540,8 +588,56 @@ export default function PainelHojePage() {
       </div>
 
 
-      {acoesVisiveis.length > 0 && (
+      {(acoesVisiveis.length > 0 || respostaEncaixe) && (
         <section className="2xl:col-start-2 2xl:row-start-4">
+        {respostaEncaixe && (
+          <Card
+            role="status"
+            className={
+              "mb-2 flex flex-col gap-2 " +
+              ("erro" in respostaEncaixe || respostaEncaixe.status === "expired"
+                ? "border-danger/30"
+                : "border-gold/40")
+            }
+          >
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-sm text-ink">
+                {"erro" in respostaEncaixe
+                  ? respostaEncaixe.erro
+                  : respostaEncaixe.status === "confirmed"
+                    ? `Encaixe aprovado: ${respostaEncaixe.booking.clientName}, ${respostaEncaixe.booking.time} de ${formatarDiaCurto(respostaEncaixe.booking.date)}. Já está na agenda.`
+                    : respostaEncaixe.status === "cancelled_by_shop"
+                      ? `Encaixe recusado. ${respostaEncaixe.booking.clientName} vê a recusa em Reservas.`
+                      : "O horário desse pedido já passou. Ele foi encerrado sem aprovação."}
+              </p>
+              <button
+                type="button"
+                aria-label="Fechar aviso"
+                onClick={() => setRespostaEncaixe(null)}
+                className="alvo-toque shrink-0 text-ink-muted hover:text-ink"
+              >
+                ×
+              </button>
+            </div>
+            {!("erro" in respostaEncaixe) &&
+              respostaEncaixe.status !== "expired" &&
+              (() => {
+                const href = linkDoAvisoDeEncaixe(
+                  respostaEncaixe.booking,
+                  respostaEncaixe.status === "confirmed"
+                );
+                return href ? (
+                  <a href={href} target="_blank" rel="noopener noreferrer" className="self-start">
+                    <Button variant="secondary">
+                      Avisar {respostaEncaixe.booking.clientName.split(" ")[0]} no WhatsApp
+                    </Button>
+                  </a>
+                ) : (
+                  <p className="text-xs text-ink-muted">Sem WhatsApp no cadastro: avise o cliente por outro meio.</p>
+                );
+              })()}
+          </Card>
+        )}
           <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
             Precisa de você
           </h2>

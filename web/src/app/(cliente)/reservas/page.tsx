@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import Link from "next/link";
 import { CalendarX2, Phone } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
@@ -83,9 +84,34 @@ export default function ReservasPage() {
    * com "a pagar no salão" e botão de cancelar; e a tela mostrava UMA reserva
    * — `futuras[length - 1]` — com o cliente podendo ter até três. */
   const hoje = toISODate(new Date());
+  /* Pedido de encaixe cujo horário chegou sem resposta: o servidor o marca
+   * `expired` a cada 15 min (`expirarEncaixes`); até lá a tela já o trata assim,
+   * em vez de mostrar "aguardando" para um horário que passou. */
+  const [agoraMs, setAgoraMs] = useState<number | null>(null);
+  useEffect(() => {
+    const tique = () => setAgoraMs(Date.now());
+    tique();
+    const id = window.setInterval(tique, 60_000);
+    return () => window.clearInterval(id);
+  }, []);
+  const encaixeVencido = (b: (typeof minhas)[number]) =>
+    agoraMs !== null &&
+    b.status === "fit_in_requested" &&
+    new Date(`${b.date}T${b.time}:00`).getTime() <= agoraMs;
   const futuras = minhas
-    .filter((b) => b.date >= hoje && EM_ABERTO.includes(b.status))
+    .filter((b) => b.date >= hoje && EM_ABERTO.includes(b.status) && !encaixeVencido(b))
     .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
+  /* A resposta do barbeiro a um pedido de encaixe precisa CHEGAR ao cliente.
+   * Recusado ou sem resposta, o pedido sai de "em aberto" — e, sem esta lista,
+   * sumiria da tela: o cliente ficaria sem saber se foi recusado ou esquecido. */
+  const encaixesRespondidos = minhas.filter(
+    (b) =>
+      b.date >= hoje &&
+      ((b.status === "expired" && b.isFitIn) ||
+        encaixeVencido(b) ||
+        (b.status === "cancelled_by_shop" &&
+          (b as { motivoCancelamento?: string }).motivoCancelamento === "encaixe_recusado"))
+  );
   const bookingHistory = minhas.filter((b) => b.status === "completed");
 
   const [tab, setTab] = useState<Tab>("futuras");
@@ -288,12 +314,41 @@ export default function ReservasPage() {
         {status === "carregando" ? (
           <LoadingRows rows={2} />
         ) : tab === "futuras" ? (
-          futuras.length > 0 ? (
+          futuras.length > 0 || encaixesRespondidos.length > 0 ? (
             <div className="flex flex-col gap-3 md:max-w-xl">
+              {encaixesRespondidos.map((b) => (
+                <Card key={b.id} className="flex flex-col gap-2 border-danger/30 md:p-6">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-ink md:text-lg">
+                        {getServicesByIds(b.serviceIds).map((x) => x.name).join(" + ")}
+                      </p>
+                      <p className="text-sm text-ink-muted first-letter:uppercase md:text-base">
+                        {formatDatePtBR(b.date)} às {b.time}
+                      </p>
+                    </div>
+                    <Pill tone="danger">
+                      {b.status === "cancelled_by_shop" ? "Encaixe recusado" : "Encaixe sem resposta"}
+                    </Pill>
+                  </div>
+                  <p className="text-xs text-ink-muted md:text-sm">
+                    {b.status === "cancelled_by_shop"
+                      ? "O barbeiro não conseguiu te encaixar nesse horário."
+                      : "O horário chegou antes de o barbeiro responder."}{" "}
+                    Escolha outro horário livre.
+                  </p>
+                  <Link href="/agendar" className="self-start">
+                    <Button variant="secondary">Escolher outro horário</Button>
+                  </Link>
+                </Card>
+              ))}
               {futuras.map((b) => {
                 const nomes = getServicesByIds(b.serviceIds).map((x) => x.name).join(" + ");
                 const meta = bookingStatusMeta[b.status];
                 const remarcar = situacaoDaRemarcacao(b);
+                /* Pedido de encaixe ainda não é horário: não se reagenda, e
+                   cancelar é retirar o pedido. */
+                const ehPedido = b.status === "fit_in_requested";
                 return (
                   <Card key={b.id} className="flex flex-col gap-3 md:p-6">
                     <div className="flex items-start justify-between gap-2">
@@ -305,7 +360,11 @@ export default function ReservasPage() {
                           {formatDatePtBR(b.date)} às {b.time}
                         </p>
                       </div>
-                      {meta && <Pill tone={meta.tone}>{meta.label}</Pill>}
+                      {ehPedido ? (
+                        <Pill tone="gold">Aguardando o barbeiro</Pill>
+                      ) : (
+                        meta && <Pill tone={meta.tone}>{meta.label}</Pill>
+                      )}
                     </div>
                     <div className="flex items-center justify-between border-t border-border pt-2 text-sm md:pt-3 md:text-base">
                       <span className="text-ink-muted">A pagar no salão</span>
@@ -314,6 +373,7 @@ export default function ReservasPage() {
                       </span>
                     </div>
                     <div className="flex gap-2">
+                      {!ehPedido && (
                       <Button
                         variant="secondary"
                         className="flex-1"
@@ -323,6 +383,7 @@ export default function ReservasPage() {
                       >
                         Reagendar
                       </Button>
+                      )}
                       <Button
                         variant="secondary"
                         className="flex-1 text-danger"
@@ -332,18 +393,25 @@ export default function ReservasPage() {
                           setCancelOpen(true);
                         }}
                       >
-                        Cancelar
+                        {ehPedido ? "Cancelar pedido" : "Cancelar"}
                       </Button>
                     </div>
                     {/* Pagamento no salão: nada foi cobrado, então falar em
                         "100% de volta" e "retemos 25%" era prometer e ameaçar
                         sobre um dinheiro que não existe. */}
+                    {ehPedido ? (
+                      <p className="text-xs text-ink-muted md:text-sm">
+                        Você pediu um encaixe: o horário ainda não é seu. O barbeiro
+                        aprova ou recusa, e a resposta aparece aqui.
+                      </p>
+                    ) : (
                     <p className="text-xs text-ink-muted md:text-sm">
                       Cancelar pelo app não tem custo.{" "}
                       {remarcar.pode
                         ? `Dá para reagendar até ${remarcacao.minHoursBefore}h antes.`
                         : <span className="text-gold-strong">{remarcar.motivo}</span>}
                     </p>
+                    )}
                   </Card>
                 );
               })}

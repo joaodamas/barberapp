@@ -146,7 +146,18 @@ for (const [aparelho, cfg] of APARELHOS) {
     const t0 = Date.now();
     await page.goto(BASE + rota, { waitUntil: "domcontentloaded", timeout: 60000 });
     await pronta(page);
-    if (antes) await antes();
+    /* Falhou no meio de uma interação? Fotografa ANTES de desistir: sem isto,
+     * o log só dizia "botão não encontrado", sem mostrar o que estava na tela
+     * no lugar dele (27/09). */
+    if (antes) {
+      try {
+        await antes();
+      } catch (e) {
+        await page.screenshot({ path: `${SAIDA}${aparelho}__${nome}__ERRO.png`, fullPage: true });
+        console.log("  [erro] URL no momento da falha:", page.url());
+        throw e;
+      }
+    }
     const ms = Date.now() - t0;
     const arquivo = `${aparelho}__${nome}.png`;
     await page.screenshot({ path: SAIDA + arquivo, fullPage: true });

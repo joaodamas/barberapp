@@ -52,7 +52,14 @@ const STEP_LABELS: Record<Step, string> = {
  * servidor nenhum) e é consumida uma vez.
  */
 const CHAVE_ESCOLHA = "agendar:escolha";
-type EscolhaGuardada = { serviceIds: string[]; staffId: string | null; dayIso: string; time: string };
+type EscolhaGuardada = {
+  serviceIds: string[];
+  staffId: string | null;
+  dayIso: string;
+  time: string;
+  /** O horário escolhido era um encaixe — o pedido, e não a reserva. */
+  encaixe?: boolean;
+};
 
 function consumirEscolha(): EscolhaGuardada | null {
   if (typeof window === "undefined") return null;
@@ -99,7 +106,17 @@ export default function AgendarPage() {
    * dentro de efeito e provoca render em cascata. Derivar resolve os dois
    * problemas de uma vez: não há limpeza a fazer, e a lista de um dia nunca
    * aparece sob o outro enquanto a consulta nova viaja. */
-  const [resposta, setResposta] = useState<{ chave: string; slots: string[]; falhou?: boolean } | null>(null);
+  const [resposta, setResposta] = useState<{
+    chave: string;
+    slots: string[];
+    /** Horários ocupados que aceitam pedido de encaixe. */
+    encaixes: string[];
+    falhou?: boolean;
+  } | null>(null);
+  /* O que o servidor gravou: reserva confirmada, ou pedido de encaixe. A tela
+   * final diz o que ACONTECEU, não o que o cliente escolheu — um horário que
+   * vagou entre a tela e o pedido vira reserva normal (ver `createBooking`). */
+  const [gravado, setGravado] = useState<"confirmed" | "fit_in_requested">("confirmed");
   /* Incrementar refaz a consulta de horários — o "Tentar de novo". */
   const [tentativa, setTentativa] = useState(0);
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>(retomada?.serviceIds ?? []);
@@ -109,7 +126,7 @@ export default function AgendarPage() {
     return i >= 0 ? i : firstBookableIndex(dias);
   });
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(
-    retomada ? { time: retomada.time, available: true } : null
+    retomada ? { time: retomada.time, available: retomada.encaixe !== true } : null
   );
   const { user } = useAuth();
   /* D2 · o mensalista precisa se reconhecer ANTES de confirmar.
@@ -190,6 +207,7 @@ export default function AgendarPage() {
           staffId,
           dayIso: selectedDay.iso,
           time: selectedSlot.time,
+          encaixe: selectedSlot.available === false,
         } satisfies EscolhaGuardada)
       );
     } catch {}
@@ -212,7 +230,8 @@ export default function AgendarPage() {
     try {
       const { callFunction } = await import("@/lib/firebase");
       chaveDaTentativa.current ??= crypto.randomUUID();
-      await callFunction("createBooking", {
+      const r = await callFunction<Record<string, unknown>, { status?: string }>("createBooking", {
+        isFitIn: selectedSlot.available === false,
         chave: chaveDaTentativa.current,
         barbershopId: tenant.id,
         serviceIds: selectedServiceIds,
@@ -232,6 +251,7 @@ export default function AgendarPage() {
       }
 
       chaveDaTentativa.current = null;
+      setGravado(r?.status === "fit_in_requested" ? "fit_in_requested" : "confirmed");
       setStep(4);
     } catch (err) {
       const msg = (err as { message?: string })?.message;
@@ -292,17 +312,19 @@ export default function AgendarPage() {
         const { callFunction } = await import("@/lib/firebase");
         const r = await callFunction<
           { barbershopId: string; date: string; staffId: string; durationMin: number },
-          { slots: string[] }
+          { slots: string[]; encaixes?: string[] }
         >("availableSlots", {
           barbershopId: tenant.id,
           date: diaIso,
           staffId: idDoBarbeiro,
           durationMin: totalDuration,
         });
-        if (!cancelado) setResposta({ chave: chaveDaConsulta, slots: r.slots ?? [] });
+        if (!cancelado) {
+          setResposta({ chave: chaveDaConsulta, slots: r.slots ?? [], encaixes: r.encaixes ?? [] });
+        }
       } catch (err) {
         console.error("[agendar] falha ao buscar horários", err);
-        if (!cancelado) setResposta({ chave: chaveDaConsulta, slots: [], falhou: true });
+        if (!cancelado) setResposta({ chave: chaveDaConsulta, slots: [], encaixes: [], falhou: true });
       }
     })();
     return () => {
@@ -315,16 +337,16 @@ export default function AgendarPage() {
   const respostaAtual = resposta?.chave === chaveDaConsulta ? resposta : null;
   const horariosLivres = respostaAtual ? respostaAtual.slots : null;
 
-  /* `availableSlots` devolve só o que está livre, então todo horário exibido é
-   * agendável. O encaixe saiu da proposta em 17/08: ele existia aqui como
-   * `isFitIn` sobre horário ocupado, e deixou de ter caminho no dia em que a
-   * disponibilidade passou a vir do servidor — a tela seguiu anunciando
-   * "peça um encaixe nos horários em vermelho" por semanas, para horários que
-   * nunca apareciam. Ver `AUDITORIA-2026-08-17.md` (P1-3). */
-  const slots: TimeSlot[] = (horariosLivres ?? []).map((time) => ({
-    time,
-    available: true,
-  }));
+  /* Livres e encaixes na MESMA grade, em ordem de hora. O encaixe voltou em
+   * 27/09 (tinha saído em 17/08 porque a tela o anunciava sem que o pedido
+   * chegasse a ninguém): agora o servidor devolve os horários ocupados, o
+   * pedido é gravado e o barbeiro responde no painel. `available: false` é o
+   * encaixe — tocar nele leva ao PEDIDO, não à reserva. */
+  const slots: TimeSlot[] = [
+    ...(horariosLivres ?? []).map((time) => ({ time, available: true })),
+    ...(respostaAtual?.encaixes ?? []).map((time) => ({ time, available: false })),
+  ].sort((a, b) => a.time.localeCompare(b.time));
+  const pedindoEncaixe = selectedSlot?.available === false;
 
   /* Cinco estados, não dois. A regra e o porquê moram em
    * `estado-dos-horarios.ts` — resumo: `null` significa "não perguntei ainda"
@@ -333,7 +355,9 @@ export default function AgendarPage() {
   const estadoDaLista = estadoDosHorarios({
     diaFechado: !!selectedDay?.disabled,
     temProfissional: !!barbeiroEscolhido,
-    horariosLivres,
+    /* Dia sem horário livre mas com encaixe possível NÃO é "sem horário": há o
+     * que oferecer. */
+    horariosLivres: horariosLivres === null ? null : slots.map((x) => x.time),
     falhou: respostaAtual?.falhou === true,
   });
 
@@ -360,7 +384,16 @@ export default function AgendarPage() {
     tituloDoPasso.current?.focus({ preventScroll: true });
   }, [step]);
 
-  const ctaLabel = step === 3 ? (user ? "Confirmar reserva" : "Entrar para confirmar") : "Continuar";
+  const ctaLabel =
+    step === 3
+      ? pedindoEncaixe
+        ? user
+          ? "Pedir encaixe"
+          : "Entrar para pedir encaixe"
+        : user
+          ? "Confirmar reserva"
+          : "Entrar para confirmar"
+      : "Continuar";
 
   function toggleService(id: string) {
     setSelectedServiceIds((prev) =>
@@ -393,7 +426,14 @@ export default function AgendarPage() {
             tabIndex={-1}
             className="text-xl text-ink outline-none md:text-3xl md:tracking-tight"
           >
-            {STEP_LABELS[step]}
+            {/* O encaixe troca o nome dos dois últimos passos: é um PEDIDO, e a
+                tela não pode chamar de "reserva confirmada" o que o barbeiro
+                ainda vai decidir. */}
+            {step === 3 && pedindoEncaixe
+              ? "Pedir encaixe"
+              : step === 4 && gravado === "fit_in_requested"
+                ? "Pedido enviado"
+                : STEP_LABELS[step]}
           </h1>
         </div>
       </div>
@@ -592,6 +632,14 @@ export default function AgendarPage() {
             </Card>
           ) : null}
 
+          {estadoDaLista === "com-horario" && slots.some((x) => !x.available) && (
+            <p className="text-xs text-ink-muted">
+              Os horários marcados com <span className="font-medium text-gold-strong">encaixe</span>{" "}
+              já estão ocupados. Você pode pedir um deles: o barbeiro vê o pedido e
+              confirma se consegue te encaixar.
+            </p>
+          )}
+
           {estadoDaLista === "com-horario" && (
           <div className="grid grid-cols-3 gap-2 md:grid-cols-4 md:gap-3">
             {slots.map((slot) => {
@@ -607,14 +655,20 @@ export default function AgendarPage() {
                     setSelectedSlot(slot);
                     setStep(3);
                   }}
+                  aria-label={slot.available ? slot.time : `${slot.time}, encaixe`}
                   className={
-                    "flex flex-col items-center rounded-xl border py-2.5 text-sm transition-colors " +
+                    "flex flex-col items-center rounded-xl border py-2 text-sm leading-tight transition-colors " +
                     (active
                       ? "border-gold bg-gold text-ink"
-                      : "border-border text-ink")
+                      : slot.available
+                        ? "border-border text-ink"
+                        : "border-dashed border-border-strong text-ink-muted")
                   }
                 >
                   {slot.time}
+                  {!slot.available && (
+                    <span className="text-[11px] font-medium text-gold-strong">encaixe</span>
+                  )}
                 </button>
               );
             })}
@@ -625,6 +679,16 @@ export default function AgendarPage() {
 
       {step === 3 && (
         <div className="flex flex-col gap-4 pb-24">
+          {pedindoEncaixe && (
+            <Card className="flex flex-col gap-1 border-gold/40 bg-gold/5 md:p-6">
+              <p className="text-sm font-semibold text-ink">Este horário já está ocupado</p>
+              <p className="text-xs text-ink-muted">
+                Você está pedindo um <b>encaixe</b>. O barbeiro vê o seu pedido e
+                decide se consegue te atender neste horário. Até ele responder, o
+                horário ainda não é seu — você acompanha em Reservas.
+              </p>
+            </Card>
+          )}
           <Card className="flex flex-col gap-2 md:p-6">
             <p className="text-sm text-ink md:text-base">
               {selectedServices.map((s) => s.name).join(" + ")}
@@ -783,9 +847,11 @@ export default function AgendarPage() {
       {step === 4 && (
         <div className="flex flex-col items-center gap-4 pt-8 text-center">
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gold/15 text-gold-strong">
-            <Check size={30} />
+            {gravado === "fit_in_requested" ? <Clock size={30} /> : <Check size={30} />}
           </div>
-          <h2 className="text-lg text-ink">Reserva confirmada!</h2>
+          <h2 className="text-lg text-ink">
+            {gravado === "fit_in_requested" ? "Pedido de encaixe enviado" : "Reserva confirmada!"}
+          </h2>
           {/* A tela dizia "seu horário está garantido" sem dizer QUAL.
             *
             * O passo 4 é a última coisa que o cliente vê antes de fechar o
@@ -814,13 +880,45 @@ export default function AgendarPage() {
           </Card>
           {/* "Não esqueça: R$ 50,00" é a última coisa que o mensalista lê antes
               de sair da tela, e era a que ele levava para o balcão. */}
-          <p className="max-w-xs text-sm text-ink-muted">
-            {minhaAssinatura
-              ? "Seu horário está garantido. O que estiver incluído no seu plano não é cobrado no dia."
-              : `Seu horário está garantido. Não esqueça: ${formatBRL(totalPrice)} no salão no dia do atendimento.`}
-          </p>
+          {gravado === "fit_in_requested" ? (
+            <>
+              <p className="max-w-xs text-sm text-ink-muted">
+                O horário <b>ainda não é seu</b>: o barbeiro precisa aprovar. A
+                resposta aparece em Reservas.
+              </p>
+              {/* Enquanto o WhatsApp automático não entra, quem avisa a
+                  barbearia é o próprio cliente, com a mensagem pronta — senão
+                  o pedido espera o barbeiro abrir o app por acaso. */}
+              {tenant.contact.whatsapp && (
+                <a
+                  className="w-full"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  href={`https://wa.me/${tenant.contact.whatsapp}?text=${encodeURIComponent(
+                    `Olá! Pedi um encaixe pelo app: ${selectedServices
+                      .map((x) => x.name)
+                      .join(" + ")}, ${selectedDay?.date.toLocaleDateString("pt-BR", {
+                      weekday: "long",
+                      day: "2-digit",
+                      month: "2-digit",
+                    })} às ${selectedSlot?.time}. Nome: ${nome.trim()}. Consegue me encaixar?`
+                  )}`}
+                >
+                  <Button className="w-full">Avisar a barbearia no WhatsApp</Button>
+                </a>
+              )}
+            </>
+          ) : (
+            <p className="max-w-xs text-sm text-ink-muted">
+              {minhaAssinatura
+                ? "Seu horário está garantido. O que estiver incluído no seu plano não é cobrado no dia."
+                : `Seu horário está garantido. Não esqueça: ${formatBRL(totalPrice)} no salão no dia do atendimento.`}
+            </p>
+          )}
           <Link href="/reservas" className="w-full">
-            <Button className="w-full">Ver minhas reservas</Button>
+            <Button className="w-full" variant={gravado === "fit_in_requested" ? "secondary" : undefined}>
+              Ver minhas reservas
+            </Button>
           </Link>
         </div>
       )}

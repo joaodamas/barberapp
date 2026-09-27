@@ -53,16 +53,11 @@ export const notifyBookingCreated = onDocumentCreated(
     const pagamento = formaPagamento(reserva.paymentMethod);
     const nomeCliente = String(reserva.clientName ?? "Cliente");
 
-    /* O ramo de encaixe saiu em 17/08, junto com o fluxo.
-     *
-     * Ele avisava o dono de um `fit_in_requested` que nenhum caminho do produto
-     * criava mais — e `createBooking` agora recusa explicitamente. O template
-     * `encaixe_solicitacao` continua no catálogo, porque tirá-lo exigiria
-     * ressubmissão na Meta e ele não custa nada parado.
-     *
-     * Reserva antiga nesse estado não gera aviso: ela é anterior à decisão, e
-     * mandar mensagem sobre um fluxo que não existe mais confunde mais que
-     * calar. */
+    /* Pedido de encaixe (`fit_in_requested`, de volta em 27/09) não gera
+     * mensagem aqui: ele ainda não é reserva, e "nova reserva" seria afirmar o
+     * que o barbeiro não aprovou. Enquanto o WhatsApp automático não entra, o
+     * próprio cliente avisa a barbearia pela tela, com a mensagem pronta. O
+     * template `encaixe_solicitacao` segue no catálogo para quando entrar. */
     if (reserva.status !== "confirmed") return;
 
     /* Dono primeiro. Se só uma das duas mensagens sair, que seja a que evita
