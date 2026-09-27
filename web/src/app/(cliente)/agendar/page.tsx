@@ -348,11 +348,16 @@ export default function AgendarPage() {
    * no meio, e o cliente precisava subir para achar os dias (relato do dono,
    * 26/09). No celular quem rola é a janela; no computador, o `<main>`. */
   const passoAnterior = useRef(step);
+  /* E o foco vai para o título do passo novo. O botão tocado (o horário, o
+   * "Continuar") some com a troca, e o foco cairia no documento: quem navega
+   * por teclado ou leitor de tela não saberia que o fluxo avançou. */
+  const tituloDoPasso = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     if (passoAnterior.current === step) return;
     passoAnterior.current = step;
     window.scrollTo({ top: 0 });
     document.getElementById("conteudo")?.scrollTo({ top: 0 });
+    tituloDoPasso.current?.focus({ preventScroll: true });
   }, [step]);
 
   const ctaLabel = step === 3 ? (user ? "Confirmar reserva" : "Entrar para confirmar") : "Continuar";
@@ -383,7 +388,13 @@ export default function AgendarPage() {
               Passo {step} de 3
             </p>
           )}
-          <h1 className="text-xl text-ink md:text-3xl md:tracking-tight">{STEP_LABELS[step]}</h1>
+          <h1
+            ref={tituloDoPasso}
+            tabIndex={-1}
+            className="text-xl text-ink outline-none md:text-3xl md:tracking-tight"
+          >
+            {STEP_LABELS[step]}
+          </h1>
         </div>
       </div>
 
