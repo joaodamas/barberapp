@@ -1,0 +1,746 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Manual do app · O Siqueira</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --preto: #12100C;
+    --preto-2: #1C1914;
+    --ouro: #C8A24B;
+    --ouro-escuro: #8C6A1E;
+    --creme: #EFE9DC;
+    --papel: #FBF9F4;
+    --tinta: #1E1B16;
+    --tinta-2: #5A5347;
+    --linha: #E4DCCB;
+  }
+  @page {
+    size: A4;
+    margin: 20mm 18mm 22mm 18mm;
+    @bottom-left {
+      content: "O Siqueira · Manual do app";
+      font: 500 8pt Manrope, sans-serif;
+      color: #9A917F;
+    }
+    @bottom-right {
+      content: counter(page);
+      font: 700 8pt Manrope, sans-serif;
+      color: #8C6A1E;
+    }
+  }
+  @page capa {
+    margin: 0;
+    @bottom-left { content: none; }
+    @bottom-right { content: none; }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body {
+    margin: 0;
+    font-family: Manrope, "Helvetica Neue", Arial, sans-serif;
+    font-size: 10pt;
+    line-height: 1.55;
+    color: var(--tinta);
+    background: #fff;
+  }
+
+  /* ---------- capa ---------- */
+  .capa {
+    page: capa;
+    height: 297mm;
+    width: 210mm;
+    background:
+      radial-gradient(ellipse at 50% 38%, #2A2419 0%, var(--preto) 62%);
+    color: var(--creme);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 34mm 22mm 20mm;
+    break-after: page;
+    /* Moldura dourada por contorno recuado, e não por elemento posicionado:
+     * qualquer filho `position: absolute` na capa fazia o Chrome repetir um
+     * bloco preto no pé de todas as páginas seguintes. */
+    outline: 0.6pt solid rgba(200,162,75,.55);
+    outline-offset: -14mm;
+  }
+  .capa .selo { width: 108mm; height: 108mm; margin-top: 6mm; filter: drop-shadow(0 10mm 18mm rgba(0,0,0,.55)); }
+  .capa .sobre {
+    margin-top: 16mm;
+    font: 700 8.5pt Manrope, sans-serif;
+    letter-spacing: .42em;
+    text-transform: uppercase;
+    color: var(--ouro);
+  }
+  .capa h1 {
+    font-family: Fraunces, Georgia, serif;
+    font-weight: 600;
+    font-size: 40pt;
+    line-height: 1.02;
+    margin: 5mm 0 0;
+    text-align: center;
+    letter-spacing: -.01em;
+  }
+  .capa h1 em { font-style: italic; color: var(--ouro); font-weight: 500; }
+  .capa .linha-ouro { width: 22mm; height: 1.2pt; background: var(--ouro); margin: 8mm 0 6mm; }
+  .capa .sub {
+    font-size: 11pt; color: #CFC6B2; text-align: center; max-width: 128mm; line-height: 1.6;
+  }
+  .capa .rodape {
+    margin-top: auto;
+    display: flex; gap: 10mm; align-items: center;
+    font-size: 8.5pt; color: #A99F8A; letter-spacing: .06em;
+  }
+  .capa .rodape b { color: var(--creme); font-weight: 600; }
+
+  /* ---------- miolo ---------- */
+  .parte {
+    break-before: page;
+    /* Sem margem negativa no topo: com a quebra de página antes, o Chrome
+     * pintava o fundo preto que sobrava no pé da página anterior. */
+    margin: 0 -18mm 10mm;
+    padding: 12mm 18mm 12mm;
+    background: var(--preto);
+    color: var(--creme);
+    position: relative;
+  }
+  .parte .num {
+    font: 700 8.5pt Manrope; letter-spacing: .4em; color: var(--ouro); text-transform: uppercase;
+  }
+  .parte h2 {
+    font-family: Fraunces, Georgia, serif; font-weight: 600; font-size: 28pt; line-height: 1.05;
+    margin: 3mm 0 3mm; color: #fff;
+  }
+  .parte p { margin: 0; color: #CFC6B2; font-size: 10.5pt; max-width: 150mm; }
+  .parte::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2.2mm;
+    background: repeating-linear-gradient(-45deg, var(--ouro) 0 3mm, var(--creme) 3mm 4.2mm, var(--preto) 4.2mm 7mm);
+  }
+
+  h3 {
+    font-family: Fraunces, Georgia, serif; font-weight: 600; font-size: 16pt;
+    margin: 9mm 0 1.5mm; color: var(--preto); break-after: avoid;
+    display: flex; align-items: baseline; gap: 3mm;
+  }
+  h3 .tag {
+    font: 700 7pt Manrope; letter-spacing: .18em; text-transform: uppercase;
+    color: var(--ouro-escuro); border: 0.8pt solid var(--ouro); border-radius: 20pt; padding: .4mm 2.2mm;
+    position: relative; top: -1pt;
+  }
+  h3 + .onde { margin-top: 0; }
+  .onde { font-size: 8.5pt; color: var(--tinta-2); margin: 0 0 3mm; }
+  .onde b { color: var(--ouro-escuro); font-weight: 700; }
+  h4 {
+    font-size: 10.5pt; font-weight: 800; margin: 5mm 0 1.5mm; color: var(--preto); break-after: avoid;
+  }
+  p { margin: 0 0 2.5mm; }
+  .lead { font-size: 11pt; color: var(--tinta-2); }
+
+  ul { margin: 0 0 3mm; padding-left: 4.5mm; }
+  li { margin: 0 0 1mm; }
+  li::marker { color: var(--ouro); }
+
+  ol.passos { list-style: none; padding: 0; margin: 2mm 0 4mm; counter-reset: p; }
+  ol.passos > li {
+    counter-increment: p; position: relative; padding: 0 0 0 10mm; margin: 0 0 2.4mm; break-inside: avoid;
+  }
+  ol.passos > li::before {
+    content: counter(p);
+    position: absolute; left: 0; top: -.2mm;
+    width: 6.4mm; height: 6.4mm; border-radius: 50%;
+    background: var(--preto); color: var(--ouro);
+    font: 800 8.5pt/6.4mm Manrope; text-align: center;
+  }
+  ol.passos > li:not(:last-child)::after {
+    content: ""; position: absolute; left: 3.1mm; top: 7mm; bottom: -2.4mm; width: 0.6pt; background: var(--linha);
+  }
+
+  /* rótulo de botão/tela, como aparece no app */
+  .bt {
+    display: inline-block; font-weight: 700; font-size: 8.8pt; line-height: 1.3;
+    padding: .3mm 2mm; border-radius: 1.6mm;
+    background: var(--creme); color: var(--preto); border: 0.6pt solid #D9CDB2;
+    white-space: nowrap;
+  }
+  .bt.ouro { background: var(--ouro); border-color: var(--ouro); color: var(--preto); }
+  .bt.escuro { background: var(--preto); border-color: var(--preto); color: var(--creme); }
+  .kbd {
+    font-weight: 800; letter-spacing: .08em; font-size: 8.8pt;
+    border: 0.8pt solid var(--preto); border-radius: 1mm; padding: 0 1.4mm;
+  }
+
+  .caixa {
+    border-radius: 3mm; padding: 3.2mm 4mm 2.2mm; margin: 3mm 0 4mm; break-inside: avoid;
+    background: var(--papel); border: 0.6pt solid var(--linha);
+  }
+  .caixa .titulo {
+    font: 800 7.5pt Manrope; letter-spacing: .2em; text-transform: uppercase; margin-bottom: 1.2mm; color: var(--ouro-escuro);
+  }
+  .caixa.importante { background: #FFF6E3; border-color: #EBCB85; }
+  .caixa.importante .titulo { color: #8A5A00; }
+  .caixa.escura { background: var(--preto); border-color: var(--preto); color: var(--creme); }
+  .caixa.escura .titulo { color: var(--ouro); }
+  .caixa.escura .bt { background: #2A251C; color: var(--creme); border-color: #3A3326; }
+  .caixa p:last-child, .caixa ul:last-child { margin-bottom: 1mm; }
+
+  .duas { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; }
+  .duas > div { break-inside: avoid; }
+
+  table { width: 100%; border-collapse: collapse; margin: 2mm 0 4mm; font-size: 9pt; break-inside: avoid; }
+  th {
+    text-align: left; font: 800 7.5pt Manrope; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--ouro-escuro); border-bottom: 1.2pt solid var(--preto); padding: 1.6mm 2mm;
+  }
+  td { border-bottom: 0.6pt solid var(--linha); padding: 1.8mm 2mm; vertical-align: top; }
+  td:first-child { font-weight: 700; width: 38%; }
+
+  /* sumário */
+  .sumario { break-before: page; }
+  .sumario h2 {
+    font-family: Fraunces, Georgia, serif; font-size: 26pt; font-weight: 600; margin: 4mm 0 1mm;
+  }
+  .sumario .intro { color: var(--tinta-2); margin-bottom: 8mm; max-width: 150mm; }
+  .toc { list-style: none; padding: 0; margin: 0; }
+  .toc > li {
+    display: grid; grid-template-columns: 14mm 1fr; gap: 2mm; padding: 4mm 0; border-top: 0.6pt solid var(--linha);
+  }
+  .toc .n { font-family: Fraunces, Georgia, serif; font-size: 20pt; color: var(--ouro); line-height: 1; }
+  .toc b { font-size: 11.5pt; display: block; }
+  .toc span { color: var(--tinta-2); font-size: 9pt; }
+
+  .check { list-style: none; padding: 0; }
+  .check li { padding-left: 8mm; position: relative; margin-bottom: 2.4mm; break-inside: avoid; }
+  .check li::before {
+    content: ""; position: absolute; left: 0; top: .6mm; width: 4.2mm; height: 4.2mm;
+    border: 1pt solid var(--preto); border-radius: 1mm;
+  }
+
+  .mapa { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3mm; margin: 3mm 0 5mm; }
+  .mapa > div {
+    border: 0.6pt solid var(--linha); border-radius: 2.4mm; padding: 2.6mm 3mm; background: var(--papel); break-inside: avoid;
+  }
+  .mapa b { display: block; font-size: 9.5pt; margin-bottom: .6mm; }
+  .mapa span { font-size: 8.3pt; color: var(--tinta-2); line-height: 1.45; display: block; }
+
+  .fim {
+    break-before: page; text-align: center; padding-top: 60mm;
+  }
+  .fim img { width: 46mm; }
+  .fim p { color: var(--tinta-2); max-width: 120mm; margin: 6mm auto 0; }
+  .avoid { break-inside: avoid; }
+</style>
+</head>
+<body>
+
+<!-- ======================= CAPA ======================= -->
+<section class="capa">
+  <img class="selo" src="../../web/public/tenants/osiqueira/logo.svg" alt="O Siqueira">
+  <div class="sobre">Barbearia · desde 2012</div>
+  <h1>Manual do <em>app</em></h1>
+  <div class="linha-ouro"></div>
+  <div class="sub">Como criar a conta, agendar, e tocar a barbearia pelo celular: agenda, caixa, clientes, mensalistas e loja, explicado item a item.</div>
+  <div class="rodape"><span><b>Para o dono</b> e para os <b>clientes</b></span><span>·</span><span>Setembro de 2026</span></div>
+</section>
+
+<!-- ======================= SUMÁRIO ======================= -->
+<section class="sumario">
+  <div class="onde"><b>Sumário</b></div>
+  <h2>O que tem neste manual</h2>
+  <p class="intro">O app da O Siqueira tem dois lados. O <b>cliente</b> vê a barbearia, escolhe o serviço e marca o horário sozinho. O <b>dono</b> vê a agenda do dia, fecha cada atendimento com a forma de pagamento e acompanha quanto entrou, quanto saiu e quanto sobrou. Este manual segue essa ordem.</p>
+  <ol class="toc">
+    <li><div class="n">1</div><div><b>Primeiros passos</b><span>O endereço do app, como instalar no celular e como os dois lados se encontram.</span></div></li>
+    <li><div class="n">2</div><div><b>O app do cliente</b><span>Criar conta, agendar, reagendar, cancelar, planos de mensalista, fidelidade e perfil.</span></div></li>
+    <li><div class="n">3</div><div><b>O painel do dono: o dia a dia</b><span>Primeiro acesso, a tela Hoje, marcar no balcão, fechar atendimentos, faltas e cancelamentos.</span></div></li>
+    <li><div class="n">4</div><div><b>O painel do dono: gestão</b><span>Clientes, mensalistas, loja, financeiro e números.</span></div></li>
+    <li><div class="n">5</div><div><b>Ajustes</b><span>Serviços, equipe, horários, taxas, comissão, fidelidade e o link de divulgação.</span></div></li>
+    <li><div class="n">6</div><div><b>Regras da casa e combinados</b><span>Prazos de reagendamento e cancelamento, o que o app faz e o que continua sendo combinado no balcão.</span></div></li>
+    <li><div class="n">7</div><div><b>Checklist do primeiro dia</b><span>O que conferir antes de divulgar o link aos clientes.</span></div></li>
+  </ol>
+</section>
+
+<!-- ======================= 1 · PRIMEIROS PASSOS ======================= -->
+<section class="parte">
+  <div class="num">Parte 1</div>
+  <h2>Primeiros passos</h2>
+  <p>Um endereço só, usado pelo cliente e pelo dono. O app reconhece quem entrou e mostra o lado certo.</p>
+</section>
+
+<h3>O endereço do app</h3>
+<p>O app abre no navegador do celular ou do computador, sem baixar nada da loja de aplicativos:</p>
+<div class="caixa escura">
+  <div class="titulo">Endereço</div>
+  <p style="font-size:14pt;font-weight:800;letter-spacing:.01em;margin:0 0 1mm;color:#fff">osiqueira.jpproject.com.br</p>
+  <p style="color:#CFC6B2">É este o link que vai na bio do Instagram, no status do WhatsApp e no QR code do balcão. O dono encontra o QR code pronto em <span class="bt">Ajustes</span> › <span class="bt">Meu link</span>.</p>
+</div>
+
+<h3>Deixar o app na tela do celular</h3>
+<p>O app pode ficar na tela inicial como um aplicativo comum, com o ícone da O Siqueira, e abre em tela cheia, sem a barra do navegador. É assim que ele fica mais prático no dia a dia, principalmente para o dono.</p>
+<div class="duas">
+  <div class="caixa">
+    <div class="titulo">iPhone (Safari)</div>
+    <ol class="passos">
+      <li>Abra o endereço no <b>Safari</b>.</li>
+      <li>Toque no botão <b>Compartilhar</b> (o quadrado com a seta para cima).</li>
+      <li>Escolha <b>Adicionar à Tela de Início</b> e confirme em <b>Adicionar</b>.</li>
+    </ol>
+  </div>
+  <div class="caixa">
+    <div class="titulo">Android (Chrome)</div>
+    <ol class="passos">
+      <li>Abra o endereço no <b>Chrome</b>.</li>
+      <li>Toque no menu <b>⋮</b> no canto de cima.</li>
+      <li>Escolha <b>Instalar app</b> ou <b>Adicionar à tela inicial</b>.</li>
+    </ol>
+  </div>
+</div>
+<p>Quando sai uma versão nova do app, ele se atualiza sozinho. Se a pessoa estiver usando no momento, aparece o aviso <span class="bt">Nova versão disponível.</span> com o botão <span class="bt ouro">Atualizar</span>.</p>
+
+<h3>Como os dois lados se encontram</h3>
+<div class="mapa">
+  <div><b>O cliente marca</b><span>Escolhe serviço, dia e horário no app. O horário sai da agenda na mesma hora.</span></div>
+  <div><b>O dono vê</b><span>A reserva aparece na agenda do dia, na tela Hoje, com nome, telefone e serviço.</span></div>
+  <div><b>O dono fecha</b><span>Depois do atendimento, toca em Concluir e escolhe como o cliente pagou. Aí o dinheiro entra no caixa.</span></div>
+</div>
+<div class="caixa importante">
+  <div class="titulo">Importante</div>
+  <p><b>Nenhum pagamento é feito pelo app.</b> O cliente paga no salão, como sempre: Pix, dinheiro ou maquininha. O app registra o pagamento quando o dono conclui o atendimento. É por isso que concluir cada atendimento no dia é o que mantém o caixa certo.</p>
+</div>
+
+<!-- ======================= 2 · CLIENTE ======================= -->
+<section class="parte">
+  <div class="num">Parte 2</div>
+  <h2>O app do cliente</h2>
+  <p>O que o cliente vê, do primeiro acesso até a reserva confirmada. Vale ler para saber explicar no balcão.</p>
+</section>
+
+<h3>A página de entrada <span class="tag">sem conta</span></h3>
+<p>Quem abre o link sem conta vê a barbearia antes de qualquer cadastro:</p>
+<ul>
+  <li><b>Serviços</b> com duração e preço.</li>
+  <li>O botão <span class="bt ouro">Ver horários e agendar</span>. O cliente escolhe o horário <b>antes</b> de criar conta; a conta só é pedida para confirmar.</li>
+  <li>Os <b>planos de mensalista</b>, quando a barbearia tiver planos ativos.</li>
+  <li>Endereço (toque abre o mapa) e os botões <span class="bt">WhatsApp</span> e <span class="bt">Ligar</span>.</li>
+  <li>No rodapé, <span class="bt">Já é cliente? Entrar</span>.</li>
+</ul>
+<p>Sem conta, o menu mostra só <span class="bt">Início</span>, <span class="bt">Agendar</span> e <span class="bt">Planos</span>.</p>
+
+<h3>Criar a conta</h3>
+<p class="onde">Tela <b>Entrar</b>, que é a mesma para cliente e dono</p>
+<p>O cliente pode entrar de dois jeitos:</p>
+<div class="duas">
+  <div class="caixa">
+    <div class="titulo">Com a conta Google</div>
+    <ol class="passos">
+      <li>Tocar em <span class="bt">Continuar com Google</span>.</li>
+      <li>Escolher a conta Google na janela que abrir.</li>
+      <li>Pronto: a conta está criada e o cliente já está dentro.</li>
+    </ol>
+  </div>
+  <div class="caixa">
+    <div class="titulo">Com e-mail e senha</div>
+    <ol class="passos">
+      <li>Tocar em <span class="bt">Criar uma conta</span>.</li>
+      <li>Preencher <b>E-mail</b> e <b>Senha</b> (mínimo de 6 caracteres).</li>
+      <li>Tocar em <span class="bt ouro">Criar conta</span>.</li>
+    </ol>
+  </div>
+</div>
+<p>Esqueceu a senha? Em <span class="bt">Esqueci a senha</span> o app manda um link de redefinição para o e-mail informado.</p>
+<div class="caixa">
+  <div class="titulo">Se a janela do Google não abrir</div>
+  <p>O navegador pode estar bloqueando janelas. O app avisa: “O navegador bloqueou a janela do Google. Libere os pop-ups.” Nesse caso, liberar as janelas nas configurações do navegador, ou entrar com e-mail e senha.</p>
+</div>
+
+<h3 style="break-before: page">Agendar um horário</h3>
+<p class="onde">Menu <b>Agendar</b> · quatro passos, com a barra de progresso no topo</p>
+<ol class="passos">
+  <li><b>Serviços.</b> Tocar nos serviços desejados; dá para escolher mais de um (por exemplo, corte e barba). A barra de baixo mostra quantos serviços, o tempo total e o valor. Tocar em <span class="bt ouro">Continuar</span>.</li>
+  <li><b>Dia e horário.</b> Escolher o dia entre os próximos 10 dias (os dias em que a barbearia não abre aparecem apagados, com “fechado”) e depois um horário livre. A grade já considera o tempo total dos serviços escolhidos.</li>
+  <li><b>Confirmação.</b> O app mostra o resumo: serviços, dia, hora, duração e total. Quem ainda não entrou vê <span class="bt ouro">Entrar para confirmar</span>: entra ou cria a conta e volta direto para esta tela, com a escolha guardada. Na primeira vez, o cliente preenche <b>Seu nome</b> e <b>Seu WhatsApp</b> com DDD; nas próximas, os campos já vêm preenchidos. Tocar em <span class="bt ouro">Confirmar reserva</span>.</li>
+  <li><b>Pronto.</b> Aparece <span class="bt">Reserva confirmada!</span> com o dia e a hora, e o lembrete do valor a pagar no salão.</li>
+</ol>
+<div class="caixa importante">
+  <div class="titulo">Bom saber</div>
+  <ul>
+    <li>A escolha só vira reserva no <b>Confirmar reserva</b>. Se alguém marcar aquele horário antes, o app avisa e o cliente escolhe outro.</li>
+    <li>Pelo app não dá para marcar um horário que começa em menos de <b>1 hora</b>. Para agora, o cliente liga ou chama no WhatsApp, e o dono marca no balcão.</li>
+    <li>Cada cliente pode ter até <b>3 reservas futuras</b> em aberto ao mesmo tempo.</li>
+    <li>Quando houver mais de um barbeiro, aparece <b>Com quem você quer cortar</b>, só com quem faz todos os serviços escolhidos.</li>
+  </ul>
+</div>
+
+<h3>Minhas reservas: reagendar e cancelar</h3>
+<p class="onde">Menu <b>Reservas</b> · abas <b>Futuras</b> e <b>Histórico</b></p>
+<p>Em <b>Futuras</b> fica cada horário marcado, com dia, hora, serviços e o valor a pagar no salão. Em <b>Histórico</b>, os atendimentos já feitos. No topo, o cliente vê quantos atendimentos já fez e quanto já investiu na barbearia.</p>
+<div class="duas">
+  <div>
+    <h4>Reagendar</h4>
+    <ol class="passos">
+      <li>Tocar em <span class="bt">Reagendar</span> na reserva.</li>
+      <li>Escolher o novo dia e um dos horários livres.</li>
+      <li>Tocar em <span class="bt ouro">Confirmar novo horário</span>.</li>
+    </ol>
+    <p>Vale até <b>6 horas antes</b> do horário e no máximo <b>2 vezes</b> por reserva. O barbeiro continua o mesmo.</p>
+  </div>
+  <div>
+    <h4>Cancelar</h4>
+    <ol class="passos">
+      <li>Tocar em <span class="bt">Cancelar</span> na reserva.</li>
+      <li>Ler o aviso: o horário volta a ficar livre na agenda.</li>
+      <li>Tocar em <span class="bt ouro">Confirmar cancelamento</span>.</li>
+    </ol>
+    <p>Cancelar pelo app <b>não tem custo</b>, porque nada é pago antecipado.</p>
+  </div>
+</div>
+<p>Fora do prazo de reagendamento, o app orienta o cliente a falar direto com a barbearia.</p>
+
+<h3>Planos de mensalista</h3>
+<p class="onde">Menu <b>Planos</b></p>
+<p>Mostra os planos da barbearia com o valor por mês e quanto o cliente economiza em relação ao avulso. O botão <span class="bt ouro">Falar com a barbearia</span> abre o WhatsApp com a mensagem pronta (“Olá! Quero assinar o plano…”).</p>
+<p><b>A assinatura é combinada com a barbearia</b>, pelo WhatsApp ou no balcão. Não se contrata nem se paga plano pelo app: o dono confirma o pagamento e ativa o plano no painel. Enquanto isso, o cliente segue agendando e pagando por atendimento.</p>
+<p>Depois de ativado, na hora de agendar aparece “Você é mensalista” e o que estiver incluído no plano não é cobrado de novo no salão.</p>
+
+<h3>Fidelidade</h3>
+<p>Quando a barbearia liga o programa de fidelidade, o cliente vê na página inicial quantos carimbos já tem (por exemplo, “X de Y carimbos”) e quanto falta para a recompensa. Cada atendimento concluído vale um carimbo. Ao completar, aparece a recompensa liberada: é só avisar no balcão, e o dono registra o resgate.</p>
+
+<h3>Perfil e excluir a conta</h3>
+<p class="onde">Menu <b>Perfil</b></p>
+<ul>
+  <li><b>Meus dados</b>: nome e WhatsApp, com o botão <span class="bt">Salvar</span>. O e-mail não muda, porque é a identificação da conta.</li>
+  <li><b>Meu plano</b>, <b>Política de cancelamento</b> e <b>Ajuda</b> (WhatsApp, telefone, endereço e Instagram da barbearia).</li>
+  <li><b>Notificações</b>: a barbearia fala com o cliente pelo WhatsApp do cadastro. Para não receber mais mensagens, basta pedir a ela.</li>
+  <li><span class="bt">Sair da conta</span>.</li>
+</ul>
+<div class="caixa">
+  <div class="titulo">Excluir minha conta</div>
+  <p>É um direito do cliente pela LGPD. Em <span class="bt">Excluir minha conta</span>, o app explica o que acontece: login e perfil apagados, nome e telefone removidos da barbearia, os carimbos de fidelidade perdidos. Os valores dos atendimentos já feitos ficam no caixa, sem identificar a pessoa. Para confirmar, o cliente digita <span class="kbd">EXCLUIR</span>. Se tiver horário marcado ou plano ativo, precisa cancelar antes.</p>
+</div>
+
+<!-- ======================= 3 · DONO: DIA A DIA ======================= -->
+<section class="parte">
+  <div class="num">Parte 3</div>
+  <h2>O painel do dono:<br>o dia a dia</h2>
+  <p>A agenda, o balcão e o caixa. É a parte do app que o dono usa o dia inteiro, em pé, com o celular na mão.</p>
+</section>
+
+<h3>Primeiro acesso</h3>
+<p>O dono recebe um e-mail e uma <b>senha provisória</b>. No primeiro acesso:</p>
+<ol class="passos">
+  <li>Abrir o endereço do app e tocar em <span class="bt">Entrar</span>.</li>
+  <li>Entrar com o e-mail e a senha provisória.</li>
+  <li>Na tela <b>Crie sua senha</b>, escolher a senha definitiva (mínimo de 8 caracteres, com pelo menos uma letra) e repetir. As regras vão ficando marcadas enquanto se digita.</li>
+  <li>Tocar em <span class="bt ouro">Salvar e continuar</span>. O app entra sozinho e abre o painel.</li>
+</ol>
+<p>Ninguém da equipe da plataforma consegue ver essa senha. Se esquecer, é só usar <span class="bt">Esqueci a senha</span> na tela de entrar.</p>
+
+<h3>Como o painel é organizado</h3>
+<p>No celular, a barra de baixo tem <span class="bt">Hoje</span>, <span class="bt">Finanças</span>, o botão <span class="bt ouro">+</span> no centro, <span class="bt">Clientes</span> e <span class="bt">Mais</span>. O <span class="bt">Mais</span> abre o menu com todo o resto, organizado por seção. No computador, tudo fica numa barra lateral.</p>
+<div class="mapa">
+  <div><b>Hoje</b><span>Agenda do dia, pendências e o caixa de hoje.</span></div>
+  <div><b>Finanças</b><span>Fechamento do mês, quanto sobrou, fluxo de caixa, projeção e despesas.</span></div>
+  <div><b>Clientes</b><span>A base de clientes e a ficha de cada um.</span></div>
+  <div><b>Mensalistas</b><span>Planos, assinantes e cobrança das mensalidades.</span></div>
+  <div><b>Loja</b><span>Venda de produtos no balcão e estoque.</span></div>
+  <div><b>Números</b><span>Os indicadores do mês comparados ao anterior.</span></div>
+  <div><b>Ajustes</b><span>Taxas e regras, Horários, Meu link, Serviços e Equipe.</span></div>
+  <div style="grid-column: span 2"><b>O botão +</b><span>Marca um atendimento de qualquer tela: para quem chegou no balcão ou ligou.</span></div>
+</div>
+
+<h3 style="break-before: page">A tela Hoje</h3>
+<p class="onde">Primeira tela do painel</p>
+<h4>Os números do topo (sempre de hoje)</h4>
+<table>
+  <tr><th>Número</th><th>O que mostra</th></tr>
+  <tr><td>Atendimentos</td><td>Quantos horários do dia estão ocupados, contando os já concluídos e as faltas.</td></tr>
+  <tr><td>Ocupação</td><td>Quanto da capacidade do dia já está tomada: horários ocupados sobre todos os horários de todos os barbeiros ativos.</td></tr>
+  <tr><td>Horários livres</td><td>Quantos horários ainda restam de agora até o fim do expediente.</td></tr>
+  <tr><td>Previsão do dia</td><td>Quanto os serviços marcados para hoje somam, já sem faltas e cancelamentos.</td></tr>
+  <tr><td>Recebido hoje</td><td>Tudo o que entrou no caixa hoje: atendimentos, vendas da loja e mensalidades.</td></tr>
+</table>
+<p>A previsão e o recebido respondem a perguntas diferentes (o que estava marcado e o dinheiro que entrou) e não são para ser comparados entre si: uma venda ou uma mensalidade entram no recebido sem estarem na agenda.</p>
+
+<h4>“Precisa de você”</h4>
+<p>O app junta aqui o que está pendente, até 3 de cada vez. Resolvendo os de cima, aparecem os próximos:</p>
+<ul>
+  <li><b>Atendimento feito sem pagamento registrado</b> → <span class="bt">Registrar pagamento</span>.</li>
+  <li><b>Atendimento de dia anterior que ficou sem desfecho</b> → <span class="bt">Foi atendido</span> ou <span class="bt">Não veio</span>. Enquanto ficar assim, o valor não entra no faturamento do mês.</li>
+  <li><b>Taxas da maquininha ainda não informadas</b> → <span class="bt">Configurar taxas</span>.</li>
+  <li><b>Nenhum serviço disponível para agendar</b> → <span class="bt">Cadastrar serviços</span>.</li>
+</ul>
+
+<h4>A agenda</h4>
+<ul>
+  <li>As setas <span class="bt">‹</span> <span class="bt">›</span> andam um dia; tocar na data abre o calendário do celular. Fora de hoje, o botão <span class="bt">Hoje</span> volta para o dia atual.</li>
+  <li>Cada atendimento mostra hora, cliente, telefone, serviço, pagamento e valor. <b>Tocar no telefone abre a conversa no WhatsApp.</b></li>
+  <li>Atendimento que passou do horário fica em vermelho: “Em aberto há N min — atendeu ou não veio?”.</li>
+</ul>
+
+<h3>Marcar um atendimento no balcão</h3>
+<p class="onde">Botão <b>+</b> no centro da barra (no computador, <b>Marcar atendimento</b> na agenda)</p>
+<p>Para quem chegou na barbearia ou ligou. Tudo acontece numa tela só, de cima para baixo:</p>
+<ol class="passos">
+  <li><b>O que vai fazer</b>: tocar em um ou mais serviços.</li>
+  <li><b>Com quem</b>: aparece quando há mais de um barbeiro, só com quem faz os serviços escolhidos. Com um barbeiro só, ele já vem marcado.</li>
+  <li><b>Quando</b>: escolher o dia e o horário livre. <b>No balcão dá para marcar para agora</b>: a antecedência de 1 hora que vale para o cliente não vale para o dono.</li>
+  <li><b>Para quem</b>: buscar o cliente pelo nome ou WhatsApp e tocar nele, ou tocar em <span class="bt">Cliente novo</span> e informar o nome e, de preferência, o WhatsApp com DDD. Com o WhatsApp, o cliente é reconhecido nas próximas visitas.</li>
+  <li><b>Confirmar</b>: o botão já diz o que vai ser marcado, com dia, hora e valor. Tocar nele.</li>
+</ol>
+<p>Aparece <span class="bt">Atendimento marcado</span>, com as opções <span class="bt">Marcar outro</span> e <span class="bt">Ver na agenda</span>. O cadastro do cliente novo é criado sozinho. O pagamento é registrado depois, quando o atendimento for concluído.</p>
+
+<h3>Fechar o atendimento: Concluir</h3>
+<p>Depois que o cliente foi atendido e pagou:</p>
+<ol class="passos">
+  <li>Na agenda, tocar em <span class="bt ouro">Concluir</span> no atendimento.</li>
+  <li>Na janela <b>Como o cliente pagou?</b>, tocar na forma de pagamento (Pix, dinheiro, débito, crédito…). <b>Um toque já conclui.</b></li>
+</ol>
+<p>Nesse momento o valor entra no caixa, a comissão do barbeiro é calculada e, se a fidelidade estiver ligada, o cliente ganha o carimbo. A taxa da maquininha usada é a que está cadastrada no dia; mudar a taxa depois não altera atendimentos antigos.</p>
+<div class="caixa">
+  <div class="titulo">Cliente mensalista</div>
+  <p>Para o mensalista, a janela mostra o plano dele e o botão <span class="bt ouro">Concluir sem cobrar</span>. O app confere a cota do mês: se o plano cobre, não há cobrança; se a cota já acabou, entra como avulso. Se o cliente pagar algo por fora do plano, basta escolher a forma de pagamento logo abaixo.</p>
+</div>
+
+<h3>Quando o cliente não vem, ou desmarca</h3>
+<div class="duas">
+  <div>
+    <h4>Não veio</h4>
+    <p>O botão <span class="bt">Não veio</span> aparece depois de passada a tolerância de atraso (15 minutos, ajustável). Ao confirmar a falta, o valor não entra como receita e o horário continua ocupado na agenda. <b>Se o cliente aparecer depois</b>, o botão <span class="bt">Veio depois</span> conclui normalmente.</p>
+  </div>
+  <div>
+    <h4>Cancelar</h4>
+    <p>Em atendimento ainda em aberto, <span class="bt">Cancelar</span> libera o horário e tira o valor da previsão do dia. Depois de confirmar, o app <b>abre o WhatsApp com a mensagem pronta</b> para avisar o cliente. Quem envia é o dono.</p>
+  </div>
+</div>
+
+<h3>Corrigir um pagamento e devolver valor</h3>
+<div class="duas">
+  <div>
+    <h4>Corrigir pagamento</h4>
+    <p>Registrou Pix quando foi cartão? Em <span class="bt">Corrigir pagamento</span>, escolher a forma certa em <b>Como o cliente pagou de verdade</b> e tocar em <span class="bt ouro">Confirmar correção</span>. O valor não muda; muda só a forma. Fica registrado quem corrigiu e quando.</p>
+  </div>
+  <div>
+    <h4>Devolver</h4>
+    <p>Para devolver dinheiro ao cliente (tudo ou parte), em <span class="bt">Devolver</span>, informar <b>Quanto devolver</b> e <b>Por que está devolvendo</b>. O pagamento original continua no histórico; a devolução é um lançamento novo. A comissão do barbeiro não muda, porque o atendimento aconteceu.</p>
+  </div>
+</div>
+
+<h3>O caixa de hoje</h3>
+<p>No fim da tela Hoje, o <b>Caixa de hoje</b> separa o que entrou em Pix, cartão e dinheiro, para conferir com a gaveta e com a maquininha no fechamento. Valor concluído sem forma informada aparece à parte, até ser corrigido.</p>
+
+<!-- ======================= 4 · GESTÃO ======================= -->
+<section class="parte">
+  <div class="num">Parte 4</div>
+  <h2>O painel do dono:<br>gestão</h2>
+  <p>Clientes, mensalistas, loja e os números do mês. O app monta tudo a partir do que é registrado no dia a dia; não há planilha para preencher.</p>
+</section>
+
+<h3>Clientes</h3>
+<p class="onde">Barra de baixo › <b>Clientes</b></p>
+<p>O cadastro de cada cliente nasce sozinho: quando alguém agenda pelo app ou quando o dono marca no balcão. A lista mostra nome, WhatsApp, se é mensalista, há quanto tempo veio pela última vez e quantas visitas fez. A busca aceita nome ou WhatsApp.</p>
+<p>Tocando no cliente, abre a <b>ficha</b>: visitas, última visita, ticket médio, quanto gastou em serviços e produtos, o próximo horário marcado e o plano, se for mensalista.</p>
+<ul>
+  <li><b>Fidelidade</b>: mostra os carimbos. Ao completar, o botão <span class="bt ouro">Registrar resgate</span> dá a recompensa e desconta os carimbos.</li>
+  <li><b>Pedidos do cliente (LGPD)</b>: <span class="bt">Exportar dados</span> gera o arquivo com tudo o que a barbearia guarda sobre ele, para entregar só ao próprio cliente. <span class="bt">Anonimizar</span> apaga nome e WhatsApp para sempre, mantendo valores e datas; confirma-se digitando <span class="kbd">ANONIMIZAR</span>.</li>
+</ul>
+
+<h3>Mensalistas</h3>
+<p class="onde">Menu Mais › <b>Mensalistas</b></p>
+<h4>Criar os planos</h4>
+<ol class="passos">
+  <li>Tocar em <span class="bt">Planos</span> e depois em <span class="bt">Adicionar plano</span>.</li>
+  <li>Dar um nome (por exemplo, “4 cortes no mês”), informar a <b>Mensalidade</b> e o <b>Preço avulso de referência</b>, que o app usa para mostrar ao cliente quanto ele economiza.</li>
+  <li>Marcar <b>Atendimentos ilimitados</b>, ou informar quantos <b>atendimentos por mês</b> o plano inclui. Passando da cota, o cliente paga o avulso.</li>
+</ol>
+<p>Os campos salvam sozinhos ao sair de cada um.</p>
+<h4>Contratar um mensalista</h4>
+<ol class="passos">
+  <li>Tocar em <span class="bt ouro">Novo mensalista</span>.</li>
+  <li>Buscar o cliente (ele precisa já estar cadastrado) e escolher o plano.</li>
+  <li>Informar o dia do vencimento (de 1 a 31) e tocar em <span class="bt ouro">Contratar</span>.</li>
+</ol>
+<h4>Cobrar as mensalidades</h4>
+<ol class="passos">
+  <li>No começo do mês, tocar em <span class="bt ouro">Emitir mensalidades do mês</span>: o app gera uma mensalidade para cada mensalista ativo.</li>
+  <li>Quando o cliente pagar, tocar em <span class="bt">Registrar pagamento</span> e escolher a forma.</li>
+</ol>
+<p>No topo, o app mostra o que foi faturado, o que já foi recebido e o que está em aberto. A <b>régua de cobrança</b> mostra quantas mensalidades estão perto do vencimento e quantas já passaram, para saber quem lembrar. A cobrança é feita pelo dono; o app não cobra no cartão sozinho.</p>
+
+<h3>Loja</h3>
+<p class="onde">Menu Mais › <b>Loja</b></p>
+<h4>Cadastrar um produto</h4>
+<p>Em <span class="bt">Adicionar produto</span>: nome, custo unitário, a margem desejada (o app calcula o preço de venda), estoque inicial e estoque mínimo. A prévia mostra o preço, o lucro, a comissão, o imposto e o que sobra para a barbearia.</p>
+<h4>Vender no balcão</h4>
+<ol class="passos">
+  <li>Tocar em <span class="bt">+</span> nos produtos e ajustar a quantidade.</li>
+  <li>Se quiser, identificar o cliente e quem vendeu. <b>Sem indicar quem vendeu, a venda não gera comissão.</b></li>
+  <li>Escolher a forma de pagamento e tocar em <span class="bt ouro">Confirmar venda</span>. O estoque baixa na hora.</li>
+</ol>
+<h4>Repor estoque e devolver</h4>
+<ul>
+  <li><span class="bt">Dar entrada</span> no produto: quantidade, custo por unidade e fornecedor. O app mostra o estoque antes e depois e recalcula o custo médio.</li>
+  <li>Em <b>Vendas recentes</b>, <span class="bt">Devolver</span> desfaz uma venda (toda ou parte): o dinheiro volta ao cliente, as unidades voltam ao estoque e a comissão daquela parte sai do acerto.</li>
+  <li>Quando um produto fica abaixo do mínimo, o app avisa no topo da Loja.</li>
+</ul>
+
+<h3>Financeiro</h3>
+<p class="onde">Barra de baixo › <b>Finanças</b></p>
+<p>O <b>Resumo</b> é o fechamento do mês em uma tela:</p>
+<ul>
+  <li><b>Receita realizada</b>: atendimentos concluídos e pagos, vendas da loja e mensalidades recebidas, já descontadas as devoluções.</li>
+  <li><b>Custo total</b>: comissões, salários, taxas de maquininha, custo dos produtos vendidos, despesas e imposto.</li>
+  <li><b>Resultado</b> e <b>Margem</b>.</li>
+  <li><b>Ponto de equilíbrio</b>: em que dia do mês a receita cobriu todos os custos, ou quanto do custo já foi coberto. Com o selo “no verde” ou “no vermelho”.</li>
+  <li><b>De onde vem o dinheiro</b>: quanto veio de serviços, loja, encaixes e mensalidades.</li>
+</ul>
+<p>Os relatórios detalhados ficam logo abaixo:</p>
+<table>
+  <tr><th>Relatório</th><th>Para que serve</th></tr>
+  <tr><td>Quanto sobrou</td><td>O resultado do mês linha a linha: receita, custos variáveis (taxas e comissões, por barbeiro), despesas fixas e eventuais, imposto e o que sobrou. Tem uma simulação: “e se o faturamento subir ou cair X%?”.</td></tr>
+  <tr><td>Fluxo de caixa</td><td>O dinheiro que de fato entrou e saiu, já sem a taxa da maquininha, dia a dia. No fim fica o <b>Livro caixa</b> (veja abaixo).</td></tr>
+  <tr><td>Projeção de caixa</td><td>Como o caixa deve ficar nos próximos 30 dias, 3, 6 ou 12 meses, somando reservas marcadas, mensalidades e despesas fixas. Mostra o dia mais apertado. Onde ainda não há reserva, usa a média de cada dia da semana e marca como “estimado”.</td></tr>
+  <tr><td>Despesas</td><td>Lançar e acompanhar as contas da barbearia (veja abaixo).</td></tr>
+</table>
+
+<h4>Lançar uma despesa</h4>
+<ol class="passos">
+  <li>Em <b>Despesas</b>, tocar em <span class="bt ouro">Nova despesa</span>.</li>
+  <li>Preencher descrição, categoria (aluguel, energia e água, insumos, marketing, manutenção, internet, software, outras), fornecedor, valor, data e forma de pagamento.</li>
+  <li>Se a conta se repete todo mês, como o aluguel, marcar <b>Recorrente</b>: ela passa a contar como custo fixo todos os meses, sem precisar lançar de novo. Para reajustar, lança-se de novo com a mesma descrição e categoria e o valor novo.</li>
+  <li>Tocar em <span class="bt ouro">Salvar</span>.</li>
+</ol>
+
+<h4>Livro caixa</h4>
+<p>Para o dinheiro que entra ou sai da gaveta <b>sem ser atendimento, venda ou mensalidade</b>: sangria, troco inicial, aporte do dono, pagamento de comissão ao barbeiro e ajuste (sobrou ou faltou na gaveta). Em <span class="bt ouro">Registrar movimento</span>, escolher o tipo, o valor, a forma e o motivo.</p>
+
+<h3>Números</h3>
+<p class="onde">Menu Mais › <b>Números</b></p>
+<p>Os indicadores do mês, cada um comparado ao mês anterior: faturamento, atendimentos, ticket médio, ocupação e taxa de falta. E também:</p>
+<ul>
+  <li><b>Top serviços</b>: os que mais saem.</li>
+  <li><b>Recorrência de clientes</b>: quem está “Em dia”, quem está “Esfriando” (demorando mais que o costume para voltar) e quem “Sumiu”. É a lista de quem vale chamar no WhatsApp.</li>
+  <li><b>Mapa de calor</b>: os dias e horários mais cheios e a maior brecha da semana, bom para pensar em promoção.</li>
+</ul>
+
+<!-- ======================= 5 · AJUSTES ======================= -->
+<section class="parte">
+  <div class="num">Parte 5</div>
+  <h2>Ajustes</h2>
+  <p>Onde a barbearia é configurada. Tudo o que está aqui aparece para o cliente ou muda como o dinheiro é contado.</p>
+</section>
+
+<h3>Serviços</h3>
+<p class="onde">Ajustes › <b>Serviços</b></p>
+<p>O cardápio que o cliente vê. Cada linha tem o nome do serviço, a duração (em minutos), o preço e se está visível para o cliente.</p>
+<ul>
+  <li><b>Salva sozinho</b> ao sair de cada campo; não há botão de salvar.</li>
+  <li><span class="bt">Adicionar serviço</span> cria uma linha nova.</li>
+  <li>O ícone do olho <b>oculta</b> o serviço do app sem apagar o histórico. É melhor que excluir quando a ideia é tirar por um tempo.</li>
+  <li>O app avisa em vermelho quando algo está errado: serviço visível com preço zerado, ou serviço mais longo que o expediente.</li>
+</ul>
+
+<h3>Equipe</h3>
+<p class="onde">Ajustes › <b>Equipe</b></p>
+<p>Um cartão para cada barbeiro, com:</p>
+<ul>
+  <li><b>Nome</b> e a caixa <b>Atendendo</b> (ativo ou não).</li>
+  <li><b>Comissão dele</b>, em %. Em branco, usa a comissão padrão da barbearia.</li>
+  <li><b>Salário mensal</b>, se houver um fixo além da comissão.</li>
+  <li><b>O que ele faz</b>: os serviços que ele atende.</li>
+</ul>
+<div class="caixa importante">
+  <div class="titulo">Atenção ao “O que ele faz”</div>
+  <p><b>Sem nenhum serviço marcado, o barbeiro atende todos.</b> Marcando alguns, ele passa a atender <b>só</b> esses, e os serviços que ficarem de fora deixam de ter horário no app. Se ninguém da equipe faz um serviço, ele some do app do cliente. Sempre que cadastrar um serviço novo, confira se ele foi marcado para quem faz.</p>
+</div>
+<p>A barbearia precisa de pelo menos um barbeiro ativo para receber reservas. Com dois ou mais, o cliente passa a escolher com quem quer cortar.</p>
+
+<h3>Horários</h3>
+<p class="onde">Ajustes › <b>Horários</b></p>
+<ol class="passos">
+  <li><b>Dias de funcionamento</b>: tocar nos dias em que a barbearia abre.</li>
+  <li><b>Abre</b> e <b>Fecha</b>, e o <b>intervalo</b> de almoço, se houver.</li>
+  <li><b>Intervalo entre atendimentos</b>: de quanto em quanto tempo começa um horário (15, 20, 30, 45 ou 60 minutos).</li>
+  <li>Se algum dia da semana fecha em outro horário (por exemplo, o sábado), usar <b>Algum dia fecha em horário diferente?</b>.</li>
+  <li>Conferir a prévia <b>O cliente vai ver</b> e tocar em <span class="bt ouro">Salvar horários</span>.</li>
+</ol>
+<h4>Feriados e dias especiais</h4>
+<p>Em <b>Dias fechados e horários especiais</b>: escolher o dia, marcar <b>Não abro</b> (o dia some do app do cliente) ou <b>Abro em horário diferente</b>, e tocar em <span class="bt ouro">Salvar este dia</span>.</p>
+<div class="caixa importante">
+  <div class="titulo">Importante</div>
+  <p>Mudar o expediente de um dia <b>não cancela</b> quem já estava marcado. O app avisa quantos horários existem naquele dia; esses precisam ser cancelados na agenda, com o aviso ao cliente.</p>
+</div>
+
+<h3>Taxas e regras</h3>
+<p class="onde">Ajustes › <b>Taxas e regras</b></p>
+<h4>Taxas por forma de pagamento</h4>
+<p>Informe a taxa de cada forma de pagamento da maquininha. O app mostra quanto de cada R$ 100 fica para a barbearia. Dá para criar formas próprias, como “Crédito parcelado”, com a taxa de cada uma, e desligar as que não são usadas no balcão. A taxa vale para os atendimentos concluídos daí em diante; o passado não muda.</p>
+<h4>Tolerância de atraso</h4>
+<p>Quantos minutos depois do horário o atendimento passa a aparecer como atrasado e o botão <b>Não veio</b> fica disponível (de 0 a 120; o padrão é 15). Marcar falta é sempre uma decisão do dono; o app só avisa.</p>
+<h4>Comissão padrão</h4>
+<p>O percentual que fica com o barbeiro: sobre o valor do atendimento e, na loja, sobre o lucro da venda. Vale para os próximos atendimentos. Depois, tocar em <span class="bt ouro">Salvar alterações</span>.</p>
+<h4>Programa de fidelidade</h4>
+<p>Ligar <b>Oferecer fidelidade aos meus clientes</b>, definir quantos carimbos são necessários (de 3 a 30) e <b>o que o cliente ganha</b> (por exemplo, um corte), e tocar em <span class="bt ouro">Salvar fidelidade</span>. Cada atendimento concluído vale um carimbo; o resgate é registrado pelo dono na ficha do cliente.</p>
+
+<h3>Meu link</h3>
+<p class="onde">Ajustes › <b>Meu link</b></p>
+<ul>
+  <li><b>QR code</b> com o botão <span class="bt">Baixar QR</span>: para imprimir e deixar no balcão ou no espelho.</li>
+  <li><b>Link do app</b> com <span class="bt">Copiar</span>: para a bio do Instagram e o status do WhatsApp.</li>
+  <li><b>Mensagem pronta</b> com <span class="bt">Copiar</span> e <span class="bt">Abrir WhatsApp</span>: para mandar aos clientes avisando que agora dá para agendar pelo link.</li>
+</ul>
+
+<!-- ======================= 6 · REGRAS ======================= -->
+<section class="parte">
+  <div class="num">Parte 6</div>
+  <h2>Regras da casa e combinados</h2>
+  <p>O que o app aplica sozinho, e o que continua sendo conversado entre barbearia e cliente.</p>
+</section>
+
+<h3>O que o app aplica</h3>
+<table>
+  <tr><th>Regra</th><th>Como funciona</th></tr>
+  <tr><td>Antecedência para agendar</td><td>O cliente marca pelo app com pelo menos <b>1 hora</b> de antecedência. No balcão, o dono marca para agora.</td></tr>
+  <tr><td>Quantos dias à frente</td><td>O app mostra os próximos <b>10 dias</b> para o cliente escolher.</td></tr>
+  <tr><td>Reservas por cliente</td><td>Até <b>3 reservas futuras</b> em aberto ao mesmo tempo.</td></tr>
+  <tr><td>Reagendar pelo app</td><td>Até <b>6 horas antes</b> do horário, no máximo <b>2 vezes</b> por reserva.</td></tr>
+  <tr><td>Cancelar pelo app</td><td>A qualquer momento, <b>sem custo</b>: nada é pago antecipado.</td></tr>
+  <tr><td>Atraso</td><td>Depois da tolerância (15 minutos, ajustável), o atendimento aparece como atrasado e o dono pode marcar a falta.</td></tr>
+  <tr><td>Pagamento</td><td><b>Sempre no salão.</b> O app registra quando o dono conclui o atendimento.</td></tr>
+</table>
+
+<h3>O que continua sendo combinado</h3>
+<ul>
+  <li><b>Contratar um plano de mensalista</b>: combinado pelo WhatsApp ou no balcão. O dono registra no painel.</li>
+  <li><b>Reagendar fora do prazo</b>: o cliente fala com a barbearia. No painel, o caminho é cancelar o horário antigo e marcar o novo pelo <b>+</b>.</li>
+  <li><b>Avisos ao cliente</b>: a barbearia fala pelo WhatsApp. Ao cancelar um horário, o app já abre a conversa com a mensagem pronta.</li>
+  <li><b>Corrigir o nome ou o telefone de um cliente</b>: o cliente com conta altera no próprio Perfil. O painel não edita esses dados.</li>
+</ul>
+
+<!-- ======================= 7 · CHECKLIST ======================= -->
+<section class="parte">
+  <div class="num">Parte 7</div>
+  <h2>Checklist do primeiro dia</h2>
+  <p>Antes de divulgar o link, vale conferir cada item. São dez minutos que evitam o cliente dar com a porta fechada.</p>
+</section>
+
+<ul class="check">
+  <li><b>Senha definitiva criada</b> no primeiro acesso, e o app instalado na tela do celular.</li>
+  <li><b>Serviços</b>: todos com nome, duração e preço corretos, e visíveis para o cliente.</li>
+  <li><b>Equipe › O que ele faz</b>: cada serviço do cardápio está marcado para quem o faz. Em especial o <b>corte</b>: sem ele marcado, o corte não aparece para o cliente agendar.</li>
+  <li><b>Comissão</b> de cada barbeiro e, se houver, o salário fixo.</li>
+  <li><b>Horários</b>: dias, abertura, fechamento, almoço e os feriados já conhecidos.</li>
+  <li><b>Taxas da maquininha</b> de cada forma de pagamento, em Taxas e regras.</li>
+  <li><b>Planos de mensalista</b> com os valores definitivos, se a barbearia for oferecer.</li>
+  <li><b>Fidelidade</b>: decidir se liga, quantos carimbos e qual a recompensa.</li>
+  <li><b>Despesas fixas</b> lançadas como recorrentes (aluguel, energia, internet…), para o “Quanto sobrou” já sair certo no primeiro mês.</li>
+  <li><b>Teste de ponta a ponta</b>: agendar pelo celular como cliente, ver a reserva na agenda e concluir.</li>
+  <li><b>Divulgar</b>: QR code impresso no balcão, link na bio do Instagram e a mensagem pronta no WhatsApp.</li>
+</ul>
+
+<section class="fim">
+  <img src="../../web/public/tenants/osiqueira/logo.svg" alt="">
+  <p>Dúvidas sobre o app? Fale com quem cuida da conta da barbearia na plataforma.<br>Bons cortes e boa agenda.</p>
+</section>
+
+</body>
+</html>
