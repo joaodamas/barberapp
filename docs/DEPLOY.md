@@ -5,6 +5,33 @@ Publicação manual pela esteira do GitHub. A máquina local não participa.
 > **Regra de engenharia:** o alvo do deploy nunca depende do projeto
 > selecionado no ambiente de quem publica. Ver a trava em §4.
 
+## 0. DEV → produção (desde 28/09)
+
+Criado depois do incidente de 28/09, quando CI e passeio passaram verdes e o app
+no ar travou para todo mundo.
+
+| | DEV | Produção |
+|---|---|---|
+| Projeto | `crucial-baton-440119-r8` ("CorteHub DEV") | `axon-barber` |
+| Site | https://cortehub-dev.web.app | https://osiqueira.jpproject.com.br |
+| Dados | barbearia de teste (`scripts/semear-day-in-the-life.mjs` com `SEMEAR_DEV`) | clientes reais |
+| Quando | sozinho, a cada merge na `main` (`esteira.yml`) | manual, com aprovação, **depois das 20h** |
+| Ambiente do GitHub | `dev` | `producao` |
+
+- **Todo deploy termina com a fumaça** (`scripts/fumaca/fumaca.mjs`). Ela abre o
+  agendar num Chromium de verdade, escolhe um serviço e exige `availableSlots`
+  200. Faz isso duas vezes: na primeira visita e na volta com o service worker
+  instalado.
+- **Fumaça vermelha depois de publicar o site:** o release do Hosting volta
+  sozinho para a versão anterior (e com ele a revisão do SSR, por causa do
+  pinTags). Functions, regras e índices não voltam.
+- **A janela das 20h** é conferida pelo job `janela`, antes da aprovação. Uma
+  correção urgente é rodada com `urgente` marcado.
+- **O DEV não tem WhatsApp:** os segredos lá são valores de mentira. O slug fixo
+  (`NEXT_PUBLIC_TENANT_SLUG_FIXO=osiqueira`) existe porque `*.web.app` não tem
+  subdomínio. A senha das contas de teste está no segredo `DEV_SENHA` do
+  ambiente `dev`.
+
 ---
 
 ## 1. O que um deploy realmente altera

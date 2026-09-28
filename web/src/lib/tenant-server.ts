@@ -144,7 +144,11 @@ export const resolverTenant = cache(async function resolverTenant(): Promise<Res
     headerList.get("x-forwarded-host") ??
     headerList.get("host");
 
-  const slug = slugFromHost(host);
+  /* Ambiente de DEV (28/09): `cortehub-dev.web.app` não tem subdomínio de
+   * barbearia. Lá o build fixa a barbearia de teste por esta variável; em
+   * produção ela não existe e nada muda. Nunca é lida quando o host já traz o
+   * subdomínio — um DEV mal configurado não sequestra barbearia real. */
+  const slug = slugFromHost(host) ?? (process.env.NEXT_PUBLIC_TENANT_SLUG_FIXO || null);
 
   if (!slug) return { estado: "sem-barbearia", tenant: DEFAULT_TENANT };
 

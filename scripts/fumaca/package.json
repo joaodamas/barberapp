@@ -1,0 +1,9 @@
+{
+  "name": "fumaca",
+  "private": true,
+  "type": "module",
+  "description": "Teste de fumaça contra o site PUBLICADO (DEV ou produção), num navegador de verdade — roda no GitHub depois de cada deploy.",
+  "dependencies": {
+    "playwright": "1.55.0"
+  }
+}

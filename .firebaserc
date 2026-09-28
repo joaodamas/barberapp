@@ -1,5 +1,22 @@
 {
   "projects": {
-    "default": "axon-barber"
+    "default": "axon-barber",
+    "dev": "crucial-baton-440119-r8"
+  },
+  "targets": {
+    "axon-barber": {
+      "hosting": {
+        "app": [
+          "axon-barber"
+        ]
+      }
+    },
+    "crucial-baton-440119-r8": {
+      "hosting": {
+        "app": [
+          "cortehub-dev"
+        ]
+      }
+    }
   }
 }
