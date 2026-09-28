@@ -178,7 +178,10 @@ export default function ConfiguracoesPage() {
         </Card>
       )}
 
-      <section className="grid gap-4 md:grid-cols-[1.4fr_1fr] md:gap-8">
+      {/* `items-start`: sem ele, cada card esticava até a altura do mais alto
+          da linha, e "Quando um atraso vira atraso" ficava com meia tela em
+          branco (print do dono, 28/09). */}
+      <section className="grid gap-4 md:grid-cols-[1.4fr_1fr] md:items-start md:gap-8">
         <Card className="flex flex-col gap-5 md:p-6">
           <div>
             <h2 className="flex items-center gap-1.5 text-sm font-semibold text-ink md:text-base">
@@ -225,7 +228,10 @@ export default function ConfiguracoesPage() {
             </p>
           </div>
 
-          <div className="grid gap-2 md:grid-cols-[1fr_120px_auto] md:items-center">
+          {/* Texto em cima, na largura toda; campo e exemplo embaixo. Em três
+              colunas, no card estreito o exemplo roubava a largura e a
+              explicação quebrava uma palavra por linha (print de 28/09). */}
+          <div className="flex flex-col gap-2">
             <div>
               <label htmlFor="tolerancia" className="text-sm text-ink">
                 Tolerância de atraso
@@ -235,6 +241,7 @@ export default function ConfiguracoesPage() {
                 alerta e você para de ler a seção.
               </p>
             </div>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <div className="flex items-center gap-2">
               <input
                 id="tolerancia"
@@ -244,16 +251,17 @@ export default function ConfiguracoesPage() {
                 step={5}
                 value={tolerancia}
                 onChange={(e) => alterarTolerancia(e.target.value)}
-                className="min-h-11 w-full rounded-xl border border-border bg-surface-raised px-3 text-sm text-ink"
+                className="min-h-11 w-24 rounded-xl border border-border bg-surface-raised px-3 text-sm text-ink"
               />
               <span className="text-sm text-ink-muted">min</span>
             </div>
-            <p className="text-xs text-ink-muted md:text-right">
+            <p className="text-xs text-ink-muted">
               14:00 avisa às{" "}
               <span className="text-ink">
                 {horaMaisMinutos("14:00", tolerancia)}
               </span>
             </p>
+            </div>
           </div>
 
           <p className="text-xs text-ink-muted">
@@ -278,7 +286,10 @@ export default function ConfiguracoesPage() {
             </p>
           </div>
 
-          <div className="grid gap-2 md:grid-cols-[1fr_120px_auto] md:items-center">
+          {/* Texto em cima, na largura toda; campo e exemplo embaixo. Em três
+              colunas, no card estreito o exemplo roubava a largura e a
+              explicação quebrava uma palavra por linha (print de 28/09). */}
+          <div className="flex flex-col gap-2">
             <div>
               <label htmlFor="comissao" className="text-sm text-ink">
                 Fica com o barbeiro
@@ -287,6 +298,7 @@ export default function ConfiguracoesPage() {
                 Sobre o valor do atendimento; na loja, sobre o lucro da venda.
               </p>
             </div>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <div className="flex items-center gap-2">
               <input
                 id="comissao"
@@ -296,11 +308,11 @@ export default function ConfiguracoesPage() {
                 step={5}
                 value={comissao}
                 onChange={(e) => alterarComissao(e.target.value)}
-                className="min-h-11 w-full rounded-xl border border-border bg-surface-raised px-3 text-sm text-ink"
+                className="min-h-11 w-24 rounded-xl border border-border bg-surface-raised px-3 text-sm text-ink"
               />
               <span className="text-sm text-ink-muted">%</span>
             </div>
-            <p className="text-xs text-ink-muted md:text-right">
+            <p className="min-w-0 flex-1 text-xs text-ink-muted">
               Num corte de {formatBRL(EXEMPLO)}:{" "}
               <span className="text-ink">
                 {formatBRL((EXEMPLO * comissao) / 100)}
@@ -308,6 +320,7 @@ export default function ConfiguracoesPage() {
               para o barbeiro, {formatBRL((EXEMPLO * (100 - comissao)) / 100)} para
               a barbearia
             </p>
+            </div>
           </div>
 
           <p className="text-xs text-ink-muted">
