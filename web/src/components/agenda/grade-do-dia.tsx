@@ -120,6 +120,10 @@ export function GradeDoDia({
         {/* Livre e intervalo, só onde nenhuma faixa ocupa. */}
         {linhas.map((t, i) => {
           const pausa = pausas.some(([de, ate]) => de <= t && t < ate);
+          /* Atendimento lançado dentro do intervalo (o balcão pode): o cartão
+           * dele é o que importa ali — o rótulo "Intervalo" ficava por baixo. */
+          const temAtendimento = faixas.some((f) => f.inicio < t + grade && t < f.fim);
+          if (pausa && temAtendimento) return null;
           if (pausa) {
             return (
               <div
