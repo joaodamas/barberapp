@@ -141,9 +141,13 @@ export default function ReservasPage() {
     ehMensalista: !!assinaturaAtivaDe(minhasAssinaturas, user?.uid),
     horizontePadrao: tenant.policies.booking.maxAdvanceDays,
   });
+  const mensalistaAqui = !!assinaturaAtivaDe(minhasAssinaturas, user?.uid);
+  const janelaConfigurada = mensalistaAqui
+    ? tenant.policies.janela?.diasMensalista != null
+    : !!tenant.policies.janela?.abertaAte;
   const days = useMemo(
-    () => bookableDays(new Date(), tenant.schedule, limite),
-    [tenant.schedule, limite]
+    () => bookableDays(new Date(), tenant.schedule, janelaConfigurada ? limite : undefined),
+    [tenant.schedule, limite, janelaConfigurada]
   );
   const selectedDay = days[dayIndex];
 

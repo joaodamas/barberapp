@@ -127,7 +127,9 @@ export default function AgendarPage() {
   const [tentativa, setTentativa] = useState(0);
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>(retomada?.serviceIds ?? []);
   const [selectedDayIndex, setSelectedDayIndex] = useState(() => {
-    const dias = bookableDays();
+    /* Com a jornada DESTA barbearia: com a padrão, segunda-feira contava como
+     * aberta e a tela abria no dia de hoje fechado ("não abre neste dia"). */
+    const dias = bookableDays(new Date(), tenant.schedule);
     const i = retomada ? dias.findIndex((d) => d.iso === retomada.dayIso) : -1;
     return i >= 0 ? i : firstBookableIndex(dias);
   });
@@ -298,9 +300,14 @@ export default function AgendarPage() {
     ehMensalista,
     horizontePadrao: tenant.policies.booking.maxAdvanceDays,
   });
+  /* A lista vai até o limite SÓ quando o barbeiro configurou a janela; sem
+   * configuração, os 10 dias de sempre — senão eram 60 botões seguidos. */
+  const janelaConfigurada = ehMensalista
+    ? tenant.policies.janela?.diasMensalista != null
+    : !!tenant.policies.janela?.abertaAte;
   const days = useMemo(
-    () => bookableDays(new Date(), tenant.schedule, limite),
-    [tenant.schedule, limite]
+    () => bookableDays(new Date(), tenant.schedule, janelaConfigurada ? limite : undefined),
+    [tenant.schedule, limite, janelaConfigurada]
   );
 
   const selectedServices = services.filter((s) =>
