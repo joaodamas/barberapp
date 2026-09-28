@@ -118,7 +118,10 @@ const nextConfig: NextConfig = {
        * entrar numa page, este bloco tem de sair junto — senão a resposta de um
        * cliente é servida ao próximo. */
       {
-        source: "/:path*",
+        /* Tudo MENOS os arquivos com hash de build (`/_next/static`), que têm
+         * a regra própria logo abaixo. Antes a regra valia para eles também,
+         * e o JS do app saía com o cache curto da página. */
+        source: "/((?!_next/static/).*)",
         headers: [
           {
             key: "Cache-Control",
@@ -134,6 +137,12 @@ const nextConfig: NextConfig = {
           },
           { key: "Vary", value: "Host" },
         ],
+      },
+      {
+        /* O nome de cada arquivo muda a cada build: guardar por um ano é
+         * seguro, e é o que o próprio Next faria sem a regra acima. */
+        source: "/_next/static/:path*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
       },
     ];
   },
