@@ -64,6 +64,16 @@ self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET") return;
 
+  /* Pedido para FORA do site passa direto pelo navegador (incidente de 28/09).
+   *
+   * O worker interceptava tudo, inclusive o script do reCAPTCHA no Google. E o
+   * `fetch` feito DE DENTRO do worker obedece à CSP com que o worker foi
+   * instalado: celulares com o worker antigo — CSP sem `www.google.com` —
+   * bloqueavam o reCAPTCHA, o App Check nunca conseguia token, e o app
+   * inteiro ficava esperando: ninguém marcava horário. O que é de outra
+   * origem não é deste cache nem desta política. */
+  if (new URL(request.url).origin !== self.location.origin) return;
+
   if (request.mode === "navigate") {
     event.respondWith(
       fetch(request).catch(async () => {
@@ -136,20 +146,22 @@ self.addEventListener("fetch", (event) => {
     url.searchParams.has("_rsc") ||
     request.headers.get("Accept")?.includes("text/x-component");
 
+  /* REDE PRIMEIRO (incidente de 28/09). Era cache primeiro: depois de um
+   * deploy, a tela vinha da versão anterior guardada no celular, pedia
+   * arquivos que não existem mais (404) e parava de responder — e cada deploy
+   * do dia acumulava mais versões velhas. O cache fica só para quando a rede
+   * falhar (offline). */
   if (isRsc) {
     event.respondWith(
-      caches.match(request).then((cached) => {
-        const rede = fetch(request)
-          .then((response) => {
-            if (response.ok) {
-              const clone = response.clone();
-              caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-            }
-            return response;
-          })
-          .catch(() => cached);
-        return cached || rede;
-      })
+      fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          }
+          return response;
+        })
+        .catch(() => caches.match(request).then((cached) => cached ?? Response.error()))
     );
     return;
   }

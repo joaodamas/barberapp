@@ -122,7 +122,10 @@ const nextConfig: NextConfig = {
         headers: [
           {
             key: "Cache-Control",
-            value: "public, max-age=0, s-maxage=300, stale-while-revalidate=86400",
+            /* Borda por 60s, e NÃO mais "velho por até um dia enquanto
+             * revalida" (incidente de 28/09): depois de um deploy, a página
+             * antiga apontava para arquivos que já não existiam. */
+            value: "public, max-age=0, s-maxage=60, stale-while-revalidate=60",
           },
           { key: "Vary", value: "Host" },
         ],

@@ -97,9 +97,54 @@ export function ServiceWorkerRegister() {
     };
     navigator.serviceWorker.addEventListener("controllerchange", aoTrocarControlador);
 
+    /* Toda vez que o app volta para a frente, pergunta se há versão nova
+     * (pedido do dono, 28/09: "toda vez que entrar no app"). O app instalado
+     * fica dias aberto em segundo plano, e o navegador só checava na
+     * navegação — o celular podia passar o dia inteiro na versão de ontem. */
+    const aoVoltar = () => {
+      if (document.visibilityState !== "visible") return;
+      void navigator.serviceWorker
+        .getRegistration()
+        .then((r) => r?.update())
+        .catch(() => undefined);
+    };
+    document.addEventListener("visibilitychange", aoVoltar);
+
+    /* Arquivo da versão anterior que já não existe (404 depois de um deploy):
+     * recarrega UMA vez, e a página volta com a versão nova. Sem isto a tela
+     * ficava aparente e morta — nenhum botão respondia. A marca na sessão
+     * impede um laço de recarregamentos se o problema for outro. */
+    const MARCA = `recarregou-por-versao:${process.env.NEXT_PUBLIC_BUILD_ID ?? "dev"}`;
+    const ehArquivoVelho = (texto: string) =>
+      /ChunkLoadError|Loading chunk|Failed to fetch dynamically imported module|Importing a module script failed/i.test(
+        texto
+      );
+    const recarregarUmaVez = () => {
+      try {
+        if (sessionStorage.getItem(MARCA)) return;
+        sessionStorage.setItem(MARCA, "1");
+      } catch {
+        /* sem sessionStorage, recarrega mesmo assim — uma vez por página */
+      }
+      window.location.reload();
+    };
+    const aoErro = (e: ErrorEvent) => {
+      const alvo = e.target as HTMLElement | null;
+      const src = (alvo as HTMLScriptElement | null)?.src ?? "";
+      if (src.includes("/_next/static/") || ehArquivoVelho(String(e.message ?? ""))) recarregarUmaVez();
+    };
+    const aoRejeitar = (e: PromiseRejectionEvent) => {
+      if (ehArquivoVelho(String((e.reason as Error | undefined)?.message ?? e.reason ?? ""))) recarregarUmaVez();
+    };
+    window.addEventListener("error", aoErro, true);
+    window.addEventListener("unhandledrejection", aoRejeitar);
+
     return () => {
       cancelado = true;
       navigator.serviceWorker.removeEventListener("controllerchange", aoTrocarControlador);
+      document.removeEventListener("visibilitychange", aoVoltar);
+      window.removeEventListener("error", aoErro, true);
+      window.removeEventListener("unhandledrejection", aoRejeitar);
       for (const evento of eventosDeInteracao) {
         window.removeEventListener(evento, marcarInteracao);
       }
