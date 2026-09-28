@@ -118,17 +118,31 @@ const nextConfig: NextConfig = {
        * entrar numa page, este bloco tem de sair junto — senão a resposta de um
        * cliente é servida ao próximo. */
       {
-        source: "/:path*",
+        /* Tudo MENOS os arquivos com hash de build (`/_next/static`), que têm
+         * a regra própria logo abaixo. Antes a regra valia para eles também,
+         * e o JS do app saía com o cache curto da página. */
+        source: "/((?!_next/static/).*)",
         headers: [
           {
             key: "Cache-Control",
-            /* Borda por 60s, e NÃO mais "velho por até um dia enquanto
-             * revalida" (incidente de 28/09): depois de um deploy, a página
-             * antiga apontava para arquivos que já não existiam. */
-            value: "public, max-age=0, s-maxage=60, stale-while-revalidate=60",
+            /* SEM cache de borda para o HTML (28/09, noite). Com s-maxage=60
+             * + stale-while-revalidate=60, o CDN continuava entregando a página
+             * da versão ANTERIOR por até 2 minutos depois de cada deploy — e
+             * ela aponta para chunks que a versão nova já não tem: tela em
+             * branco. A fumaça no DEV pegou exatamente isso (chunk 404 que
+             * existia só no build anterior). O HTML é a casca do app e o SSR
+             * tem instância mínima; os arquivos de /_next/static seguem
+             * imutáveis e cacheados, porque mudam de nome a cada build. */
+            value: "private, no-cache",
           },
           { key: "Vary", value: "Host" },
         ],
+      },
+      {
+        /* O nome de cada arquivo muda a cada build: guardar por um ano é
+         * seguro, e é o que o próprio Next faria sem a regra acima. */
+        source: "/_next/static/:path*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
       },
     ];
   },

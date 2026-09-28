@@ -30,8 +30,9 @@ import { toTenant } from "@/lib/tenant-shape";
  *
  * CONSEQUÊNCIA ARQUITETURAL: ler o `host` torna a rota dinâmica. O app era 100%
  * estático; com subdomínio por barbearia ele deixa de ser — não se prerenderiza
- * marca que só se conhece na requisição. A mitigação é o cache de borda por
- * host em `next.config.ts`.
+ * marca que só se conhece na requisição. O HTML NÃO é cacheado na borda
+ * (28/09): a página da versão anterior, servida depois de um deploy, apontava
+ * para arquivos que já não existiam. Ver `next.config.ts`.
  *
  * `cache()` do React deduplica a leitura DENTRO de uma mesma requisição: o
  * layout raiz, o `generateMetadata` e o manifest chamam `getTenant()` cada um
@@ -188,9 +189,9 @@ export const isPlatformRoot = cache(async function isPlatformRoot(): Promise<boo
 /**
  * `/slugs/{slug}` → `/barbershops/{id}`.
  *
- * Duas leituras por render não cacheado. O documento quase nunca muda, e o
- * cache de borda faz o render acontecer uma vez por barbearia — na prática são
- * duas leituras por barbearia a cada `s-maxage`, não por visita.
+ * Duas leituras por render. Sem cache de borda para o HTML (28/09), são duas
+ * leituras por carregamento de página — barato no volume de uma barbearia, e
+ * o preço de nunca servir a casca de uma versão que já saiu do ar.
  */
 async function loadTenantBySlug(slug: string): Promise<ResolucaoDeTenant> {
   /* Configuração ausente NÃO é "a barbearia não existe".
