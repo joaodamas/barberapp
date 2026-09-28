@@ -62,7 +62,7 @@ export function LiberacaoDaAgenda() {
   const vencida = !!abertaAte && abertaAte < hoje;
 
   return (
-    <Card className="flex flex-col gap-3 py-3 md:max-w-3xl">
+    <Card className="flex flex-col gap-3 py-3">
       <div className="flex items-start gap-2">
         <CalendarCheck2 size={18} className="mt-0.5 shrink-0 text-gold-strong" />
         <div className="min-w-0">

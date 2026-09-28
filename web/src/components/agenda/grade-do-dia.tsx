@@ -95,7 +95,7 @@ export function GradeDoDia({
   const colunas = `3rem repeat(${nFaixas}, minmax(0, 1fr))${temPedidos ? " minmax(0, 0.9fr)" : ""}`;
 
   return (
-    <div className="rounded-2xl border border-border bg-surface p-2 md:max-w-3xl">
+    <div className="rounded-2xl border border-border bg-surface p-2">
       {temPedidos && (
         <div className="mb-1 grid gap-1 text-[11px] uppercase tracking-wide text-ink-muted" style={{ gridTemplateColumns: colunas }}>
           <span />
