@@ -1144,6 +1144,25 @@ export function projecaoDeCaixa(params: {
   const media = (dow: number) => (soma[dow] ? Math.round(soma[dow].total / soma[dow].n) : 0);
 
   const ativos = params.subscribers.filter((s) => s.status === "ativo");
+  /* O dia da cobrança de cada mensalista. `billingDay` é o que o servidor
+   * grava (`criarMensalista`); `nextCharge` é o formato antigo. A projeção lia
+   * SÓ `nextCharge` — que nenhum mensalista real tem —, e a mensalidade inteira
+   * ficava fora da projeção (O Siqueira, 28/09: 12 mensalistas, R$ 2.770/mês,
+   * projetados como zero). */
+  const diaDoMensalista = (sub: Doc<SubscriberDoc>): number | null => {
+    const dia = Number(sub.billingDay ?? (sub.nextCharge ? sub.nextCharge.slice(-2) : NaN));
+    return Number.isInteger(dia) && dia >= 1 && dia <= 31 ? dia : null;
+  };
+  /* Quem é mensalista ativo: o corte marcado por ele JÁ está pago pela
+   * mensalidade — contá-lo de novo como receita da reserva seria o mesmo
+   * dinheiro duas vezes. É aproximação consciente: o atendimento além da cota
+   * do plano é cobrado avulso, e só o fechamento sabe a cota do mês. */
+  const clientesMensalistas = new Set(ativos.map((s) => s.clientId).filter(Boolean));
+  const receitaDaReserva = (b: Doc<BookingDoc>) => {
+    if (b.cobertura?.tipo === "plano") return 0;
+    if (b.status !== "completed" && clientesMensalistas.has(b.clientId)) return 0;
+    return b.value;
+  };
   /* Um compromisso recorrente por conta, não um por lançamento.
    *
    * Era `expenses.filter(e => e.recurring)` sobre o histórico inteiro: depois
@@ -1170,12 +1189,19 @@ export function projecaoDeCaixa(params: {
       ? !jornadaDoDia({ schedule: params.schedule, weekday: dow, date }).aberto
       : !params.openWeekdays.includes(dow);
 
+    /* Falta NÃO é receita: `OCCUPIES_SLOT` inclui `no_show` porque a falta
+     * ocupou a cadeira, e a projeção herdava isso como dinheiro que entra. */
     const confirmado = params.bookings
-      .filter((b) => b.date === date && OCCUPIES_SLOT.includes(b.status))
-      .reduce((s, b) => s + b.value, 0);
+      .filter((b) => b.date === date && OCCUPIES_SLOT.includes(b.status) && b.status !== "no_show")
+      .reduce((s, b) => s + receitaDaReserva(b), 0);
 
-    const isEstimate = !isClosed && confirmado === 0;
-    const bookingRevenue = isClosed ? 0 : confirmado || media(dow);
+    /* O dia com UMA reserva de R$ 40 era projetado como R$ 40: a reserva
+     * confirmada apagava a média do dia. Num dia que costuma encher, o que já
+     * está marcado é o PISO, não o total — vale o maior dos dois, e o dia fica
+     * marcado como estimado quando a média é que decidiu. */
+    const estimado = media(dow);
+    const isEstimate = !isClosed && estimado > confirmado;
+    const bookingRevenue = isClosed ? 0 : Math.max(confirmado, estimado);
 
     /* Mensalidade é RECORRENTE, não um evento único.
      *
@@ -1189,15 +1215,16 @@ export function projecaoDeCaixa(params: {
      * dela: mensalista com cobrança dia 20 não gera receita no dia 20 de um mês
      * anterior ao contrato. Dia 31 em mês de 30 cai no último dia — é o que os
      * meios de pagamento fazem. */
-    const diaDaCobranca = (iso: string) => Number(iso.slice(-2));
     const ultimoDiaDoMes = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
     const subscriptionCharge = ativos
       .filter((sub) => {
-        if (!sub.nextCharge || sub.nextCharge > date) return false;
-        const alvoDia = Math.min(diaDaCobranca(sub.nextCharge), ultimoDiaDoMes);
-        return alvoDia === d.getDate();
+        const dia = diaDoMensalista(sub);
+        if (dia === null) return false;
+        /* Com `nextCharge` (formato antigo), nada antes dele. */
+        if (sub.nextCharge && sub.nextCharge > date) return false;
+        return Math.min(dia, ultimoDiaDoMes) === d.getDate();
       })
-      .reduce((s, sub) => s + sub.price, 0);
+      .reduce((s, sub) => s + (Number(sub.price) || 0), 0);
 
     /* Mesma regra de dia da cobrança do mensalista, agora para a conta a pagar:
      * o dia do lançamento é o do vencimento, e o que cai no 31 vence no último

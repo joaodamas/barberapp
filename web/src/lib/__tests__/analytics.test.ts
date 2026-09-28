@@ -1039,3 +1039,84 @@ describe("ocupação — A17", () => {
     ).toBe(100);
   });
 });
+
+describe("projeção — mensalistas como o servidor grava (28/09)", () => {
+  /* O defeito: a projeção lia só `nextCharge`, que nenhum mensalista real tem.
+   * O servidor grava `billingDay`. Com 12 mensalistas no O Siqueira, a
+   * mensalidade inteira (R$ 2.770/mês) era projetada como zero. */
+  const base = {
+    expenses: [], historico: [], openWeekdays: [0, 1, 2, 3, 4, 5, 6],
+    inicio: new Date("2026-09-28T00:00:00"),
+  };
+
+  it("mensalista com `billingDay` entra todo mês, sem data de fim", () => {
+    const p = projecaoDeCaixa({
+      ...base,
+      bookings: [],
+      subscribers: [sub({ id: "s1", clientId: "c1", status: "ativo", price: 200, billingDay: 5, nextCharge: undefined })],
+      dias: 365,
+    });
+    const cobrancas = p.filter((d) => d.subscriptionCharge > 0).map((d) => d.date);
+    expect(cobrancas[0]).toBe("2026-10-05");
+    expect(cobrancas).toHaveLength(12); // out/26 a set/27
+    expect(p.reduce((s, d) => s + d.subscriptionCharge, 0)).toBe(2400);
+  });
+
+  it("dia 30 em fevereiro cai no último dia do mês", () => {
+    const p = projecaoDeCaixa({
+      ...base,
+      bookings: [],
+      subscribers: [sub({ id: "s1", clientId: "c1", status: "ativo", price: 200, billingDay: 30, nextCharge: undefined })],
+      dias: 200,
+    });
+    expect(p.find((d) => d.date === "2027-02-28")?.subscriptionCharge).toBe(200);
+  });
+
+  it("suspenso não entra", () => {
+    const p = projecaoDeCaixa({
+      ...base,
+      bookings: [],
+      subscribers: [sub({ id: "s1", clientId: "c1", status: "suspenso", price: 200, billingDay: 5, nextCharge: undefined })],
+      dias: 60,
+    });
+    expect(p.reduce((s, d) => s + d.subscriptionCharge, 0)).toBe(0);
+  });
+
+  it("o corte marcado por mensalista não entra de novo como receita", () => {
+    const p = projecaoDeCaixa({
+      ...base,
+      subscribers: [sub({ id: "s1", clientId: "mensalista", status: "ativo", price: 200, billingDay: 5, nextCharge: undefined })],
+      bookings: [
+        bk({ id: "b1", date: "2026-09-29", status: "confirmed", value: 60, clientId: "mensalista" }),
+        bk({ id: "b2", date: "2026-09-29", status: "confirmed", value: 60, clientId: "avulso" }),
+      ],
+      dias: 3,
+    });
+    expect(p.find((d) => d.date === "2026-09-29")?.bookingRevenue).toBe(60);
+  });
+
+  it("falta não é receita", () => {
+    const p = projecaoDeCaixa({
+      ...base,
+      subscribers: [],
+      bookings: [bk({ id: "b1", date: "2026-09-29", status: "no_show", value: 60, clientId: "x" })],
+      dias: 3,
+    });
+    expect(p.find((d) => d.date === "2026-09-29")?.bookingRevenue).toBe(0);
+  });
+
+  it("dia com poucas reservas usa a média quando ela é maior — a reserva é piso", () => {
+    const p = projecaoDeCaixa({
+      ...base,
+      historico: [
+        { date: "2026-09-22", pix: 900, cartao: 0, dinheiro: 0, naoInformado: 0, total: 900, appointments: 12 }, // terça
+      ],
+      subscribers: [],
+      bookings: [bk({ id: "b1", date: "2026-09-29", status: "confirmed", value: 40, clientId: "x" })], // terça
+      dias: 3,
+    });
+    const terca = p.find((d) => d.date === "2026-09-29")!;
+    expect(terca.bookingRevenue).toBe(900);
+    expect(terca.isEstimate).toBe(true);
+  });
+});
