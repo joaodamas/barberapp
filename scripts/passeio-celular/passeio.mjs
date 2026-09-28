@@ -199,6 +199,8 @@ for (const [aparelho, cfg] of APARELHOS) {
      interação (28/09). A semente tem horários de hoje em diante; se o dia
      estiver vazio, anda até achar um "Remarcar". */
   await visitar("/painel/agenda", "agenda_remarcar", async () => {
+    /* A Agenda abre na grade (28/09); o Remarcar está nos cartões da lista. */
+    await page.getByRole("tab", { name: "Lista" }).click();
     for (let i = 0; i < 7; i++) {
       const remarcar = page.getByRole("button", { name: "Remarcar" }).first();
       if (await remarcar.isVisible().catch(() => false)) {

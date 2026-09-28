@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { conflitosDoEncaixe, livresNoDia } from "@/lib/encaixe";
+import { conflitosDoEncaixe, livresNoDia, recomendarEncaixe } from "@/lib/encaixe";
 import type { BookingDoc } from "@/lib/domain";
 
 const r = (o: Partial<BookingDoc>) =>
@@ -66,5 +66,55 @@ describe("horários livres no mesmo dia", () => {
 
   it("dia fechado não tem oferta", () => {
     expect(livresNoDia({ schedule, date: "2026-10-04", staffId: "romulo", duracao: 30, todas: [] })).toEqual([]);
+  });
+});
+
+describe("sugestão de encaixe pelo tempo dos serviços", () => {
+  it("DUCA: 90 min por cima de três clientes → não recomendado", () => {
+    const r = recomendarEncaixe({
+      pedido: { time: "18:00", durationMin: 90 },
+      conflitos: [{ time: "18:00", durationMin: 30 }, { time: "18:30", durationMin: 30 }, { time: "19:00", durationMin: 30 }],
+      grade: 30,
+      livres: ["09:00", "16:30"],
+    });
+    expect(r.nivel).toBe("nao-recomendado");
+    expect(r.minutosSobrepostos).toBe(90);
+    expect(r.alternativa).toBe("16:30");
+  });
+
+  it("encaixe que só encosta 15 min → cabe", () => {
+    const r = recomendarEncaixe({
+      pedido: { time: "10:15", durationMin: 30 },
+      conflitos: [{ time: "09:30", durationMin: 60 }],
+      grade: 30,
+      livres: [],
+    });
+    expect(r.nivel).toBe("cabe");
+    expect(r.minutosSobrepostos).toBe(15);
+  });
+
+  it("um cliente, até metade do tempo → apertado", () => {
+    const r = recomendarEncaixe({
+      pedido: { time: "17:00", durationMin: 80 },
+      conflitos: [{ time: "17:00", durationMin: 30 }],
+      grade: 30,
+      livres: [],
+    });
+    expect(r.nivel).toBe("apertado");
+  });
+
+  it("Tais: 30 min inteiros dentro de um atendimento de 90 → não recomendado", () => {
+    const r = recomendarEncaixe({
+      pedido: { time: "14:00", durationMin: 30 },
+      conflitos: [{ time: "14:00", durationMin: 90 }],
+      grade: 30,
+      livres: ["15:30"],
+    });
+    expect(r.nivel).toBe("nao-recomendado");
+    expect(r.alternativa).toBe("15:30");
+  });
+
+  it("sem conflito → vagou", () => {
+    expect(recomendarEncaixe({ pedido: { time: "10:00", durationMin: 30 }, conflitos: [], grade: 30, livres: [] }).nivel).toBe("vagou");
   });
 });

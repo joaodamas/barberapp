@@ -79,3 +79,54 @@ export function livresNoDia(params: {
 }
 
 export type ReservaDoc = Doc<BookingDoc>;
+
+export type NivelDoEncaixe = "vagou" | "cabe" | "apertado" | "nao-recomendado";
+
+/**
+ * A sugestão da plataforma para um pedido de encaixe (pedido do dono, 28/09):
+ * cabe ou não, pelo TEMPO de cada serviço — quantos minutos o encaixe passa por
+ * cima do que já está marcado, e de quantos clientes.
+ *
+ * - vagou: não sobrepõe ninguém.
+ * - cabe: sobrepõe até 15 min — um atraso normal de barbearia absorve.
+ * - apertado: um cliente só, até metade do tempo do encaixe.
+ * - não recomendado: mais que isso, ou dois clientes ou mais.
+ *
+ * É SUGESTÃO: quem sabe se a luzes tem tempo de pausa em que dá para cortar
+ * outro é o barbeiro. A tela mostra o motivo em minutos, e a decisão é dele.
+ */
+export function recomendarEncaixe(params: {
+  pedido: Pick<BookingDoc, "time" | "durationMin">;
+  conflitos: Array<Pick<BookingDoc, "time" | "durationMin">>;
+  grade: number;
+  livres: string[];
+}): { nivel: NivelDoEncaixe; minutosSobrepostos: number; alternativa: string | null } {
+  const alvo = janela(params.pedido, params.grade);
+  let minutos = 0;
+  if (alvo) {
+    for (const c of params.conflitos) {
+      const j = janela(c, params.grade);
+      if (!j) continue;
+      minutos += Math.max(0, Math.min(alvo[1], j[1]) - Math.max(alvo[0], j[0]));
+    }
+  }
+  const duracao = alvo ? alvo[1] - alvo[0] : params.grade;
+  const n = params.conflitos.length;
+  const nivel: NivelDoEncaixe =
+    n === 0 || minutos === 0
+      ? "vagou"
+      : minutos <= 15
+        ? "cabe"
+        : n === 1 && minutos <= duracao / 2
+          ? "apertado"
+          : "nao-recomendado";
+
+  /* O horário livre mais perto do pedido — o que o barbeiro oferece se recusar. */
+  const pedidoMin = paraMinutos(params.pedido.time) ?? 0;
+  const alternativa =
+    [...params.livres].sort(
+      (a, b) => Math.abs((paraMinutos(a) ?? 0) - pedidoMin) - Math.abs((paraMinutos(b) ?? 0) - pedidoMin)
+    )[0] ?? null;
+
+  return { nivel, minutosSobrepostos: minutos, alternativa };
+}

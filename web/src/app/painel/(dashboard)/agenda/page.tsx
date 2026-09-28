@@ -28,7 +28,8 @@ import { capacidadeDaData } from "@/lib/jornada";
 import { EM_ABERTO, OCCUPIES_SLOT, type BookingDoc } from "@/lib/domain";
 import { formatBRL, formatPhonePtBR, toISODate } from "@/lib/format";
 import { contar } from "@/lib/plural";
-import { conflitosDoEncaixe, livresNoDia } from "@/lib/encaixe";
+import { conflitosDoEncaixe, livresNoDia, recomendarEncaixe, type NivelDoEncaixe } from "@/lib/encaixe";
+import { GradeDoDia } from "@/components/agenda/grade-do-dia";
 import type { Doc } from "@/lib/db/repository";
 
 /**
@@ -47,6 +48,10 @@ export default function AgendaPage() {
   const atendimento = useAcoesDoAtendimento();
   const [marcando, setMarcando] = useState(false);
   const [mostrarCancelados, setMostrarCancelados] = useState(false);
+  /* Grade é o padrão (pedido de 28/09: ver livre, ocupado e encaixes lado a
+   * lado). A lista continua para quem prefere rolar. */
+  const [modo, setModo] = useState<"grade" | "lista">("grade");
+  const [selecionadoId, setSelecionadoId] = useState<string | null>(null);
 
   const hoje = toISODate(new Date());
   const [diaEscolhido, setDiaEscolhido] = useState<string | null>(null);
@@ -108,6 +113,21 @@ export default function AgendaPage() {
     )
     .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
   const grade = tenant.schedule?.slotMinutes ?? 30;
+
+  /* Tudo que o barbeiro precisa para decidir um encaixe: com quem bate, o que
+   * o dia tem livre, e a sugestão pelo tempo dos serviços. */
+  const analisar = (p: Doc<BookingDoc>) => {
+    const conflitos = conflitosDoEncaixe(p, todas, grade);
+    const livres = livresNoDia({
+      schedule: tenant.schedule,
+      date: p.date,
+      staffId: p.staffId,
+      duracao: p.durationMin || grade,
+      todas,
+      agora: p.date === hoje ? agoraHHmm : undefined,
+    });
+    return { conflitos, livres, sugestao: recomendarEncaixe({ pedido: p, conflitos, grade, livres }) };
+  };
 
   const moverSemana = (n: number) => {
     const d = new Date(`${dia}T12:00:00`);
@@ -216,31 +236,113 @@ export default function AgendaPage() {
           <h2 className="text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
             Pedidos de encaixe · {pedidos.length}
           </h2>
-          {pedidos.map((p) => (
-            <PedidoDeEncaixe
-              key={p.id}
-              pedido={p}
-              conflitos={conflitosDoEncaixe(p, todas, grade)}
-              livres={livresNoDia({
-                schedule: tenant.schedule,
-                date: p.date,
-                staffId: p.staffId,
-                duracao: p.durationMin || grade,
-                todas,
-                agora: p.date === hoje ? agoraHHmm : undefined,
-              })}
-              grade={grade}
-              podeEditar={podeEditar}
-              atendimento={atendimento}
-              aoVerDia={() => escolher(p.date)}
-            />
-          ))}
+          {pedidos.map((p) => {
+            const a = analisar(p);
+            return (
+              <PedidoDeEncaixe
+                key={p.id}
+                pedido={p}
+                conflitos={a.conflitos}
+                livres={a.livres}
+                sugestao={a.sugestao}
+                grade={grade}
+                podeEditar={podeEditar}
+                atendimento={atendimento}
+                aoVerDia={() => {
+                  escolher(p.date);
+                  setModo("grade");
+                  setSelecionadoId(p.id);
+                }}
+              />
+            );
+          })}
         </section>
       )}
 
       {status === "carregando" && <LoadingRows rows={4} oQue="sua agenda" />}
       {status === "erro" && <ErroAoCarregar oQue="sua agenda" erro={error} />}
-      {status === "pronto" && visiveis.length === 0 && (
+      {status === "pronto" && (
+        <div className="flex gap-1 self-start rounded-xl border border-border bg-surface p-1" role="tablist" aria-label="Como ver o dia">
+          {(["grade", "lista"] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              role="tab"
+              aria-selected={modo === m}
+              onClick={() => setModo(m)}
+              className={
+                "min-h-9 rounded-lg px-3 text-xs font-medium " +
+                (modo === m ? "bg-gold text-ink" : "text-ink-muted hover:bg-surface-raised")
+              }
+            >
+              {m === "grade" ? "Grade do dia" : "Lista"}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {status === "pronto" && modo === "grade" && (() => {
+        const pedidosDoDia = pedidos.filter((p) => p.date === dia);
+        const ativosDoDia = doDia.filter((b) => !encerrados(b) && b.status !== "fit_in_requested");
+        const selecionado = doDia.find((b) => b.id === selecionadoId) ?? null;
+        const grid = (
+          <GradeDoDia
+            dia={dia}
+            reservas={ativosDoDia}
+            pedidos={pedidosDoDia.map((p) => ({ booking: p, nivel: analisar(p).sugestao.nivel as NivelDoEncaixe }))}
+            schedule={tenant.schedule}
+            selecionadoId={selecionadoId}
+            aoSelecionar={(id) => setSelecionadoId((atual) => (atual === id ? null : id))}
+            aoMarcarLivre={() => setMarcando(true)}
+            podeEditar={podeEditar}
+          />
+        );
+        return (
+          <div className="flex flex-col gap-2">
+            {abre(dia) || ativosDoDia.length > 0 || pedidosDoDia.length > 0 ? (
+              grid
+            ) : (
+              <EmptyState
+                icon={CalendarClock}
+                title="A barbearia não abre neste dia"
+                description="Para abrir num dia especial, use Ajustes › Horários."
+              />
+            )}
+            {selecionado &&
+              (selecionado.status === "fit_in_requested" ? (
+                (() => {
+                  const a = analisar(selecionado);
+                  return (
+                    <PedidoDeEncaixe
+                      pedido={selecionado}
+                      conflitos={a.conflitos}
+                      livres={a.livres}
+                      sugestao={a.sugestao}
+                      grade={grade}
+                      podeEditar={podeEditar}
+                      atendimento={atendimento}
+                      aoVerDia={() => setSelecionadoId(null)}
+                    />
+                  );
+                })()
+              ) : (
+                <div className="md:max-w-3xl">
+                  <LinhaDaAgenda
+                    booking={selecionado}
+                    hoje={hoje}
+                    agora={agora}
+                    toleranciaMin={tenant.policies.booking.lateToleranceMinutes}
+                    gradeMin={grade}
+                    podeEditar={podeEditar}
+                    atendimento={atendimento}
+                  />
+                </div>
+              ))}
+          </div>
+        );
+      })()}
+
+      {status === "pronto" && modo === "lista" && visiveis.length === 0 && (
         <EmptyState
           icon={CalendarClock}
           title={abre(dia) ? "Nenhum horário marcado neste dia" : "A barbearia não abre neste dia"}
@@ -254,7 +356,7 @@ export default function AgendaPage() {
         />
       )}
 
-      {status === "pronto" && visiveis.length > 0 && (
+      {status === "pronto" && modo === "lista" && visiveis.length > 0 && (
         <div className="flex flex-col gap-2 md:max-w-3xl">
           {visiveis.map((b) => (
             <LinhaDaAgenda
@@ -475,6 +577,7 @@ function PedidoDeEncaixe({
   pedido: p,
   conflitos,
   livres,
+  sugestao,
   grade,
   podeEditar,
   atendimento,
@@ -483,6 +586,7 @@ function PedidoDeEncaixe({
   pedido: Doc<BookingDoc>;
   conflitos: Doc<BookingDoc>[];
   livres: string[];
+  sugestao: ReturnType<typeof recomendarEncaixe>;
   grade: number;
   podeEditar: boolean;
   atendimento: ReturnType<typeof useAcoesDoAtendimento>;
@@ -522,6 +626,35 @@ function PedidoDeEncaixe({
         </div>
         <Pill tone="gold">Encaixe pendente</Pill>
       </div>
+
+      {/* A sugestão da plataforma, pelo tempo dos serviços. É sugestão: quem
+          sabe se a luzes tem pausa em que dá para cortar outro é o barbeiro. */}
+      <p
+        className={
+          "rounded-xl border px-3 py-2 text-xs " +
+          (sugestao.nivel === "nao-recomendado"
+            ? "border-danger/40 bg-danger/5 text-danger"
+            : sugestao.nivel === "apertado"
+              ? "border-gold/50 bg-gold/10 text-gold-strong"
+              : "border-success/40 bg-success/5 text-success")
+        }
+      >
+        <span className="font-semibold">
+          {sugestao.nivel === "vagou"
+            ? "Sugestão: pode aprovar."
+            : sugestao.nivel === "cabe"
+              ? "Sugestão: dá para encaixar."
+              : sugestao.nivel === "apertado"
+                ? "Sugestão: apertado."
+                : "Sugestão: não recomendado."}
+        </span>{" "}
+        {sugestao.minutosSobrepostos > 0
+          ? `Passa ${sugestao.minutosSobrepostos} min por cima do que já está marcado${
+              conflitos.length > 1 ? `, com ${conflitos.length} clientes` : ""
+            }.`
+          : "Não sobrepõe ninguém."}
+        {sugestao.nivel !== "vagou" && sugestao.alternativa && ` Melhor: ${sugestao.alternativa} está livre.`}
+      </p>
 
       <div className="rounded-xl border border-border bg-surface px-3 py-2">
         <p className={"text-xs font-semibold " + (pesado ? "text-danger" : "text-ink")}>
