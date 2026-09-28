@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { exigirEdicao, idSeguro, vinculosDe } from "./acesso";
 import { onSchedule } from "firebase-functions/v2/scheduler";
-import { FieldValue, getFirestore } from "firebase-admin/firestore";
+import { FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
 import { diaDaSemanaNoFuso, hojeNoFuso, instanteNoFuso, localeDoDocumento } from "./locale";
 import { horarioDisponivel, janelasOcupadas, podeRemarcar } from "./agenda";
 import { horariosDaJornada, jornadaDoDia } from "./jornada";
@@ -98,9 +98,95 @@ export function idDaReservaPorChave(uid: string, chave: unknown): string | undef
   return `app_${createHash("sha256").update(`${uid}:${chave}`).digest("hex").slice(0, 32)}`;
 }
 
+/* ================================================================== */
+/* Anti-abuso da agenda — auditoria de 28/09, achado M2                */
+/* ================================================================== */
+
+/**
+ * Identificador estável da recusa por e-mail não confirmado. Vai em
+ * `details.motivo` do erro para a tela reconhecer o caso sem depender do texto
+ * da mensagem — texto muda; o identificador, não.
+ */
+export const MOTIVO_EMAIL_NAO_VERIFICADO = "email-nao-verificado";
+export const MOTIVO_LIMITE_DIARIO = "limite-diario";
+
+/** O que do token decide se a conta pode agendar. */
+export type TokenDoCliente = {
+  email_verified?: unknown;
+  phone_number?: unknown;
+  firebase?: { sign_in_provider?: unknown };
+};
+
+/**
+ * A conta que agenda precisa ter provado que é de alguém.
+ *
+ * Até 28/09, qualquer conta de e-mail e senha agendava sem confirmar o e-mail:
+ * um script criava dezenas de contas com endereços inventados, cada uma com as
+ * 3 reservas do teto por cliente, e lotava a agenda de uma barbearia numa
+ * tarde. O teto por cliente não protege nada quando criar cliente é de graça.
+ *
+ * Passa quem tem custo para multiplicar contas: e-mail confirmado, telefone
+ * confirmado por SMS, ou Google (o token do Google já vem com
+ * `email_verified: true`; o provedor entra também por garantia, para uma conta
+ * Google antiga sem a marca não ser barrada à toa).
+ *
+ * Só para o CLIENTE (`createBooking`). O balcão é o dono marcando por alguém,
+ * e remarcar/cancelar mexem numa reserva que já passou por aqui.
+ */
+export function podeAgendarComEstaConta(token: TokenDoCliente | undefined | null): boolean {
+  if (!token) return false;
+  if (token.email_verified === true) return true;
+  if (typeof token.phone_number === "string" && token.phone_number.trim() !== "") return true;
+  return token.firebase?.sign_in_provider === "google.com";
+}
+
+/**
+ * Teto de reservas CRIADAS por conta por dia.
+ *
+ * O teto de ativas (3) sozinho não basta: criar e cancelar em laço segura os
+ * melhores horários do dia sem nunca passar de 3 ao mesmo tempo. Dez é folga
+ * de sobra para quem marca de verdade — ninguém cria dez reservas num dia — e
+ * corta o laço cedo. Conta só o que foi GRAVADO: tentativa recusada (horário
+ * tomado, teto de ativas) não pesa contra o cliente, e a repetição idempotente
+ * da mesma tentativa também não.
+ */
+export const RESERVAS_POR_DIA = 10;
+
+export function excedeuLimiteDiario(criadasHoje: unknown, maximo: number): boolean {
+  return Number(criadasHoje ?? 0) >= maximo;
+}
+
+/**
+ * O contador vive numa coleção de CONTROLE, fora da barbearia e fora do alcance
+ * do app: `firestore.rules` nega `limites_de_reserva` a todo mundo (declarado
+ * lá, além do fallback). Por dia no fuso da barbearia; `expiraEm` deixa pronto
+ * para uma política de TTL limpar os dias velhos.
+ */
+export function refDoLimiteDiario(
+  db: FirebaseFirestore.Firestore,
+  uid: string,
+  dia: string
+): FirebaseFirestore.DocumentReference {
+  return db.doc(`limites_de_reserva/${uid}_${dia}`);
+}
+
 export const createBooking = onCall<CriarReservaInput>(async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Entre na sua conta para agendar.");
+
+  /* Antes de qualquer leitura: conta sem prova de dono não custa nem o `get`
+   * da barbearia. A mensagem não afirma que um link foi enviado — quem envia é
+   * a tela, e daqui não dá para saber se chegou. */
+  if (!podeAgendarComEstaConta(request.auth?.token)) {
+    const email = String(request.auth?.token.email ?? "").trim();
+    throw new HttpsError(
+      "failed-precondition",
+      email
+        ? `Confirme seu e-mail para agendar. O link de confirmação vai para ${email}.`
+        : "Confirme seu e-mail para agendar.",
+      { motivo: MOTIVO_EMAIL_NAO_VERIFICADO }
+    );
+  }
 
   const { barbershopId, serviceIds, date, time, paymentOrigin, isFitIn } = request.data ?? {};
 
@@ -177,6 +263,12 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
       status = gravado;
     },
     idDaReserva: idDaReservaPorChave(uid, request.data?.chave),
+    /* Por conta, não por barbearia: quem lota a agenda de uma lota a de
+     * todas. O dia é o da barbearia, como o resto da reserva. */
+    limiteDiario: {
+      ref: refDoLimiteDiario(db, uid, hojeNoFuso(locale.timeZone)),
+      maximo: RESERVAS_POR_DIA,
+    },
     db,
     shopRef,
     clientId: uid,
@@ -814,6 +906,15 @@ export async function gravarComTravaDeHorario(params: {
    * documento que já existia.
    */
   aoDefinirStatus?: (status: string) => void;
+  /**
+   * Teto de criações por conta por dia (ver `RESERVAS_POR_DIA`). Só o
+   * `createBooking` passa: o balcão é o dono marcando, e não tem por que
+   * esbarrar num limite feito contra conta descartável.
+   *
+   * Lido e incrementado DENTRO da transação: fora dela, dez pedidos
+   * simultâneos leriam o mesmo "9" e passariam todos.
+   */
+  limiteDiario?: { ref: FirebaseFirestore.DocumentReference; maximo: number };
 }): Promise<string> {
   const { db, shopRef, date, time, staffId } = params;
   const bookingRef = params.idDaReserva
@@ -834,6 +935,22 @@ export async function gravarComTravaDeHorario(params: {
          * primeira virou pedido de encaixe, "confirmado" seria mentira. */
         params.aoDefinirStatus?.(String(existente.get("status")));
         return;
+      }
+    }
+
+    /* ---- Teto diário da conta (auditoria de 28/09, M2) ----
+     *
+     * Depois da repetição idempotente, que não cria nada e por isso não conta;
+     * antes de qualquer escrita, pela regra de leituras-primeiro. */
+    const limite = params.limiteDiario;
+    if (limite) {
+      const contador = await tx.get(limite.ref);
+      if (excedeuLimiteDiario(contador.get("criadas"), limite.maximo)) {
+        throw new HttpsError(
+          "resource-exhausted",
+          "Muitas tentativas hoje. Tente amanhã ou fale com a barbearia.",
+          { motivo: MOTIVO_LIMITE_DIARIO }
+        );
       }
     }
 
@@ -918,6 +1035,19 @@ export async function gravarComTravaDeHorario(params: {
 
     /* ---- FASE DE ESCRITA ---- */
     cadastro?.gravar(tx);
+    if (limite) {
+      tx.set(
+        limite.ref,
+        {
+          criadas: FieldValue.increment(1),
+          atualizadoEm: FieldValue.serverTimestamp(),
+          /* Dois dias de folga sobre o dia contado: o documento só serve
+           * enquanto o dia dele é "hoje" em algum fuso. */
+          expiraEm: Timestamp.fromMillis(Date.now() + 2 * 24 * 60 * 60 * 1000),
+        },
+        { merge: true }
+      );
+    }
     tx.set(bookingRef, {
       ...params.documento,
       ...(virouEncaixe ? { status: "fit_in_requested", isFitIn: true } : {}),

@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Check, Loader2, MailCheck, X } from "lucide-react";
+import { Check, Loader2, X } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { ConfirmeSeuEmail } from "@/components/confirme-seu-email";
 import { useAuth } from "@/lib/auth-context";
 import { ROOT_DOMAIN } from "@/lib/tenant";
 import { CADASTRO_ABERTO, destinoDoCadastro, hasPlatformContact } from "@/lib/platform";
@@ -44,7 +45,6 @@ export default function CriarContaPage() {
   >(null);
   const [erro, setErro] = useState<string | null>(null);
   const [criando, setCriando] = useState(false);
-  const [reenviado, setReenviado] = useState(false);
 
   const formato = validateSlug(slug);
 
@@ -95,59 +95,6 @@ export default function CriarContaPage() {
         : !user.emailVerified
           ? "precisa-verificar"
           : "formulario";
-
-  /* A tela afirma "Enviamos um link" — e nada enviava: o cadastro por e-mail
-   * não dispara verificação, e o único `sendEmailVerification` era o do botão
-   * "Reenviar". O dono esperava um e-mail que não existia. Envia uma vez por
-   * sessão ao chegar aqui sem verificação; o botão continua para o reenvio. */
-  const verificacaoEnviada = useRef(false);
-  useEffect(() => {
-    if (!user || user.emailVerified || verificacaoEnviada.current) return;
-    verificacaoEnviada.current = true;
-    const chave = `verificacao-enviada:${user.uid}`;
-    try {
-      if (sessionStorage.getItem(chave)) return;
-    } catch {}
-    void (async () => {
-      try {
-        const { sendEmailVerification } = await import("firebase/auth");
-        await sendEmailVerification(user);
-        try {
-          sessionStorage.setItem(chave, "1");
-        } catch {}
-      } catch (e) {
-        console.error("[criar-conta] falha ao enviar verificação", e);
-        setErro("Não conseguimos enviar o link de confirmação. Use \"Reenviar o link\".");
-      }
-    })();
-  }, [user]);
-
-  /* Recarregar a página não basta: o token em cache continua dizendo
-   * `email_verified: false` por até uma hora, e o servidor recusava a criação
-   * com "Confirme seu e-mail" logo depois de a tela liberar o formulário. */
-  async function jaConfirmei() {
-    if (user) {
-      try {
-        await user.reload();
-        await user.getIdToken(true);
-      } catch (e) {
-        console.error("[criar-conta] falha ao atualizar a verificação", e);
-      }
-    }
-    window.location.reload();
-  }
-
-  async function reenviarVerificacao() {
-    if (!user) return;
-    try {
-      const { sendEmailVerification } = await import("firebase/auth");
-      await sendEmailVerification(user);
-      setReenviado(true);
-    } catch (e) {
-      console.error("[criar-conta] falha ao reenviar verificação", e);
-      setErro("Não foi possível reenviar agora. Tente de novo em alguns minutos.");
-    }
-  }
 
   async function criar() {
     setErro(null);
@@ -246,28 +193,15 @@ export default function CriarContaPage() {
           </Card>
         )}
 
-        {estado === "precisa-verificar" && (
-          <Card className="flex flex-col items-center gap-4 py-10 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gold/10 text-gold-strong">
-              <MailCheck size={22} aria-hidden />
-            </div>
-            <div className="max-w-sm">
-              <p className="text-sm font-medium text-ink">Confirme seu e-mail</p>
-              <p className="mt-1 text-xs text-ink-muted">
-                Enviamos um link para <strong>{user?.email}</strong>. O endereço da
-                barbearia é definitivo, e a confirmação é o que impede alguém de
-                registrar nomes em massa.
-              </p>
-            </div>
-            {reenviado ? (
-              <p className="text-xs text-success">Link reenviado. Confira sua caixa de entrada.</p>
-            ) : (
-              <Button variant="ghost" onClick={reenviarVerificacao}>
-                Reenviar o link
-              </Button>
-            )}
-            <Button onClick={jaConfirmei}>Já confirmei</Button>
-          </Card>
+        {/* O envio automático, o "Reenviar o link" e o "Já confirmei" moram no
+            componente desde 28/09, quando o agendar passou a pedir o mesmo
+            (ver `components/confirme-seu-email.tsx`). */}
+        {estado === "precisa-verificar" && user && (
+          <ConfirmeSeuEmail
+            user={user}
+            explicacao="O endereço da barbearia é definitivo, e a confirmação é o que impede alguém de registrar nomes em massa."
+            aoConfirmar={() => window.location.reload()}
+          />
         )}
 
         {(estado === "formulario" || estado === "criando") && (

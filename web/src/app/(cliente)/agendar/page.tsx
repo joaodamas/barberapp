@@ -30,6 +30,11 @@ import {
   whatsappValido,
 } from "@/lib/db/perfil";
 import type { TimeSlot } from "@/lib/types";
+import { ConfirmeSeuEmail } from "@/components/confirme-seu-email";
+import {
+  ehRecusaPorEmailNaoVerificado,
+  precisaConfirmarEmail,
+} from "@/lib/verificacao-de-email";
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -143,6 +148,13 @@ export default function AgendarPage() {
   const minhaAssinatura = assinaturaAtivaDe(minhasAssinaturas, user?.uid);
   const [confirmando, setConfirmando] = useState(false);
   const [erroReserva, setErroReserva] = useState<string | null>(null);
+  /* Auditoria de 28/09, M2: conta de e-mail e senha só agenda com o e-mail
+   * confirmado — senão um script lota a agenda com contas inventadas. Em vez
+   * de o cliente descobrir isso num erro depois de tocar em "Confirmar", o
+   * cartão aparece no lugar da chamada, e a escolha (serviço, dia, horário,
+   * nome, WhatsApp) continua na tela: confirmado o e-mail, a reserva segue
+   * dali mesmo. */
+  const [pedirConfirmacaoDeEmail, setPedirConfirmacaoDeEmail] = useState(false);
 
   /* O WhatsApp do cliente, que o produto inteiro pressupõe e nunca coletava.
    *
@@ -225,6 +237,13 @@ export default function AgendarPage() {
       setErroReserva("Informe um WhatsApp válido com DDD — é por ele que a barbearia fala com você.");
       return;
     }
+    /* A mesma regra do servidor, antes de chamá-lo: nada é enviado a
+     * `createBooking` por quem ele vai recusar. */
+    if (precisaConfirmarEmail(user)) {
+      setErroReserva(null);
+      setPedirConfirmacaoDeEmail(true);
+      return;
+    }
     setConfirmando(true);
     setErroReserva(null);
     try {
@@ -254,6 +273,13 @@ export default function AgendarPage() {
       setGravado(r?.status === "fit_in_requested" ? "fit_in_requested" : "confirmed");
       setStep(4);
     } catch (err) {
+      /* O servidor é quem decide: token antigo (ainda sem a marca de
+       * confirmado) ou regra que a tela não previu caem aqui, e o cliente vê
+       * o cartão com a saída — não o texto cru do erro. */
+      if (ehRecusaPorEmailNaoVerificado(err)) {
+        setPedirConfirmacaoDeEmail(true);
+        return;
+      }
       const msg = (err as { message?: string })?.message;
       setErroReserva(msg ?? "Não foi possível concluir. Tente de novo.");
     } finally {
@@ -821,6 +847,18 @@ export default function AgendarPage() {
             <p role="alert" className="text-sm text-danger">
               {erroReserva}
             </p>
+          )}
+
+          {user && pedirConfirmacaoDeEmail && (
+            <ConfirmeSeuEmail
+              user={user}
+              rolarAteAqui
+              explicacao="É o que garante que a reserva é de uma pessoa de verdade. Sua escolha fica aqui: confirmado o e-mail, a reserva segue."
+              aoConfirmar={() => {
+                setPedirConfirmacaoDeEmail(false);
+                void confirmarReserva();
+              }}
+            />
           )}
 
           {/* A política é DESTA barbearia, não a da plataforma.
