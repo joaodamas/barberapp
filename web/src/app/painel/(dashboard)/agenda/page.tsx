@@ -13,6 +13,7 @@ import {
   UserX,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
@@ -52,6 +53,21 @@ export default function AgendaPage() {
    * lado). A lista continua para quem prefere rolar. */
   const [modo, setModo] = useState<"grade" | "lista">("grade");
   const [selecionadoId, setSelecionadoId] = useState<string | null>(null);
+  /* As ações de dentro da janela do atendimento: cada uma fecha a janela
+   * antes de abrir o próprio diálogo (remarcar, cancelar, concluir…). */
+  const atendimentoNaJanela: typeof atendimento = {
+    ...atendimento,
+    abrirConcluir: (b) => (setSelecionadoId(null), atendimento.abrirConcluir(b)),
+    abrirFalta: (b) => (setSelecionadoId(null), atendimento.abrirFalta(b)),
+    abrirCancelar: (b) => (setSelecionadoId(null), atendimento.abrirCancelar(b)),
+    abrirCorrecao: (b) => (setSelecionadoId(null), atendimento.abrirCorrecao(b)),
+    abrirEstorno: (b) => (setSelecionadoId(null), atendimento.abrirEstorno(b)),
+    abrirRemarcar: (b) => (setSelecionadoId(null), atendimento.abrirRemarcar(b)),
+    responderEncaixe: (b, aprovar, sugestoes) => {
+      setSelecionadoId(null);
+      atendimento.responderEncaixe(b, aprovar, sugestoes);
+    },
+  };
 
   const hoje = toISODate(new Date());
   const [diaEscolhido, setDiaEscolhido] = useState<string | null>(null);
@@ -232,7 +248,7 @@ export default function AgendaPage() {
       {atendimento.temAviso && <div className="flex flex-col">{atendimento.avisos}</div>}
 
       {pedidos.length > 0 && (
-        <section className="flex flex-col gap-2 md:max-w-3xl">
+        <section className="flex flex-col gap-2">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
             Pedidos de encaixe · {pedidos.length}
           </h2>
@@ -308,25 +324,35 @@ export default function AgendaPage() {
                 description="Para abrir num dia especial, use Ajustes › Horários."
               />
             )}
-            {selecionado &&
-              (selecionado.status === "fit_in_requested" ? (
-                (() => {
-                  const a = analisar(selecionado);
-                  return (
-                    <PedidoDeEncaixe
-                      pedido={selecionado}
-                      conflitos={a.conflitos}
-                      livres={a.livres}
-                      sugestao={a.sugestao}
-                      grade={grade}
-                      podeEditar={podeEditar}
-                      atendimento={atendimento}
-                      aoVerDia={() => setSelecionadoId(null)}
-                    />
-                  );
-                })()
-              ) : (
-                <div className="md:max-w-3xl">
+            {/* Tocar na grade abre o atendimento numa janela (pedido do dono,
+                28/09): antes o cartão aparecia lá embaixo, fora da vista. No
+                celular o Modal vira gaveta. Qualquer ação fecha a janela antes
+                de abrir a sua — dois diálogos empilhados brigariam pelo foco. */}
+            <Modal
+              open={!!selecionado}
+              onClose={() => setSelecionadoId(null)}
+              title={
+                selecionado?.status === "fit_in_requested" ? "Pedido de encaixe" : "Atendimento"
+              }
+              className="sm:max-w-xl"
+            >
+              {selecionado &&
+                (selecionado.status === "fit_in_requested" ? (
+                  (() => {
+                    const a = analisar(selecionado);
+                    return (
+                      <PedidoDeEncaixe
+                        pedido={selecionado}
+                        conflitos={a.conflitos}
+                        livres={a.livres}
+                        sugestao={a.sugestao}
+                        grade={grade}
+                        podeEditar={podeEditar}
+                        atendimento={atendimentoNaJanela}
+                      />
+                    );
+                  })()
+                ) : (
                   <LinhaDaAgenda
                     booking={selecionado}
                     hoje={hoje}
@@ -334,10 +360,10 @@ export default function AgendaPage() {
                     toleranciaMin={tenant.policies.booking.lateToleranceMinutes}
                     gradeMin={grade}
                     podeEditar={podeEditar}
-                    atendimento={atendimento}
+                    atendimento={atendimentoNaJanela}
                   />
-                </div>
-              ))}
+                ))}
+            </Modal>
           </div>
         );
       })()}
@@ -357,7 +383,7 @@ export default function AgendaPage() {
       )}
 
       {status === "pronto" && modo === "lista" && visiveis.length > 0 && (
-        <div className="flex flex-col gap-2 md:max-w-3xl">
+        <div className="flex flex-col gap-2">
           {visiveis.map((b) => (
             <LinhaDaAgenda
               key={b.id}
@@ -590,7 +616,8 @@ function PedidoDeEncaixe({
   grade: number;
   podeEditar: boolean;
   atendimento: ReturnType<typeof useAcoesDoAtendimento>;
-  aoVerDia: () => void;
+  /** Sem ele, o botão "Ver o dia" some — dentro da janela, o dia já está atrás. */
+  aoVerDia?: () => void;
 }) {
   const duracao = p.durationMin || grade;
   const servicos = ((p as { serviceNames?: string[] }).serviceNames ?? []).join(" + ") || "Serviço";
@@ -703,9 +730,11 @@ function PedidoDeEncaixe({
             </Button>
           </>
         )}
-        <Button variant="secondary" className="min-h-9 px-3 text-xs" onClick={aoVerDia}>
-          Ver o dia
-        </Button>
+        {aoVerDia && (
+          <Button variant="secondary" className="min-h-9 px-3 text-xs" onClick={aoVerDia}>
+            Ver o dia
+          </Button>
+        )}
       </div>
     </Card>
   );
