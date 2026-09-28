@@ -1,7 +1,8 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { idSeguro, vinculosDe } from "./acesso";
+import { ehMensalistaAtivo, limiteDoCliente } from "./janela";
 import { getFirestore } from "firebase-admin/firestore";
-import { diaDaSemanaNoFuso, instanteNoFuso, localeDoDocumento } from "./locale";
+import { diaDaSemanaNoFuso, hojeNoFuso, instanteNoFuso, localeDoDocumento } from "./locale";
 import { janelaLivre, janelasOcupadas, paraHora, paraMinutos } from "./agenda";
 import { jornadaDoDia, type ExcecaoDeAgenda, type JornadaDoDia } from "./jornada";
 
@@ -141,6 +142,22 @@ export const availableSlots = onCall<{
     barbershopId
   ];
   const ehDaCasa = papel === "owner" || papel === "staff";
+
+  /* Janela de agenda (28/09): o cliente só vê horário até a data liberada
+   * pelo barbeiro — ou, se é mensalista, pelos dias que o plano dá. Quem é da
+   * casa vê tudo. A resposta diz até quando está aberto, para a tela explicar
+   * em vez de mostrar um dia vazio. */
+  if (!ehDaCasa) {
+    const limite = limiteDoCliente({
+      hoje: hojeNoFuso(locale.timeZone),
+      janela: policies.janela,
+      ehMensalista: await ehMensalistaAtivo(shopRef, request.auth?.uid),
+      horizontePadrao: policies.booking?.maxAdvanceDays,
+    });
+    if (date! > limite) {
+      return { slots: [], encaixes: [], staffId: barbeiro.id, foraDaJanela: true, abertaAte: limite };
+    }
+  }
   const minutosMinimos: number =
     request.data?.paraOBalcao && ehDaCasa ? 0 : (policies.booking?.minAdvanceMinutes ?? 60);
 

@@ -135,6 +135,13 @@ export type TenantCommissionSplit = {
 };
 
 export type TenantPolicies = {
+  /**
+   * Janela de agenda dos clientes (28/09): o barbeiro libera a agenda dos
+   * avulsos por período e define quantos dias o mensalista enxerga. Ausente =
+   * horizonte padrão. A regra mora em `lib/janela.ts` (e no servidor, em
+   * `functions/src/janela.ts`).
+   */
+  janela?: { abertaAte?: string | null; diasMensalista?: number | null };
   cancellation: typeof defaultCancellationPolicy;
   reschedule: typeof defaultReschedulePolicy;
   booking: TenantBookingPolicy;

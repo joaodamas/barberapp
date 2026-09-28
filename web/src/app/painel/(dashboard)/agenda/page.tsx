@@ -19,6 +19,7 @@ import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
 import { MarcarNoBalcao } from "@/components/marcar-no-balcao";
 import { useAcoesDoAtendimento } from "@/components/agenda/acoes-do-atendimento";
+import { LiberacaoDaAgenda } from "@/components/agenda/liberacao-da-agenda";
 import { useBookings } from "@/lib/db/use-shop-data";
 import { useAcesso, useTenant } from "@/lib/tenant-context";
 import { liquidacaoDoAtendimento, metaDoStatus } from "@/lib/booking-status";
@@ -139,6 +140,8 @@ export default function AgendaPage() {
         )}
       </div>
 
+      <LiberacaoDaAgenda />
+
       {/* A semana: um toque escolhe o dia; o número é quantos horários ele tem. */}
       <div className="flex items-center gap-1.5">
         <button
@@ -174,7 +177,15 @@ export default function AgendaPage() {
                 <span className={"text-base font-semibold " + (iso === hoje ? "text-gold-strong" : "")}>
                   {iso.slice(8)}
                 </span>
-                <span className="text-[11px] text-ink-muted">{fechado ? "fechado" : n > 0 ? n : "–"}</span>
+                <span className="text-[11px] text-ink-muted">
+                  {fechado
+                    ? "fechado"
+                    : n > 0
+                      ? n
+                      : tenant.policies.janela?.abertaAte && iso > tenant.policies.janela.abertaAte
+                        ? "não lib."
+                        : "–"}
+                </span>
               </button>
             );
           })}

@@ -16,11 +16,12 @@ import { assinaturaAtivaDe, termosDoPlano } from "@/lib/booking-status";
 import { useTenant } from "@/lib/tenant-context";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { CalendarX2 } from "lucide-react";
-import { formatBRL } from "@/lib/format";
+import { formatBRL, toISODate } from "@/lib/format";
 import { contar } from "@/lib/plural";
 import { estadoDosHorarios } from "./estado-dos-horarios";
 import { bookableDays, firstBookableIndex } from "@/lib/slots";
 import { useAuth } from "@/lib/auth-context";
+import { limiteDoCliente } from "@/lib/janela";
 import { alguemFaz, quemFaz } from "@/lib/quem-faz";
 import {
   lerPerfil,
@@ -287,7 +288,20 @@ export default function AgendarPage() {
     }
   }
 
-  const days = useMemo(() => bookableDays(new Date(), tenant.schedule), [tenant.schedule]);
+  /* A janela deste cliente (28/09): o avulso vê até a data que o barbeiro
+   * liberou; o mensalista, os dias que o plano dá. Mesma regra do servidor
+   * (`lib/janela.ts`), para a tela não oferecer dia que ele vai recusar. */
+  const ehMensalista = !!minhaAssinatura;
+  const limite = limiteDoCliente({
+    hoje: toISODate(new Date()),
+    janela: tenant.policies.janela,
+    ehMensalista,
+    horizontePadrao: tenant.policies.booking.maxAdvanceDays,
+  });
+  const days = useMemo(
+    () => bookableDays(new Date(), tenant.schedule, limite),
+    [tenant.schedule, limite]
+  );
 
   const selectedServices = services.filter((s) =>
     selectedServiceIds.includes(s.id)
@@ -567,6 +581,21 @@ export default function AgendarPage() {
                   })}
               </div>
             </div>
+          )}
+
+          {!ehMensalista && tenant.policies.janela?.abertaAte && (
+            <p className="text-xs text-ink-muted">
+              Agenda aberta até{" "}
+              <span className="font-medium text-ink">
+                {new Date(`${limite}T12:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
+              </span>
+              . As próximas datas são liberadas pela barbearia.
+            </p>
+          )}
+          {days.length === 0 && (
+            <Card className="py-6 text-center text-sm text-ink-muted">
+              A agenda ainda não foi liberada para os próximos dias. Fale com a barbearia pelo WhatsApp.
+            </Card>
           )}
 
           <div className="flex gap-2 overflow-x-auto pb-1">
