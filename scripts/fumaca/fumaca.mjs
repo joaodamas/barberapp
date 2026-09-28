@@ -78,7 +78,8 @@ async function visita(context, nome) {
   await page.getByRole("button", { name: "Continuar" }).click();
   // Com mais de um barbeiro, o cliente escolhe antes de ver horário.
   const escolha = page.getByText("Com quem você quer cortar");
-  if (await escolha.isVisible({ timeout: 3_000 }).catch(() => false)) {
+  // `isVisible` não espera: o passo 2 aparece um instante depois do clique.
+  if (await escolha.waitFor({ timeout: 5_000 }).then(() => true, () => false)) {
     await escolha.locator("xpath=..").locator("button").first().click();
   }
   const resposta = await slots;
