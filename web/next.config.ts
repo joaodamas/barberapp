@@ -122,10 +122,15 @@ const nextConfig: NextConfig = {
         headers: [
           {
             key: "Cache-Control",
-            /* Borda por 60s, e NÃO mais "velho por até um dia enquanto
-             * revalida" (incidente de 28/09): depois de um deploy, a página
-             * antiga apontava para arquivos que já não existiam. */
-            value: "public, max-age=0, s-maxage=60, stale-while-revalidate=60",
+            /* SEM cache de borda para o HTML (28/09, noite). Com s-maxage=60
+             * + stale-while-revalidate=60, o CDN continuava entregando a página
+             * da versão ANTERIOR por até 2 minutos depois de cada deploy — e
+             * ela aponta para chunks que a versão nova já não tem: tela em
+             * branco. A fumaça no DEV pegou exatamente isso (chunk 404 que
+             * existia só no build anterior). O HTML é a casca do app e o SSR
+             * tem instância mínima; os arquivos de /_next/static seguem
+             * imutáveis e cacheados, porque mudam de nome a cada build. */
+            value: "private, no-cache",
           },
           { key: "Vary", value: "Host" },
         ],
