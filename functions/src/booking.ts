@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { exigirEdicao, idSeguro, vinculosDe } from "./acesso";
+import { ehMensalistaAtivo, limiteDoCliente } from "./janela";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
 import { diaDaSemanaNoFuso, hojeNoFuso, instanteNoFuso, localeDoDocumento } from "./locale";
@@ -238,6 +239,15 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
    * por três — o bastante para recusar horário válido ou aceitar um que passou. */
   const locale = localeDoDocumento(shop);
 
+  /* A janela deste cliente (28/09): avulso até a data que o barbeiro liberou,
+   * mensalista pelos dias que o barbeiro definiu. */
+  const limiteData = limiteDoCliente({
+    hoje: hojeNoFuso(locale.timeZone),
+    janela: policies.janela,
+    ehMensalista: await ehMensalistaAtivo(shopRef, uid),
+    horizontePadrao: policies.booking?.maxAdvanceDays,
+  });
+
   const pedido = await validarPedido({
     shopRef,
     shop,
@@ -247,6 +257,7 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
     time,
     staffId: request.data?.staffId,
     exigirAntecedencia: true,
+    limiteData,
   });
 
   const { staffId, value, durationMin, nomes, slotMinutes, duracaoDaReserva } = pedido;
@@ -386,6 +397,11 @@ function motivoDeDiaFechado(
     : "A barbearia não abre neste dia.";
 }
 
+/** "2026-10-13" → "13/10", para a mensagem ao cliente. */
+export function diaMes(iso: string): string {
+  return `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+}
+
 /** Horizonte padrão para o cliente — o mesmo `maxAdvanceDays` da tela. */
 const HORIZONTE_CLIENTE_DIAS = 60;
 /** O balcão marca retorno e pacote com folga, mas não em 2028. */
@@ -430,6 +446,12 @@ export async function validarPedido(params: {
   time: string;
   staffId?: string;
   exigirAntecedencia: boolean;
+  /**
+   * Última data que ESTE cliente pode marcar (`limiteDoCliente`). Presente,
+   * substitui o horizonte fixo — o barbeiro libera a agenda por período, e o
+   * mensalista enxerga mais à frente.
+   */
+  limiteData?: string;
 }): Promise<PedidoValidado> {
   const { shopRef, shop, locale, serviceIds, date, time } = params;
   const policies = shop.policies ?? {};
@@ -439,10 +461,18 @@ export async function validarPedido(params: {
   if (!dataValida(date)) throw new HttpsError("invalid-argument", "Data inválida.");
   if (!horaValida(time)) throw new HttpsError("invalid-argument", "Horário inválido.");
 
+  if (params.exigirAntecedencia && params.limiteData) {
+    if (date > params.limiteData) {
+      throw new HttpsError(
+        "failed-precondition",
+        `A agenda está aberta até ${diaMes(params.limiteData)}. As próximas datas são liberadas pela barbearia.`
+      );
+    }
+  }
   const horizonte = params.exigirAntecedencia
     ? Number(policies.booking?.maxAdvanceDays) || HORIZONTE_CLIENTE_DIAS
     : HORIZONTE_BALCAO_DIAS;
-  if (alemDoHorizonte(date, locale.timeZone, horizonte)) {
+  if (!(params.exigirAntecedencia && params.limiteData) && alemDoHorizonte(date, locale.timeZone, horizonte)) {
     throw new HttpsError(
       "failed-precondition",
       `Dá para marcar com até ${horizonte} dias de antecedência.`
@@ -1136,8 +1166,25 @@ export const rescheduleBooking = onCall<{
   /* Reserva antiga, sem `staffId`: vale a jornada da loja. */
   const barbeiro = barbeiroSnap ?? { get: () => undefined };
 
-  if (alemDoHorizonte(date, locale.timeZone, ehDono ? HORIZONTE_BALCAO_DIAS : Number(policies.booking?.maxAdvanceDays) || HORIZONTE_CLIENTE_DIAS)) {
-    throw new HttpsError("failed-precondition", "Essa data está longe demais para remarcar.");
+  if (ehDono) {
+    if (alemDoHorizonte(date, locale.timeZone, HORIZONTE_BALCAO_DIAS)) {
+      throw new HttpsError("failed-precondition", "Essa data está longe demais para remarcar.");
+    }
+  } else {
+    /* O cliente remarcando segue a MESMA janela de quando marca — senão
+     * remarcar seria a porta para a data que o barbeiro ainda não liberou. */
+    const limite = limiteDoCliente({
+      hoje: hojeNoFuso(locale.timeZone),
+      janela: policies.janela,
+      ehMensalista: await ehMensalistaAtivo(shopRef, uid),
+      horizontePadrao: policies.booking?.maxAdvanceDays,
+    });
+    if (date > limite) {
+      throw new HttpsError(
+        "failed-precondition",
+        `A agenda está aberta até ${diaMes(limite)}. As próximas datas são liberadas pela barbearia.`
+      );
+    }
   }
 
   const { doDia, slotMinutes, temJornadaPropria } = jornadaDoBarbeiro({

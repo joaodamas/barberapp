@@ -61,13 +61,27 @@ export type BookableDay = {
 /** Próximos dias oferecidos, já marcando os que não são agendáveis. */
 export function bookableDays(
   from: Date = new Date(),
-  schedule: TenantSchedule = DEFAULT_SCHEDULE
+  schedule: TenantSchedule = DEFAULT_SCHEDULE,
+  /**
+   * Última data que ESTE cliente pode marcar (`limiteDoCliente`, 28/09).
+   * Presente, a lista vai de hoje até ela — nem menos (o mensalista vê o mês
+   * seguinte), nem mais (o avulso não vê o que o barbeiro não liberou).
+   */
+  ate?: string
 ): BookableDay[] {
   const days: BookableDay[] = [];
   const maxDate = new Date(from);
   maxDate.setDate(from.getDate() + bookingPolicy.maxAdvanceDays);
+  if (ate) {
+    const [a, m, d] = ate.split("-").map(Number);
+    maxDate.setFullYear(a, m - 1, d);
+    maxDate.setHours(23, 59, 59, 999);
+  }
+  const quantos = ate
+    ? Math.max(0, Math.min(90, Math.round((maxDate.getTime() - from.getTime()) / 86_400_000) + 1))
+    : bookingPolicy.visibleDays;
 
-  for (let i = 0; days.length < bookingPolicy.visibleDays; i++) {
+  for (let i = 0; days.length < quantos; i++) {
     const date = new Date(from);
     date.setDate(from.getDate() + i);
     date.setHours(0, 0, 0, 0);
@@ -82,7 +96,7 @@ export function bookableDays(
     });
 
     // Trava de segurança: nunca varrer mais que o horizonte permitido.
-    if (i > bookingPolicy.maxAdvanceDays) break;
+    if (i > Math.max(bookingPolicy.maxAdvanceDays, quantos)) break;
   }
   return days;
 }

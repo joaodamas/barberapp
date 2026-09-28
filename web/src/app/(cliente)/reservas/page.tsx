@@ -13,7 +13,9 @@ import { labelDoPagamento } from "@/lib/payment-method";
 import { formatBRL, formatDatePtBR, toISODate } from "@/lib/format";
 import { useTenant } from "@/lib/tenant-context";
 import { useAuth } from "@/lib/auth-context";
-import { useLoyalty, useMyBookings, useServices } from "@/lib/db/use-shop-data";
+import { useLoyalty, useMinhasAssinaturas, useMyBookings, useServices } from "@/lib/db/use-shop-data";
+import { assinaturaAtivaDe } from "@/lib/booking-status";
+import { limiteDoCliente } from "@/lib/janela";
 import { EM_ABERTO } from "@/lib/domain";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { bookableDays, firstBookableIndex } from "@/lib/slots";
@@ -130,7 +132,19 @@ export default function ReservasPage() {
   const [salvando, setSalvando] = useState(false);
   const [erroReserva, setErroReserva] = useState<string | null>(null);
 
-  const days = useMemo(() => bookableDays(new Date(), tenant.schedule), [tenant.schedule]);
+  /* Remarcar segue a MESMA janela de marcar (28/09) — o servidor recusa o
+   * resto, e a tela não deve oferecer o que ele vai recusar. */
+  const { items: minhasAssinaturas } = useMinhasAssinaturas(user?.uid);
+  const limite = limiteDoCliente({
+    hoje: toISODate(new Date()),
+    janela: tenant.policies.janela,
+    ehMensalista: !!assinaturaAtivaDe(minhasAssinaturas, user?.uid),
+    horizontePadrao: tenant.policies.booking.maxAdvanceDays,
+  });
+  const days = useMemo(
+    () => bookableDays(new Date(), tenant.schedule, limite),
+    [tenant.schedule, limite]
+  );
   const selectedDay = days[dayIndex];
 
   /* Os horários de remarcação vêm do SERVIDOR — P1-4.
