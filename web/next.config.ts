@@ -28,9 +28,11 @@ const CSP = [
    * e nenhum botão responde. Só descobri clicando. */
   `script-src 'self' 'unsafe-inline' ${isDev ? "'unsafe-eval' " : ""}https://apis.google.com https://www.gstatic.com https://www.google.com`,
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https://*.googleusercontent.com",
+  // gstatic: selo e imagens do reCAPTCHA do App Check (28/09).
+  "img-src 'self' data: blob: https://*.googleusercontent.com https://www.gstatic.com",
   "font-src 'self' data:",
-  `connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://*.cloudfunctions.net${isDev ? " ws://localhost:* ws://*.lvh.me:* http://127.0.0.1:*" : ""}`,
+  // www.google.com: o reCAPTCHA do App Check fala com ele (28/09).
+  `connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://*.cloudfunctions.net https://www.google.com${isDev ? " ws://localhost:* ws://*.lvh.me:* http://127.0.0.1:*" : ""}`,
   // reCAPTCHA (login por SMS) e o popup de conta Google.
   "frame-src https://*.firebaseapp.com https://www.google.com https://accounts.google.com",
   "worker-src 'self'",
