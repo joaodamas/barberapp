@@ -14,8 +14,10 @@ const firebaseConfig: FirebaseOptions = {
 /* O SDK falha com "auth/invalid-api-key" — mensagem que não diz o que fazer — e
  * como este módulo é avaliado no prerender de TODA rota, o build inteiro morre
  * sem explicação. Falhar antes, dizendo exatamente o que falta. */
+/* `measurementId` fica de fora: é do Analytics, opcional, e o projeto de DEV
+ * não tem Analytics — exigir derrubava toda página lá com 500 (28/09). */
 const missingKeys = Object.entries(firebaseConfig)
-  .filter(([, value]) => !value)
+  .filter(([key, value]) => !value && key !== "measurementId")
   .map(([key]) => key);
 
 if (missingKeys.length > 0) {
@@ -144,7 +146,7 @@ export async function callFunction<TInput, TOutput>(name: string, data: TInput) 
 }
 
 export async function getFirebaseAnalytics() {
-  if (typeof window === "undefined") return null;
+  if (typeof window === "undefined" || !firebaseConfig.measurementId) return null;
   const { getAnalytics, isSupported } = await import("firebase/analytics");
   if (!(await isSupported())) return null;
   return getAnalytics(firebaseApp);
