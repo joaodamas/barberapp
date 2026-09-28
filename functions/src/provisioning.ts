@@ -4,7 +4,7 @@ import { vinculosDe } from "./acesso";
 import { getAuth } from "firebase-admin/auth";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { featuresFor, toPlanId } from "./plans";
-import { TRIAL_DAYS } from "./signup";
+import { RESERVED_SLUGS, TRIAL_DAYS } from "./signup";
 import { politicasIniciais } from "./financial-events";
 
 /**
@@ -44,9 +44,6 @@ const DEFAULT_SCHEDULE = {
 const SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]{1,28}[a-z0-9])$/;
 
 /** Subdomínios da plataforma — não podem virar barbearia. */
-const RESERVED_SLUGS = new Set([
-  "www", "app", "admin", "api", "status", "docs", "suporte", "blog", "mail",
-]);
 
 type ProvisionInput = {
   slug: string;

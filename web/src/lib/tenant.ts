@@ -1,4 +1,5 @@
 import type { FormaDePagamento } from "@/lib/formas-de-pagamento";
+import { tonsDaMarca } from "@/lib/tons-da-marca";
 import {
   bookingPolicy as defaultBookingPolicy,
   cancellationPolicy as defaultCancellationPolicy,
@@ -571,7 +572,12 @@ export const DEFAULT_TENANT: Tenant = {
 export const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "jpproject.com.br";
 
 /** Subdomínios reservados — não são barbearias. */
-const RESERVED_SLUGS = new Set(["www", "app", "admin", "api", "status", "docs"]);
+/* Espelho de `RESERVED_SLUGS` em `functions/src/signup.ts` — o servidor recusa
+ * cadastrar estes; aqui eles nunca viram barbearia. */
+export const RESERVED_SLUGS = new Set([
+  "www", "app", "admin", "api", "status", "docs", "suporte", "blog", "mail",
+  "painel", "login", "cadastro", "comecar", "assets", "static", "cdn",
+]);
 
 /**
  * Slug a partir do host.
@@ -627,7 +633,10 @@ export function tenantUrl(slug: string, path = "/") {
  * ser corrigido.
  */
 export function tenantCssVars(tenant: Tenant): React.CSSProperties {
+  /* Os tons derivados (texto forte, hover, sombra) acompanham a cor — ver
+   * `tons-da-marca.ts`. Na cor padrão, os tons medidos do `globals.css`. */
   return {
     ["--color-gold" as string]: tenant.brand.accentColor,
+    ...tonsDaMarca(tenant.brand.accentColor),
   };
 }

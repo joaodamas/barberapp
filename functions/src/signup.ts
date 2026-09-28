@@ -17,7 +17,9 @@ import { criarCodigoDeEntrada } from "./entrada";
 
 const SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]{1,28}[a-z0-9])$/;
 
-const RESERVED_SLUGS = new Set([
+/* Única lista de subdomínios reservados das functions — `provisioning.ts` usa
+ * esta. Espelhada em `web/src/lib/tenant.ts` (teste de paridade lá). */
+export const RESERVED_SLUGS = new Set([
   "www", "app", "admin", "api", "status", "docs", "suporte", "blog", "mail",
   "painel", "login", "cadastro", "comecar", "assets", "static", "cdn",
 ]);
