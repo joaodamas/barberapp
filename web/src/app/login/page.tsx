@@ -7,6 +7,7 @@ import {
   createUserWithEmailAndPassword,
   GoogleAuthProvider,
   RecaptchaVerifier,
+  sendEmailVerification,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signInWithPhoneNumber,
@@ -15,6 +16,7 @@ import {
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { destinoInterno } from "@/lib/destino-interno";
+import { marcarLinkEnviado } from "@/lib/verificacao-de-email";
 import { useAuth } from "@/lib/auth-context";
 import { useTenant, useTenantIndisponivel } from "@/lib/tenant-context";
 import { Button } from "@/components/ui/button";
@@ -196,7 +198,19 @@ export default function LoginPage() {
     setBusy(true);
     try {
       if (emailMode === "criar") {
-        await createUserWithEmailAndPassword(auth, email, password);
+        const { user: nova } = await createUserWithEmailAndPassword(auth, email, password);
+        /* O link de confirmação sai JÁ na criação (28/09, auditoria M2):
+         * agendar passou a exigir e-mail confirmado, e o cliente que só
+         * descobrisse isso no "Confirmar reserva" ainda teria de esperar o
+         * e-mail chegar. Falhar aqui não derruba a conta criada: o cartão
+         * "Confirme seu e-mail" percebe que nada foi enviado e envia de novo
+         * — por isso a sessão só é marcada quando o envio passou. */
+        try {
+          await sendEmailVerification(nova);
+          marcarLinkEnviado(nova.uid);
+        } catch (e) {
+          console.error("[login] falha ao enviar verificação", e);
+        }
       } else {
         await signInWithEmailAndPassword(auth, email, password);
       }
