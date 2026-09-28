@@ -124,7 +124,7 @@ export function RemarcarAtendimento({
       open
       onClose={() => !salvando && aoFechar()}
       title="Remarcar atendimento"
-      description={`${booking.clientName} · hoje marcado ${rotuloDoDia(booking.date)} às ${booking.time} · ${booking.durationMin ?? "?"} min · ${formatBRL(booking.value)}`}
+      description={`${booking.clientName} · marcado para ${rotuloDoDia(booking.date).toLowerCase()} às ${booking.time} · ${duracao} min · ${formatBRL(booking.value)}`}
     >
       <div className="flex flex-col gap-3">
         <p className="text-[11px] uppercase tracking-wide text-ink-muted">Novo dia</p>
