@@ -1,4 +1,5 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { politicasDe } from "./politicas-financeiras";
 import { exigirEdicao, vinculosDe } from "./acesso";
 import { percentualDoCadastro } from "./remuneracao";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
@@ -619,7 +620,7 @@ export const registrarVendaDeProduto = onCall<VendaInput>(async (request) => {
   /* Taxas lidas AQUI, fora da transação: são política, não estado disputado.
    * Congelam no pagamento — mudar a taxa da maquininha amanhã não reescreve o
    * que foi recebido hoje. */
-  const politicas = (shopSnap.get("policies") ?? {}) as {
+  const politicas = (await politicasDe(shopSnap)) as {
     paymentFees?: Partial<PaymentFees>;
     commissionSplit?: { barberPct?: number };
   };

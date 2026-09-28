@@ -1,4 +1,5 @@
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
+import { politicasDe } from "./politicas-financeiras";
 import { exigirEdicao, vinculosDe } from "./acesso";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { SEM_TAXA, type PaymentFees, type PaymentMethod } from "./financial-events";
@@ -508,7 +509,7 @@ export const corrigirPagamentoDeAtendimento = onCall<CorrecaoInput>(async (reque
   /* R1.1 · a tabela vigente AGORA, sem versionamento. O merge raso sobre
    * `SEM_TAXA` é o mesmo de `materializeFinancialsOnCompletion`: taxa ausente é
    * zero porque o dono ainda não preencheu, e o sistema não inventa custo. */
-  const policies = (shopSnap.get("policies") ?? {}) as {
+  const policies = (await politicasDe(shopSnap)) as {
     paymentFees?: Partial<PaymentFees>;
     paymentForms?: unknown;
   };

@@ -31,6 +31,7 @@
  * pagamento congela `paymentMethod`. Assinatura muda; fatura emitida, não.
  */
 
+import { politicasDe } from "./politicas-financeiras";
 import { exigirEdicao, vinculosDe } from "./acesso";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
@@ -605,7 +606,7 @@ export const registrarPagamentoDeMensalidade = onCall<{
   const ref = shopRef.collection("subscription_invoices").doc(String(invoiceId));
 
   /* Taxas lidas fora da transação — política, não estado disputado. */
-  const politicas = (shopSnap.get("policies") ?? {}) as {
+  const politicas = (await politicasDe(shopSnap)) as {
     paymentFees?: Partial<PaymentFees>;
     paymentForms?: unknown;
   };

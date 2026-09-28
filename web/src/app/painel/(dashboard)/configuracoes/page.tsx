@@ -5,7 +5,7 @@ import { AlertTriangle, Check, Clock, Loader2, Percent } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useTenant } from "@/lib/tenant-context";
-import { patchTenant } from "@/lib/db/repository";
+import { patchTenant, salvarFinanceiro } from "@/lib/db/repository";
 import { formatBRL } from "@/lib/format";
 import { EditorDeFormasDePagamento } from "@/components/formas-de-pagamento-editor";
 import { ComecarDoZero } from "@/components/comecar-do-zero";
@@ -110,28 +110,21 @@ export default function ConfiguracoesPage() {
        * alíquota com o que esta tela conhece; enviar `policies.booking` inteiro
        * apagaria antecedência mínima e prazo de encaixe, que esta tela nem
        * exibe. */
+      /* Taxas, formas e comissão vão para `private/financeiro` (28/09): na
+       * ficha pública, qualquer pessoa lia quanto a maquininha cobra e quanto
+       * fica com o barbeiro. A tolerância de atraso continua na ficha — é
+       * regra de agenda, não dinheiro.
+       *
+       * `paymentFees` segue sem ser escrito: é fallback de leitura para quem
+       * nunca cadastrou formas (ver `formasDoTenant`). E a comissão vai como
+       * objeto INTEIRO, pela mesma razão de antes: metade do objeto faria
+       * `shopPct` sumir na leitura. */
+      await salvarFinanceiro(tenant.id, {
+        paymentForms: formas,
+        commissionSplit: { barberPct: comissao, shopPct: 100 - comissao },
+      });
       await patchTenant(tenant.id, {
-        /* Só as FORMAS.
-         *
-         * `policies.paymentFees` deixa de ser escrito de propósito: ele agora é
-         * fallback de leitura para a barbearia que nunca cadastrou formas, e
-         * manter os dois em dia seria manter duas fontes para a mesma pergunta
-         * — o defeito que este repositório mais corrigiu. Quem quer saber
-         * quanto a maquininha cobrou chama `taxaDoPagamento`. */
-        "policies.paymentForms": formas,
         "policies.booking.lateToleranceMinutes": tolerancia,
-        /* O objeto INTEIRO, e não dois caminhos pontilhados separados.
-         *
-         * `toTenant` faz spread RASO em `policies`, e só `booking` e
-         * `paymentFees` têm merge próprio — o comentário de lá diz exatamente
-         * por quê: *"toda política que for objeto e virar editável precisa
-         * entrar aqui"*. Gravar `commissionSplit.barberPct` sozinho deixaria o
-         * documento com metade do objeto e faria `shopPct` sumir na leitura,
-         * que é o mesmo defeito que `policies.booking` produziu em produção em
-         * 11/08. Gravando os dois campos juntos, o objeto no banco está sempre
-         * completo e o spread raso continua correto — sem precisar mexer na
-         * normalização, que é de outra frente. */
-        "policies.commissionSplit": { barberPct: comissao, shopPct: 100 - comissao },
       });
       /* Rascunho descartado: o campo volta a seguir a fonte viva, que em
        * seguida chega pelo snapshot com exatamente o que acabou de ser gravado.

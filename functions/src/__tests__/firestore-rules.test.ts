@@ -386,6 +386,37 @@ describe("negar por padrão", () => {
   });
 });
 
+describe("taxas e comissão fora da ficha pública (auditoria 28/09, M4)", () => {
+  const FIN = `barbershops/${ALFA}/private`;
+
+  it("🔒 anônimo e cliente não leem o financeiro", async () => {
+    await assertFails(getDoc(doc(anon(), FIN, "financeiro")));
+    await assertFails(getDoc(doc(as(CLIENTE), FIN, "financeiro")));
+  });
+
+  it("dono e equipe leem o financeiro", async () => {
+    await assertSucceeds(getDoc(doc(as(DONO_ALFA), FIN, "financeiro")));
+    await assertSucceeds(getDoc(doc(as(BARBEIRO_ALFA), FIN, "financeiro")));
+  });
+
+  it("o dono grava taxas e comissão — e só isso", async () => {
+    await assertSucceeds(
+      setDoc(doc(as(DONO_ALFA), FIN, "financeiro"), {
+        commissionSplit: { barberPct: 45, shopPct: 55 },
+        paymentForms: [],
+      })
+    );
+    await assertFails(
+      setDoc(doc(as(DONO_ALFA), FIN, "financeiro"), { commissionSplit: {}, plano: "completo" })
+    );
+  });
+
+  it("🔒 a equipe não altera o financeiro, e o dono não toca o resto de `private`", async () => {
+    await assertFails(setDoc(doc(as(BARBEIRO_ALFA), FIN, "financeiro"), { commissionSplit: {} }));
+    await assertFails(setDoc(doc(as(DONO_ALFA), FIN, "contract"), { commissionSplit: {} }));
+  });
+});
+
 describe("fidelidade", () => {
   it("o cliente lê o próprio extrato", async () => {
     await testEnv.withSecurityRulesDisabled(async (ctx) => {

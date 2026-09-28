@@ -1,4 +1,5 @@
 import { onDocumentUpdated } from "firebase-functions/v2/firestore";
+import { politicasDe } from "./politicas-financeiras";
 import { percentualDoCadastro } from "./remuneracao";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { valoresDoPagamento } from "./payments";
@@ -607,7 +608,7 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
         : Promise.resolve(null),
     ]);
 
-    const policies = (shopSnap.get("policies") ?? {}) as {
+    const policies = (await politicasDe(shopSnap)) as {
       commissionSplit?: { barberPct?: number };
       paymentFees?: Partial<PaymentFees>;
       paymentForms?: unknown;

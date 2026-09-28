@@ -214,6 +214,24 @@ export async function patchTenant(barbershopId: string, data: DocumentData) {
   await updateDoc(doc(db, shopPath(barbershopId)), stripUndefined(data));
 }
 
+/**
+ * Taxas, formas de pagamento e comissão da casa — em `private/financeiro`.
+ *
+ * Moravam na ficha pública da barbearia, que qualquer pessoa lê sem login
+ * (auditoria de segurança de 28/09, M4). `merge` para gravar só o que a tela
+ * conhece; as regras aceitam do dono apenas estes três campos.
+ */
+export async function salvarFinanceiro(
+  barbershopId: string,
+  data: { paymentForms?: unknown; paymentFees?: unknown; commissionSplit?: unknown }
+) {
+  conferirEscrita();
+  const db = await getDb();
+  await setDoc(doc(db, shopPath(barbershopId), "private", "financeiro"), stripUndefined(data), {
+    merge: true,
+  });
+}
+
 export async function removeDoc(
   barbershopId: string,
   collectionName: ShopCollection,
