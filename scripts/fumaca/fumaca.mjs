@@ -12,6 +12,7 @@
  *
  * Uso: SITE=https://cortehub-dev.web.app node fumaca.mjs
  */
+import { mkdir } from "node:fs/promises";
 import { chromium, devices } from "playwright";
 
 const SITE = process.env.SITE;
@@ -33,9 +34,15 @@ async function esperarNoAr() {
   for (let i = 0; i < 18; i++) {
     try {
       const r = await fetch(`${SITE}/agendar`, { redirect: "follow" });
+      // Redirecionado para outra tela (ex.: /landing) não é "no ar": é a
+      // barbearia que não foi encontrada — pego no DEV em 28/09.
+      if (r.ok && !new URL(r.url).pathname.startsWith("/agendar")) {
+        throw new Error(`${SITE}/agendar redirecionou para ${new URL(r.url).pathname}`);
+      }
       if (r.ok) return;
       console.log(`  agendar respondeu ${r.status}, tentando de novo…`);
     } catch (e) {
+      if (String(e.message).includes("redirecionou")) throw e;
       console.log(`  agendar sem resposta (${e.message}), tentando de novo…`);
     }
     await new Promise((ok) => setTimeout(ok, 10_000));
@@ -56,7 +63,15 @@ async function visita(context, nome) {
 
   await page.goto(`${SITE}/agendar`, { waitUntil: "domcontentloaded", timeout: 60_000 });
   const servico = page.locator("button[aria-pressed]").first();
-  await servico.waitFor({ timeout: 30_000 });
+  try {
+    await servico.waitFor({ timeout: 45_000 });
+  } catch (e) {
+    // O que a tela mostrava quando travou — sem isto a falha é um timeout mudo.
+    await mkdir("saida", { recursive: true });
+    await page.screenshot({ path: `saida/${nome.replace(/\s+/g, "-")}.png`, fullPage: true }).catch(() => {});
+    const texto = (await page.locator("body").innerText().catch(() => "")).replace(/\s+/g, " ").slice(0, 300);
+    throw new Error(`serviços não apareceram em ${page.url()} — tela: "${texto}"`);
+  }
   await servico.click();
 
   const slots = page.waitForResponse((r) => r.url().includes("availableSlots"), { timeout: 45_000 });

@@ -345,6 +345,14 @@ jobs:
           SITE: ${{ env.SITE_FUMACA }}
         run: node fumaca.mjs
 
+      - name: Guardar a tela da fumaça
+        if: failure() && steps.fumaca.outcome == 'failure'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: fumaca-${{ inputs.ambiente }}
+          path: scripts/fumaca/saida/
+          if-no-files-found: ignore
+
       # Fumaça vermelha depois de publicar o site: o site volta sozinho para a
       # versão de antes. Functions, regras e índices NÃO voltam — o incidente
       # que motivou isto era do site, e desfazer regra às cegas é pior.
