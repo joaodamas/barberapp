@@ -174,7 +174,9 @@ export const getTenant = cache(async function getTenant(): Promise<Tenant> {
 export const isPlatformRoot = cache(async function isPlatformRoot(): Promise<boolean> {
   const headerList = await headers();
   const host = headerList.get("x-forwarded-host") ?? headerList.get("host");
-  return slugFromHost(host) === null;
+  /* No DEV (cortehub-dev.web.app) não há subdomínio: a barbearia vem do slug
+   * fixo, e sem esta exceção toda tela de cliente caía na /landing (28/09). */
+  return slugFromHost(host) === null && !process.env.NEXT_PUBLIC_TENANT_SLUG_FIXO;
 });
 
 /**
