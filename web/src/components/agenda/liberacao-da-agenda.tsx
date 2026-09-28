@@ -92,6 +92,12 @@ export function LiberacaoDaAgenda() {
           >
             Liberar os próximos {BLOCO_DIAS} dias · até {dataCurta(proximo)}
           </Button>
+          {/* O botão que se usa toda quinzena fica à vista; o resto, que se
+              ajusta de vez em quando, fica atrás de "Ajustar" — no celular o
+              quadro inteiro empurrava a grade do dia para baixo. */}
+          <details className="w-full text-xs text-ink-muted">
+            <summary className="cursor-pointer select-none py-1 hover:text-ink">Ajustar</summary>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
           <label className="flex items-center gap-1.5 text-xs text-ink-muted">
             Outra data
             <input
@@ -127,6 +133,8 @@ export function LiberacaoDaAgenda() {
           <Link href="/painel/horarios" className="text-xs text-ink-muted underline-offset-2 hover:text-ink hover:underline">
             Fechar ou abrir um dia específico →
           </Link>
+            </div>
+          </details>
         </div>
       )}
       {erro && (
