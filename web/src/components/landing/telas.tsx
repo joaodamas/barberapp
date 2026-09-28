@@ -200,7 +200,7 @@ export function MapaDeCalor() {
 /** A equipe, como ela aparece no painel. */
 export function EquipeResumo() {
   const barbeiros = [
-    { nome: "Rômulo", atendimentos: 84, valor: "R$ 6.240", pct: 100 },
+    { nome: "Diego", atendimentos: 84, valor: "R$ 6.240", pct: 100 },
     { nome: "Léo", atendimentos: 61, valor: "R$ 4.180", pct: 72 },
     { nome: "Vinícius", atendimentos: 38, valor: "R$ 2.740", pct: 45 },
   ];

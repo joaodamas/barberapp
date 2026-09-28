@@ -105,7 +105,7 @@ export const TEMPLATES = {
     ],
     example: [
       "João",
-      "O Siqueira Barbearia",
+      "Barbearia Exemplo",
       "Corte + barba",
       "domingo, 02 de agosto",
       "16:30",
@@ -131,7 +131,7 @@ export const TEMPLATES = {
       "Seu horário na {{2}} é às {{3}} ({{4}}).\n\n" +
       "Confirma que você vem? É só tocar em um dos botões abaixo.",
     params: ["primeiroNome", "nomeBarbearia", "hora", "servicos"],
-    example: ["João", "O Siqueira Barbearia", "16:30", "Corte + barba"],
+    example: ["João", "Barbearia Exemplo", "16:30", "Corte + barba"],
     buttons: [
       { label: "Confirmo que vou", action: "CONFIRM_BOOKING" },
       { label: "Preciso cancelar", action: "CANCEL_BOOKING" },
@@ -164,7 +164,7 @@ export const TEMPLATES = {
       "João",
       "domingo, 02 de agosto",
       "16:30",
-      "https://osiqueira.jpproject.com.br",
+      "https://suabarbearia.jpproject.com.br",
     ],
   },
 
@@ -185,7 +185,7 @@ export const TEMPLATES = {
       "16:30",
       "Corte + barba",
       "14:00, 15:00 e 18:30",
-      "https://osiqueira.jpproject.com.br/agendar",
+      "https://suabarbearia.jpproject.com.br/agendar",
     ],
   },
 
@@ -221,7 +221,7 @@ export const TEMPLATES = {
       "10",
       "2",
       "1 corte grátis",
-      "https://osiqueira.jpproject.com.br/perfil",
+      "https://suabarbearia.jpproject.com.br/perfil",
     ],
   },
 
@@ -288,7 +288,7 @@ export const TEMPLATES = {
       "2",
       "R$ 640,00",
       "4",
-      "https://osiqueira.jpproject.com.br/painel",
+      "https://suabarbearia.jpproject.com.br/painel",
     ],
   },
 
@@ -307,7 +307,7 @@ export const TEMPLATES = {
     example: [
       "Cancelamento de última hora",
       "João Damas cancelou o horário das 16:30 de hoje (Corte + barba, R$ 90,00). O slot já foi liberado na agenda.",
-      "https://osiqueira.jpproject.com.br/painel",
+      "https://suabarbearia.jpproject.com.br/painel",
     ],
   },
 
@@ -348,7 +348,7 @@ export const TEMPLATES = {
       "Ilimitado",
       "R$ 149,00",
       "05/08",
-      "https://osiqueira.jpproject.com.br/planos",
+      "https://suabarbearia.jpproject.com.br/planos",
     ],
   },
 
@@ -387,7 +387,7 @@ export const TEMPLATES = {
       "Ilimitado",
       "R$ 149,00",
       "05/08",
-      "https://osiqueira.jpproject.com.br/planos",
+      "https://suabarbearia.jpproject.com.br/planos",
     ],
   },
 
@@ -409,7 +409,7 @@ export const TEMPLATES = {
       "Ilimitado",
       "R$ 149,00",
       "05/08",
-      "https://osiqueira.jpproject.com.br/planos",
+      "https://suabarbearia.jpproject.com.br/planos",
     ],
   },
 
@@ -435,7 +435,7 @@ export const TEMPLATES = {
       "domingo, 02 de agosto",
       "16:30",
       "A barbearia estará fechada nesse dia por conta do feriado. Sentimos muito pelo transtorno!",
-      "https://osiqueira.jpproject.com.br/agendar",
+      "https://suabarbearia.jpproject.com.br/agendar",
     ],
     buttons: [{ label: "Escolher novo horário", action: "RESCHEDULE" }],
   },
@@ -455,7 +455,7 @@ export const TEMPLATES = {
     example: [
       "Horário especial de fim de ano 💈",
       "De 24/12 a 02/01 vamos funcionar das 9h às 15h. A partir de 03/01 voltamos ao horário normal.",
-      "Garanta seu horário: https://osiqueira.jpproject.com.br/agendar",
+      "Garanta seu horário: https://suabarbearia.jpproject.com.br/agendar",
     ],
   },
 
@@ -479,9 +479,9 @@ export const TEMPLATES = {
     example: [
       "João",
       "47",
-      "O Siqueira Barbearia",
+      "Barbearia Exemplo",
       "sábado à tarde",
-      "https://osiqueira.jpproject.com.br/agendar",
+      "https://suabarbearia.jpproject.com.br/agendar",
     ],
   },
 
@@ -499,9 +499,9 @@ export const TEMPLATES = {
     params: ["primeiroNome", "nomeBarbearia", "mimo", "linkApp"],
     example: [
       "João",
-      "O Siqueira Barbearia",
+      "Barbearia Exemplo",
       "sobrancelha grátis",
-      "https://osiqueira.jpproject.com.br/agendar",
+      "https://suabarbearia.jpproject.com.br/agendar",
     ],
   },
 
@@ -537,7 +537,7 @@ export const TEMPLATES = {
       "segunda, 03 de agosto",
       "16:30",
       "Corte + barba",
-      "O Siqueira Barbearia",
+      "Barbearia Exemplo",
     ],
   },
 
@@ -556,7 +556,7 @@ export const TEMPLATES = {
       "João",
       "segunda, 03 de agosto",
       "16:30",
-      "https://osiqueira.jpproject.com.br/agendar",
+      "https://suabarbearia.jpproject.com.br/agendar",
     ],
   },
 
@@ -633,7 +633,7 @@ export const TEMPLATES = {
       "João",
       "domingo, 02 de agosto",
       "16:30",
-      "https://osiqueira.jpproject.com.br/agendar",
+      "https://suabarbearia.jpproject.com.br/agendar",
     ],
   },
 
@@ -657,8 +657,8 @@ export const TEMPLATES = {
     params: ["primeiroNome", "nomeBarbearia", "linkPolitica"],
     example: [
       "João",
-      "O Siqueira Barbearia",
-      "https://osiqueira.jpproject.com.br/perfil",
+      "Barbearia Exemplo",
+      "https://suabarbearia.jpproject.com.br/perfil",
     ],
   },
 
@@ -680,9 +680,9 @@ export const TEMPLATES = {
     example: [
       "João",
       "10",
-      "O Siqueira Barbearia",
+      "Barbearia Exemplo",
       "1 corte grátis",
-      "https://osiqueira.jpproject.com.br/reservas",
+      "https://suabarbearia.jpproject.com.br/reservas",
     ],
   },
 
@@ -700,8 +700,8 @@ export const TEMPLATES = {
     example: [
       "João",
       "1 corte grátis",
-      "O Siqueira Barbearia",
-      "https://osiqueira.jpproject.com.br/agendar",
+      "Barbearia Exemplo",
+      "https://suabarbearia.jpproject.com.br/agendar",
     ],
   },
 
@@ -734,11 +734,11 @@ export const TEMPLATES = {
     example: [
       "João",
       "Corte ilimitado",
-      "O Siqueira Barbearia",
+      "Barbearia Exemplo",
       "cortes ilimitados no mês",
       "R$ 149,00",
       "05/09",
-      "https://osiqueira.jpproject.com.br/agendar",
+      "https://suabarbearia.jpproject.com.br/agendar",
     ],
   },
 
@@ -773,7 +773,7 @@ export const TEMPLATES = {
       "João",
       "Corte ilimitado",
       "05/08",
-      "https://osiqueira.jpproject.com.br/planos",
+      "https://suabarbearia.jpproject.com.br/planos",
     ],
   },
 
@@ -791,9 +791,9 @@ export const TEMPLATES = {
     example: [
       "João",
       "Corte ilimitado",
-      "O Siqueira Barbearia",
+      "Barbearia Exemplo",
       "05/09",
-      "https://osiqueira.jpproject.com.br/agendar",
+      "https://suabarbearia.jpproject.com.br/agendar",
     ],
   },
 
@@ -815,7 +815,7 @@ export const TEMPLATES = {
       "João",
       "Corte ilimitado",
       "05/09",
-      "https://osiqueira.jpproject.com.br/planos",
+      "https://suabarbearia.jpproject.com.br/planos",
     ],
   },
 
@@ -873,7 +873,7 @@ export const TEMPLATES = {
       "R$ 7.516,00",
       "60%",
       "168",
-      "https://osiqueira.jpproject.com.br/painel/financeiro/dre",
+      "https://suabarbearia.jpproject.com.br/painel/financeiro/dre",
     ],
   },
 

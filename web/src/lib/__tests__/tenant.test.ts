@@ -71,6 +71,9 @@ describe("tenant padrão", () => {
   it("só personaliza a cor de destaque, não o contraste do sistema", () => {
     const vars = tenantCssVars(DEFAULT_TENANT) as Record<string, string>;
     expect(Object.keys(vars)).toEqual(["--color-gold"]);
+    // Outra cor leva junto os tons derivados dela — nunca fundo nem texto.
+    const azul = tenantCssVars({ ...DEFAULT_TENANT, brand: { ...DEFAULT_TENANT.brand, accentColor: "#1d4ed8" } });
+    expect(Object.keys(azul).every((k) => k.includes("gold"))).toBe(true);
   });
 
   it("monta a URL pública da barbearia", () => {
@@ -286,5 +289,17 @@ describe("recursos por plano", () => {
 
   it("o plano de cima libera tudo", () => {
     expect(featuresForPlan("gestao")).toEqual(ALL_FEATURES);
+  });
+});
+
+describe("subdomínios reservados (white-label)", () => {
+  it("a lista do site é a mesma que o servidor recusa no cadastro", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { RESERVED_SLUGS } = await import("@/lib/tenant");
+    const fonte = readFileSync(new URL("../../../../functions/src/signup.ts", import.meta.url), "utf8");
+    const bloco = /RESERVED_SLUGS = new Set\(\[([\s\S]*?)\]\)/.exec(fonte)?.[1] ?? "";
+    const doServidor = [...bloco.matchAll(/"([^"]+)"/g)].map((m) => m[1]).sort();
+    expect(doServidor.length).toBeGreaterThan(0);
+    expect([...RESERVED_SLUGS].sort()).toEqual(doServidor);
   });
 });
