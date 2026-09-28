@@ -169,13 +169,20 @@ describe("D1 · nenhum caminho de criação pode esquecer `policies`", () => {
     expect(arquivos).toContain("provisioning.ts");
   });
 
-  it("cada um grava `policies` explicitamente, como já gravava `features`", () => {
+  it("cada um grava a comissão padrão explicitamente — no documento PRIVADO", () => {
+    /* Desde 28/09 a comissão e as taxas moram em `private/financeiro` (a ficha
+     * pública era legível sem login). A regra do D1 continua: nenhum caminho
+     * de criação pode deixar o gatilho financeiro adivinhar a comissão. */
     for (const arquivo of arquivosQueCriamBarbearia()) {
       const texto = readFileSync(resolve(SRC, arquivo), "utf8");
       expect(
-        /policies:\s*politicasIniciais\(\)/.test(texto),
-        `${arquivo} cria barbearia sem gravar policies — o gatilho financeiro vai adivinhar`
+        /CAMINHO_FINANCEIRO[\s\S]{0,160}politicasIniciais\(\)/.test(texto),
+        `${arquivo} cria barbearia sem gravar a comissão padrão — o gatilho financeiro vai adivinhar`
       ).toBe(true);
+      expect(
+        /policies:\s*politicasIniciais\(\)/.test(texto),
+        `${arquivo} voltou a pôr a comissão na ficha pública`
+      ).toBe(false);
     }
   });
 });

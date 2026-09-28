@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { doc, onSnapshot } from "firebase/firestore";
 import { getDb } from "@/lib/firebase";
 import { TenantProvider } from "@/lib/tenant-context";
@@ -57,7 +57,20 @@ export function TenantLive({
   indisponivel?: boolean;
   children: React.ReactNode;
 }) {
-  const [tenant, setTenant] = useState<Tenant>(inicial);
+  const [ficha, setFicha] = useState<{ id: string; data: Record<string, unknown> } | null>(null);
+  /* Taxas, formas e comissão moram em `private/financeiro` desde 28/09 — a
+   * ficha pública era legível sem login. O painel junta as duas: o privado por
+   * cima do público, que é a mesma regra do servidor (`politicasDe`). */
+  const [financeiro, setFinanceiro] = useState<Record<string, unknown> | null>(null);
+  const tenant = useMemo<Tenant>(() => {
+    if (!ficha) return inicial;
+    const policies = (ficha.data.policies ?? {}) as Record<string, unknown>;
+    const juntas = { ...policies };
+    for (const campo of ["paymentFees", "paymentForms", "commissionSplit"]) {
+      if (financeiro?.[campo] !== undefined) juntas[campo] = financeiro[campo];
+    }
+    return toTenant(ficha.id, { ...ficha.data, policies: juntas });
+  }, [ficha, financeiro, inicial]);
 
   /* A trava de escrita acompanha a ficha, e não só o primeiro render.
    *
@@ -95,7 +108,7 @@ export function TenantLive({
           (snap) => {
             const data = snap.data();
             if (!data) return;
-            setTenant(toTenant(snap.id, data));
+            setFicha({ id: snap.id, data });
           },
           (erro) => {
             /* Degrada para o valor do servidor em vez de derrubar o painel:
@@ -107,6 +120,30 @@ export function TenantLive({
       })
       .catch((erro) => console.error("[tenant-live] Firestore indisponível", erro));
 
+    return () => {
+      cancelado = true;
+      parar();
+    };
+  }, [inicial.id, indisponivel]);
+
+  useEffect(() => {
+    let cancelado = false;
+    let parar = () => {};
+    if (indisponivel) return;
+    getDb()
+      .then((db) => {
+        if (cancelado) return;
+        parar = onSnapshot(
+          doc(db, "barbershops", inicial.id, "private", "financeiro"),
+          (snap) => setFinanceiro(snap.data() ?? {}),
+          /* Sem permissão (quem não é da casa) ou sem rede: segue com o que a
+           * ficha pública ainda tiver. Durante a migração é o valor antigo;
+           * depois dela, os padrões — e o servidor, que é quem calcula
+           * dinheiro, lê o privado por conta própria. */
+          (erro) => console.error("[tenant-live] falha ao ler o financeiro", erro)
+        );
+      })
+      .catch(() => undefined);
     return () => {
       cancelado = true;
       parar();
