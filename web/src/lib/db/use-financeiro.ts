@@ -1,5 +1,6 @@
 "use client";
 
+import { toISODate } from "@/lib/format";
 import { useTenant } from "@/lib/tenant-context";
 import {
   useBookings, useExpenses, useInventoryMovements,
@@ -200,7 +201,19 @@ export function useFinanceiro(mes: string, horizonte: Horizonte = "mensal") {
       bookings: bookings.items,
       expenses: expenses.items,
       subscribers: subscribers.items,
-      historico: caixa,
+      /* A base da estimativa é o ATENDIMENTO AVULSO das últimas 8 semanas.
+       *
+       * Era o caixa do mês corrente inteiro: mensalidade paga numa segunda
+       * ensinava que toda segunda do ano rende aquilo (e duplicava com a
+       * coluna de mensalistas); venda da loja virava receita diária; e no dia
+       * 1º do mês não havia base nenhuma. Oito semanas dão ~8 amostras por
+       * dia da semana, com a sazonalidade recente. */
+      historico: caixaDiario({
+        payments: payments.items.filter(
+          (pg) => (pg.origin ?? (pg.bookingId ? "servico" : undefined)) === "servico"
+        ),
+        periodo: ultimasSemanas(8),
+      }),
       openWeekdays: tenant.schedule.weekdays,
       schedule: tenant.schedule,
       inicio: new Date(),
@@ -222,3 +235,12 @@ export function useFinanceiro(mes: string, horizonte: Horizonte = "mensal") {
 /* Vivem em `format.ts` — módulo puro, testável sem montar hook. Reexportadas
  * aqui porque as telas do financeiro já as importam deste caminho. */
 export { mesAtual, rotuloDoMes } from "@/lib/format";
+
+/** As últimas `n` semanas até ontem — a base da média por dia da semana. */
+function ultimasSemanas(n: number) {
+  const fim = new Date();
+  fim.setDate(fim.getDate() - 1);
+  const inicio = new Date(fim);
+  inicio.setDate(fim.getDate() - 7 * n + 1);
+  return { inicio: toISODate(inicio), fim: toISODate(fim) };
+}
