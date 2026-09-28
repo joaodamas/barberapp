@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { DoorClosed } from "lucide-react";
+import { DoorClosed, WifiOff } from "lucide-react";
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
@@ -32,7 +32,7 @@ export function AuthGuard({
    */
   publicoEm?: string[];
 }) {
-  const { user, claims, loading } = useAuth();
+  const { user, claims, loading, semResposta } = useAuth();
   const tenant = useTenant();
   const router = useRouter();
   const pathname = usePathname();
@@ -79,6 +79,23 @@ export function AuthGuard({
      * NÃO redireciona mais: explica e oferece as duas saídas reais. */
     if (!user) router.replace(`/login?next=${encodeURIComponent(pathname)}`);
   }, [loading, authorized, user, router, precisaOnboarding, precisaTrocarSenha, vitrine, pathname]);
+
+  /* Antes de qualquer decisão sobre permissão: sem resposta do Auth, não dá para
+   * saber se a pessoa é dona, cliente ou visitante — e decidir no escuro ou
+   * girar para sempre são os dois erros. Diz o que houve e oferece a saída. */
+  // A vitrine abre sem conta: para ela, "sem resposta do Auth" é só "sem conta".
+  if (semResposta && !vitrine) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-canvas px-4">
+        <EstadoCentral
+          icon={WifiOff}
+          titulo="Não conseguimos confirmar sua conta"
+          descricao="A conexão falhou ou demorou demais. Confira a internet e tente de novo — nada do que você fez se perdeu."
+          acao={<Button onClick={() => window.location.reload()}>Tentar de novo</Button>}
+        />
+      </div>
+    );
+  }
 
   if (semVinculo) {
     return (
