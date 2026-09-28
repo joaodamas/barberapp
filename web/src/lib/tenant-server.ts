@@ -123,7 +123,14 @@ function hostDoBalanceador(valor: string | null, segredo: string | null): string
   return host.endsWith(`.${ROOT_DOMAIN}`) ? host : null;
 }
 
-export const resolverTenant = cache(async function resolverTenant(): Promise<ResolucaoDeTenant> {
+/**
+ * O slug da barbearia DESTA requisição — a regra única de host, usada por
+ * `resolverTenant` e por `isPlatformRoot`. Eram duas cópias, e a de
+ * `isPlatformRoot` ignorava o balanceador: atrás dele o host chega como
+ * `axon-barber.web.app`, e toda barbearia nova cairia na /landing (auditoria
+ * white-label, 28/09).
+ */
+const slugDaRequisicao = cache(async function slugDaRequisicao(): Promise<string | null> {
   const headerList = await headers();
 
   /* `x-forwarded-host` ANTES de `host`.
@@ -144,8 +151,15 @@ export const resolverTenant = cache(async function resolverTenant(): Promise<Res
     headerList.get("x-forwarded-host") ??
     headerList.get("host");
 
-  const slug = slugFromHost(host);
+  /* Ambiente de DEV (28/09): `cortehub-dev.web.app` não tem subdomínio de
+   * barbearia. Lá o build fixa a barbearia de teste por esta variável; em
+   * produção ela não existe e nada muda. Nunca é lida quando o host já traz o
+   * subdomínio — um DEV mal configurado não sequestra barbearia real. */
+  return slugFromHost(host) ?? (process.env.NEXT_PUBLIC_TENANT_SLUG_FIXO || null);
+});
 
+export const resolverTenant = cache(async function resolverTenant(): Promise<ResolucaoDeTenant> {
+  const slug = await slugDaRequisicao();
   if (!slug) return { estado: "sem-barbearia", tenant: DEFAULT_TENANT };
 
   return loadTenantBySlug(slug);
@@ -168,9 +182,7 @@ export const getTenant = cache(async function getTenant(): Promise<Tenant> {
  * digita o domínio cai numa tela de login de uma barbearia que não existe.
  */
 export const isPlatformRoot = cache(async function isPlatformRoot(): Promise<boolean> {
-  const headerList = await headers();
-  const host = headerList.get("x-forwarded-host") ?? headerList.get("host");
-  return slugFromHost(host) === null;
+  return (await slugDaRequisicao()) === null;
 });
 
 /**

@@ -1,0 +1,23 @@
+name: Esteira (DEV automático)
+
+# Depois do incidente de 28/09: todo merge na main vai SOZINHO para o DEV
+# (cortehub-dev.web.app, projeto sem dado de cliente real) e passa pela fumaça
+# lá. Produção continua manual — Actions › Deploy › ambiente "producao" —, com
+# aprovação, depois das 20h, e com a mesma fumaça e volta automática do site.
+#
+# Não há promoção automática para produção de propósito: o dono decide o dia.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  dev:
+    uses: ./.github/workflows/deploy.yml
+    with:
+      ambiente: dev
+      escopo: tudo
+    secrets: inherit

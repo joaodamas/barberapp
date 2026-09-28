@@ -1,4 +1,4 @@
-name: Deploy (produção)
+name: Deploy
 
 # Publicação manual, nunca automática.
 #
@@ -23,8 +23,30 @@ name: Deploy (produção)
 # - A credencial é apagada no fim, aconteça o que acontecer.
 
 on:
+  # Chamado pela esteira (`esteira.yml`): DEV automático, produção promovida.
+  workflow_call:
+    inputs:
+      ambiente:
+        type: string
+        required: true
+      escopo:
+        type: string
+        default: tudo
+      urgente:
+        type: boolean
+        default: false
+    secrets:
+      FIREBASE_SERVICE_ACCOUNT:
+        required: false
   workflow_dispatch:
     inputs:
+      ambiente:
+        description: Onde publicar
+        type: choice
+        default: producao
+        options:
+          - producao
+          - dev
       escopo:
         description: O que publicar
         type: choice
@@ -34,6 +56,10 @@ on:
           - somente hosting
           - somente regras e índices
           - somente functions
+      urgente:
+        description: "Correção urgente: publica em produção fora da janela das 20h"
+        type: boolean
+        default: false
 
 # Nenhum job precisa escrever no repositório.
 permissions:
@@ -42,25 +68,54 @@ permissions:
 # Dois deploys simultâneos disputariam o mesmo release do Hosting. O segundo
 # espera; nenhum é cancelado no meio.
 concurrency:
-  group: deploy-producao
+  group: deploy-${{ inputs.ambiente }}
   cancel-in-progress: false
 
 jobs:
   qualidade:
     uses: ./.github/workflows/qualidade.yml
 
+  # Janela de produção (combinado com o dono em 28/09, depois do incidente):
+  # no máximo uma publicação por dia, depois das 20h de Brasília, quando a
+  # barbearia já fechou. Fora dela só com `urgente`. Roda ANTES da aprovação
+  # do ambiente — ninguém aprova um deploy que ia ser recusado.
+  janela:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Conferir a janela de produção
+        env:
+          AMBIENTE: ${{ inputs.ambiente }}
+          URGENTE: ${{ inputs.urgente }}
+        run: |
+          set -euo pipefail
+          HORA=$(TZ=America/Sao_Paulo date +%H)
+          echo "hora em Brasília: ${HORA}h · ambiente: $AMBIENTE · urgente: $URGENTE"
+          if [ "$AMBIENTE" = "producao" ] && [ "$URGENTE" != "true" ] && [ "$HORA" -lt 20 ]; then
+            echo "::error::produção só depois das 20h (agora são ${HORA}h em Brasília). Correção urgente: rode de novo marcando 'urgente'."
+            exit 1
+          fi
+
   deploy:
-    name: publicar em axon-barber
-    needs: qualidade
+    name: publicar em ${{ inputs.ambiente }}
+    needs: [qualidade, janela]
     runs-on: ubuntu-latest
     # O ambiente é onde ficam a credencial e a configuração pública, é onde se
     # liga a aprovação obrigatória e é o que restringe a publicação à `main`.
     # Sem essa restrição, `workflow_dispatch` dispara de qualquer branch — e a
     # branch traria o próprio workflow alterado junto.
-    environment: producao
+    environment: ${{ inputs.ambiente }}
 
     env:
-      PROJETO: axon-barber
+      # DEV (28/09): projeto separado, sem dado de cliente real. Os dois valores
+      # moram aqui, fixos — a trava abaixo confere que `.firebaserc` e a
+      # credencial concordam com o ambiente escolhido.
+      PROJETO: ${{ inputs.ambiente == 'dev' && 'crucial-baton-440119-r8' || 'axon-barber' }}
+      ALIAS: ${{ inputs.ambiente == 'dev' && 'dev' || 'default' }}
+      SITE: ${{ inputs.ambiente == 'dev' && 'https://cortehub-dev.web.app' || 'https://axon-barber.web.app' }}
+      SITE_ID: ${{ inputs.ambiente == 'dev' && 'cortehub-dev' || 'axon-barber' }}
+      # Onde o cliente de verdade entra: é ali que a fumaça olha. Em produção,
+      # axon-barber.web.app não tem barbearia nenhuma — o piloto é o subdomínio.
+      SITE_FUMACA: ${{ inputs.ambiente == 'dev' && 'https://cortehub-dev.web.app' || 'https://osiqueira.jpproject.com.br' }}
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -81,7 +136,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${CREDENCIAL:-}" ]; then
-            echo "::error::secret FIREBASE_SERVICE_ACCOUNT ausente no ambiente 'producao'"
+            echo "::error::secret FIREBASE_SERVICE_ACCOUNT ausente no ambiente '${{ inputs.ambiente }}'"
             exit 1
           fi
 
@@ -90,7 +145,7 @@ jobs:
           # loader de JavaScript, e `{"projects": {` vira erro de sintaxe. A
           # trava de alvo derrubava o deploy antes de conferir alvo nenhum —
           # e só apareceu no dia em que o job passou da checagem da credencial.
-          NO_REPO=$(node -p "JSON.parse(require('fs').readFileSync('.firebaserc','utf8')).projects.default")
+          NO_REPO=$(node -p "JSON.parse(require('fs').readFileSync('.firebaserc','utf8')).projects['$ALIAS']")
           # try/catch para que um JSON malformado não jogue pedaço de
           # credencial no log.
           DA_CREDENCIAL=$(node -e "try{process.stdout.write(String(JSON.parse(process.env.CREDENCIAL).project_id))}catch(e){process.stdout.write('ilegivel')}")
@@ -138,6 +193,14 @@ jobs:
           ")
           echo "ALVOS_FUNCTIONS=$LISTA" >> "$GITHUB_ENV"
           echo "$LISTA" | tr ',' '\n' | sed 's/^/  · /'
+
+      # O navegador da fumaça é instalado AGORA, antes da credencial existir
+      # em disco — pela mesma razão dos `npm ci` acima.
+      - name: Preparar a fumaça
+        working-directory: scripts/fumaca
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
 
       # ── A partir daqui a credencial existe em disco ─────────────────────
       # Fora do workspace, de propósito: nada que empacote o diretório do
@@ -214,7 +277,24 @@ jobs:
       # que qualquer visitante baixa. Ficam em `vars`, não em `secrets`, porque
       # chamar de segredo o que é público ensina a equipe a tratar segredo de
       # verdade com a mesma displicência.
+      # A versão que está no ar ANTES deste deploy: é para ela que o site volta
+      # se a fumaça falhar. O Hosting framework-aware prende cada versão a uma
+      # revisão do Cloud Run (pinTags), então voltar o release volta também o
+      # servidor da tela.
+      - name: Guardar a versão do site que está no ar
+        if: inputs.escopo == 'tudo' || inputs.escopo == 'somente hosting'
+        run: |
+          set -euo pipefail
+          gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS" --quiet
+          TOKEN=$(gcloud auth print-access-token)
+          ANTERIOR=$(curl -sf -H "Authorization: Bearer $TOKEN" \
+            "https://firebasehosting.googleapis.com/v1beta1/sites/$SITE_ID/releases?pageSize=1" \
+            | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{const r=(JSON.parse(d).releases||[])[0];process.stdout.write(r&&r.version?r.version.name:'')})")
+          echo "versão no ar antes do deploy: ${ANTERIOR:-nenhuma}"
+          echo "VERSAO_ANTERIOR=$ANTERIOR" >> "$GITHUB_ENV"
+
       - name: Hosting (site + renderização no servidor)
+        id: hosting
         if: inputs.escopo == 'tudo' || inputs.escopo == 'somente hosting'
         env:
           NEXT_PUBLIC_FIREBASE_API_KEY: ${{ vars.NEXT_PUBLIC_FIREBASE_API_KEY }}
@@ -226,6 +306,9 @@ jobs:
           # Chave PÚBLICA do reCAPTCHA Enterprise do App Check (28/09).
           NEXT_PUBLIC_RECAPTCHA_SITE_KEY: ${{ vars.NEXT_PUBLIC_RECAPTCHA_SITE_KEY }}
           NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID: ${{ vars.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID }}
+          # Só existe no ambiente `dev`: fixa a barbearia de teste em
+          # cortehub-dev.web.app, que não tem subdomínio (28/09).
+          NEXT_PUBLIC_TENANT_SLUG_FIXO: ${{ vars.NEXT_PUBLIC_TENANT_SLUG_FIXO }}
           # WhatsApp COMERCIAL da plataforma. Nunca chegava ao build de
           # produção: todo "falar com a gente" (upgrade de plano, cadastro
           # pausado) ficava escondido no ar sem ninguém notar (23/09).
@@ -233,7 +316,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${NEXT_PUBLIC_FIREBASE_PROJECT_ID:-}" ]; then
-            echo "::error::variáveis NEXT_PUBLIC_FIREBASE_* ausentes no ambiente 'producao'"
+            echo "::error::variáveis NEXT_PUBLIC_FIREBASE_* ausentes no ambiente '${{ inputs.ambiente }}'"
             exit 1
           fi
           if [ "$NEXT_PUBLIC_FIREBASE_PROJECT_ID" != "$PROJETO" ]; then
@@ -251,11 +334,46 @@ jobs:
           # a CLI toca é a do próprio SSR.
           firebase deploy --only hosting --project "$PROJETO" --non-interactive --force
 
+      # ── Fumaça: o site publicado, num navegador de verdade ──────────────
+      # O que faltou em 28/09: CI e passeio verdes contra o emulador, e o app
+      # no ar travado. Aqui o alvo é o site real, na primeira visita e na volta
+      # com o service worker instalado. Ver `scripts/fumaca/fumaca.mjs`.
+      - name: Teste de fumaça no site publicado
+        id: fumaca
+        working-directory: scripts/fumaca
+        env:
+          SITE: ${{ env.SITE_FUMACA }}
+        run: node fumaca.mjs
+
+      - name: Guardar a tela da fumaça
+        if: failure() && steps.fumaca.outcome == 'failure'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: fumaca-${{ inputs.ambiente }}
+          path: scripts/fumaca/saida/
+          if-no-files-found: ignore
+
+      # Fumaça vermelha depois de publicar o site: o site volta sozinho para a
+      # versão de antes. Functions, regras e índices NÃO voltam — o incidente
+      # que motivou isto era do site, e desfazer regra às cegas é pior.
+      - name: Voltar o site para a versão anterior
+        if: failure() && steps.fumaca.outcome == 'failure' && steps.hosting.outcome == 'success' && env.VERSAO_ANTERIOR != ''
+        run: |
+          set -euo pipefail
+          TOKEN=$(gcloud auth print-access-token)
+          curl -sf -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+            -d '{"message":"volta automática: fumaça falhou no deploy ${{ github.run_id }}"}' \
+            "https://firebasehosting.googleapis.com/v1beta1/sites/$SITE_ID/releases?versionName=$VERSAO_ANTERIOR" > /dev/null
+          echo "::error::fumaça falhou — o site voltou para $VERSAO_ANTERIOR"
+          echo "VOLTOU=sim" >> "$GITHUB_ENV"
+
       # ── Sempre, mesmo se algo acima falhou ──────────────────────────────
       - name: Apagar a credencial do runner
         if: always()
         run: |
           ARQUIVO="$RUNNER_TEMP/conta-de-servico.json"
+          # O gcloud guarda cópia da chave ao ativar a conta (passo da versão).
+          gcloud auth revoke --all --quiet 2>/dev/null || true
           if [ -f "$ARQUIVO" ]; then
             shred -u "$ARQUIVO" 2>/dev/null || rm -f "$ARQUIVO"
             echo "credencial removida do runner"
@@ -272,5 +390,8 @@ jobs:
             echo "| commit | \`${GITHUB_SHA:0:7}\` |"
             echo "| escopo | ${{ inputs.escopo }} |"
             echo "| publicado por | @${GITHUB_ACTOR} |"
-            echo "| site | https://axon-barber.web.app |"
+            echo "| site | $SITE |"
+            echo "| fumaça | ${{ steps.fumaca.outcome || 'não rodou' }} em $SITE_FUMACA |"
+            [ "${VOLTOU:-}" = "sim" ] && echo "| ⚠️ | site voltou para \`$VERSAO_ANTERIOR\` |"
+            true
           } >> "$GITHUB_STEP_SUMMARY"

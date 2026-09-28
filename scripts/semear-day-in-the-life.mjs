@@ -14,14 +14,23 @@ import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 
-const PROJETO = process.env.PROJETO_EMULADOR ?? "day-in-the-life";
+/* Dois alvos permitidos: o emulador, ou o projeto de DEV (cortehub-dev.web.app)
+ * pedido POR NOME em SEMEAR_DEV. Produção (axon-barber) nunca: a lista é de
+ * permissão, não de proibição. */
+const PROJETO_DEV = "crucial-baton-440119-r8";
+const EH_DEV = process.env.SEMEAR_DEV === PROJETO_DEV;
+const PROJETO = EH_DEV ? PROJETO_DEV : process.env.PROJETO_EMULADOR ?? "day-in-the-life";
 
-if (!process.env.FIRESTORE_EMULATOR_HOST || !process.env.FIREBASE_AUTH_EMULATOR_HOST) {
+if (!EH_DEV && (!process.env.FIRESTORE_EMULATOR_HOST || !process.env.FIREBASE_AUTH_EMULATOR_HOST)) {
   console.error(
-    "RECUSADO: este script só roda contra emulador.\n" +
-      "  set FIRESTORE_EMULATOR_HOST=127.0.0.1:8080\n" +
-      "  set FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099"
+    "RECUSADO: este script só roda contra emulador ou contra o DEV.\n" +
+      "  emulador: set FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 e FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099\n" +
+      `  DEV:      SEMEAR_DEV=${PROJETO_DEV}`
   );
+  process.exit(1);
+}
+if (EH_DEV && (process.env.FIRESTORE_EMULATOR_HOST || process.env.FIREBASE_AUTH_EMULATOR_HOST)) {
+  console.error("RECUSADO: SEMEAR_DEV com variável de emulador junto — escolha um alvo só.");
   process.exit(1);
 }
 
@@ -32,7 +41,12 @@ const auth = getAuth();
 const SLUG = "osiqueira";
 const SHOP_ID = "shop-day-in-the-life";
 const EMAIL = "dono@osiqueira.teste";
-const SENHA = "dono12345";
+/* No DEV o site é público: a senha vem de fora (DEV_SENHA), não do código. */
+const SENHA = EH_DEV ? process.env.DEV_SENHA : "dono12345";
+if (!SENHA || SENHA.length < 12) {
+  console.error("RECUSADO: no DEV, passe DEV_SENHA com 12+ caracteres.");
+  process.exit(1);
+}
 
 /* ---- Dono ---- */
 let dono;
@@ -56,7 +70,7 @@ try {
 } catch {
   cliente = await auth.createUser({
     email: CLIENTE_EMAIL,
-    password: "cliente12345",
+    password: EH_DEV ? SENHA : "cliente12345",
     displayName: "Carlos Cliente",
     emailVerified: true,
   });
@@ -78,8 +92,8 @@ await db.doc(`barbershops/${SHOP_ID}`).set({
     advancedFinance: true,
   },
   brand: {
-    name: "O Siqueira Barbearia",
-    shortName: "O Siqueira",
+    name: EH_DEV ? "Barbearia de Teste (DEV)" : "O Siqueira Barbearia",
+    shortName: EH_DEV ? "Teste DEV" : "O Siqueira",
     logo: "/logo.svg",
     logoHorizontal: "/logo-horizontal.svg",
     accentColor: "#b8863a",
@@ -100,7 +114,6 @@ await db.doc(`barbershops/${SHOP_ID}`).set({
     slotMinutes: 30,
   },
   policies: {
-    paymentFees: { dinheiro: 0, pix: 0, debito: 1.99, credito: 3.49 },
     booking: { lateToleranceMinutes: 15 },
   },
   onboarding: {
@@ -110,6 +123,11 @@ await db.doc(`barbershops/${SHOP_ID}`).set({
   },
   createdAt: FieldValue.serverTimestamp(),
   createdBy: dono.uid,
+});
+
+/* Taxas moram no documento privado desde o #66 — a ficha pública não as tem. */
+await db.doc(`barbershops/${SHOP_ID}/private/financeiro`).set({
+  paymentFees: { dinheiro: 0, pix: 0, debito: 1.99, credito: 3.49 },
 });
 
 await db.doc(`barbershops/${SHOP_ID}/members/${dono.uid}`).set({
@@ -166,9 +184,9 @@ for (const p of planos) {
 }
 
 console.log("SEMEADO");
-console.log("  barbearia : http://osiqueira.lvh.me:3000");
-console.log("  dono      : %s / %s", EMAIL, SENHA);
-console.log("  cliente   : %s / cliente12345", CLIENTE_EMAIL);
+console.log("  barbearia : %s", EH_DEV ? "https://cortehub-dev.web.app" : "http://osiqueira.lvh.me:3000");
+console.log("  dono      : %s%s", EMAIL, EH_DEV ? " (senha: DEV_SENHA)" : ` / ${SENHA}`);
+console.log("  cliente   : %s%s", CLIENTE_EMAIL, EH_DEV ? " (senha: DEV_SENHA)" : " / cliente12345");
 console.log("  equipe    : Rafael (padrão da casa) · Léo (50%%)");
 console.log("  serviços  : 4 · produtos: 2 · planos: 2");
 console.log("  SEM reservas, SEM despesas, SEM vendas — é o que o teste vai criar.");
