@@ -25,6 +25,7 @@ const APARELHOS = [
 
 const PAINEL = [
   "/painel",
+  "/painel/agenda",
   "/painel/financeiro",
   "/painel/financeiro/dre",
   "/painel/financeiro/fluxo-caixa",
@@ -192,6 +193,23 @@ for (const [aparelho, cfg] of APARELHOS) {
   await visitar("/painel", "painel_ontem", async () => {
     await page.getByRole("button", { name: "Dia anterior" }).click();
     await page.waitForTimeout(500);
+  });
+
+  /* A aba Agenda com a janela de remarcar aberta — a parte nova com mais
+     interação (28/09). A semente tem horários de hoje em diante; se o dia
+     estiver vazio, anda até achar um "Remarcar". */
+  await visitar("/painel/agenda", "agenda_remarcar", async () => {
+    for (let i = 0; i < 7; i++) {
+      const remarcar = page.getByRole("button", { name: "Remarcar" }).first();
+      if (await remarcar.isVisible().catch(() => false)) {
+        await remarcar.click();
+        await page.getByRole("dialog").waitFor({ timeout: 10000 });
+        await page.waitForTimeout(800);
+        return;
+      }
+      await page.getByRole("button", { name: "Próxima semana" }).click();
+      await page.waitForTimeout(400);
+    }
   });
 
   if (celular) {

@@ -52,12 +52,15 @@ export function MarcarNoBalcao({
   onClose,
   aoMarcar,
   aoVerNaAgenda,
+  diaInicial,
 }: {
   open: boolean;
   onClose: () => void;
   aoMarcar?: (r: { bookingId: string; clientId: string }) => void;
   /** Aberto fora da tela Hoje (o "+" da barra), "Ver na agenda" precisa LEVAR lá. */
   aoVerNaAgenda?: () => void;
+  /** Dia que já vem escolhido — a Agenda abre no dia que o dono está olhando. */
+  diaInicial?: string;
 }) {
   const tenant = useTenant();
   const { items: servicos } = useServices();
@@ -65,7 +68,10 @@ export function MarcarNoBalcao({
   const { items: clientes } = useClients();
 
   const dias = useMemo(() => bookableDays(new Date(), tenant.schedule), [tenant.schedule]);
-  const [diaIndex, setDiaIndex] = useState(() => firstBookableIndex(dias));
+  const [diaIndex, setDiaIndex] = useState(() => {
+    const i = diaInicial ? dias.findIndex((d) => d.iso === diaInicial && !d.disabled) : -1;
+    return i >= 0 ? i : firstBookableIndex(dias);
+  });
   const [hora, setHora] = useState<string | null>(null);
 
   const [busca, setBusca] = useState("");

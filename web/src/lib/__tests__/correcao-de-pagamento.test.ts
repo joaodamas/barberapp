@@ -23,7 +23,11 @@ import type { Doc } from "@/lib/db/repository";
  */
 
 const raiz = fileURLToPath(new URL("../../", import.meta.url));
-const PAINEL = readFileSync(`${raiz}app/painel/(dashboard)/page.tsx`, "utf8");
+/* As ações do atendimento saíram da tela Hoje para um hook compartilhado com a
+ * aba Agenda (28/09). A regra é a mesma; o texto dela está nos dois arquivos. */
+const TELA_HOJE = readFileSync(`${raiz}app/painel/(dashboard)/page.tsx`, "utf8");
+const ACOES = readFileSync(`${raiz}components/agenda/acoes-do-atendimento.tsx`, "utf8");
+const PAINEL = TELA_HOJE + "\n" + ACOES;
 const MODAL = readFileSync(`${raiz}components/corrigir-pagamento.tsx`, "utf8");
 const ACTION_CENTER = readFileSync(`${raiz}lib/action-center.ts`, "utf8");
 const FINANCEIRO = readFileSync(`${raiz}app/painel/(dashboard)/financeiro/page.tsx`, "utf8");
@@ -127,25 +131,34 @@ describe("R1 · o card crítico aponta para a porta de correção", () => {
 describe("R1 · `executarIntencao` não reabre a conclusão sobre `completed`", () => {
   it("🔒 concluído vai para a correção, nunca para `setAFechar`", () => {
     /* O contrato, item 13. Reabrir `completed` é a mesma superfície por onde o
-     * "Veio depois" opera, e as duas operações não podem compartilhar caminho. */
-    const fn = PAINEL.slice(
-      PAINEL.indexOf("function executarIntencao"),
-      PAINEL.indexOf("return (", PAINEL.indexOf("function executarIntencao"))
+     * "Veio depois" opera, e as duas operações não podem compartilhar caminho.
+     *
+     * Desde 28/09 a porta é `abrirConcluir`, no hook que Hoje e Agenda usam:
+     * toda tela que conclui passa por ela, e a guarda vale para as duas. */
+    const fn = ACOES.slice(
+      ACOES.indexOf("abrirConcluir:"),
+      ACOES.indexOf("abrirFalta:")
     );
-    expect(fn).toContain('alvo.status === "completed"');
-    expect(fn).toContain("setACorrigir(alvo)");
+    expect(fn).toContain('b.status === "completed"');
+    expect(fn).toContain("setACorrigir(b)");
 
     /* E a guarda vem ANTES da única chamada a `setAFechar`: se ela viesse
      * depois, existiria por decoração. */
-    expect(fn.indexOf('alvo.status === "completed"')).toBeLessThan(
-      fn.indexOf("setAFechar(alvo)")
+    expect(fn.indexOf('b.status === "completed"')).toBeLessThan(fn.indexOf("setAFechar(b)"));
+
+    /* E a tela não tem outro caminho para o modal de conclusão. */
+    expect(TELA_HOJE).not.toContain("setAFechar(");
+    const executar = TELA_HOJE.slice(
+      TELA_HOJE.indexOf("function executarIntencao"),
+      TELA_HOJE.indexOf("return (", TELA_HOJE.indexOf("function executarIntencao"))
     );
+    expect(executar).toContain("atendimento.abrirConcluir(alvo)");
   });
 
   it("🔒 a intenção de correção tem caminho próprio", () => {
-    const fn = PAINEL.slice(
-      PAINEL.indexOf("function executarIntencao"),
-      PAINEL.indexOf("return (", PAINEL.indexOf("function executarIntencao"))
+    const fn = TELA_HOJE.slice(
+      TELA_HOJE.indexOf("function executarIntencao"),
+      TELA_HOJE.indexOf("return (", TELA_HOJE.indexOf("function executarIntencao"))
     );
     expect(fn).toContain('intent.kind === "corrigirPagamento"');
   });
@@ -165,7 +178,7 @@ describe("R1 · a ação existe na linha do atendimento concluído", () => {
   it("🔒 há um botão 'Corrigir pagamento' para o concluído", () => {
     expect(PAINEL).toContain("Corrigir pagamento");
     expect(PAINEL).toContain('booking.status === "completed" && !liquidacao.coberto');
-    expect(PAINEL).toContain("setACorrigir(booking)");
+    expect(PAINEL).toContain("atendimento.abrirCorrecao(booking)");
   });
 
   it("🔒 e o modal de correção é montado condicionalmente", () => {

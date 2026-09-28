@@ -347,7 +347,14 @@ const fonte = (caminho: string) =>
 const semComentarios = (codigo: string) =>
   codigo.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
 
-const HOJE = () => semComentarios(fonte("painel/(dashboard)/page.tsx"));
+/* O fechamento mora no hook compartilhado por Hoje e Agenda desde 28/09 — a
+ * tela e as ações dela são lidas juntas. */
+const HOJE = () =>
+  semComentarios(
+    fonte("painel/(dashboard)/page.tsx") +
+      "\n" +
+      readFileSync(new URL("../../components/agenda/acoes-do-atendimento.tsx", import.meta.url), "utf8")
+  );
 const AGENDAR = () => semComentarios(fonte("(cliente)/agendar/page.tsx"));
 
 describe("a guarda chega à tela Hoje", () => {
