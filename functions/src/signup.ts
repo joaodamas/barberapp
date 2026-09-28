@@ -1,3 +1,4 @@
+import { CAMINHO_FINANCEIRO } from "./politicas-financeiras";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { vinculosDe } from "./acesso";
 import { getAuth } from "firebase-admin/auth";
@@ -174,7 +175,10 @@ export const signUpBarbershop = onCall<SignUpInput>(async (request) => {
        * `commissionSplit` ausente como 0% e gravava a comissão zerada, enquanto
        * a tela de Equipe prometia o padrão da casa. Toda barbearia que entrasse
        * pela porta da frente nascia com o defeito. */
-      policies: politicasIniciais(),
+      /* Só a parte PÚBLICA da política. Comissão e taxas nascem no documento
+       * privado logo abaixo — na ficha pública, qualquer um lia quanto fica com
+       * o barbeiro (auditoria de 28/09, M4). */
+      policies: {},
       brand: {
         name,
         shortName: shortNameFrom(name),
@@ -197,6 +201,11 @@ export const signUpBarbershop = onCall<SignUpInput>(async (request) => {
     });
 
     tx.set(slugRef, { barbershopId: shopRef.id });
+
+    tx.set(
+      shopRef.collection(CAMINHO_FINANCEIRO.colecao).doc(CAMINHO_FINANCEIRO.doc),
+      politicasIniciais()
+    );
 
     tx.set(shopRef.collection("members").doc(uid), {
       role: "owner",

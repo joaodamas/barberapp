@@ -200,8 +200,19 @@ service cloud.firestore {
       /* -------- contrato com a plataforma: nunca público -------- */
 
       match /private/{docId} {
-        allow read: if isOwnerOf(barbershopId) || isPlatformAdmin();
-        allow write: if isPlatformAdmin();
+        allow read: if isOwnerOf(barbershopId) || isPlatformAdmin()
+                    /* `financeiro` (28/09): taxas e comissão saíram da ficha
+                     * pública. A equipe precisa delas para fechar atendimento
+                     * — a mesma leitura que tinha antes, só que agora não é de
+                     * qualquer um. */
+                    || (docId == 'financeiro' && isStaffOf(barbershopId));
+        /* O dono edita taxas e comissão pela tela de Ajustes — e SÓ esses três
+         * campos: o resto de `private/` é contrato e cobrança da plataforma. */
+        allow write: if isPlatformAdmin()
+                     || (docId == 'financeiro'
+                         && isOwnerOf(barbershopId)
+                         && request.resource.data.keys()
+                              .hasOnly(['paymentFees', 'paymentForms', 'commissionSplit']));
       }
 
       /* -------- quem trabalha aqui -------- */

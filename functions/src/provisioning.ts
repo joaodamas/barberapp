@@ -1,3 +1,4 @@
+import { CAMINHO_FINANCEIRO } from "./politicas-financeiras";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { vinculosDe } from "./acesso";
 import { getAuth } from "firebase-admin/auth";
@@ -162,12 +163,20 @@ export const provisionBarbershop = onCall<ProvisionInput>(async (request) => {
        * documento, e não no palpite do leitor. Os dois caminhos de criação
        * precisam produzir a mesma barbearia — foi a divergência entre eles que
        * fez a jornada padrão existir num e faltar no outro. */
-      policies: politicasIniciais(),
+      /* Só a parte PÚBLICA da política. Comissão e taxas nascem no documento
+       * privado logo abaixo — na ficha pública, qualquer um lia quanto fica com
+       * o barbeiro (auditoria de 28/09, M4). */
+      policies: {},
       createdAt: FieldValue.serverTimestamp(),
       createdBy: request.auth?.uid ?? null,
     });
 
     tx.set(slugRef, { barbershopId: shopRef.id });
+
+    tx.set(
+      shopRef.collection(CAMINHO_FINANCEIRO.colecao).doc(CAMINHO_FINANCEIRO.doc),
+      politicasIniciais()
+    );
 
     tx.set(shopRef.collection("staff").doc(), {
       name: owner.displayName || "Eu",
