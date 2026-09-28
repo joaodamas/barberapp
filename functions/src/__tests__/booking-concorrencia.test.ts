@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { initializeApp, deleteApp, type App } from "firebase-admin/app";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
-import { gravarComTravaDeHorario } from "../booking";
+import { gravarComTravaDeHorario, refDoLimiteDiario } from "../booking";
 import { janelasOcupadas, seSobrepoem } from "../agenda";
 
 /**
@@ -90,6 +90,8 @@ beforeEach(async () => {
   // horário tomado pelo primeiro, e passaria pelo motivo errado.
   const snap = await db.collection(`barbershops/${SHOP}/bookings`).get();
   await Promise.all(snap.docs.map((d) => d.ref.delete()));
+  const limites = await db.collection("limites_de_reserva").get();
+  await Promise.all(limites.docs.map((d) => d.ref.delete()));
 });
 
 describe("dois clientes no mesmo segundo", () => {
@@ -368,5 +370,45 @@ describe("encaixe · repetição da mesma tentativa", () => {
     let gravado = "";
     await gravarComTravaDeHorario({ ...base, aoDefinirStatus: (st) => (gravado = st) });
     expect(gravado).toBe("cancelled_by_shop");
+  });
+});
+
+describe("teto diário por conta (28/09, M2)", () => {
+  /** Doze horários diferentes, para só o teto diário poder recusar. */
+  const HORAS = ["08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "13:00", "13:30", "14:00", "14:30"];
+  const comTeto = (i: number, over: Partial<Parameters<typeof gravarComTravaDeHorario>[0]> = {}) => ({
+    ...pedido({ clientId: "script", time: HORAS[i], duracaoDaReserva: 30, maxAtivas: 99, ...over }),
+    limiteDiario: { ref: refDoLimiteDiario(db, "script", "2026-09-01"), maximo: 10 },
+  });
+
+  it("doze pedidos simultâneos da mesma conta: só dez gravam", async () => {
+    /* Fora da transação, os doze leriam o mesmo contador e passariam todos. */
+    const r = await correr(HORAS.map((_, i) => comTeto(i)));
+    expect(r.gravadas).toBe(10);
+    expect(r.erros.some((e) => /Muitas tentativas hoje/.test(e))).toBe(true);
+    const contador = await refDoLimiteDiario(db, "script", "2026-09-01").get();
+    expect(contador.get("criadas")).toBe(10);
+  });
+
+  it("a repetição idempotente da mesma tentativa não conta", async () => {
+    const mesma = { ...comTeto(0), idDaReserva: "tentativa-fixa" };
+    await gravarComTravaDeHorario(mesma);
+    await gravarComTravaDeHorario(mesma);
+    await gravarComTravaDeHorario(mesma);
+    const contador = await refDoLimiteDiario(db, "script", "2026-09-01").get();
+    expect(contador.get("criadas")).toBe(1);
+  });
+
+  it("tentativa recusada (horário tomado) não pesa contra o cliente", async () => {
+    await gravarComTravaDeHorario(pedido({ clientId: "outro", time: "08:00", duracaoDaReserva: 30 }));
+    const r = await correr([comTeto(0)]);
+    expect(r.recusadas).toBe(1);
+    const contador = await refDoLimiteDiario(db, "script", "2026-09-01").get();
+    expect(contador.exists).toBe(false);
+  });
+
+  it("sem `limiteDiario` (o balcão), nada é contado", async () => {
+    await gravarComTravaDeHorario(pedido({ clientId: "balcao", time: "08:00", duracaoDaReserva: 30 }));
+    expect((await db.collection("limites_de_reserva").get()).empty).toBe(true);
   });
 });

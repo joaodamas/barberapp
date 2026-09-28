@@ -125,6 +125,13 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    /* Contador de reservas criadas por conta por dia (`createBooking`,
+     * auditoria de 28/09, M2). Só o servidor conta: legível, ensinaria ao
+     * script quantas faltam; gravável, o cliente zeraria o próprio teto. */
+    match /limites_de_reserva/{docId} {
+      allow read, write: if false;
+    }
+
     match /platform_users/{userId} {
       /* Guarda o hash da senha provisória enquanto ela existe. Negado para
        * TODO MUNDO, inclusive o próprio dono e o suporte: só o Admin SDK

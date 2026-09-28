@@ -227,6 +227,18 @@ describe("conta do cliente", () => {
     );
     await assertFails(updateDoc(doc(as(CLIENTE), "users", CLIENTE.sub), { platformAdmin: true }));
   });
+
+  it("🔒 NÃO lê nem zera o próprio teto diário de reservas (28/09, M2)", async () => {
+    /* Gravável, o script zeraria o contador antes de cada laço; legível,
+     * saberia quantas faltam. Só o `createBooking` conta. */
+    const id = `${CLIENTE.sub}_2026-09-28`;
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "limites_de_reserva", id), { criadas: 10 });
+    });
+    await assertFails(getDoc(doc(as(CLIENTE), "limites_de_reserva", id)));
+    await assertFails(setDoc(doc(as(CLIENTE), "limites_de_reserva", id), { criadas: 0 }));
+    await assertFails(deleteDoc(doc(as(CLIENTE), "limites_de_reserva", id)));
+  });
 });
 
 describe("contrato com a plataforma", () => {
