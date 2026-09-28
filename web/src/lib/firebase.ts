@@ -50,10 +50,41 @@ if (useEmulator && typeof window !== "undefined") {
   }
 }
 
+/**
+ * App Check — a prova de que o pedido saiu DESTE app, e não de um script.
+ *
+ * Auditoria de 28/09 (M2): sem ele, qualquer um com a configuração pública do
+ * Firebase chamava as funções e o banco direto, sem passar pela tela. A chave
+ * é do reCAPTCHA Enterprise (invisível: o cliente não resolve desafio nenhum).
+ *
+ * Preparado ANTES de Firestore e Functions: é a primeira instância de cada um
+ * que decide se os pedidos levam o token. Sem a chave (desenvolvimento,
+ * emulador, CI), segue sem App Check — a exigência é ligada no servidor, em
+ * produção, só depois de as métricas mostrarem os pedidos reais verificados.
+ */
+let appCheckPromise: Promise<void> | null = null;
+
+function prepararAppCheck(): Promise<void> {
+  const chave = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
+  if (typeof window === "undefined" || useEmulator || !chave) return Promise.resolve();
+  appCheckPromise ??= import("firebase/app-check")
+    .then(({ initializeAppCheck, ReCaptchaEnterpriseProvider }) => {
+      initializeAppCheck(firebaseApp, {
+        provider: new ReCaptchaEnterpriseProvider(chave),
+        isTokenAutoRefreshEnabled: true,
+      });
+    })
+    /* Falhar aqui não pode derrubar o app: sem App Check o pedido segue, e é
+     * o servidor que decide se aceita. */
+    .catch((erro) => console.error("[app-check] não inicializou", erro));
+  return appCheckPromise;
+}
+
 let dbPromise: Promise<import("firebase/firestore").Firestore> | null = null;
 
 export async function getDb() {
   dbPromise ??= (async () => {
+    await prepararAppCheck();
     const mod = await import("firebase/firestore");
     const noNavegador = typeof window !== "undefined";
 
@@ -95,6 +126,7 @@ let functionsPromise: Promise<import("firebase/functions").Functions> | null = n
 
 export async function getAppFunctions() {
   functionsPromise ??= (async () => {
+    await prepararAppCheck();
     const { getFunctions, connectFunctionsEmulator } = await import("firebase/functions");
     const fns = getFunctions(firebaseApp, "southamerica-east1");
     if (useEmulator) connectFunctionsEmulator(fns, "127.0.0.1", 5001);
