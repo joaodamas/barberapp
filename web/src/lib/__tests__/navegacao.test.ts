@@ -21,6 +21,7 @@ import {
 
 const rotasDoPainel = [
   "/painel",
+  "/painel/agenda",
   "/painel/clientes",
   "/painel/configuracoes",
   "/painel/equipe",
@@ -59,9 +60,12 @@ describe("cobertura — nenhuma tela órfã, nenhum link morto", () => {
   /* A régua do produto: "a interface não deve mostrar tudo que o sistema sabe;
      deve mostrar o que o dono precisa decidir". Eram nove itens de primeiro
      nível numa operação que costuma ser de um barbeiro só. O teto existe para
-     que voltar a crescer seja uma decisão, e não um acidente. */
-  it("o primeiro nível não passa de sete itens", () => {
-    expect(painelNavItems.length).toBeLessThanOrEqual(7);
+     que voltar a crescer seja uma decisão, e não um acidente.
+
+     Subiu de sete para oito em 28/09, por decisão: o dono pediu a Agenda como
+     tela própria. O próximo item exige a mesma conversa. */
+  it("o primeiro nível não passa de oito itens", () => {
+    expect(painelNavItems.length).toBeLessThanOrEqual(8);
   });
 });
 
@@ -186,8 +190,11 @@ describe("menuDoCelular — o que o dono alcança em pé, no balcão", () => {
   /* A ordem passou a medir frequência de uso: Loja é tela de balcão, aberta
      com o cliente na frente, e estava atrás do "Mais" enquanto Números — lido
      uma vez por mês — estava na barra. */
-  it("a barra é Hoje · Financeiro · Clientes · Loja", () => {
-    expect(barra.map((i) => i.label)).toEqual(["Hoje", "Financeiro", "Clientes", "Loja"]);
+  /* Agenda entrou em segundo em 28/09 e Clientes subiu: são as telas do
+     balcão. Financeiro, lido sentado, ficou em quarto — no celular do dono,
+     com o "+" ocupando um lugar, ele passa para o "Mais". */
+  it("a barra é Hoje · Agenda · Clientes · Financeiro", () => {
+    expect(barra.map((i) => i.label)).toEqual(["Hoje", "Agenda", "Clientes", "Financeiro"]);
   });
 
   /* O defeito central do celular: a barra nunca desenhou submenu e a lateral

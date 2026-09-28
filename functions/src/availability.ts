@@ -61,6 +61,12 @@ export const availableSlots = onCall<{
    * recebendo a lista dele.
    */
   paraOBalcao?: boolean;
+  /**
+   * Reserva que está sendo REMARCADA: sai da conta de ocupação, como no
+   * próprio `rescheduleBooking`. Sem isto, empurrar um cliente 30 minutos não
+   * aparecia como opção — a reserva bloqueava a si mesma.
+   */
+  ignorarReservaId?: string;
 }>(async (request) => {
   const { barbershopId, date } = request.data ?? {};
   if (!barbershopId) throw new HttpsError("invalid-argument", "Barbearia não informada.");
@@ -144,7 +150,12 @@ export const availableSlots = onCall<{
   const reservas = await shopRef.collection("bookings").where("date", "==", date).get();
   const ocupadas = janelasOcupadas(
     reservas.docs
-      .filter((d) => d.get("staffId") === barbeiro.id && OCUPAM_SLOT.includes(d.get("status")))
+      .filter(
+        (d) =>
+          d.id !== request.data?.ignorarReservaId &&
+          d.get("staffId") === barbeiro.id &&
+          OCUPAM_SLOT.includes(d.get("status"))
+      )
       .map((d) => ({ time: String(d.get("time")), durationMin: d.get("durationMin") })),
     jornada.slotMinutes
   );

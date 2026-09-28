@@ -1,6 +1,7 @@
 import {
   ArrowLeftRight,
   BarChart3,
+  CalendarDays,
   Clock,
   LineChart,
   Link2,
@@ -122,6 +123,20 @@ export const clienteNavVisitante: NavItem[] = clienteNavItems.filter((i) =>
  */
 export const painelNavItems: NavItem[] = [
   { href: "/painel", label: "Hoje", icon: Sun },
+  /* A agenda ganhou tela própria em 28/09, a pedido do dono: a do Hoje é UM
+   * dia, espremida entre os números, e mexer nela era desconfortável. Aqui
+   * cabem a semana, o dia inteiro e as ações — marcar, remarcar, cancelar,
+   * concluir. Fica em segundo porque é o que o dono mais abre depois do Hoje;
+   * Finanças cedeu o lugar na barra do celular e foi para o "Mais". */
+  { href: "/painel/agenda", label: "Agenda", icon: CalendarDays },
+  /* D26 · Clientes é área de primeira classe.
+     G3 criou a entidade e ela só existia dentro de modais — o dono não tinha
+     onde ver quem são seus clientes nem quem não volta há dois meses.
+     O comentário anterior dizia "fica logo depois de Hoje" e o item era o
+     TERCEIRO desde que nasceu: a nota descrevia uma intenção, não o código.
+     Continua em terceiro, agora dito de forma verdadeira — o que a intenção
+     exigia era estar na primeira faixa, e está. */
+  { href: "/painel/clientes", label: "Clientes", icon: Users },
   {
     href: "/painel/financeiro",
     label: "Financeiro",
@@ -169,14 +184,6 @@ export const painelNavItems: NavItem[] = [
       { href: "/painel/financeiro/despesas", label: "Despesas", feature: "advancedFinance", icon: Receipt },
     ],
   },
-  /* D26 · Clientes é área de primeira classe.
-     G3 criou a entidade e ela só existia dentro de modais — o dono não tinha
-     onde ver quem são seus clientes nem quem não volta há dois meses.
-     O comentário anterior dizia "fica logo depois de Hoje" e o item era o
-     TERCEIRO desde que nasceu: a nota descrevia uma intenção, não o código.
-     Continua em terceiro, agora dito de forma verdadeira — o que a intenção
-     exigia era estar na primeira faixa, e está. */
-  { href: "/painel/clientes", label: "Clientes", icon: Users },
   /* Subiu de oitavo para quarto — o único item que mudou de faixa.
      É tela de balcão: o dono a abre com o cliente parado na frente dele, para
      vender um produto ou conferir estoque. Estava atrás do menu "Mais" do
