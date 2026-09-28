@@ -103,13 +103,21 @@ export type ResolucaoDeTenant = {
  * `osiqueira`, a página voltava "CorteHub". O balanceador leva o host original
  * (o SNI da conexão) neste cabeçalho próprio.
  *
- * Só vale se for subdomínio do domínio raiz. Mandá-lo à mão escolhe qual
- * vitrine pública aparece — o mesmo que digitar outro subdomínio —, e nada
- * além disso: sessão e dados continuam presos à origem e às regras.
+ * ⚠️ Só vale com o SEGREDO do balanceador (auditoria de 28/09, A2). O
+ * cabeçalho tem prioridade sobre o host, e o cache da borda separa as páginas
+ * só por `Host`: qualquer um mandava `x-cortehub-host: outra.…` para
+ * `osiqueira.…` e o CDN guardava, na chave do O Siqueira, a vitrine de outra
+ * barbearia — por 5 minutos, repetível à vontade. Agora o balanceador precisa
+ * enviar também `x-cortehub-lb-segredo` igual a `CORTEHUB_LB_SEGREDO` no
+ * ambiente do servidor. Sem a variável (hoje: o balanceador ainda não está no
+ * DNS), o cabeçalho é ignorado.
  */
 const CABECALHO_DO_BALANCEADOR = "x-cortehub-host";
+const CABECALHO_DO_SEGREDO = "x-cortehub-lb-segredo";
 
-function hostDoBalanceador(valor: string | null): string | null {
+function hostDoBalanceador(valor: string | null, segredo: string | null): string | null {
+  const esperado = process.env.CORTEHUB_LB_SEGREDO;
+  if (!esperado || !segredo || segredo !== esperado) return null;
   if (!valor) return null;
   const host = valor.trim().toLowerCase();
   return host.endsWith(`.${ROOT_DOMAIN}`) ? host : null;
@@ -129,7 +137,10 @@ export const resolverTenant = cache(async function resolverTenant(): Promise<Res
    * Em desenvolvimento não existe proxy, então o sintoma não aparece: só surge
    * no primeiro acesso real em produção. */
   const host =
-    hostDoBalanceador(headerList.get(CABECALHO_DO_BALANCEADOR)) ??
+    hostDoBalanceador(
+      headerList.get(CABECALHO_DO_BALANCEADOR),
+      headerList.get(CABECALHO_DO_SEGREDO)
+    ) ??
     headerList.get("x-forwarded-host") ??
     headerList.get("host");
 

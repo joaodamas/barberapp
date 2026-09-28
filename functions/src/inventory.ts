@@ -1,5 +1,5 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
-import { exigirEdicao } from "./acesso";
+import { exigirEdicao, vinculosDe } from "./acesso";
 import { percentualDoCadastro } from "./remuneracao";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { hojeNoFuso, localeDoDocumento } from "./locale";
@@ -581,7 +581,7 @@ export const registrarVendaDeProduto = onCall<VendaInput>(async (request) => {
   /* Vender é operar a loja: exige vínculo, como marcar no balcão. Sem esta
    * guarda, qualquer autenticado baixaria o estoque de qualquer barbearia — o
    * Admin SDK ignora as regras do Firestore. */
-  const papel = (request.auth?.token.barbershops as Record<string, string> | undefined)?.[
+  const papel = vinculosDe(request)?.[
     barbershopId
   ];
   if (papel !== "owner" && papel !== "staff") {
@@ -810,7 +810,7 @@ export const registrarEntradaDeEstoque = onCall<{
   if (!barbershopId) throw new HttpsError("invalid-argument", "Barbearia não informada.");
   if (!productId) throw new HttpsError("invalid-argument", "Produto não informado.");
 
-  const papel = (request.auth?.token.barbershops as Record<string, string> | undefined)?.[
+  const papel = vinculosDe(request)?.[
     barbershopId
   ];
   if (papel !== "owner" && papel !== "staff") {

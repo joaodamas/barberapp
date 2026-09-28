@@ -77,7 +77,7 @@ describe("as guardas da chamada", () => {
     /* Mesma guarda de `corrigirPagamentoDeAtendimento` e `registrarEstorno`: as
      * regras do Firestore protegem o dado e o Admin SDK as ignora. Sem ela, o
      * dono da Alfa zeraria a Beta com um token válido. */
-    expect(FONTE).toContain('request.auth?.token.barbershops');
+    expect(FONTE).toContain('vinculosDe(request)');
     expect(FONTE).toMatch(/papel !== "owner"/);
   });
 

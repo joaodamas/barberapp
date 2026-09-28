@@ -179,7 +179,16 @@ service cloud.firestore {
                                                      'encerradaEm', 'encerradaEmMs',
                                                      'encerradaPor', 'encerramentoMotivo',
                                                      'statusAntesDeEncerrar', 'expurgo',
-                                                     'suspendedAt', 'suspendedReason']));
+                                                     'suspendedAt', 'suspendedReason',
+                                                     /* Liberação de recurso e
+                                                      * decisão de plano também são
+                                                      * contrato: sem eles aqui, o
+                                                      * dono gravava `featuresExtras`
+                                                      * e ligava Loja, Mensalistas e
+                                                      * Financeiro avançado sem
+                                                      * pagar (auditoria 28/09, M1). */
+                                                     'featuresExtras', 'trialEncerradoEm',
+                                                     'planoDefinidoEm', 'planoDefinidoMotivo']));
 
       /* -------- contrato com a plataforma: nunca público -------- */
 

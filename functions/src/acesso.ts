@@ -55,3 +55,36 @@ export async function exigirEdicao(barbershopId: string): Promise<void> {
   const motivo = motivoDeLeitura(shop);
   if (motivo) throw new HttpsError("failed-precondition", MENSAGEM[motivo]);
 }
+
+/**
+ * Os vínculos de quem chamou — papel por barbearia —, com a trava da senha
+ * provisória.
+ *
+ * Conta com `mustChangePassword` não tem papel em barbearia nenhuma até trocar
+ * a senha. A regra existia só no Firestore (`memberships()` em
+ * `firestore.rules`), e as callables liam `token.barbershops` cru: quem tivesse
+ * visto a senha provisória no WhatsApp chamava `grantShopRole` pelo SDK e se
+ * dava um papel de dono PERMANENTE, que a troca de senha do dono verdadeiro não
+ * revogava (auditoria de 28/09, A1). Toda leitura de papel passa por aqui.
+ */
+export function vinculosDe(request: {
+  auth?: { token: Record<string, unknown> } | null;
+}): Record<string, string> {
+  const token = request.auth?.token;
+  if (!token || token.mustChangePassword === true) return {};
+  return (token.barbershops ?? {}) as Record<string, string>;
+}
+
+/**
+ * Identificador de documento recebido do cliente: só letras, números, `_` e
+ * `-`. Sem isto, um `barbershopId` com barra ("loja/clients/UID") virava
+ * caminho de outro documento, e a diferença entre as respostas revelava se um
+ * uid era cliente daquela barbearia (auditoria de 28/09, B1).
+ */
+export function idSeguro(valor: unknown, rotulo = "Identificador"): string {
+  const id = String(valor ?? "");
+  if (!/^[A-Za-z0-9_-]{1,128}$/.test(id)) {
+    throw new HttpsError("invalid-argument", `${rotulo} inválido.`);
+  }
+  return id;
+}

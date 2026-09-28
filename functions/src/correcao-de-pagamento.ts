@@ -1,5 +1,5 @@
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
-import { exigirEdicao } from "./acesso";
+import { exigirEdicao, vinculosDe } from "./acesso";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { SEM_TAXA, type PaymentFees, type PaymentMethod } from "./financial-events";
 import { idDoPagamento, valoresDoPagamento } from "./payments";
@@ -482,7 +482,7 @@ export const corrigirPagamentoDeAtendimento = onCall<CorrecaoInput>(async (reque
   /* A guarda de vínculo. As regras do Firestore protegem o DADO e o Admin SDK
    * as ignora: sem esta leitura do claim, o dono da Alfa corrigiria o pagamento
    * da Beta com um token perfeitamente válido. */
-  const papel = (request.auth?.token.barbershops as Record<string, string> | undefined)?.[
+  const papel = vinculosDe(request)?.[
     barbershopId
   ];
   if (papel !== "owner") {

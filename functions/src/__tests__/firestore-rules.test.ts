@@ -249,6 +249,19 @@ describe("contrato com a plataforma", () => {
     );
   });
 
+  it("🔒 o dono NÃO libera recurso pago escrevendo `featuresExtras` (auditoria 28/09, M1)", async () => {
+    /* `features` estava protegido e `featuresExtras` não — e é ele que a tela
+     * soma ao plano para liberar recurso. */
+    await assertFails(
+      updateDoc(doc(as(DONO_ALFA), "barbershops", ALFA), {
+        featuresExtras: { subscriptions: true, store: true, advancedFinance: true },
+      })
+    );
+    await assertFails(
+      updateDoc(doc(as(DONO_ALFA), "barbershops", ALFA), { planoDefinidoMotivo: "eu mesmo" })
+    );
+  });
+
   it("🔒 o dono NÃO estende o próprio período de teste", async () => {
     await assertFails(
       updateDoc(doc(as(DONO_ALFA), "barbershops", ALFA), {

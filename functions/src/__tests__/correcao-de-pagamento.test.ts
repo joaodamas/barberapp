@@ -429,7 +429,7 @@ describe("R1 · a correção ALTERA, não reescreve", () => {
 describe("R1 · permissão e rastro", () => {
   it("🔒 é DONO-ONLY, como `registrarEstorno`", () => {
     expect(FONTE).toContain('papel !== "owner"');
-    expect(FONTE).toContain("token.barbershops");
+    expect(FONTE).toContain("vinculosDe(request)");
     expect(FONTE).toContain("permission-denied");
   });
 
