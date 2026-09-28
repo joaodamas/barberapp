@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { useTenant } from "@/lib/tenant-context";
-import { bookableDays, firstBookableIndex } from "@/lib/slots";
+import { bookableDays } from "@/lib/slots";
+import { capacidadeDaData } from "@/lib/jornada";
 import { formatBRL, toISODate } from "@/lib/format";
 import type { BookingDoc } from "@/lib/domain";
 import type { Doc } from "@/lib/db/repository";
@@ -32,11 +33,25 @@ export function RemarcarAtendimento({
 }) {
   const tenant = useTenant();
   const dias = useMemo(() => bookableDays(new Date(), tenant.schedule), [tenant.schedule]);
-  const [diaIndex, setDiaIndex] = useState(() => {
-    const i = dias.findIndex((d) => d.iso === booking.date && !d.disabled);
-    return i >= 0 ? i : firstBookableIndex(dias);
+  /* O dia é uma DATA, não um índice nos 10 botões: o dono remarca retorno
+   * para o mês que vem, e o servidor aceita até um ano à frente. Os botões são
+   * atalho; "Outra data" alcança o resto (revisão do PR #62). */
+  const [diaIso, setDiaIso] = useState(() => {
+    const noAtalho = dias.find((d) => d.iso === booking.date && !d.disabled);
+    return noAtalho?.iso ?? dias.find((d) => !d.disabled)?.iso ?? booking.date;
   });
-  const dia = dias[diaIndex];
+  const abreNoDia = (iso: string) =>
+    capacidadeDaData({
+      schedule: tenant.schedule,
+      weekday: new Date(`${iso}T12:00:00`).getDay(),
+      date: iso,
+    }) > 0;
+  const dia = { iso: diaIso, disabled: !abreNoDia(diaIso) };
+  /* Reserva antiga sem barbeiro gravado: `availableSlots` escolheria o
+   * primeiro da equipe, e a lista não bateria com a conta do servidor. Melhor
+   * dizer do que oferecer um horário que pode ser recusado. */
+  const semBarbeiro = !booking.staffId;
+  const duracao = booking.durationMin || tenant.schedule?.slotMinutes || 30;
   const [hora, setHora] = useState<string | null>(null);
   const [resposta, setResposta] = useState<{ chave: string; slots: string[] } | null>(null);
   const [salvando, setSalvando] = useState(false);
@@ -44,7 +59,7 @@ export function RemarcarAtendimento({
 
   const chave = `${dia?.iso ?? ""}`;
   useEffect(() => {
-    if (!dia?.iso || dia.disabled) return;
+    if (!dia?.iso || dia.disabled || semBarbeiro) return;
     let cancelado = false;
     (async () => {
       try {
@@ -53,7 +68,7 @@ export function RemarcarAtendimento({
           barbershopId: tenant.id,
           date: dia.iso,
           staffId: booking.staffId,
-          durationMin: booking.durationMin,
+          durationMin: duracao,
           paraOBalcao: true,
           ignorarReservaId: booking.id,
         });
@@ -65,7 +80,7 @@ export function RemarcarAtendimento({
     return () => {
       cancelado = true;
     };
-  }, [chave, dia?.iso, dia?.disabled, tenant.id, booking.staffId, booking.durationMin, booking.id]);
+  }, [chave, dia?.iso, dia?.disabled, semBarbeiro, tenant.id, booking.staffId, duracao, booking.id]);
 
   /* O próprio horário atual não é destino: remarcar para onde já está seria
    * um toque sem efeito que ainda gasta uma chamada ao servidor. */
@@ -114,34 +129,53 @@ export function RemarcarAtendimento({
       <div className="flex flex-col gap-3">
         <p className="text-[11px] uppercase tracking-wide text-ink-muted">Novo dia</p>
         <div className="flex gap-1.5 overflow-x-auto pb-1">
-          {dias.map((d, i) => (
+          {dias.map((d) => (
             <button
               key={d.iso}
               type="button"
               disabled={d.disabled}
-              aria-pressed={i === diaIndex}
+              aria-pressed={d.iso === diaIso}
               onClick={() => {
-                setDiaIndex(i);
+                setDiaIso(d.iso);
                 setHora(null);
               }}
               className={
                 "min-h-10 shrink-0 rounded-lg border px-3 py-2 text-xs transition-colors disabled:opacity-30 " +
-                (i === diaIndex ? "border-gold bg-gold/10 text-ink" : "border-border text-ink-muted")
+                (d.iso === diaIso ? "border-gold bg-gold/10 text-ink" : "border-border text-ink-muted")
               }
             >
               {rotuloDoDia(d.iso)}
             </button>
           ))}
         </div>
+        <label className="flex items-center gap-2 text-xs text-ink-muted">
+          Outra data
+          <input
+            type="date"
+            min={toISODate(new Date())}
+            value={diaIso}
+            onChange={(e) => {
+              if (!e.target.value) return;
+              setDiaIso(e.target.value);
+              setHora(null);
+            }}
+            className="rounded-lg border px-2 py-1.5 text-sm text-ink"
+          />
+        </label>
 
         <p className="text-[11px] uppercase tracking-wide text-ink-muted">Novo horário</p>
-        {!dia || dia.disabled ? (
+        {semBarbeiro ? (
+          <p className="text-xs text-ink-muted">
+            Este atendimento é antigo e não tem barbeiro definido. Para mudar o
+            horário, cancele e marque de novo pelo “Marcar atendimento”.
+          </p>
+        ) : !dia || dia.disabled ? (
           <p className="text-xs text-ink-muted">A barbearia não abre nesse dia.</p>
         ) : livres === null ? (
           <p className="text-xs text-ink-muted">Carregando horários…</p>
         ) : livres.length === 0 ? (
           <p className="text-xs text-ink-muted">
-            Nenhum horário livre de {booking.durationMin ?? "?"} min nesse dia.
+            Nenhum horário livre de {duracao} min nesse dia.
           </p>
         ) : (
           <div className="grid grid-cols-4 gap-1.5">

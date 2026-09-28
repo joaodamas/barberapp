@@ -210,6 +210,7 @@ export default function AgendaPage() {
               hoje={hoje}
               agora={agora}
               toleranciaMin={tenant.policies.booking.lateToleranceMinutes}
+              gradeMin={tenant.schedule?.slotMinutes ?? 30}
               podeEditar={podeEditar}
               atendimento={atendimento}
             />
@@ -258,6 +259,7 @@ function LinhaDaAgenda({
   hoje,
   agora,
   toleranciaMin,
+  gradeMin,
   podeEditar,
   atendimento,
 }: {
@@ -265,10 +267,13 @@ function LinhaDaAgenda({
   hoje: string;
   agora: Date | null;
   toleranciaMin: number;
+  /** Reserva antiga sem `durationMin` ocupa a grade — a mesma regra da agenda. */
+  gradeMin: number;
   podeEditar: boolean;
   atendimento: ReturnType<typeof useAcoesDoAtendimento>;
 }) {
   const meta = metaDoStatus(b.status);
+  const duracao = b.durationMin || gradeMin;
   const liquidacao = liquidacaoDoAtendimento(b);
   const pedido = b.status === "fit_in_requested";
   const emAberto = EM_ABERTO.includes(b.status) && !pedido;
@@ -295,14 +300,14 @@ function LinhaDaAgenda({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-semibold text-ink md:text-base">
-            {b.time} – {fimDoHorario(b.time, b.durationMin)}
+            {b.time} – {fimDoHorario(b.time, duracao)}
             {b.isFitIn && !pedido && (
               <span className="ml-2 text-xs font-normal text-ink-muted">encaixe</span>
             )}
           </p>
           <p className="truncate text-sm text-ink">{b.clientName}</p>
           <p className="text-xs text-ink-muted">
-            {servicos || "Serviço"} · {b.durationMin ?? "?"} min · {formatBRL(b.value ?? 0)}
+            {servicos || "Serviço"} · {duracao} min · {formatBRL(b.value ?? 0)}
           </p>
           {digitos && (
             <a
