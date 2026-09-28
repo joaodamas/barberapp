@@ -27,6 +27,7 @@ import { capacidadeDaData } from "@/lib/jornada";
 import { EM_ABERTO, OCCUPIES_SLOT, type BookingDoc } from "@/lib/domain";
 import { formatBRL, formatPhonePtBR, toISODate } from "@/lib/format";
 import { contar } from "@/lib/plural";
+import { conflitosDoEncaixe, livresNoDia } from "@/lib/encaixe";
 import type { Doc } from "@/lib/db/repository";
 
 /**
@@ -92,6 +93,20 @@ export default function AgendaPage() {
     b.status.startsWith("cancelled") || b.status === "expired";
   const visiveis = doDia.filter((b) => mostrarCancelados || !encerrados(b));
   const qtdEncerrados = doDia.filter(encerrados).length;
+
+  /* Todos os pedidos de encaixe ainda respondíveis, de qualquer dia: é a fila
+   * de decisões do barbeiro, e ela não pode depender do dia que ele está vendo. */
+  const agoraHHmm = agora
+    ? `${String(agora.getHours()).padStart(2, "0")}:${String(agora.getMinutes()).padStart(2, "0")}`
+    : undefined;
+  const pedidos = todas
+    .filter(
+      (b) =>
+        b.status === "fit_in_requested" &&
+        (agora === null || new Date(`${b.date}T${b.time}:00`).getTime() > agora.getTime())
+    )
+    .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
+  const grade = tenant.schedule?.slotMinutes ?? 30;
 
   const moverSemana = (n: number) => {
     const d = new Date(`${dia}T12:00:00`);
@@ -184,6 +199,33 @@ export default function AgendaPage() {
       )}
 
       {atendimento.temAviso && <div className="flex flex-col">{atendimento.avisos}</div>}
+
+      {pedidos.length > 0 && (
+        <section className="flex flex-col gap-2 md:max-w-3xl">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
+            Pedidos de encaixe · {pedidos.length}
+          </h2>
+          {pedidos.map((p) => (
+            <PedidoDeEncaixe
+              key={p.id}
+              pedido={p}
+              conflitos={conflitosDoEncaixe(p, todas, grade)}
+              livres={livresNoDia({
+                schedule: tenant.schedule,
+                date: p.date,
+                staffId: p.staffId,
+                duracao: p.durationMin || grade,
+                todas,
+                agora: p.date === hoje ? agoraHHmm : undefined,
+              })}
+              grade={grade}
+              podeEditar={podeEditar}
+              atendimento={atendimento}
+              aoVerDia={() => escolher(p.date)}
+            />
+          ))}
+        </section>
+      )}
 
       {status === "carregando" && <LoadingRows rows={4} oQue="sua agenda" />}
       {status === "erro" && <ErroAoCarregar oQue="sua agenda" erro={error} />}
@@ -408,6 +450,119 @@ function LinhaDaAgenda({
           )}
         </div>
       )}
+    </Card>
+  );
+}
+
+/**
+ * Um pedido de encaixe com o que o barbeiro precisa para decidir: com quem ele
+ * bate e o que o mesmo dia ainda tem livre (28/09 — "O horário já está
+ * ocupado" sozinho não dizia se era um encaixe de 30 min dentro de um corte de
+ * 90, ou 90 min por cima de três clientes).
+ */
+function PedidoDeEncaixe({
+  pedido: p,
+  conflitos,
+  livres,
+  grade,
+  podeEditar,
+  atendimento,
+  aoVerDia,
+}: {
+  pedido: Doc<BookingDoc>;
+  conflitos: Doc<BookingDoc>[];
+  livres: string[];
+  grade: number;
+  podeEditar: boolean;
+  atendimento: ReturnType<typeof useAcoesDoAtendimento>;
+  aoVerDia: () => void;
+}) {
+  const duracao = p.durationMin || grade;
+  const servicos = ((p as { serviceNames?: string[] }).serviceNames ?? []).join(" + ") || "Serviço";
+  const digitos = String(p.clientWhatsapp ?? "").replace(/\D/g, "");
+  const quando = new Date(`${p.date}T12:00:00`).toLocaleDateString("pt-BR", {
+    weekday: "long",
+    day: "2-digit",
+    month: "2-digit",
+  });
+  const pesado = conflitos.length >= 2;
+
+  return (
+    <Card className="flex flex-col gap-3 border-gold/50 bg-gold/5 py-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-ink md:text-base">{p.clientName} pede encaixe</p>
+          <p className="text-sm text-ink first-letter:uppercase">
+            {quando} · {p.time} – {fimDoHorario(p.time, duracao)}
+          </p>
+          <p className="text-xs text-ink-muted">
+            {servicos} · {duracao} min · {formatBRL(p.value ?? 0)}
+          </p>
+          {digitos && (
+            <a
+              href={`https://wa.me/${digitos}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="alvo-toque text-xs text-ink-muted underline-offset-2 hover:text-gold-strong hover:underline"
+            >
+              {formatPhonePtBR(digitos)}
+            </a>
+          )}
+        </div>
+        <Pill tone="gold">Encaixe pendente</Pill>
+      </div>
+
+      <div className="rounded-xl border border-border bg-surface px-3 py-2">
+        <p className={"text-xs font-semibold " + (pesado ? "text-danger" : "text-ink")}>
+          {conflitos.length === 0
+            ? "O horário vagou — dá para aprovar sem sobrepor ninguém."
+            : `Bate com ${contar(conflitos.length, "atendimento", "atendimentos")}`}
+        </p>
+        {conflitos.map((c) => (
+          <p key={c.id} className="mt-0.5 text-xs text-ink-muted">
+            {c.time} – {fimDoHorario(c.time, c.durationMin || grade)} · {c.clientName} ·{" "}
+            {((c as { serviceNames?: string[] }).serviceNames ?? []).join(" + ") || "Serviço"}
+          </p>
+        ))}
+      </div>
+
+      <p className="text-xs text-ink-muted">
+        {livres.length > 0 ? (
+          <>
+            Livre nesse dia para {duracao} min:{" "}
+            <span className="font-medium text-ink">{livres.slice(0, 6).join(", ")}</span>
+            {livres.length > 6 && ` e mais ${livres.length - 6}`}. Ao recusar, a mensagem já oferece os
+            primeiros.
+          </>
+        ) : (
+          `Nenhum horário livre de ${duracao} min nesse dia.`
+        )}
+      </p>
+
+      <div className="flex flex-wrap gap-2">
+        {podeEditar && (
+          <>
+            <Button
+              className="min-h-9 px-3 text-xs"
+              disabled={atendimento.respondendoEncaixe}
+              onClick={() => atendimento.responderEncaixe(p, true)}
+            >
+              Aprovar encaixe
+            </Button>
+            <Button
+              variant="secondary"
+              className="min-h-9 px-3 text-xs"
+              disabled={atendimento.respondendoEncaixe}
+              onClick={() => atendimento.responderEncaixe(p, false, livres)}
+            >
+              Recusar{livres.length > 0 ? " e oferecer horário" : ""}
+            </Button>
+          </>
+        )}
+        <Button variant="secondary" className="min-h-9 px-3 text-xs" onClick={aoVerDia}>
+          Ver o dia
+        </Button>
+      </div>
     </Card>
   );
 }

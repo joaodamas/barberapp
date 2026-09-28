@@ -222,12 +222,17 @@ export function useAcoesDoAtendimento() {
    */
   const [respondendoEncaixe, setRespondendoEncaixe] = useState(false);
   const [respostaEncaixe, setRespostaEncaixe] = useState<
-    | { booking: Doc<BookingDoc>; status: "confirmed" | "cancelled_by_shop" | "expired" }
+    | {
+        booking: Doc<BookingDoc>;
+        status: "confirmed" | "cancelled_by_shop" | "expired";
+        /** Horários livres no mesmo dia, para a recusa já oferecer um. */
+        sugestoes?: string[];
+      }
     | { erro: string }
     | null
   >(null);
 
-  async function responderEncaixe(booking: Doc<BookingDoc>, aprovar: boolean) {
+  async function responderEncaixe(booking: Doc<BookingDoc>, aprovar: boolean, sugestoes?: string[]) {
     if (respondendoEncaixe) return;
     setRespondendoEncaixe(true);
     setRespostaEncaixe(null);
@@ -237,7 +242,7 @@ export function useAcoesDoAtendimento() {
         { barbershopId: string; bookingId: string; aprovar: boolean },
         { status: "confirmed" | "cancelled_by_shop" | "expired" }
       >("responderEncaixe", { barbershopId: tenant.id, bookingId: booking.id, aprovar });
-      setRespostaEncaixe({ booking, status: r.status });
+      setRespostaEncaixe({ booking, status: r.status, sugestoes });
     } catch (err) {
       setRespostaEncaixe({
         erro: (err as { message?: string })?.message ?? "Não foi possível responder agora. Nada foi alterado.",
@@ -247,14 +252,22 @@ export function useAcoesDoAtendimento() {
     }
   }
 
-  function linkDoAvisoDeEncaixe(booking: Doc<BookingDoc>, aprovado: boolean): string | null {
+  function linkDoAvisoDeEncaixe(
+    booking: Doc<BookingDoc>,
+    aprovado: boolean,
+    sugestoes: string[] = []
+  ): string | null {
     const digitos = String(booking.clientWhatsapp ?? "").replace(/\D/g, "");
     if (!digitos) return null;
     const nome = booking.clientName.split(" ")[0];
     const quando = booking.date === hoje ? "hoje" : `no dia ${formatarDiaCurto(booking.date)}`;
     const texto = aprovado
       ? `Olá ${nome}! Seu encaixe está confirmado: ${quando} às ${booking.time}. Te esperamos! — ${brand.name}`
-      : `Olá ${nome}, infelizmente não consigo te encaixar ${quando} às ${booking.time}. Dá para escolher outro horário pelo app. — ${brand.name}`;
+      : sugestoes.length > 0
+        ? `Olá ${nome}, não consigo te encaixar ${quando} às ${booking.time}, mas tenho livre ${quando} às ${sugestoes
+            .slice(0, 3)
+            .join(", ")}. Algum desses serve? Dá para marcar direto pelo app. — ${brand.name}`
+        : `Olá ${nome}, infelizmente não consigo te encaixar ${quando} às ${booking.time}. Dá para escolher outro horário pelo app. — ${brand.name}`;
     return `https://wa.me/${digitos}?text=${encodeURIComponent(texto)}`;
   }
 
@@ -324,7 +337,8 @@ export function useAcoesDoAtendimento() {
               (() => {
                 const href = linkDoAvisoDeEncaixe(
                   respostaEncaixe.booking,
-                  respostaEncaixe.status === "confirmed"
+                  respostaEncaixe.status === "confirmed",
+                  respostaEncaixe.sugestoes
                 );
                 return href ? (
                   <a href={href} target="_blank" rel="noopener noreferrer" className="self-start">
@@ -580,7 +594,8 @@ export function useAcoesDoAtendimento() {
     abrirCorrecao: (b: Doc<BookingDoc>) => setACorrigir(b),
     abrirEstorno: (b: Doc<BookingDoc>) => setAEstornar(b),
     abrirRemarcar: (b: Doc<BookingDoc>) => setARemarcar(b),
-    responderEncaixe: (b: Doc<BookingDoc>, aprovar: boolean) => void responderEncaixe(b, aprovar),
+    responderEncaixe: (b: Doc<BookingDoc>, aprovar: boolean, sugestoes?: string[]) =>
+      void responderEncaixe(b, aprovar, sugestoes),
     respondendoEncaixe,
     temAviso: !!respostaEncaixe || !!remarcado,
     avisos,
