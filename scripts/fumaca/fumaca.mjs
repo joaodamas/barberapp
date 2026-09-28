@@ -53,6 +53,15 @@ async function esperarNoAr() {
 async function visita(context, nome) {
   const page = await context.newPage();
   const erros = [];
+  // Diário da visita: sai no log só se a visita falhar.
+  const diario = [];
+  const t0 = Date.now();
+  const anotar = (linha) => diario.push(`+${((Date.now() - t0) / 1000).toFixed(1)}s ${linha}`);
+  page.on("console", (m) => anotar(`console.${m.type()}: ${m.text().slice(0, 200)}`));
+  page.on("requestfailed", (r) => anotar(`FALHOU ${r.url().slice(0, 120)} — ${r.failure()?.errorText}`));
+  page.on("response", (r) => {
+    if (!r.url().startsWith(SITE) || r.status() >= 400) anotar(`${r.status()} ${r.url().slice(0, 120)}`);
+  });
   page.on("pageerror", (e) => erros.push(`pageerror: ${e.message}`));
   page.on("console", (m) => {
     if (m.type() === "error" && FATAIS.some((re) => re.test(m.text()))) erros.push(`console: ${m.text()}`);
@@ -70,6 +79,7 @@ async function visita(context, nome) {
     await mkdir("saida", { recursive: true });
     await page.screenshot({ path: `saida/${nome.replace(/\s+/g, "-")}.png`, fullPage: true }).catch(() => {});
     const texto = (await page.locator("body").innerText().catch(() => "")).replace(/\s+/g, " ").slice(0, 300);
+    console.error(`--- diário da ${nome} ---\n${diario.join("\n")}\n---`);
     throw new Error(`serviços não apareceram em ${page.url()} — tela: "${texto}"`);
   }
   await servico.click();
