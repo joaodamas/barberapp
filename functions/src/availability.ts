@@ -1,4 +1,5 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { idSeguro, vinculosDe } from "./acesso";
 import { getFirestore } from "firebase-admin/firestore";
 import { diaDaSemanaNoFuso, instanteNoFuso, localeDoDocumento } from "./locale";
 import { janelaLivre, janelasOcupadas, paraHora, paraMinutos } from "./agenda";
@@ -68,8 +69,9 @@ export const availableSlots = onCall<{
    */
   ignorarReservaId?: string;
 }>(async (request) => {
-  const { barbershopId, date } = request.data ?? {};
-  if (!barbershopId) throw new HttpsError("invalid-argument", "Barbearia não informada.");
+  const { date } = request.data ?? {};
+  if (!request.data?.barbershopId) throw new HttpsError("invalid-argument", "Barbearia não informada.");
+  const barbershopId = idSeguro(request.data.barbershopId, "Barbearia");
   if (!ISO_DATE.test(date ?? "")) throw new HttpsError("invalid-argument", "Data inválida.");
 
   const db = getFirestore();
@@ -98,7 +100,10 @@ export const availableSlots = onCall<{
    * três tinham fallbacks diferentes para o mesmo campo ausente. */
   const daLoja: Jornada = shop.schedule ?? {};
   const dele: Jornada = barbeiro.get("schedule") ?? {};
-  const slotMinutes: number = Number(dele.slotMinutes ?? daLoja.slotMinutes) || 30;
+  /* Grade abaixo de 5 min (ou negativa, gravada por engano) fazia o laço de
+   * horários não andar — e a callable é pública (auditoria de 28/09, B9). */
+  const gradeGravada = Number(dele.slotMinutes ?? daLoja.slotMinutes);
+  const slotMinutes: number = Number.isFinite(gradeGravada) && gradeGravada >= 5 ? gradeGravada : 30;
 
   const doDia = jornadaDoDia({
     schedule: {
@@ -132,7 +137,7 @@ export const availableSlots = onCall<{
   /* A antecedência mínima protege o CLIENTE de marcar um horário que o barbeiro
    * não veria a tempo. Quem está no balcão é justamente quem vai atender, então
    * ela não se aplica — e a guarda é o vínculo no claim, nunca o parâmetro. */
-  const papel = (request.auth?.token.barbershops as Record<string, string> | undefined)?.[
+  const papel = vinculosDe(request)?.[
     barbershopId
   ];
   const ehDaCasa = papel === "owner" || papel === "staff";

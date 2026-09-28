@@ -1,5 +1,5 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
-import { exigirEdicao } from "./acesso";
+import { exigirEdicao, vinculosDe } from "./acesso";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { hojeNoFuso, localeDoDocumento } from "./locale";
 import type { PaymentMethod } from "./financial-events";
@@ -282,7 +282,7 @@ export const registrarMovimentoDeCaixa = onCall<LancamentoInput>(async (request)
   const { barbershopId } = data;
   if (!barbershopId) throw new HttpsError("invalid-argument", "Barbearia não informada.");
 
-  const papel = (request.auth?.token.barbershops as Record<string, string> | undefined)?.[
+  const papel = vinculosDe(request)?.[
     barbershopId
   ];
   if (papel !== "owner") {

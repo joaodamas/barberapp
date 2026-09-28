@@ -1,4 +1,5 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { vinculosDe } from "./acesso";
 import { getAuth } from "firebase-admin/auth";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { featuresFor, type PlanId } from "./plans";
@@ -299,7 +300,7 @@ export const completeOnboardingStep = onCall<{
   data?: Record<string, unknown>;
 }>(async (request) => {
   const { barbershopId, step, data } = request.data ?? {};
-  const role = (request.auth?.token.barbershops as Record<string, string> | undefined)?.[
+  const role = vinculosDe(request)?.[
     barbershopId ?? ""
   ];
   if (role !== "owner") {

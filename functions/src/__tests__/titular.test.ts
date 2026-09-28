@@ -220,8 +220,7 @@ describe("quem pode chamar", () => {
     "🔒 %s é só do DONO daquela barbearia — não da equipe",
     (nome) => {
       const corpo = corpoDe(nome);
-      expect(corpo).toMatch(/request\.auth/);
-      expect(corpo).toMatch(/token\.barbershops/);
+      expect(corpo).toMatch(/vinculosDe\(request\)/);
       expect(corpo).toMatch(/=== "owner"/);
       expect(corpo).not.toMatch(/"staff"/);
       expect(corpo).toMatch(/permission-denied/);

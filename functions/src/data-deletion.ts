@@ -1,4 +1,5 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { vinculosDe } from "./acesso";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { getAuth, type Auth } from "firebase-admin/auth";
 import { FieldValue, getFirestore, type Firestore, type QueryDocumentSnapshot } from "firebase-admin/firestore";
@@ -334,7 +335,7 @@ export const encerrarConta = onCall<{ barbershopId: string; motivo?: string }>(
     if (!barbershopId) throw new HttpsError("invalid-argument", "Barbearia não informada.");
 
     const ehDono =
-      (request.auth?.token.barbershops as Record<string, string> | undefined)?.[barbershopId] ===
+      vinculosDe(request)?.[barbershopId] ===
       "owner";
     if (!ehDono) throw new HttpsError("permission-denied", "Só o dono encerra a conta.");
 
@@ -377,7 +378,7 @@ export const reabrirConta = onCall<{ barbershopId: string }>(async (request) => 
   if (!barbershopId) throw new HttpsError("invalid-argument", "Barbearia não informada.");
 
   const ehDono =
-    (request.auth?.token.barbershops as Record<string, string> | undefined)?.[barbershopId] ===
+    vinculosDe(request)?.[barbershopId] ===
     "owner";
   if (!ehDono) throw new HttpsError("permission-denied", "Só o dono reabre a conta.");
 

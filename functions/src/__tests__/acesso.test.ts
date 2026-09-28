@@ -24,3 +24,36 @@ describe("modo leitura no servidor", () => {
     expect(motivoDeLeitura({ status: "ativo" }, agora)).toBeNull();
   });
 });
+
+describe("vinculosDe — a trava da senha provisória vale no servidor (auditoria 28/09, A1)", () => {
+  it("com senha provisória pendente, a pessoa não tem papel em barbearia nenhuma", async () => {
+    const { vinculosDe } = await import("../acesso");
+    expect(
+      vinculosDe({ auth: { token: { barbershops: { osiqueira: "owner" }, mustChangePassword: true } } })
+    ).toEqual({});
+  });
+
+  it("depois de trocar a senha, o papel volta", async () => {
+    const { vinculosDe } = await import("../acesso");
+    expect(vinculosDe({ auth: { token: { barbershops: { osiqueira: "owner" } } } })).toEqual({
+      osiqueira: "owner",
+    });
+  });
+
+  it("sem login, nenhum vínculo", async () => {
+    const { vinculosDe } = await import("../acesso");
+    expect(vinculosDe({ auth: null })).toEqual({});
+  });
+
+  it("nenhuma callable lê o claim cru — só `excluirMinhaConta`, que precisa do papel real", async () => {
+    const { readFileSync, readdirSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    const src = resolve(__dirname, "..");
+    const cru: string[] = [];
+    for (const f of readdirSync(src).filter((n) => n.endsWith(".ts"))) {
+      const fonte = readFileSync(resolve(src, f), "utf8");
+      if (/request\.auth\?\.token\.barbershops/.test(fonte)) cru.push(f);
+    }
+    expect(cru).toEqual(["titular.ts"]);
+  });
+});

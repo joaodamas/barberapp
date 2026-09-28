@@ -1,5 +1,5 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
-import { exigirEdicao } from "./acesso";
+import { exigirEdicao, vinculosDe } from "./acesso";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { hojeNoFuso, localeDoDocumento } from "./locale";
 
@@ -199,7 +199,7 @@ export const comecarDoZero = onCall<{
    * Firestore protegem o DADO e o Admin SDK as ignora. Sem esta leitura do
    * claim, o dono da Alfa zeraria a Beta com um token perfeitamente válido —
    * e aqui isso seria irreversível. */
-  const papel = (request.auth?.token.barbershops as Record<string, string> | undefined)?.[
+  const papel = vinculosDe(request)?.[
     barbershopId
   ];
   if (papel !== "owner") {

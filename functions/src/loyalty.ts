@@ -1,5 +1,5 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
-import { exigirEdicao } from "./acesso";
+import { exigirEdicao, vinculosDe } from "./acesso";
 import { onDocumentUpdated } from "firebase-functions/v2/firestore";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { decidirEfeito, estadoAindaVale } from "./financial-events";
@@ -137,7 +137,7 @@ export const redeemLoyaltyReward = onCall<{ barbershopId: string; clientId: stri
       throw new HttpsError("invalid-argument", "Informe a barbearia e o cliente.");
     }
 
-    const papel = (request.auth?.token.barbershops as Record<string, string> | undefined)?.[
+    const papel = vinculosDe(request)?.[
       barbershopId
     ];
     if (papel !== "owner" && papel !== "staff") {

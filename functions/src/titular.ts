@@ -1,4 +1,5 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { vinculosDe } from "./acesso";
 import { getAuth, type Auth } from "firebase-admin/auth";
 import {
   FieldValue,
@@ -514,7 +515,7 @@ export const exportarDadosDoCliente = onCall<{ barbershopId: string; clientId: s
     if (!clientId) throw new HttpsError("invalid-argument", "Cliente não informado.");
 
     const ehDono =
-      (request.auth?.token.barbershops as Record<string, string> | undefined)?.[
+      vinculosDe(request)?.[
         barbershopId
       ] === "owner";
     if (!ehDono) throw new HttpsError("permission-denied", "Só o dono exporta dados de cliente.");
@@ -542,7 +543,7 @@ export const anonimizarCliente = onCall<{ barbershopId: string; clientId: string
     if (!clientId) throw new HttpsError("invalid-argument", "Cliente não informado.");
 
     const ehDono =
-      (request.auth?.token.barbershops as Record<string, string> | undefined)?.[
+      vinculosDe(request)?.[
         barbershopId
       ] === "owner";
     if (!ehDono) throw new HttpsError("permission-denied", "Só o dono anonimiza cliente.");

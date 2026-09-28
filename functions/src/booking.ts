@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
-import { exigirEdicao } from "./acesso";
+import { exigirEdicao, idSeguro, vinculosDe } from "./acesso";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { diaDaSemanaNoFuso, hojeNoFuso, instanteNoFuso, localeDoDocumento } from "./locale";
@@ -105,9 +105,17 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
   const { barbershopId, serviceIds, date, time, paymentOrigin, isFitIn } = request.data ?? {};
 
   if (!barbershopId) throw new HttpsError("invalid-argument", "Barbearia não informada.");
+  idSeguro(barbershopId, "Barbearia");
   if (!Array.isArray(serviceIds) || serviceIds.length === 0) {
     throw new HttpsError("invalid-argument", "Escolha pelo menos um serviço.");
   }
+  /* Cada serviço vira uma leitura; sem teto, um pedido com milhares de ids era
+   * custo e lentidão de graça (auditoria de 28/09, M2). Nenhum atendimento real
+   * junta mais que alguns serviços. */
+  if (serviceIds.length > 8 || new Set(serviceIds).size !== serviceIds.length) {
+    throw new HttpsError("invalid-argument", "Escolha no máximo 8 serviços, sem repetir.");
+  }
+  serviceIds.forEach((id) => idSeguro(id, "Serviço"));
   if (!dataValida(date)) throw new HttpsError("invalid-argument", "Data inválida.");
   if (!horaValida(time)) throw new HttpsError("invalid-argument", "Horário inválido.");
   /* Só existe um caminho hoje: o cliente acerta no salão. Quando o gateway
@@ -571,7 +579,7 @@ export const createBookingAtCounter = onCall<ReservaNoBalcaoInput>(async (reques
    * marca em nome de outra pessoa. Sem ela, qualquer autenticado criaria reserva
    * com o nome que quisesse — e o teto por cliente deixaria de significar algo,
    * porque bastaria inventar um cadastro novo a cada vez. */
-  const papel = (request.auth?.token.barbershops as Record<string, string> | undefined)?.[
+  const papel = vinculosDe(request)?.[
     barbershopId
   ];
   if (papel !== "owner" && papel !== "staff") {
@@ -960,11 +968,13 @@ export const rescheduleBooking = onCall<{
 
   const booking = bookingSnap.data() ?? {};
   const ehDono =
-    (request.auth?.token.barbershops as Record<string, string> | undefined)?.[barbershopId] ===
+    vinculosDe(request)?.[barbershopId] ===
     "owner";
   if (booking.clientId !== uid && !ehDono) {
     throw new HttpsError("permission-denied", "Essa reserva não é sua.");
   }
+  /* Remarcar pelo painel é edição — mesma regra do cancelamento. */
+  if (ehDono && booking.clientId !== uid) await exigirEdicao(barbershopId);
 
   /* Pedido de encaixe ainda não é horário: é uma pergunta ao barbeiro sobre
    * UM horário específico. Reagendá-lo mudaria a pergunta sem ninguém ter
@@ -1180,12 +1190,16 @@ export const cancelBooking = onCall<{ barbershopId: string; bookingId: string }>
 
     const booking = bookingSnap.data() ?? {};
     const ehDono =
-      (request.auth?.token.barbershops as Record<string, string> | undefined)?.[barbershopId] ===
+      vinculosDe(request)?.[barbershopId] ===
       "owner";
 
     if (booking.clientId !== uid && !ehDono) {
       throw new HttpsError("permission-denied", "Essa reserva não é sua.");
     }
+    /* O dono mexendo na agenda é edição — em modo leitura, não (auditoria de
+     * 28/09, B10). O cliente cancelar a PRÓPRIA reserva continua valendo: a
+     * agenda dele não pode ficar presa por causa do plano da barbearia. */
+    if (ehDono && booking.clientId !== uid) await exigirEdicao(barbershopId);
 
     /* Só cancela o que ainda está aberto.
      *
@@ -1282,7 +1296,7 @@ export const responderEncaixe = onCall<{
     throw new HttpsError("invalid-argument", "Pedido de encaixe não informado.");
   }
 
-  const papel = (request.auth?.token.barbershops as Record<string, string> | undefined)?.[
+  const papel = vinculosDe(request)?.[
     barbershopId
   ];
   if (papel !== "owner" && papel !== "staff") {

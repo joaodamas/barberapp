@@ -31,7 +31,7 @@
  * pagamento congela `paymentMethod`. Assinatura muda; fatura emitida, não.
  */
 
-import { exigirEdicao } from "./acesso";
+import { exigirEdicao, vinculosDe } from "./acesso";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { hojeNoFuso, localeDoDocumento } from "./locale";
@@ -360,7 +360,7 @@ export function valeNaCompetencia(
 /* ================================================================== */
 
 function exigirVinculo(request: { auth?: { token: Record<string, unknown> } | null }, barbershopId: string) {
-  const papel = (request.auth?.token.barbershops as Record<string, string> | undefined)?.[
+  const papel = vinculosDe(request)?.[
     barbershopId
   ];
   if (papel !== "owner" && papel !== "staff") {

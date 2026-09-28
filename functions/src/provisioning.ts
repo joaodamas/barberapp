@@ -1,4 +1,5 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { vinculosDe } from "./acesso";
 import { getAuth } from "firebase-admin/auth";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { featuresFor, toPlanId } from "./plans";
@@ -230,9 +231,14 @@ export const grantShopRole = onCall<{
   if (!barbershopId || !email) {
     throw new HttpsError("invalid-argument", "Informe barbershopId e email.");
   }
+  /* Só os papéis que o produto conhece. Antes qualquer texto virava claim
+   * (auditoria de 28/09, M3). */
+  if (role !== undefined && role !== null && role !== "owner" && role !== "staff") {
+    throw new HttpsError("invalid-argument", "Papel inválido.");
+  }
 
   const isPlatformAdmin = request.auth?.token.platformAdmin === true;
-  const callerRole = (request.auth?.token.barbershops as Record<string, string> | undefined)?.[
+  const callerRole = vinculosDe(request)?.[
     barbershopId
   ];
   if (!isPlatformAdmin && callerRole !== "owner") {
@@ -241,7 +247,9 @@ export const grantShopRole = onCall<{
 
   const auth = getAuth();
   const user = await auth.getUserByEmail(String(email).toLowerCase()).catch(() => {
-    throw new HttpsError("failed-precondition", `Nenhuma conta com o e-mail ${email}.`);
+    /* Mensagem genérica: dizer "nenhuma conta com esse e-mail" transformava
+     * a função num verificador de quem tem conta na plataforma. */
+    throw new HttpsError("failed-precondition", "Não foi possível dar acesso a esse e-mail.");
   });
 
   if (user.uid === request.auth?.uid && role !== "owner") {

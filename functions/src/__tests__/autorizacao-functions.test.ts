@@ -46,6 +46,7 @@ const PUBLICAS_POR_DESENHO = new Set([
 /** As expressões que contam como guarda de autorização. */
 const GUARDAS = [
   /token\.barbershops/, // lê o vínculo do claim
+  /vinculosDe\(request\)/, // a mesma leitura, com a trava da senha provisória (28/09)
   /platformAdmin/, // operador da plataforma
   /token\.role/, // modelo antigo, ainda aceito no bootstrap
   /exigirVinculo\(/, // a MESMA leitura, centralizada — ver o teste logo abaixo
@@ -137,7 +138,9 @@ describe("toda function que recebe barbershopId verifica o vínculo", () => {
 
   it("🔒 e exige autenticação antes de qualquer coisa", () => {
     for (const h of queRecebemTenant) {
-      expect(/request\.auth/.test(h.corpo), h.nome).toBe(true);
+      /* `vinculosDe(request)` conta: sem login ele devolve nenhum vínculo, e a
+       * guarda de papel recusa — ver `acesso.test.ts`. */
+      expect(/request\.auth|vinculosDe\(request\)/.test(h.corpo), h.nome).toBe(true);
     }
   });
 
@@ -153,7 +156,7 @@ describe("toda function que recebe barbershopId verifica o vínculo", () => {
       fonte.indexOf("function exigirVinculo"),
       fonte.indexOf("export const criarMensalista")
     );
-    expect(helper).toMatch(/token\.barbershops/);
+    expect(helper).toMatch(/vinculosDe\(request\)/);
     expect(helper).toMatch(/"owner"/);
     expect(helper).toMatch(/"staff"/);
     expect(helper).toMatch(/permission-denied/);
