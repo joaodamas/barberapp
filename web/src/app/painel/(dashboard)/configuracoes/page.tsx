@@ -367,7 +367,7 @@ export default function ConfiguracoesPage() {
           ao lado do botão, não só no modal — é o que a torna reversível. */}
       <Card className="flex flex-col gap-4 border-danger/30 md:p-6">
         <div>
-          <h2 className="text-sm font-semibold text-ink md:text-base">Sair do CorteHub</h2>
+          <h2 className="text-sm font-semibold text-ink md:text-base">Sair do Topete</h2>
           <p className="mt-1 text-xs text-ink-muted md:text-sm">
             Encerrar não apaga nada na hora. É a janela para exportar o que você
             precisar e para voltar atrás.

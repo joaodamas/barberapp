@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AssinaturaCorteHub } from "@/components/landing/marca";
+import { AssinaturaTopete } from "@/components/landing/marca";
 
 /**
  * Casca dos documentos legais.
@@ -29,7 +29,7 @@ export function DocumentoLegal({
       <header className="border-b border-border">
         <div className="mx-auto flex w-full max-w-3xl items-center justify-between px-5 py-5 md:px-8">
           <Link href="/">
-            <AssinaturaCorteHub className="text-ink" />
+            <AssinaturaTopete className="text-ink" />
           </Link>
           <span className="text-xs text-ink-muted">
             Atualizado em {atualizadoEm}
@@ -50,7 +50,7 @@ export function DocumentoLegal({
 
       <footer className="border-t border-border">
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-2 px-5 py-8 text-xs text-ink-muted md:flex-row md:justify-between md:px-8">
-          <span>CorteHub</span>
+          <span>Topete</span>
           <span className="flex gap-4">
             <Link href="/privacidade" className="underline-offset-2 hover:text-ink hover:underline">
               Privacidade

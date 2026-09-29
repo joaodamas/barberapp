@@ -27,6 +27,7 @@ arq = {
   "topete-logo-escuro.svg": svg(1000, 300, f'<rect width="1000" height="300" fill="{PRETO}"/>{icone(30,30,.47)}{palavra(310,196,170,MARFIM)}', True),
   "topete-logo-claro.svg":  svg(1000, 300, f'<rect width="1000" height="300" fill="{MARFIM}"/>{icone(30,30,.47)}{palavra(310,196,170,PRETO)}', True),
   "topete-logo-escuro-transparente.svg": svg(1000, 300, f'{icone(30,30,.47)}{palavra(310,196,170,MARFIM)}', True),
+  "topete-logo-claro-transparente.svg": svg(1000, 300, f'{icone(30,30,.47)}{palavra(310,196,170,PRETO)}', True),
 }
 for n, c in arq.items():
     (AQUI / n).write_text(c)

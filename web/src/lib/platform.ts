@@ -40,7 +40,7 @@ export function platformWhatsappUrl(mensagem: string) {
 export const CADASTRO_ABERTO = false;
 
 const MENSAGEM_DE_CADASTRO =
-  "Olá! Quero testar o CorteHub na minha barbearia por 7 dias.";
+  "Olá! Quero conhecer o Topete na minha barbearia.";
 
 /** Para onde vai o "Testar 7 dias": o cadastro, ou a conversa enquanto ele está pausado. */
 export function destinoDoCadastro(): string {
