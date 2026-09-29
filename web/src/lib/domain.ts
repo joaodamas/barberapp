@@ -378,7 +378,9 @@ export type BookingDoc = {
    * Ausente nas reservas anteriores ao campo — todas do app, que era o único
    * caminho que existia.
    */
-  origin?: "app" | "balcao" | "importacao";
+  origin?: "app" | "balcao" | "importacao" | "fixo";
+  /** Reserva criada pelo horário fixo do mensalista: id da assinatura (29/09). */
+  horarioFixoId?: string;
   /**
    * Como o atendimento foi LIQUIDADO — D2.
    *
@@ -457,6 +459,28 @@ export function cobertoPeloPlano(booking: Pick<BookingDoc, "cobertura">) {
  * **Uma assinatura não é receita realizada.** Ela é contrato. O fato financeiro
  * nasce no pagamento da fatura — `SubscriptionInvoiceDoc` abaixo.
  */
+/** Espelho de `HorarioFixo` em `functions/src/horario-fixo.ts`. */
+export type HorarioFixo = {
+  /** 0 = domingo … 6 = sábado. */
+  diaDaSemana: number;
+  hora: string;
+  staffId: string;
+  serviceIds: string[];
+  frequencia: "semanal" | "quinzenal";
+  /** Primeira data (`YYYY-MM-DD`), âncora da quinzena. */
+  inicio: string;
+};
+
+/** Semana do horário fixo que a rotina não conseguiu reservar. */
+export type ConflitoHorarioFixoDoc = {
+  subscriptionId: string;
+  clientId: string;
+  clientName: string;
+  date: string;
+  time: string;
+  motivo: string;
+};
+
 export type SubscriberDoc = {
   clientId: string;
   name: string;
@@ -486,6 +510,11 @@ export type SubscriberDoc = {
   billingDay?: number;
   startedAt?: string;
   canceledAt?: string | null;
+  /**
+   * Horário fixo do mensalista (29/09). O servidor mantém as próximas semanas
+   * reservadas a partir dele (`functions/src/horario-fixo.ts`).
+   */
+  horarioFixo?: HorarioFixo;
   /**
    * @deprecated Campo morto: a tela contava por estágio e ninguém nunca o
    * gravou — os sete baldes mostravam zero para sempre. A régua passou a ser

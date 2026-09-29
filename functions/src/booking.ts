@@ -71,7 +71,7 @@ export function nomeLimpo(nome: unknown): string {
 }
 
 /** Status que ocupam um horário na agenda. */
-const OCUPAM_SLOT = [
+export const OCUPAM_SLOT = [
   "pending_payment",
   "confirmed",
   "confirmed_by_client",
@@ -452,6 +452,13 @@ export async function validarPedido(params: {
    * mensalista enxerga mais à frente.
    */
   limiteData?: string;
+  /**
+   * Confere se o horário cabe no expediente e nos intervalos do barbeiro mesmo
+   * sem `exigirAntecedencia`. O horário FIXO do mensalista (29/09) precisa disso:
+   * ele é marcado para o futuro, então a exceção do balcão ("o atendimento já
+   * aconteceu fora do expediente") não se aplica a ele.
+   */
+  exigirExpediente?: boolean;
 }): Promise<PedidoValidado> {
   const { shopRef, shop, locale, serviceIds, date, time } = params;
   const policies = shop.policies ?? {};
@@ -608,7 +615,7 @@ export async function validarPedido(params: {
    * almoço — recusar isso seria o produto discordando do que já aconteceu na
    * cadeira, e o dono voltaria ao caderno para não perder o registro.
    */
-  if (params.exigirAntecedencia) {
+  if (params.exigirAntecedencia || params.exigirExpediente) {
     const cabe = horariosDaJornada({
       jornada: doDia,
       slotMinutes,
@@ -836,8 +843,8 @@ export const createBookingAtCounter = onCall<ReservaNoBalcaoInput>(async (reques
   };
 });
 
-/** O documento da reserva, montado igual nos dois caminhos. */
-function documentoDaReserva(params: {
+/** O documento da reserva, montado igual nos três caminhos (app, balcão e horário fixo). */
+export function documentoDaReserva(params: {
   clientId: string;
   clientName: string;
   clientWhatsapp: string;
@@ -845,7 +852,7 @@ function documentoDaReserva(params: {
   date: string;
   time: string;
   serviceIds: string[];
-  origem: "app" | "balcao";
+  origem: "app" | "balcao" | "fixo";
 }): Record<string, unknown> {
   return {
     clientId: params.clientId,
@@ -1010,9 +1017,13 @@ export async function gravarComTravaDeHorario(params: {
     const minhas = await tx.get(
       shopRef.collection("bookings").where("clientId", "==", clientId)
     );
+    /* Reservas do HORÁRIO FIXO do mensalista (29/09) não entram na conta: são
+     * a barbearia guardando a vaga dele, não ele ocupando a agenda. Contá-las
+     * travaria o mensalista de marcar um corte extra — com 8 semanas guardadas,
+     * o teto de 3 estaria estourado para sempre. */
     const ativas = minhas.docs.filter((d) => {
       const b = d.data();
-      return EM_ABERTO.includes(b.status) && String(b.date) >= hojeNaBarbearia;
+      return EM_ABERTO.includes(b.status) && String(b.date) >= hojeNaBarbearia && !b.horarioFixoId;
     }).length;
 
     if (ativas >= maxAtivas) {

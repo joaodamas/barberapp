@@ -37,6 +37,7 @@ export const SHOP_COLLECTIONS = {
   refunds: "refunds",
   subscriptions: "subscriptions",
   subscriptionInvoices: "subscription_invoices",
+  conflitosHorarioFixo: "conflitos_horario_fixo",
   loyaltyTransactions: "loyalty_transactions",
   clientOccurrences: "client_occurrences",
   whatsappMessages: "whatsapp_messages",

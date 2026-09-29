@@ -38,6 +38,7 @@ import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { hojeNoFuso, localeDoDocumento } from "./locale";
 import { metodoValido } from "./inventory";
 import { documentoDePagamento, idDoPagamento } from "./payments";
+import { liberarOcorrenciasFuturas } from "./horario-fixo";
 import { formasDoTenant } from "./formas-de-pagamento";
 import { SEM_TAXA, type PaymentFees } from "./financial-events";
 import type { PaymentMethod } from "./financial-events";
@@ -493,6 +494,15 @@ export const cancelarMensalista = onCall<{
   }
 
   await ref.update({ status: "cancelado", canceledAt: hoje });
+  /* Plano encerrado libera as semanas que o horário fixo guardava (29/09): sem
+   * isto, a vaga de sexta às 17h ficaria presa para quem já não é mensalista. */
+  await liberarOcorrenciasFuturas({
+    db,
+    shopRef,
+    subscriptionId: String(subscriptionId),
+    hoje,
+    motivo: "Plano de mensalista encerrado",
+  });
   return { subscriptionId: String(subscriptionId), canceledAt: hoje };
 });
 

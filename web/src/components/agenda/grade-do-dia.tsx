@@ -185,6 +185,7 @@ export function GradeDoDia({
               <span className="w-full truncate text-[11px] text-ink-muted">
                 {((b as { serviceNames?: string[] }).serviceNames ?? []).join(" + ") || "Serviço"}
                 {b.isFitIn ? " · encaixe" : ""}
+                {b.horarioFixoId ? " · fixo" : ""}
                 {feito ? " · concluído" : falta ? " · não veio" : ""}
               </span>
             </button>
