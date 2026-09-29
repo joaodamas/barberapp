@@ -9,7 +9,10 @@
     ],
     "frameworksBackend": {
       "region": "us-central1",
-      "memory": "512MiB"
+      "memory": "512MiB",
+      "secrets": [
+        "CORTEHUB_LB_SEGREDO"
+      ]
     }
   },
   "functions": [
