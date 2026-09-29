@@ -211,6 +211,7 @@ describe("o que a barbearia pode fazer", () => {
           loyalty: true,
           whatsapp: true,
           advancedFinance: true,
+          projection: true,
         },
       }),
       hoje

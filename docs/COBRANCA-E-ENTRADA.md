@@ -3,6 +3,38 @@
 Como uma barbearia entra, testa, paga, deixa de pagar e sai — e o que muda
 quando ela não está no Brasil.
 
+> **Atualização de 29/09 — a cobrança é do Hub.** O boleto (Inter/Asaas), a
+> régua de cobrança e o desconto de fundador passam a morar no Hub, conforme
+> `BACKLOG.md` §2 e o contrato `hub/docs/CONTRATO-PLATAFORMA-BARBER.md`. O que
+> este documento diz sobre **Mercado Pago e Stripe** (§2, §4 `private/billing`,
+> §7 itens 3 e 4, §8) fica como histórico da decisão anterior e não deve ser
+> construído no Topete. Continuam valendo o funil, o trial, o modo leitura, os
+> estados e a tabela de preços abaixo.
+
+---
+
+## 0. Preços e teto de barbeiros (29/09)
+
+Tabela aprovada pelo dono em 29/09. A fonte no código é `PRECOS_POR_PLANO` em
+`functions/src/plans.ts`, espelhada em `web/src/lib/tenant.ts` com teste de
+paridade — a landing e a tela Equipe leem de lá, ninguém crava o número.
+
+| Plano | Mensalidade | Barbeiros ativos inclusos |
+|---|---|---|
+| Agenda | R$ 97 | até 3 |
+| Crescimento | R$ 197 | até 6 |
+| Gestão | R$ 247 (antes R$ 297) | até 10 |
+
+- **Barbeiro extra:** R$ 19/mês por barbeiro **ativo** acima do teto. Conta quem
+  está marcado como "Atendendo"; o desativado não conta. Ex.: Agenda com 5
+  barbeiros = 97 + 2 × 19 = R$ 135/mês.
+- **O teto não bloqueia.** A tela Equipe mostra "X de N barbeiros no plano" e,
+  ao passar do teto, avisa o valor do extra antes e depois — o dono decide. Quem
+  cobra o excedente é o Hub.
+- **Fundadores:** 30% de desconto vitalício nas 20 primeiras barbearias
+  (`DESCONTO_FUNDADOR`). Só registrado aqui; quem aplica é o Hub, na cobrança.
+- **Anual:** pague 10 meses, use 12 (materiais de venda).
+
 ---
 
 ## 1. O achado que define a ordem do trabalho
@@ -16,7 +48,7 @@ feita procurando as referências: elas só aparecem na própria definição.
 Consequências práticas:
 
 - Barbearia no plano **Agenda (R$ 97)** enxerga DRE, projeção e fechamento —
-  que são o que justifica o plano **Gestão (R$ 297)**.
+  que são o que justifica o plano **Gestão (R$ 247)**.
 - Teste de 7 dias **vencido continua funcionando**, para sempre.
 
 Integrar o Mercado Pago antes disso permite cobrar, mas **não pagar não muda
@@ -180,7 +212,7 @@ coisas, e nenhuma delas deve ser perguntada de novo:
 | `locale.currency` | `BRL` | `EUR` |
 | `locale.locale` | `pt-BR` | `en-IE` ou `pt-BR` |
 | Provedor de cobrança | Mercado Pago | Stripe |
-| Preço | R$ 97 / 197 / 297 | a definir — conversão direta não serve |
+| Preço | R$ 97 / 197 / 247 (§0) | a definir — conversão direta não serve |
 | Imposto no DRE | Simples Nacional | VAT |
 
 **Fuso e moeda já estão prontos** e por barbearia. Idioma das telas não — são 18

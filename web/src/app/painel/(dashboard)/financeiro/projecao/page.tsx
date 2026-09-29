@@ -28,7 +28,7 @@ import { useAcesso } from "@/lib/tenant-context";
 /* O gate mora num componente à parte, e não num retorno antecipado dentro do
  * conteúdo: os hooks do conteúdo passariam a ser chamados condicionalmente. */
 export default function ProjecaoPage() {
-  const liberado = useFeature("advancedFinance");
+  const liberado = useFeature("projection");
 
   if (!liberado) {
     return (
@@ -85,7 +85,7 @@ function ProjecaoConteudo() {
    * A saída fica DEPOIS dos hooks: React não aceita hook condicional, e
    * a tela precisa dos mesmos dados para o caso liberado. */
   const acesso = useAcesso();
-  if (!acesso.features.advancedFinance) {
+  if (!acesso.features.projection) {
     return <BloqueioPlano titulo="Projeção de caixa" descricao="Saiba com semanas de antecedência em que dia o caixa vira negativo, cruzando horários marcados, mensalistas e contas fixas." />;
   }
 

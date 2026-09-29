@@ -978,8 +978,9 @@ entrou na gaveta, e não havia tela onde reencontrá-la.
 
 ### Matriz
 
-| Recurso | Agenda (R$ 97) | Crescimento (R$ 197) | Gestão (R$ 297) |
+| Recurso | Agenda (R$ 97) | Crescimento (R$ 197) | Gestão (R$ 247) |
 |---|---|---|---|
+| Barbeiros ativos inclusos (extra: R$ 19/mês cada) | até 3 | até 6 | até 10 |
 | Agenda, painel, equipe, serviços | ✅ | ✅ | ✅ |
 | **WhatsApp** | ✅ | ✅ | ✅ |
 | Fidelidade | — | ✅ | ✅ |
@@ -990,8 +991,9 @@ entrou na gaveta, e não havia tela onde reencontrá-la.
 WhatsApp entra no plano de entrada **de propósito**: é o que o concorrente cobra
 como add-on, e o argumento de venda mais direto contra ele.
 
-Fonte única: `functions/src/plans.ts`, espelhada em `FEATURES_POR_PLANO`
-(`lib/tenant.ts`). Os dois lados precisam concordar — o backend grava `features`
+Fonte única: `functions/src/plans.ts`, espelhada em `FEATURES_POR_PLANO` e
+`PRECOS_POR_PLANO` (`lib/tenant.ts`). Preço e teto são da tabela de 29/09 — ver
+`COBRANCA-E-ENTRADA.md` §0; o teto só avisa na tela Equipe, não bloqueia. Os dois lados precisam concordar — o backend grava `features`
 na criação e o frontend resolve na leitura.
 
 > **Nunca escreva fallback generoso.** `FEATURES_POR_PLANO[plan] ?? ALL_FEATURES`

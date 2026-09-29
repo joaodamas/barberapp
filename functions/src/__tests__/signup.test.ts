@@ -110,7 +110,7 @@ describe("recursos por plano", () => {
      * pagando por um recurso que a tela não mostra. */
     expect(featuresFor("crescimento")).toEqual({
       whatsapp: true, loyalty: true, subscriptions: true, store: true,
-      advancedFinance: false,
+      advancedFinance: false, projection: true,
     });
   });
 

@@ -107,13 +107,22 @@ Corte por **camada de necessidade**:
 
 ### 3.2 A proposta
 
+> **Revisão de 29/09 — tabela em vigor.** Gestão caiu para **R$ 247** e cada
+> plano passou a ter teto de barbeiros ativos: Agenda até 3, Crescimento até 6,
+> Gestão até 10; acima disso, R$ 19/mês por barbeiro extra. Fundadores: 30%
+> vitalício nas 20 primeiras. A fonte é `PRECOS_POR_PLANO`
+> (`functions/src/plans.ts`) e `COBRANCA-E-ENTRADA.md` §0. As contas abaixo
+> com R$ 297 e o "nunca por profissional" são o raciocínio de 02/08, mantido
+> como histórico.
+
 > **Revisão de 02/08 — os preços subiram.** A versão anterior era R$ 59/119/229,
 > ancorada no Barbeiro.app. Isso é *price-taking*: define o preço pelo
 > concorrente mais barato em vez de pelo valor entregue. Ver seção 4.
 
 | | **Agenda** | **Crescimento** | **Gestão** |
 |---|---|---|---|
-| **Preço** | R$ 97/mês | R$ 197/mês | R$ 297/mês |
+| **Preço** | R$ 97/mês | R$ 197/mês | R$ 247/mês (era 297) |
+| **Barbeiros ativos** | até 3 | até 6 | até 10 |
 | **A dor** | "perco horário e cliente some" | "quero faturar mais e ter previsibilidade" | "não sei se estou ganhando dinheiro" |
 | Agendamento online 24h | ✅ | ✅ | ✅ |
 | PWA com sua marca e subdomínio | ✅ | ✅ | ✅ |

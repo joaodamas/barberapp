@@ -10,7 +10,8 @@ import { useServices, useStaffComRemuneracao } from "@/lib/db/use-shop-data";
 import { createDoc, patchDoc, putDoc, removeDoc } from "@/lib/db/repository";
 import { deleteField } from "firebase/firestore";
 import { useTenant } from "@/lib/tenant-context";
-import { contarDeTotal } from "@/lib/plural";
+import { contarDeTotal, plural } from "@/lib/plural";
+import { NOME_DO_PLANO, PRECOS_POR_PLANO, barbeirosExtras, valorMensal } from "@/lib/tenant";
 
 /**
  * A equipe.
@@ -28,6 +29,12 @@ import { contarDeTotal } from "@/lib/plural";
  * 2. **Serviços vazio significa TODOS.** Um barbeiro recém-cadastrado, sem nada
  *    marcado, precisa atender — senão ele nasce invisível na agenda e o dono
  *    acha que o sistema quebrou.
+ *
+ * E uma que parece regra e é só aviso: **o teto do plano não bloqueia.** Cada
+ * plano cobre um número de barbeiros ativos (`PRECOS_POR_PLANO`); acima dele,
+ * cada um custa o extra por mês. Travar o botão tiraria da agenda o barbeiro
+ * que o dono acabou de contratar — ele decide, a tela só diz o preço antes, e
+ * quem cobra o excedente é o Hub.
  */
 export default function EquipePage() {
   const tenant = useTenant();
@@ -40,6 +47,14 @@ export default function EquipePage() {
 
   const ativos = equipe.filter((s) => s.active !== false);
   const soloRestante = ativos.length <= 1;
+
+  const plano = tenant.plan;
+  const preco = PRECOS_POR_PLANO[plano];
+  const extras = barbeirosExtras(plano, ativos.length);
+  /* Mais um ativo já passa do teto: é aqui que o aviso precisa vir ANTES do
+   * clique, e não só depois, na conta. */
+  const noTeto = ativos.length >= preco.tetoDeBarbeiros;
+  const avisoDoExtra = `Acima do teto do plano: + R$ ${preco.barbeiroExtra}/mês por barbeiro extra`;
 
   async function adicionar() {
     setErro(null);
@@ -105,6 +120,28 @@ export default function EquipePage() {
         </p>
       </div>
 
+      {status === "pronto" && equipe.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <p className="text-sm text-ink">
+            {contarDeTotal(ativos.length, preco.tetoDeBarbeiros, "barbeiro", "barbeiros")} no
+            plano {NOME_DO_PLANO[plano]}
+          </p>
+          {extras > 0 && (
+            <Card role="status" className="flex flex-col gap-1 border-gold/50 bg-gold/5">
+              <p className="text-sm font-medium text-ink">{avisoDoExtra}.</p>
+              <p className="text-xs text-ink-muted">
+                Com {ativos.length} barbeiros atendendo, {extras}{" "}
+                {plural(extras, "passa", "passam")} do teto de {preco.tetoDeBarbeiros}: a
+                mensalidade vai de R$ {preco.mensal} para R$ {valorMensal(plano, ativos.length)}{" "}
+                ({preco.mensal} + {extras} × {preco.barbeiroExtra}). A diferença vem na
+                cobrança da plataforma. Quem não está atendendo pode ser desmarcado e
+                deixa de contar.
+              </p>
+            </Card>
+          )}
+        </div>
+      )}
+
       {status === "carregando" && <LoadingRows rows={2} oQue="sua equipe" />}
       {status === "erro" && <ErroAoCarregar oQue="sua equipe" erro={error} />}
 
@@ -163,6 +200,12 @@ export default function EquipePage() {
                 <Trash2 size={16} />
               </button>
             </div>
+
+            {b.active === false && noTeto && (
+              <p className="-mt-2 text-xs font-medium text-ink">
+                Ao marcar &quot;Atendendo&quot;: {avisoDoExtra}.
+              </p>
+            )}
 
             <div className="grid gap-4 md:grid-cols-[200px_1fr]">
               <div className="flex flex-col gap-1.5">
@@ -272,6 +315,12 @@ export default function EquipePage() {
         >
           <UserPlus size={16} /> Adicionar barbeiro
         </button>
+      )}
+      {equipe.length > 0 && noTeto && (
+        <p className="-mt-3 text-xs text-ink-muted md:-mt-5">
+          O próximo barbeiro atendendo fica acima do teto do plano: + R${" "}
+          {preco.barbeiroExtra}/mês por barbeiro extra.
+        </p>
       )}
 
       {erro && (

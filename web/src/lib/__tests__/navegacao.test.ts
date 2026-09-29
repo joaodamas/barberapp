@@ -108,7 +108,8 @@ describe("cadeado — o menu não promete o que a tela nega", () => {
     expect(porRota["/painel/financeiro"]).toBeUndefined();
     expect(porRota["/painel/financeiro/dre"]).toBe("advancedFinance");
     expect(porRota["/painel/financeiro/fluxo-caixa"]).toBe("advancedFinance");
-    expect(porRota["/painel/financeiro/projecao"]).toBe("advancedFinance");
+    // Projeção de caixa desde 29/09 no Crescimento: recurso próprio.
+    expect(porRota["/painel/financeiro/projecao"]).toBe("projection");
     expect(porRota["/painel/financeiro/despesas"]).toBe("advancedFinance");
   });
 
