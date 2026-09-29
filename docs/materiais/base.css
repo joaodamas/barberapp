@@ -1,0 +1,51 @@
+/* Topete — base dos materiais impressos (apresentação, manual do dono, guia do cliente). */
+@font-face{font-family:"Fraunces";src:url("../../web/src/assets/fontes/fraunces-latin-var.woff2") format("woff2");font-weight:100 900}
+@font-face{font-family:"Manrope";src:url("../../web/src/assets/fontes/manrope-latin-var.woff2") format("woff2");font-weight:400 800}
+:root{
+  --preto:#0F0E0C; --grafite:#1E1B17; --latao:#C9A45C; --latao-claro:#E3C27E; --latao-escuro:#8F6B22;
+  --marfim:#F4EFE4; --papel:#FBF9F4; --tinta:#1C1915; --tinta-2:#5E5648; --linha:#E6DECD; --ok:#2F7A4F; --alerta:#B4412F;
+}
+*{box-sizing:border-box}
+html{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{margin:0;font-family:Manrope,"Helvetica Neue",Arial,sans-serif;color:var(--tinta);background:#fff;font-size:10pt;line-height:1.55}
+h1,h2,h3{font-family:Fraunces,Georgia,serif;font-variation-settings:"opsz" 144,"SOFT" 60;font-weight:620;letter-spacing:-.01em;margin:0;text-wrap:balance}
+p{margin:0}
+b,strong{font-weight:700}
+.rot{font-size:7.5pt;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--latao-escuro)}
+.mono{font-variant-numeric:tabular-nums}
+.ui{font-weight:700;color:var(--tinta);background:var(--marfim);border:1px solid var(--linha);border-radius:4px;padding:0 4px;white-space:nowrap}
+
+/* celular de demonstração */
+.fone{width:62mm;border-radius:9mm;background:var(--preto);padding:2.6mm;box-shadow:0 6mm 12mm -8mm rgba(15,14,12,.5);flex:none}
+.tela{background:#F7F6F2;border-radius:6.8mm;overflow:hidden;font-size:6.6pt;line-height:1.35;color:#16140F}
+.tela-top{background:#23392F;color:#fff;padding:4mm 3.5mm 3mm;display:flex;align-items:center;gap:2.2mm}
+.tela-top.preta{background:var(--preto)}
+.m-logo{width:7mm;height:7mm;border-radius:2mm;background:#C8A15A;color:#23392F;display:grid;place-items:center;font-weight:800;font-size:7pt}
+.tela-top b{display:block;font-size:7.4pt}
+.tela-top small{opacity:.75;font-size:5.6pt}
+.tela-corpo{padding:3mm;display:grid;gap:2.2mm}
+.t-rot{font-size:5.4pt;letter-spacing:.12em;text-transform:uppercase;color:#6B6456;font-weight:800}
+.t-serv{background:#fff;border:1px solid #E3DED3;border-radius:2.6mm;padding:2.2mm 2.6mm;display:flex;justify-content:space-between;align-items:center}
+.t-serv.on{border-color:#23392F;background:#E6EEE9}
+.t-dias{display:flex;gap:1.3mm}
+.t-dia{flex:1;border:1px solid #E3DED3;border-radius:2mm;background:#fff;text-align:center;padding:1.3mm 0;font-size:5.4pt}
+.t-dia b{display:block;font-size:7.6pt}
+.t-dia.on{background:#23392F;color:#fff;border-color:#23392F}
+.t-dia.off{opacity:.45}
+.t-horas{display:grid;grid-template-columns:repeat(4,1fr);gap:1.3mm}
+.t-hora{border:1px solid #E3DED3;border-radius:1.8mm;background:#fff;text-align:center;padding:1.6mm 0;font-weight:800;font-size:6.4pt}
+.t-hora.enc{border-style:dashed;color:#8F6B22;background:#FBF3E4;font-weight:600}
+.t-hora.on{background:#C8A15A;border-color:#C8A15A}
+.t-btn{background:#23392F;color:#fff;border-radius:2.6mm;text-align:center;padding:2.4mm;font-weight:800}
+.t-grade{display:grid;grid-template-columns:8mm 1fr;gap:1mm 1.4mm;font-size:5.8pt}
+.t-grade .h{color:#6B6456;padding-top:1.2mm}
+.t-slot{border:1px dashed #D8D2C4;border-radius:1.6mm;padding:1.3mm 1.6mm;color:#6B6456}
+.t-slot.oc{border:1px solid #D9B77A;background:#FBF3E4;color:#16140F}
+.t-slot.oc b{display:block;font-size:6.4pt}
+.t-slot.enc{border:1px dashed var(--ok);background:#E8F3EC;color:#16140F}
+.t-slot.pausa{border:none;background:#ECE8DF}
+.t-card{background:#fff;border:1px solid #E3DED3;border-radius:2.6mm;padding:2.4mm;display:grid;gap:1.2mm}
+.t-pill{display:inline-block;font-size:5.4pt;font-weight:800;padding:.5mm 1.8mm;border-radius:9mm;background:#E8F3EC;color:var(--ok)}
+.t-botoes{display:flex;gap:1.4mm}
+.t-botoes span{flex:1;text-align:center;border:1px solid #D8D2C4;border-radius:2mm;padding:1.6mm 0;font-weight:700}
+.t-botoes span.p{background:#23392F;color:#fff;border-color:#23392F}

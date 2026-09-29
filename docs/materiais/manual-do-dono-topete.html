@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Topete · Manual do dono</title>
+<link rel="stylesheet" href="base.css">
+<style>
+@page{size:A4;margin:20mm 18mm 22mm 18mm;
+  @bottom-left{content:"Topete · Manual do dono";font:600 7.5pt Manrope,sans-serif;color:#9A907C}
+  @bottom-right{content:counter(page);font:800 8pt Manrope,sans-serif;color:#8F6B22}}
+@page capa{margin:0;@bottom-left{content:none}@bottom-right{content:none}}
+.capa{page:capa;width:210mm;height:297mm;background:var(--preto);color:var(--marfim);padding:24mm 22mm;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden;page-break-after:always}
+.capa .poste{position:absolute;right:0;top:0;bottom:0;width:10mm;background:repeating-linear-gradient(-45deg,var(--latao) 0 5mm,var(--preto) 5mm 10mm,var(--marfim) 10mm 15mm,var(--preto) 15mm 20mm)}
+.capa h1{font-size:46pt;line-height:.98}
+.capa h1 em{font-style:normal;color:var(--latao)}
+.capa .sub{font-size:13pt;color:#CFC6B4;margin-top:6mm;max-width:130mm}
+.capa .meta{font-size:9pt;color:#9A907C;display:flex;gap:10mm}
+.capa .meta b{display:block;color:var(--marfim);font-size:10pt}
+h2{font-size:24pt;line-height:1.08;margin:0 0 3mm}
+h3{font-size:13.5pt;margin:7mm 0 2mm;break-after:avoid}
+.parte{break-before:page}
+.parte>.rot{display:block;margin-bottom:2mm}
+.intro{font-size:11.5pt;color:var(--tinta-2);margin-bottom:5mm;max-width:150mm}
+p+p{margin-top:2mm}
+ul,ol{margin:2mm 0;padding-left:5mm;display:grid;gap:1.2mm}
+.onde{display:inline-block;font-size:8pt;font-weight:800;letter-spacing:.06em;color:var(--latao-escuro);background:var(--marfim);border-radius:2mm;padding:.8mm 2.4mm;margin-bottom:2mm}
+.box{border:1px solid var(--linha);border-left:3px solid var(--latao);border-radius:2mm;background:var(--papel);padding:3.5mm 4.5mm;margin:3.5mm 0;break-inside:avoid}
+.box b.t{display:block;color:var(--latao-escuro);font-size:8.5pt;letter-spacing:.08em;text-transform:uppercase;margin-bottom:1mm}
+.box.alerta{border-left-color:var(--alerta)}
+.box.alerta b.t{color:var(--alerta)}
+table{border-collapse:collapse;width:100%;margin:3mm 0;font-size:9.5pt;break-inside:avoid}
+th,td{text-align:left;padding:2.2mm 3mm;border-bottom:1px solid var(--linha);vertical-align:top}
+th{font-size:7.5pt;letter-spacing:.12em;text-transform:uppercase;color:var(--tinta-2);background:var(--papel)}
+td:first-child{font-weight:700;width:34%}
+.duas{display:grid;grid-template-columns:1fr 1fr;gap:6mm}
+.com-fone{display:grid;grid-template-columns:1fr auto;gap:8mm;align-items:start}
+.sumario ol{list-style:none;padding:0;margin:6mm 0 0;display:grid;gap:0;counter-reset:s}
+.sumario li{counter-increment:s;display:grid;grid-template-columns:12mm 1fr;padding:3.2mm 0;border-top:1px solid var(--linha)}
+.sumario li::before{content:counter(s,decimal-leading-zero);font-family:Fraunces;font-weight:700;font-size:14pt;color:var(--latao-escuro)}
+.sumario b{font-size:11.5pt;display:block}
+.sumario span{color:var(--tinta-2)}
+.check li{list-style:none;position:relative;padding-left:7mm}
+.check li::before{content:"";position:absolute;left:0;top:1mm;width:3.6mm;height:3.6mm;border:1.4px solid var(--latao-escuro);border-radius:1mm}
+.check{padding-left:0}
+.fim{margin-top:10mm;font-family:Fraunces;font-size:16pt;color:var(--latao-escuro)}
+</style>
+</head>
+<body>
+
+<section class="capa">
+  <div class="poste"></div>
+  <img src="../marca/topete-mascote.svg" alt="" style="position:absolute;right:22mm;bottom:30mm;height:88mm;width:auto;opacity:.95">
+  <img src="../marca/topete-logo-escuro-transparente.svg" alt="Topete" style="height:16mm;width:auto;margin-left:-2mm">
+  <div>
+    <p class="rot" style="color:var(--latao)">Manual do dono</p>
+    <h1 style="margin-top:4mm">A barbearia inteira<br><em>no seu celular.</em></h1>
+    <p class="sub">Agenda, encaixes, balcão, caixa, clientes, mensalistas, loja e os números do mês, explicados item a item.</p>
+  </div>
+  <div class="meta"><span><b>Para</b>o dono e quem cuida da agenda</span><span><b>Versão</b>Setembro de 2026</span><span><b>Contato</b>@usetopete</span></div>
+</section>
+
+<section class="sumario">
+  <p class="rot">Sumário</p>
+  <h2>O que tem neste manual</h2>
+  <p class="intro">O Topete tem dois lados. O cliente vê a barbearia e marca o horário sozinho. O dono vê a agenda, fecha cada atendimento com a forma de pagamento e acompanha quanto entrou, quanto saiu e quanto sobrou. Este manual segue a ordem do dia do dono.</p>
+  <ol>
+    <li><div><b>Primeiros passos</b><span>O endereço, o primeiro acesso e como instalar no celular.</span></div></li>
+    <li><div><b>A tela Hoje</b><span>O que precisa de você, a agenda do dia e o caixa de hoje.</span></div></li>
+    <li><div><b>A Agenda</b><span>Grade do dia, liberação da agenda, encaixes, remarcar e cancelar.</span></div></li>
+    <li><div><b>O balcão</b><span>Marcar quem chegou ou ligou, concluir, falta, corrigir e devolver.</span></div></li>
+    <li><div><b>Gestão</b><span>Clientes, mensalistas, loja, financeiro e números.</span></div></li>
+    <li><div><b>Ajustes</b><span>Serviços, equipe, horários, taxas, fidelidade e o seu link.</span></div></li>
+    <li><div><b>Regras e checklist</b><span>O que o sistema aplica sozinho e o que conferir antes de divulgar.</span></div></li>
+  </ol>
+</section>
+
+<!-- 1 -->
+<section class="parte">
+  <span class="rot">Parte 1</span>
+  <h2>Primeiros passos</h2>
+  <p class="intro">Um endereço só, usado pelo cliente e pelo dono. O Topete reconhece quem entrou e mostra o lado certo.</p>
+  <h3>O endereço da sua barbearia</h3>
+  <p>Cada barbearia tem o próprio endereço, no formato <b>suabarbearia.topete.com.br</b>. Ele abre no navegador do celular ou do computador, sem baixar nada da loja de aplicativos. É esse link que vai na bio do Instagram, no status do WhatsApp e no QR code do balcão (pronto em <span class="ui">Ajustes › Meu link</span>).</p>
+  <h3>Primeiro acesso</h3>
+  <p>Você recebe um e-mail e uma senha provisória.</p>
+  <ol>
+    <li>Abra o endereço e toque em <span class="ui">Entrar</span>.</li>
+    <li>Entre com o e-mail e a senha provisória.</li>
+    <li>Na tela <span class="ui">Crie sua senha</span>, escolha a senha definitiva (mínimo de 8 caracteres, com pelo menos uma letra) e repita.</li>
+    <li>Toque em <span class="ui">Salvar e continuar</span>. O painel abre sozinho.</li>
+  </ol>
+  <p>Ninguém da equipe do Topete consegue ver a sua senha. Se esquecer, use <span class="ui">Esqueci a senha</span> na tela de entrar.</p>
+  <h3>Deixar o painel na tela do celular</h3>
+  <div class="duas">
+    <div class="box"><b class="t">iPhone (Safari)</b><ol><li>Abra o endereço no Safari.</li><li>Toque em Compartilhar (quadrado com seta).</li><li>Escolha <b>Adicionar à Tela de Início</b>.</li></ol></div>
+    <div class="box"><b class="t">Android (Chrome)</b><ol><li>Abra o endereço no Chrome.</li><li>Toque no menu ⋮.</li><li>Escolha <b>Instalar app</b>.</li></ol></div>
+  </div>
+  <p>Instalado, ele abre em tela cheia com o ícone da barbearia e se atualiza sozinho. Toda vez que você volta para o app, ele confere se há versão nova.</p>
+  <h3>Como o painel é organizado</h3>
+  <table>
+    <tr><th>Menu</th><th>Para que serve</th></tr>
+    <tr><td>Hoje</td><td>O que precisa de você, a agenda do dia e o caixa de hoje.</td></tr>
+    <tr><td>Agenda</td><td>Qualquer dia da semana em grade, pedidos de encaixe e a liberação da agenda.</td></tr>
+    <tr><td>Clientes</td><td>A base de clientes e a ficha de cada um.</td></tr>
+    <tr><td>Financeiro</td><td>Fechamento do mês, quanto sobrou, fluxo, projeção e despesas.</td></tr>
+    <tr><td>Loja</td><td>Venda de produtos no balcão e estoque.</td></tr>
+    <tr><td>Mensalistas</td><td>Planos, assinantes e mensalidades do mês.</td></tr>
+    <tr><td>Números</td><td>Os indicadores do mês comparados ao anterior.</td></tr>
+    <tr><td>Ajustes</td><td>Serviços, equipe, horários, taxas e regras, fidelidade e o seu link.</td></tr>
+    <tr><td>Botão +</td><td>Marca um atendimento de qualquer tela, para quem chegou ou ligou.</td></tr>
+  </table>
+  <p>No celular, a barra de baixo tem Hoje, Finanças, o botão + no centro, Clientes e Mais (que abre o resto). No computador, tudo fica na barra lateral.</p>
+</section>
+
+<!-- 2 -->
+<section class="parte">
+  <span class="rot">Parte 2</span>
+  <h2>A tela Hoje</h2>
+  <p class="intro">A primeira tela do painel. É onde o dia começa e termina.</p>
+  <h3>Os números do topo</h3>
+  <table>
+    <tr><th>Número</th><th>O que mostra</th></tr>
+    <tr><td>Atendimentos</td><td>Quantos horários do dia estão ocupados, contando os concluídos e as faltas.</td></tr>
+    <tr><td>Ocupação</td><td>Quanto da capacidade do dia já está tomada, somando todos os barbeiros ativos.</td></tr>
+    <tr><td>Horários livres</td><td>Quantos horários ainda restam de agora até o fim do expediente.</td></tr>
+    <tr><td>Previsão do dia</td><td>Quanto os serviços marcados para hoje somam, sem faltas e cancelamentos.</td></tr>
+    <tr><td>Recebido hoje</td><td>Tudo que entrou no caixa hoje: atendimentos, loja e mensalidades.</td></tr>
+  </table>
+  <h3>Precisa de você</h3>
+  <p>O Topete junta aqui o que está pendente, até 3 de cada vez:</p>
+  <ul>
+    <li><b>Pedido de encaixe</b> (sempre no topo): <span class="ui">Aprovar encaixe</span> ou <span class="ui">Recusar</span>.</li>
+    <li><b>Atendimento feito sem pagamento registrado</b>: <span class="ui">Registrar pagamento</span>.</li>
+    <li><b>Atendimento de outro dia sem desfecho</b>: <span class="ui">Foi atendido</span> ou <span class="ui">Não veio</span>. Até resolver, o valor não entra no mês.</li>
+    <li><b>Taxas da maquininha não informadas</b> e <b>nenhum serviço para agendar</b>, com o atalho para resolver.</li>
+  </ul>
+  <h3>A agenda do dia e o caixa</h3>
+  <p>Cada atendimento mostra hora, cliente, telefone (toque abre o WhatsApp), serviço e valor. O que passou do horário sem desfecho fica em vermelho: “atendeu ou não veio?”. No fim da tela, o <b>Caixa de hoje</b> separa Pix, cartão e dinheiro para conferir com a gaveta e a maquininha.</p>
+  <div class="box"><b class="t">Importante</b>Nenhum pagamento é feito pelo app. O cliente paga no salão, como sempre. O valor entra no caixa quando você conclui o atendimento, e é por isso que concluir cada um no dia mantém o caixa certo.</div>
+</section>
+
+<!-- 3 -->
+<section class="parte">
+  <span class="rot">Parte 3</span>
+  <h2>A Agenda</h2>
+  <p class="intro">A semana inteira, dia a dia, com o que está livre, o que está ocupado e os pedidos de encaixe lado a lado.</p>
+  <div class="com-fone">
+    <div>
+      <h3 style="margin-top:0">Navegar pelos dias</h3>
+      <p>A faixa da semana mostra cada dia com a quantidade de atendimentos, <b>fechado</b> quando a barbearia não abre e <b>não lib.</b> quando o dia ainda não foi liberado para o cliente avulso. As setas trocam de semana, e <span class="ui">Voltar para hoje</span> aparece quando você sai do dia atual.</p>
+      <h3>Grade do dia e Lista</h3>
+      <p>Na <b>Grade do dia</b>, cada horário da jornada vira uma linha: <b>Livre · marcar</b> (toque para marcar ali), <b>Intervalo</b> e os atendimentos, que ocupam as linhas do seu tempo (um combo de 60 minutos ocupa duas linhas de 30). Encaixe aprovado por cima de outro atendimento aparece numa segunda coluna, ao lado.</p>
+      <p>Tocou num atendimento, abre a janela com os detalhes e as ações: <span class="ui">Concluir</span>, <span class="ui">Remarcar</span>, <span class="ui">Cancelar</span>, <span class="ui">Não veio</span>. A <b>Lista</b> mostra os mesmos atendimentos em cartões, em ordem de horário.</p>
+    </div>
+    <div class="fone"><div class="tela">
+      <div class="tela-top preta"><span class="m-logo">BZ</span><div><b>Agenda · Sábado, 03</b><small>Grade do dia</small></div></div>
+      <div class="tela-corpo"><div class="t-grade">
+        <span class="h">09:00</span><div class="t-slot oc"><b>Rafael · Corte</b>09:00–09:30</div>
+        <span class="h">09:30</span><div class="t-slot">Livre · marcar</div>
+        <span class="h">10:00</span><div class="t-slot oc"><b>Lucas · Corte + barba</b>10:00–11:00</div>
+        <span class="h">11:00</span><div class="t-slot enc"><b>Encaixe · João</b>Dá para encaixar</div>
+        <span class="h">11:30</span><div class="t-slot">Livre · marcar</div>
+        <span class="h">12:00</span><div class="t-slot pausa">Intervalo</div>
+        <span class="h">13:00</span><div class="t-slot oc"><b>Pedro · Barba</b>13:00–13:30</div>
+        <span class="h">13:30</span><div class="t-slot">Livre · marcar</div>
+      </div></div>
+    </div></div>
+  </div>
+
+  <h3>Liberar a agenda</h3>
+  <p>No topo da Agenda fica o cartão da <b>liberação</b>: até que dia o cliente avulso consegue marcar. Toque em <span class="ui">Liberar os próximos 15 dias</span> e a agenda abre até a data mostrada no botão. Quando chegar perto do fim, libere de novo.</p>
+  <ul>
+    <li>Sem nenhuma liberação, o cliente marca até <b>60 dias</b> à frente.</li>
+    <li>O <b>mensalista</b> enxerga mais longe: 60 dias por padrão, ajustável em <span class="ui">Ajustar</span>.</li>
+    <li>Você e o balcão marcam em <b>qualquer data</b>, liberada ou não.</li>
+    <li>Para fechar um dia específico (feriado, folga), use <span class="ui">Ajustes › Horários › Dias fechados</span>.</li>
+  </ul>
+
+  <h3>Pedidos de encaixe</h3>
+  <p>Quando um horário já está ocupado, o cliente pode pedir um encaixe nele. O pedido não ocupa a agenda e não tira o horário de ninguém. Na Agenda, os pedidos aparecem numa seção própria e na coluna da direita da grade, na altura do horário pedido, com a <b>sugestão do Topete</b>:</p>
+  <table>
+    <tr><th>Sugestão</th><th>Quando aparece</th></tr>
+    <tr><td>Pode aprovar</td><td>O horário vagou: quem estava ali cancelou.</td></tr>
+    <tr><td>Dá para encaixar</td><td>Sobra tempo ao redor para o serviço pedido.</td></tr>
+    <tr><td>Apertado</td><td>Cabe, mas encosta nos atendimentos vizinhos.</td></tr>
+    <tr><td>Não recomendado</td><td>O tempo do serviço atropela outro atendimento.</td></tr>
+  </table>
+  <p>Toque em <span class="ui">Aprovar encaixe</span> ou em <span class="ui">Recusar e oferecer horário</span>, que já sugere ao cliente os horários livres do dia. Depois de decidir, aparece o botão para avisar o cliente no WhatsApp com a mensagem pronta. Sem resposta até o horário, o pedido expira sozinho.</p>
+
+  <h3>Remarcar e cancelar</h3>
+  <p><span class="ui">Remarcar</span> abre a escolha do novo dia com os horários livres que cabem no serviço. <span class="ui">Cancelar</span> libera o horário e, em seguida, abre o WhatsApp com a mensagem pronta para avisar o cliente. Quem envia é você.</p>
+</section>
+
+<!-- 4 -->
+<section class="parte">
+  <span class="rot">Parte 4</span>
+  <h2>O balcão</h2>
+  <p class="intro">Quem chegou, quem ligou, quem pagou. A parte que você usa em pé, com o celular na mão.</p>
+  <h3>Marcar um atendimento</h3>
+  <span class="onde">Botão + · ou “Livre · marcar” na grade</span>
+  <ol>
+    <li><b>O que vai fazer:</b> um ou mais serviços.</li>
+    <li><b>Com quem:</b> aparece quando há mais de um barbeiro, só com quem faz os serviços escolhidos.</li>
+    <li><b>Quando:</b> dia e horário livre. No balcão dá para marcar para agora.</li>
+    <li><b>Para quem:</b> busque pelo nome ou WhatsApp, ou toque em <span class="ui">Cliente novo</span>. Com o WhatsApp, ele é reconhecido nas próximas visitas.</li>
+    <li><b>Confirmar:</b> o botão já mostra dia, hora e valor.</li>
+  </ol>
+  <h3>Concluir o atendimento</h3>
+  <p>Depois do corte, toque em <span class="ui">Concluir</span> e escolha como o cliente pagou (Pix, dinheiro, débito, crédito). Um toque já conclui: o valor entra no caixa, a comissão do barbeiro é calculada e, com fidelidade ligada, o cliente ganha o carimbo.</p>
+  <div class="box"><b class="t">Mensalista</b>Para o mensalista aparece <span class="ui">Concluir sem cobrar</span>. O Topete confere a cota do mês: se o plano cobre, não há cobrança; se a cota acabou, entra como avulso.</div>
+  <h3>Quando o cliente não vem</h3>
+  <p><span class="ui">Não veio</span> aparece depois da tolerância de atraso (15 minutos, ajustável). O valor não entra como receita. Se o cliente aparecer depois, <span class="ui">Veio depois</span> conclui normalmente.</p>
+  <h3>Corrigir e devolver</h3>
+  <div class="duas">
+    <div class="box"><b class="t">Corrigir pagamento</b>Registrou Pix e foi cartão? Escolha a forma certa. O valor não muda, e fica registrado quem corrigiu e quando.</div>
+    <div class="box"><b class="t">Devolver</b>Para devolver tudo ou parte, informe quanto e por quê. A devolução é um lançamento novo; o original fica no histórico.</div>
+  </div>
+</section>
+
+<!-- 5 -->
+<section class="parte">
+  <span class="rot">Parte 5</span>
+  <h2>Gestão</h2>
+  <p class="intro">Tudo aqui se monta sozinho a partir do que é registrado no dia a dia. Não há planilha para preencher.</p>
+  <h3>Clientes</h3>
+  <p>O cadastro nasce quando alguém agenda pelo app ou é marcado no balcão. A ficha mostra visitas, última visita, ticket médio, quanto gastou, o próximo horário e o plano, se for mensalista. Nela ficam também a fidelidade (<span class="ui">Registrar resgate</span>) e os pedidos de LGPD: <span class="ui">Exportar dados</span> e <span class="ui">Anonimizar</span>.</p>
+  <h3>Mensalistas</h3>
+  <ol>
+    <li><b>Crie os planos</b> em <span class="ui">Planos › Adicionar plano</span>: nome, mensalidade, preço avulso de referência e quantos atendimentos o plano inclui (ou ilimitado).</li>
+    <li><b>Contrate</b> em <span class="ui">Novo mensalista</span>: escolha o cliente, o plano e o dia do vencimento.</li>
+    <li><b>Cobre</b>: no começo do mês, <span class="ui">Emitir mensalidades do mês</span>. Quando o cliente pagar, <span class="ui">Registrar pagamento</span>.</li>
+  </ol>
+  <p>O topo mostra o faturado, o recebido e o que está em aberto, com a régua de quem está perto do vencimento ou atrasado. A cobrança é sua: o Topete não debita cartão sozinho.</p>
+  <h3>Loja</h3>
+  <p>Cadastre o produto com custo, margem (o preço de venda sai calculado), estoque inicial e mínimo. Para vender, toque em + nos produtos, escolha quem vendeu e a forma de pagamento, e confirme: o estoque baixa na hora. Abaixo do mínimo, a Loja avisa no topo.</p>
+  <h3>Financeiro</h3>
+  <table>
+    <tr><th>Relatório</th><th>Para que serve</th></tr>
+    <tr><td>Resumo</td><td>Receita, custo total, resultado, margem e ponto de equilíbrio do mês, com o selo “no verde” ou “no vermelho”.</td></tr>
+    <tr><td>Quanto sobrou</td><td>O resultado linha a linha: receita, taxas, comissões por barbeiro, despesas e imposto. Tem simulação de “e se o faturamento mudar X%”.</td></tr>
+    <tr><td>Fluxo de caixa</td><td>O dinheiro que de fato entrou e saiu, dia a dia, já sem a taxa da maquininha. No fim, o livro caixa.</td></tr>
+    <tr><td>Projeção</td><td>Como o caixa deve ficar nos próximos 30 dias a 12 meses: reservas marcadas, mensalidades e despesas fixas, com o dia mais apertado.</td></tr>
+    <tr><td>Despesas</td><td>Lançar as contas. Marque <b>Recorrente</b> no aluguel e nas contas fixas para não lançar todo mês.</td></tr>
+  </table>
+  <p>Sangria, troco inicial, aporte e pagamento de comissão entram pelo <span class="ui">Livro caixa › Registrar movimento</span>.</p>
+  <h3>Números</h3>
+  <p>Faturamento, atendimentos, ticket médio, ocupação e faltas, comparados ao mês anterior. E ainda: os serviços que mais saem, a recorrência de clientes (em dia, esfriando, sumiu: a lista de quem chamar de volta) e o mapa de calor da semana.</p>
+</section>
+
+<!-- 6 -->
+<section class="parte">
+  <span class="rot">Parte 6</span>
+  <h2>Ajustes</h2>
+  <p class="intro">Onde a barbearia é configurada. Tudo aqui aparece para o cliente ou muda como o dinheiro é contado.</p>
+  <h3>Serviços</h3>
+  <p>O cardápio que o cliente vê: nome, duração em minutos, preço e visibilidade. Salva sozinho ao sair de cada campo. O ícone do olho esconde o serviço sem apagar o histórico. Em vermelho, o Topete avisa serviço visível sem preço ou mais longo que o expediente.</p>
+  <h3>Equipe</h3>
+  <p>Um cartão por barbeiro: nome, <b>Atendendo</b>, comissão própria (em branco usa a padrão), salário fixo, se houver, e <b>O que ele faz</b>.</p>
+  <div class="box alerta"><b class="t">Atenção ao “O que ele faz”</b>Sem nenhum serviço marcado, o barbeiro atende todos. Marcando alguns, ele passa a atender só esses. Se ninguém da equipe faz um serviço, ele some do app do cliente. Ao criar um serviço novo, confira quem o faz.</div>
+  <h3>Horários</h3>
+  <p>Dias de funcionamento, abertura, fechamento, almoço e o intervalo entre horários (15 a 60 minutos). Dia com horário diferente, como o sábado, tem ajuste próprio. Em <b>Dias fechados e horários especiais</b> você fecha um feriado ou abre em horário diferente.</p>
+  <div class="box alerta"><b class="t">Importante</b>Mudar o expediente de um dia não cancela quem já estava marcado. O Topete avisa quantos são; cancele pela Agenda, avisando cada cliente.</div>
+  <h3>Taxas e regras</h3>
+  <ul>
+    <li><b>Taxas por forma de pagamento</b>: a taxa de cada uma da maquininha. Vale dali para frente.</li>
+    <li><b>Tolerância de atraso</b>: de 0 a 120 minutos (padrão 15).</li>
+    <li><b>Comissão padrão</b>: o percentual do barbeiro sobre o atendimento e, na loja, sobre o lucro.</li>
+    <li><b>Fidelidade</b>: ligue, defina quantos carimbos (3 a 30) e a recompensa.</li>
+  </ul>
+  <h3>Meu link</h3>
+  <p>QR code para imprimir, o link para copiar e uma mensagem pronta para mandar aos clientes avisando que agora dá para agendar pelo link.</p>
+</section>
+
+<!-- 7 -->
+<section class="parte">
+  <span class="rot">Parte 7</span>
+  <h2>Regras e checklist</h2>
+  <h3>O que o sistema aplica sozinho</h3>
+  <table>
+    <tr><th>Regra</th><th>Como funciona</th></tr>
+    <tr><td>Antecedência</td><td>O cliente marca com pelo menos 1 hora. No balcão, você marca para agora.</td></tr>
+    <tr><td>Até quando o cliente marca</td><td>Até a data liberada na Agenda (ou 60 dias sem liberação). Mensalista: 60 dias, ajustável.</td></tr>
+    <tr><td>Conta do cliente</td><td>Para confirmar, o cliente precisa de e-mail confirmado ou conta Google.</td></tr>
+    <tr><td>Reservas por cliente</td><td>Até 3 horários em aberto ao mesmo tempo.</td></tr>
+    <tr><td>Reagendar pelo app</td><td>Até 6 horas antes, no máximo 2 vezes por reserva.</td></tr>
+    <tr><td>Cancelar pelo app</td><td>A qualquer momento, sem custo.</td></tr>
+    <tr><td>Encaixe</td><td>O cliente pede; você aprova ou recusa. Sem resposta até a hora, expira.</td></tr>
+    <tr><td>Pagamento</td><td>Sempre no salão. Entra no caixa quando você conclui.</td></tr>
+  </table>
+  <h3>Checklist antes de divulgar o link</h3>
+  <ul class="check">
+    <li>Senha definitiva criada e o painel instalado no celular.</li>
+    <li>Serviços com nome, duração e preço certos, visíveis para o cliente.</li>
+    <li>Equipe › O que ele faz: cada serviço marcado para quem faz.</li>
+    <li>Comissão de cada barbeiro e, se houver, o salário fixo.</li>
+    <li>Horários, almoço e os feriados já conhecidos.</li>
+    <li>Agenda liberada (<span class="ui">Liberar os próximos 15 dias</span>).</li>
+    <li>Taxas da maquininha de cada forma de pagamento.</li>
+    <li>Planos de mensalista e fidelidade, se for oferecer.</li>
+    <li>Despesas fixas lançadas como recorrentes.</li>
+    <li>Teste de ponta a ponta: agende como cliente, veja na Agenda e conclua.</li>
+    <li>Divulgue: QR code no balcão, link na bio e a mensagem pronta no WhatsApp.</li>
+  </ul>
+  <p class="fim">Bons cortes e boa agenda.</p>
+  <p style="color:var(--tinta-2)">Dúvidas? Fale com a gente no Instagram @usetopete.</p>
+</section>
+</body>
+</html>

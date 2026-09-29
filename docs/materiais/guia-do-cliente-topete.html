@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Topete · Guia do cliente</title>
+<link rel="stylesheet" href="base.css">
+<style>
+@page{size:A4;margin:20mm 18mm 22mm 18mm;
+  @bottom-left{content:"Guia do cliente · feito com Topete";font:600 7.5pt Manrope,sans-serif;color:#9A907C}
+  @bottom-right{content:counter(page);font:800 8pt Manrope,sans-serif;color:#8F6B22}}
+@page capa{margin:0;@bottom-left{content:none}@bottom-right{content:none}}
+.capa{page:capa;width:210mm;height:297mm;background:var(--preto);color:var(--marfim);padding:24mm 22mm;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden;page-break-after:always}
+.capa .poste{position:absolute;right:0;top:0;bottom:0;width:10mm;background:repeating-linear-gradient(-45deg,var(--latao) 0 5mm,var(--preto) 5mm 10mm,var(--marfim) 10mm 15mm,var(--preto) 15mm 20mm)}
+.capa h1{font-size:48pt;line-height:.98}
+.capa h1 em{font-style:normal;color:var(--latao)}
+.capa .sub{font-size:13pt;color:#CFC6B4;margin-top:6mm;max-width:130mm}
+.endereco{border:1px dashed var(--latao);border-radius:3mm;padding:5mm 6mm;max-width:130mm}
+.endereco b{display:block;font-family:Fraunces;font-size:17pt;color:var(--latao);margin-top:1mm}
+h2{font-size:24pt;line-height:1.08;margin:0 0 3mm}
+h3{font-size:13.5pt;margin:7mm 0 2mm;break-after:avoid}
+.parte{break-before:page}
+.parte>.rot{display:block;margin-bottom:2mm}
+.intro{font-size:11.5pt;color:var(--tinta-2);margin-bottom:5mm;max-width:150mm}
+p+p{margin-top:2mm}
+ul,ol{margin:2mm 0;padding-left:5mm;display:grid;gap:1.4mm}
+.box{border:1px solid var(--linha);border-left:3px solid var(--latao);border-radius:2mm;background:var(--papel);padding:3.5mm 4.5mm;margin:3.5mm 0;break-inside:avoid}
+.box b.t{display:block;color:var(--latao-escuro);font-size:8.5pt;letter-spacing:.08em;text-transform:uppercase;margin-bottom:1mm}
+.duas{display:grid;grid-template-columns:1fr 1fr;gap:6mm}
+.com-fone{display:grid;grid-template-columns:1fr auto;gap:8mm;align-items:start}
+table{border-collapse:collapse;width:100%;margin:3mm 0;font-size:9.5pt;break-inside:avoid}
+th,td{text-align:left;padding:2.4mm 3mm;border-bottom:1px solid var(--linha);vertical-align:top}
+th{font-size:7.5pt;letter-spacing:.12em;text-transform:uppercase;color:var(--tinta-2);background:var(--papel)}
+td:first-child{font-weight:700;width:32%}
+.sumario ol{list-style:none;padding:0;margin:6mm 0 0;display:grid;counter-reset:s}
+.sumario li{counter-increment:s;display:grid;grid-template-columns:12mm 1fr;padding:3.2mm 0;border-top:1px solid var(--linha)}
+.sumario li::before{content:counter(s,decimal-leading-zero);font-family:Fraunces;font-weight:700;font-size:14pt;color:var(--latao-escuro)}
+.sumario b{font-size:11.5pt;display:block}
+.sumario span{color:var(--tinta-2)}
+.passos{list-style:none;padding:0;counter-reset:p;gap:4mm}
+.passos li{counter-increment:p;display:grid;grid-template-columns:9mm 1fr;gap:3mm}
+.passos li::before{content:counter(p);width:8mm;height:8mm;border-radius:50%;background:var(--preto);color:var(--latao);display:grid;place-items:center;font-family:Fraunces;font-weight:700}
+.faq b{display:block;margin-top:4mm}
+.fim{margin-top:10mm;font-family:Fraunces;font-size:16pt;color:var(--latao-escuro)}
+</style>
+</head>
+<body>
+
+<section class="capa">
+  <div class="poste"></div>
+  <img src="../marca/topete-mascote.svg" alt="" style="position:absolute;right:22mm;bottom:30mm;height:88mm;width:auto;opacity:.95">
+  <p class="rot" style="color:var(--latao)">Guia do cliente</p>
+  <div>
+    <h1>Seu horário<br>na barbearia,<br><em>sem ligar.</em></h1>
+    <p class="sub">Como marcar, pedir encaixe, remarcar, cancelar e acompanhar suas visitas, direto do celular.</p>
+  </div>
+  <div class="endereco">
+    <span class="rot" style="color:var(--latao)">O endereço da sua barbearia</span>
+    <b>suabarbearia.topete.com.br</b>
+    <p style="font-size:9pt;color:#CFC6B4;margin-top:2mm">Também no Instagram da barbearia e no QR code do balcão.</p>
+  </div>
+  <img src="../marca/topete-logo-escuro-transparente.svg" alt="Topete" style="height:10mm;width:auto;align-self:flex-start;opacity:.8">
+</section>
+
+<section class="sumario">
+  <p class="rot">Guia do cliente</p>
+  <h2>Pelo app você vê os horários que estão livres de verdade.</h2>
+  <p class="intro">E recebe a confirmação na hora. O pagamento continua sendo no salão, do jeito que você preferir.</p>
+  <ol>
+    <li><div><b>Abrir o app</b><span>O endereço e como deixar o app na tela do celular.</span></div></li>
+    <li><div><b>Sua conta</b><span>Com a conta Google ou com e-mail e senha.</span></div></li>
+    <li><div><b>Marcar um horário</b><span>Serviço, dia, horário e confirmação.</span></div></li>
+    <li><div><b>Pedir um encaixe</b><span>Quando o horário que você quer já está ocupado.</span></div></li>
+    <li><div><b>Remarcar e cancelar</b><span>Como mudar o horário ou desmarcar, e até quando dá.</span></div></li>
+    <li><div><b>Planos, fidelidade e seus dados</b><span>Mensalista, carimbos, perfil e como excluir a conta.</span></div></li>
+    <li><div><b>Regras rápidas e dúvidas</b><span>Tudo o que você precisa saber, em uma página.</span></div></li>
+  </ol>
+</section>
+
+<section class="parte">
+  <span class="rot">Passo 1</span>
+  <h2>Abrir o app</h2>
+  <p class="intro">Não precisa baixar nada da loja de aplicativos: o app abre no navegador do celular, com o nome e as cores da sua barbearia.</p>
+  <h3>Deixe na tela do seu celular</h3>
+  <div class="duas">
+    <div class="box"><b class="t">iPhone (Safari)</b><ol><li>Abra o endereço no Safari.</li><li>Toque em Compartilhar (quadrado com seta).</li><li>Escolha <b>Adicionar à Tela de Início</b>.</li></ol></div>
+    <div class="box"><b class="t">Android (Chrome)</b><ol><li>Abra o endereço no Chrome.</li><li>Toque no menu ⋮.</li><li>Escolha <b>Instalar app</b>.</li></ol></div>
+  </div>
+  <p>Assim ele fica com o ícone da barbearia, abre em tela cheia e se atualiza sozinho.</p>
+  <h3>O que você vê na primeira tela</h3>
+  <ul>
+    <li>Os serviços, com o tempo e o preço de cada um.</li>
+    <li>O botão <span class="ui">Ver horários e agendar</span>: você escolhe o horário antes de criar conta.</li>
+    <li>Os planos de mensalista, quando a barbearia tiver.</li>
+    <li>O endereço (tocando, abre o mapa) e os botões de WhatsApp e ligar.</li>
+  </ul>
+
+  <h3 style="margin-top:9mm">Passo 2 · Sua conta</h3>
+  <p>A conta garante que o horário é seu. Ela só é pedida na hora de confirmar a primeira reserva.</p>
+  <div class="duas">
+    <div class="box"><b class="t">Com a conta Google</b>Toque em <span class="ui">Continuar com Google</span> e escolha a conta. É o jeito mais rápido: não precisa criar senha nem confirmar e-mail.</div>
+    <div class="box"><b class="t">Com e-mail e senha</b>Toque em <span class="ui">Criar uma conta</span>, informe o e-mail e uma senha. Depois abra o e-mail que chegou e toque no link de confirmação. Não chegou? <span class="ui">Reenviar o link</span>.</div>
+  </div>
+  <p>Esqueceu a senha? Na tela de entrar, escreva o e-mail e toque em <span class="ui">Esqueci a senha</span>.</p>
+</section>
+
+<section class="parte">
+  <span class="rot">Passo 3</span>
+  <h2>Marcar um horário</h2>
+  <p class="intro">Três passos, com uma barra no topo mostrando em qual você está. Leva menos de um minuto.</p>
+  <div class="com-fone">
+    <ol class="passos">
+      <li><div><b>Escolha o serviço.</b> Toque em um ou mais (corte e barba, por exemplo). Embaixo aparecem o tempo total e o valor. Toque em <span class="ui">Continuar</span>.</div></li>
+      <li><div><b>Escolha o dia e o horário.</b> Os dias em que a barbearia não abre aparecem como “fechado”. Se a barbearia tiver mais de um barbeiro, escolha antes <b>com quem você quer cortar</b>. Os horários já consideram o tempo dos serviços.</div></li>
+      <li><div><b>Confira e confirme.</b> O resumo mostra serviços, dia, hora, duração e total. Na primeira vez, preencha seu nome e seu WhatsApp com DDD. Toque em <span class="ui">Confirmar reserva</span>.</div></li>
+    </ol>
+    <div class="fone"><div class="tela">
+      <div class="tela-top"><span class="m-logo">BZ</span><div><b>Barbearia do Zé</b><small>Passo 2 de 3</small></div></div>
+      <div class="tela-corpo">
+        <span class="t-rot">Com quem você quer cortar</span>
+        <div class="t-botoes"><span class="p">Diego</span><span>Léo</span></div>
+        <span class="t-rot">Dia</span>
+        <div class="t-dias"><div class="t-dia">SEX<b>02</b></div><div class="t-dia on">SÁB<b>03</b></div><div class="t-dia off">DOM<b>04</b></div><div class="t-dia">SEG<b>05</b></div></div>
+        <span class="t-rot">Horário</span>
+        <div class="t-horas"><div class="t-hora">09:00</div><div class="t-hora on">10:00</div><div class="t-hora enc">11:00</div><div class="t-hora">14:00</div><div class="t-hora">15:00</div><div class="t-hora enc">16:00</div><div class="t-hora">17:00</div><div class="t-hora">18:00</div></div>
+        <span style="color:#8F6B22;font-size:5.6pt">Tracejado = encaixe: você pede, o barbeiro aprova.</span>
+      </div>
+    </div></div>
+  </div>
+  <p style="margin-top:4mm">Pronto: aparece <b>Reserva confirmada!</b> com o dia e a hora. O horário é seu.</p>
+  <div class="box"><b class="t">Bom saber</b>
+    <ul>
+      <li>O pagamento é no salão, no dia: Pix, dinheiro ou cartão. Nada é cobrado pelo app.</li>
+      <li>O horário só fica seu quando você toca em <span class="ui">Confirmar reserva</span>. Se alguém marcar antes, o app avisa e você escolhe outro.</li>
+      <li>Dá para marcar a partir de 1 hora de antecedência. Mais em cima, chame a barbearia no WhatsApp.</li>
+      <li>Você enxerga as datas que a barbearia já liberou. Mensalista enxerga mais à frente.</li>
+      <li>Você pode ter até 3 horários marcados ao mesmo tempo.</li>
+    </ul>
+  </div>
+
+  <h3>Passo 4 · Pedir um encaixe</h3>
+  <p>Os horários já ocupados aparecem com a palavra <b>encaixe</b> e a borda tracejada. Você pode pedir um deles, e quem decide é o barbeiro.</p>
+  <ol>
+    <li>Toque no horário marcado como encaixe e em <span class="ui">Pedir encaixe</span>.</li>
+    <li>Na tela seguinte, toque em <span class="ui">Avisar a barbearia no WhatsApp</span>: a mensagem já vem pronta.</li>
+    <li>Em Reservas, o pedido aparece como <b>Aguardando o barbeiro</b>. Aprovado, vira um horário normal. Recusado ou sem resposta até a hora, aparece o aviso com a opção de escolher outro horário.</li>
+  </ol>
+</section>
+
+<section class="parte">
+  <span class="rot">Passo 5</span>
+  <h2>Remarcar e cancelar</h2>
+  <p class="intro">Surgiu um imprevisto? Você resolve pelo app, sem precisar ligar. Toque em <b>Reservas</b> no menu.</p>
+  <div class="duas">
+    <div class="box"><b class="t">Remarcar</b><ol><li>Na reserva, toque em <span class="ui">Reagendar</span>.</li><li>Escolha o novo dia e um horário livre.</li><li>Toque em <span class="ui">Confirmar novo horário</span>.</li></ol>Até 6 horas antes, no máximo 2 vezes por reserva.</div>
+    <div class="box"><b class="t">Cancelar</b><ol><li>Na reserva, toque em <span class="ui">Cancelar</span>.</li><li>Leia o aviso: o horário volta a ficar livre.</li><li>Toque em <span class="ui">Confirmar cancelamento</span>.</li></ol>Sem custo, porque nada foi pago antes.</div>
+  </div>
+  <p>Se não for conseguir vir, cancele assim que souber: o horário volta para a agenda e outro cliente é atendido. Fora do prazo de remarcar, chame a barbearia no WhatsApp.</p>
+
+  <h3>Passo 6 · Planos, fidelidade e seus dados</h3>
+  <p><b>Mensalista.</b> Em <b>Planos</b> você vê o valor por mês e quanto economiza. Para assinar, toque em <span class="ui">Falar com a barbearia</span>: a assinatura é combinada com ela, que ativa o seu plano. Depois disso, ao agendar aparece “Você é mensalista”.</p>
+  <p><b>Fidelidade.</b> Quando a barbearia tem, cada atendimento vale um carimbo. A primeira tela mostra quantos você tem e quantos faltam para a recompensa.</p>
+  <p><b>Perfil.</b> Altere seu nome e WhatsApp, veja o seu plano, a política de cancelamento e os contatos da barbearia.</p>
+  <div class="box"><b class="t">Excluir a sua conta</b>É um direito seu (LGPD). Em <span class="ui">Excluir minha conta</span>, o app explica o que acontece e pede para você digitar EXCLUIR. Cancele antes os horários marcados e o plano, se tiver. Não dá para desfazer.</div>
+</section>
+
+<section class="parte">
+  <span class="rot">Resumo</span>
+  <h2>Regras rápidas e dúvidas</h2>
+  <table>
+    <tr><th>Situação</th><th>Como funciona</th></tr>
+    <tr><td>Pagamento</td><td>No salão, no dia do atendimento. Nada é cobrado pelo app.</td></tr>
+    <tr><td>Antecedência</td><td>A partir de 1 hora antes. Mais em cima, só pelo WhatsApp.</td></tr>
+    <tr><td>Datas disponíveis</td><td>As que a barbearia já liberou. Mensalista vê mais à frente.</td></tr>
+    <tr><td>Horários ao mesmo tempo</td><td>Até 3.</td></tr>
+    <tr><td>Remarcar</td><td>Até 6 horas antes, no máximo 2 vezes por reserva.</td></tr>
+    <tr><td>Cancelar</td><td>A qualquer momento, sem custo.</td></tr>
+    <tr><td>Encaixe</td><td>Você pede, o barbeiro aprova ou recusa. Até a resposta, o horário não é seu.</td></tr>
+  </table>
+  <div class="faq">
+    <b>Preciso criar conta para ver os horários?</b><p>Não. A conta só é pedida para confirmar.</p>
+    <b>Criei a conta com e-mail e o app pede para confirmar.</b><p>Abra o e-mail que chegou (confira o spam) e toque no link. Depois volte ao app e confirme a reserva.</p>
+    <b>Não aparece a data que eu quero.</b><p>A barbearia libera a agenda por períodos. Chame no WhatsApp se precisar de uma data mais à frente.</p>
+    <b>Vou me atrasar.</b><p>Avise a barbearia pelo WhatsApp: o botão fica na primeira tela e em Perfil.</p>
+    <b>Posso marcar para outra pessoa?</b><p>O ideal é cada pessoa marcar pela própria conta, para os horários e os carimbos ficarem com quem é atendido.</p>
+    <b>Apareceu “Nova versão disponível”.</b><p>Toque em Atualizar. Suas reservas continuam lá.</p>
+  </div>
+  <p class="fim">Até o próximo corte.</p>
+</section>
+</body>
+</html>

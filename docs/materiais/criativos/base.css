@@ -1,0 +1,19 @@
+@font-face{font-family:"Outfit";src:url("../../marca/fontes/outfit.woff2") format("woff2");font-weight:700}
+@font-face{font-family:"Manrope";src:url("../../../web/src/assets/fontes/manrope-latin-var.woff2") format("woff2");font-weight:400 800}
+:root{--preto:#0E0D0B;--grafite:#1A1814;--latao:#E0AE58;--latao-esc:#A8752A;--marfim:#F4EFE4;--cinza:#9C927E;--ok:#4CC38A}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{-webkit-print-color-adjust:exact}
+body{font-family:Manrope,sans-serif;color:var(--marfim);background:var(--preto);overflow:hidden;position:relative}
+.peca{position:absolute;inset:0;padding:84px 80px;display:flex;flex-direction:column;justify-content:space-between}
+.topo{display:flex;justify-content:space-between;align-items:center}
+.marca{display:flex;align-items:center;gap:14px;font-family:Outfit;font-weight:700;font-size:40px;letter-spacing:-1px}
+.marca img{width:56px;height:56px}
+.tag{font-size:20px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--latao)}
+h1{font-family:Outfit;font-weight:700;letter-spacing:-2.5px;line-height:1.02}
+h1 em{font-style:normal;background:linear-gradient(135deg,#FFE3A3,#E0AE58 45%,#A8752A);-webkit-background-clip:text;color:transparent}
+.sub{font-size:32px;line-height:1.4;color:#CFC6B4;font-weight:500}
+.rodape{display:flex;justify-content:space-between;align-items:flex-end;font-size:24px;color:var(--cinza);font-weight:700}
+.rodape b{color:var(--latao)}
+.poste{position:absolute;left:0;right:0;bottom:0;height:18px;background:repeating-linear-gradient(-45deg,#E0AE58 0 18px,#0E0D0B 18px 36px,#F4EFE4 36px 54px,#0E0D0B 54px 72px)}
+.glow{position:absolute;border-radius:50%;filter:blur(90px);background:radial-gradient(circle,#E0AE5855,transparent 70%)}
+.cartao{background:#16140F;border:1.5px solid #2E2A22;border-radius:26px;padding:34px}
