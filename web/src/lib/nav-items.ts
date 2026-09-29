@@ -30,7 +30,8 @@ export type RecursoDePlano =
   | "store"
   | "loyalty"
   | "whatsapp"
-  | "advancedFinance";
+  | "advancedFinance"
+  | "projection";
 
 export type NavChild = {
   href: string;
@@ -180,7 +181,7 @@ export const painelNavItems: NavItem[] = [
       /* Era só "Projeção" — projeção do quê. O par com a linha de cima é o que
        * ensina a diferença: fluxo é o caixa que já aconteceu, projeção é o
        * mesmo caixa à frente. E é o título que a própria tela já usa. */
-      { href: "/painel/financeiro/projecao", label: "Projeção de caixa", feature: "advancedFinance", icon: LineChart },
+      { href: "/painel/financeiro/projecao", label: "Projeção de caixa", feature: "projection", icon: LineChart },
       { href: "/painel/financeiro/despesas", label: "Despesas", feature: "advancedFinance", icon: Receipt },
     ],
   },

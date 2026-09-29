@@ -26,6 +26,8 @@ export type Features = {
   subscriptions: boolean;
   store: boolean;
   advancedFinance: boolean;
+  /** Projeção de caixa: no Crescimento e no Gestão (decisão de 29/09). */
+  projection: boolean;
 };
 
 const POR_PLANO: Record<PlanId, Features> = {
@@ -37,6 +39,7 @@ const POR_PLANO: Record<PlanId, Features> = {
     subscriptions: false,
     store: false,
     advancedFinance: false,
+    projection: false,
   },
   crescimento: {
     whatsapp: true,
@@ -44,6 +47,7 @@ const POR_PLANO: Record<PlanId, Features> = {
     subscriptions: true,
     store: true,
     advancedFinance: false,
+    projection: true,
   },
   gestao: {
     whatsapp: true,
@@ -51,6 +55,7 @@ const POR_PLANO: Record<PlanId, Features> = {
     subscriptions: true,
     store: true,
     advancedFinance: true,
+    projection: true,
   },
 };
 

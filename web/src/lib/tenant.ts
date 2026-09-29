@@ -196,8 +196,14 @@ export type TenantFeatures = {
   store: boolean;
   loyalty: boolean;
   whatsapp: boolean;
-  /** DRE, projeção e fechamento — o diferencial do plano superior. */
+  /** DRE, fluxo de caixa, despesas e fechamento — o diferencial do plano superior. */
   advancedFinance: boolean;
+  /**
+   * Projeção de caixa. Separada de `advancedFinance` em 29/09 (decisão do
+   * dono): entra já no Crescimento, para o plano do meio ter o "número do
+   * futuro", e o Gestão fica com o fechamento completo.
+   */
+  projection: boolean;
 };
 
 /**
@@ -406,6 +412,7 @@ export const ALL_FEATURES: TenantFeatures = {
   loyalty: true,
   whatsapp: true,
   advancedFinance: true,
+  projection: true,
 };
 
 /**
@@ -427,6 +434,7 @@ export const FEATURES_POR_PLANO: Record<PlanId, TenantFeatures> = {
     loyalty: false,
     whatsapp: true,
     advancedFinance: false,
+    projection: false,
   },
   crescimento: {
     subscriptions: true,
@@ -434,6 +442,7 @@ export const FEATURES_POR_PLANO: Record<PlanId, TenantFeatures> = {
     loyalty: true,
     whatsapp: true,
     advancedFinance: false,
+    projection: true,
   },
   gestao: ALL_FEATURES,
 };
@@ -518,6 +527,7 @@ const NADA: TenantFeatures = {
   loyalty: false,
   whatsapp: false,
   advancedFinance: false,
+  projection: false,
 };
 
 export function acessoDaBarbearia(tenant: Tenant, agora = new Date()): Acesso {
@@ -567,6 +577,7 @@ export function acessoDaBarbearia(tenant: Tenant, agora = new Date()): Acesso {
       loyalty: doPlano.loyalty || extras.loyalty === true,
       whatsapp: doPlano.whatsapp || extras.whatsapp === true,
       advancedFinance: doPlano.advancedFinance || extras.advancedFinance === true,
+      projection: doPlano.projection || extras.projection === true,
     },
     motivo: null,
   };
