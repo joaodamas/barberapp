@@ -19,7 +19,11 @@ async function verificarFirestore(projectId: string): Promise<Verificacao> {
       cache: "no-store",
       signal: AbortSignal.timeout(LIMITE_MS),
     });
-    return { ...julgarFirestore(res.status), ms: Date.now() - t0 };
+    // A mensagem do erro distingue "documento não existe" de "banco não existe".
+    const mensagem = res.status === 404
+      ? String(((await res.json().catch(() => null)) as { error?: { message?: string } } | null)?.error?.message ?? "")
+      : "";
+    return { ...julgarFirestore(res.status, mensagem), ms: Date.now() - t0 };
   } catch (err) {
     const erro = err instanceof Error && err.name === "TimeoutError"
       ? `sem resposta em ${LIMITE_MS / 1000}s`

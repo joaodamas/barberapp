@@ -164,7 +164,7 @@ export const TEMPLATES = {
       "João",
       "domingo, 02 de agosto",
       "16:30",
-      "https://suabarbearia.jpproject.com.br",
+      "https://suabarbearia.topete.com.br",
     ],
   },
 
@@ -185,7 +185,7 @@ export const TEMPLATES = {
       "16:30",
       "Corte + barba",
       "14:00, 15:00 e 18:30",
-      "https://suabarbearia.jpproject.com.br/agendar",
+      "https://suabarbearia.topete.com.br/agendar",
     ],
   },
 
@@ -221,7 +221,7 @@ export const TEMPLATES = {
       "10",
       "2",
       "1 corte grátis",
-      "https://suabarbearia.jpproject.com.br/perfil",
+      "https://suabarbearia.topete.com.br/perfil",
     ],
   },
 
@@ -288,7 +288,7 @@ export const TEMPLATES = {
       "2",
       "R$ 640,00",
       "4",
-      "https://suabarbearia.jpproject.com.br/painel",
+      "https://suabarbearia.topete.com.br/painel",
     ],
   },
 
@@ -307,7 +307,7 @@ export const TEMPLATES = {
     example: [
       "Cancelamento de última hora",
       "João Damas cancelou o horário das 16:30 de hoje (Corte + barba, R$ 90,00). O slot já foi liberado na agenda.",
-      "https://suabarbearia.jpproject.com.br/painel",
+      "https://suabarbearia.topete.com.br/painel",
     ],
   },
 
@@ -348,7 +348,7 @@ export const TEMPLATES = {
       "Ilimitado",
       "R$ 149,00",
       "05/08",
-      "https://suabarbearia.jpproject.com.br/planos",
+      "https://suabarbearia.topete.com.br/planos",
     ],
   },
 
@@ -387,7 +387,7 @@ export const TEMPLATES = {
       "Ilimitado",
       "R$ 149,00",
       "05/08",
-      "https://suabarbearia.jpproject.com.br/planos",
+      "https://suabarbearia.topete.com.br/planos",
     ],
   },
 
@@ -409,7 +409,7 @@ export const TEMPLATES = {
       "Ilimitado",
       "R$ 149,00",
       "05/08",
-      "https://suabarbearia.jpproject.com.br/planos",
+      "https://suabarbearia.topete.com.br/planos",
     ],
   },
 
@@ -435,7 +435,7 @@ export const TEMPLATES = {
       "domingo, 02 de agosto",
       "16:30",
       "A barbearia estará fechada nesse dia por conta do feriado. Sentimos muito pelo transtorno!",
-      "https://suabarbearia.jpproject.com.br/agendar",
+      "https://suabarbearia.topete.com.br/agendar",
     ],
     buttons: [{ label: "Escolher novo horário", action: "RESCHEDULE" }],
   },
@@ -455,7 +455,7 @@ export const TEMPLATES = {
     example: [
       "Horário especial de fim de ano 💈",
       "De 24/12 a 02/01 vamos funcionar das 9h às 15h. A partir de 03/01 voltamos ao horário normal.",
-      "Garanta seu horário: https://suabarbearia.jpproject.com.br/agendar",
+      "Garanta seu horário: https://suabarbearia.topete.com.br/agendar",
     ],
   },
 
@@ -481,7 +481,7 @@ export const TEMPLATES = {
       "47",
       "Barbearia Exemplo",
       "sábado à tarde",
-      "https://suabarbearia.jpproject.com.br/agendar",
+      "https://suabarbearia.topete.com.br/agendar",
     ],
   },
 
@@ -501,7 +501,7 @@ export const TEMPLATES = {
       "João",
       "Barbearia Exemplo",
       "sobrancelha grátis",
-      "https://suabarbearia.jpproject.com.br/agendar",
+      "https://suabarbearia.topete.com.br/agendar",
     ],
   },
 
@@ -556,7 +556,7 @@ export const TEMPLATES = {
       "João",
       "segunda, 03 de agosto",
       "16:30",
-      "https://suabarbearia.jpproject.com.br/agendar",
+      "https://suabarbearia.topete.com.br/agendar",
     ],
   },
 
@@ -633,7 +633,7 @@ export const TEMPLATES = {
       "João",
       "domingo, 02 de agosto",
       "16:30",
-      "https://suabarbearia.jpproject.com.br/agendar",
+      "https://suabarbearia.topete.com.br/agendar",
     ],
   },
 
@@ -658,7 +658,7 @@ export const TEMPLATES = {
     example: [
       "João",
       "Barbearia Exemplo",
-      "https://suabarbearia.jpproject.com.br/perfil",
+      "https://suabarbearia.topete.com.br/perfil",
     ],
   },
 
@@ -682,7 +682,7 @@ export const TEMPLATES = {
       "10",
       "Barbearia Exemplo",
       "1 corte grátis",
-      "https://suabarbearia.jpproject.com.br/reservas",
+      "https://suabarbearia.topete.com.br/reservas",
     ],
   },
 
@@ -701,7 +701,7 @@ export const TEMPLATES = {
       "João",
       "1 corte grátis",
       "Barbearia Exemplo",
-      "https://suabarbearia.jpproject.com.br/agendar",
+      "https://suabarbearia.topete.com.br/agendar",
     ],
   },
 
@@ -738,7 +738,7 @@ export const TEMPLATES = {
       "cortes ilimitados no mês",
       "R$ 149,00",
       "05/09",
-      "https://suabarbearia.jpproject.com.br/agendar",
+      "https://suabarbearia.topete.com.br/agendar",
     ],
   },
 
@@ -773,7 +773,7 @@ export const TEMPLATES = {
       "João",
       "Corte ilimitado",
       "05/08",
-      "https://suabarbearia.jpproject.com.br/planos",
+      "https://suabarbearia.topete.com.br/planos",
     ],
   },
 
@@ -793,7 +793,7 @@ export const TEMPLATES = {
       "Corte ilimitado",
       "Barbearia Exemplo",
       "05/09",
-      "https://suabarbearia.jpproject.com.br/agendar",
+      "https://suabarbearia.topete.com.br/agendar",
     ],
   },
 
@@ -815,7 +815,7 @@ export const TEMPLATES = {
       "João",
       "Corte ilimitado",
       "05/09",
-      "https://suabarbearia.jpproject.com.br/planos",
+      "https://suabarbearia.topete.com.br/planos",
     ],
   },
 
@@ -873,7 +873,7 @@ export const TEMPLATES = {
       "R$ 7.516,00",
       "60%",
       "168",
-      "https://suabarbearia.jpproject.com.br/painel/financeiro/dre",
+      "https://suabarbearia.topete.com.br/painel/financeiro/dre",
     ],
   },
 

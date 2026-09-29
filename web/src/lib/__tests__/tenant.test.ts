@@ -303,3 +303,23 @@ describe("subdomínios reservados (white-label)", () => {
     expect([...RESERVED_SLUGS].sort()).toEqual(doServidor);
   });
 });
+
+describe("dois domínios (29/09)", () => {
+  it("barbearia nova no topete.com.br", () => {
+    expect(slugFromHost("barbeariadoze.topete.com.br")).toBe("barbeariadoze");
+  });
+  it("o O Siqueira continua no jpproject.com.br", () => {
+    expect(slugFromHost("osiqueira.jpproject.com.br")).toBe("osiqueira");
+  });
+  it("os apex não são barbearia", () => {
+    expect(slugFromHost("topete.com.br")).toBeNull();
+    expect(slugFromHost("www.topete.com.br")).toBeNull();
+    expect(slugFromHost("jpproject.com.br")).toBeNull();
+  });
+  it("link novo sai no domínio principal", () => {
+    expect(tenantUrl("barbeariadoze", "/agendar")).toBe("https://barbeariadoze.topete.com.br/agendar");
+  });
+  it("domínio de fora não vira barbearia", () => {
+    expect(slugFromHost("osiqueira.outrosite.com.br")).toBeNull();
+  });
+});

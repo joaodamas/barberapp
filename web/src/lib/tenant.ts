@@ -568,8 +568,23 @@ export const DEFAULT_TENANT: Tenant = {
   onboarding: { completedSteps: [...ONBOARDING_STEPS], completedAt: null, sharedLink: true },
 };
 
-/** Domínio raiz da plataforma. Tudo à esquerda dele é o slug da barbearia. */
-export const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "jpproject.com.br";
+/**
+ * Domínio raiz da plataforma. Tudo à esquerda dele é o slug da barbearia.
+ *
+ * Desde 29/09 é `topete.com.br`: é nele que nascem os links e os QR codes das
+ * barbearias novas. `jpproject.com.br` continua aceito como LEGADO — o O
+ * Siqueira segue em `osiqueira.jpproject.com.br` até migrar com calma.
+ */
+export const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "topete.com.br";
+
+/** Domínios antigos que ainda resolvem barbearia (separados por vírgula). */
+export const DOMINIOS_LEGADOS = (process.env.NEXT_PUBLIC_DOMINIOS_LEGADOS ?? "jpproject.com.br")
+  .split(",")
+  .map((d) => d.trim().toLowerCase())
+  .filter((d) => d && d !== ROOT_DOMAIN.toLowerCase());
+
+/** Todos os domínios de barbearia, o principal primeiro. */
+export const DOMINIOS = [ROOT_DOMAIN.toLowerCase(), ...DOMINIOS_LEGADOS];
 
 /** Subdomínios reservados — não são barbearias. */
 /* Espelho de `RESERVED_SLUGS` em `functions/src/signup.ts` — o servidor recusa
@@ -582,7 +597,7 @@ export const RESERVED_SLUGS = new Set([
 /**
  * Slug a partir do host.
  *
- * `osiqueira.cortehub.com.br` → "osiqueira".
+ * `osiqueira.topete.com.br` → "osiqueira" (e `osiqueira.jpproject.com.br`, legado).
  *
  * A comparação é contra o domínio raiz configurado, não por contagem de
  * rótulos: `jpproject.com.br` tem três rótulos e é o apex, enquanto
@@ -608,9 +623,8 @@ export function slugFromHost(host: string | null | undefined): string | null {
     return null;
   }
 
-  const root = ROOT_DOMAIN.toLowerCase();
-  if (hostname === root) return null;
-  if (!hostname.endsWith(`.${root}`)) return null;
+  const root = DOMINIOS.find((d) => hostname === d || hostname.endsWith(`.${d}`));
+  if (!root || hostname === root) return null;
 
   const slug = hostname.slice(0, -(root.length + 1));
   // Só o primeiro nível conta: "a.b.dominio.com.br" não é uma barbearia.

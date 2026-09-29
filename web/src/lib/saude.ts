@@ -37,13 +37,20 @@ export function montarSaude({ checks, projectId, agora = new Date() }: {
 }
 
 /**
- * Lê o status HTTP devolvido pelo Firestore. 200 e 404 querem dizer que ele
- * respondeu (o documento existir ou não é irrelevante aqui); 403 quer dizer
- * que as regras recusaram a leitura pública de `slugs` — a mesma que resolve o
- * subdomínio, então é problema de verdade; 5xx é o Firestore com falha.
+ * Lê a resposta do Firestore. 200 quer dizer que respondeu. 404 SÓ conta
+ * como "respondeu" quando é o DOCUMENTO que não existe — a REST também
+ * devolve 404 quando o próprio banco `(default)` não existe (projeto errado,
+ * banco removido), e esse é o pior caso possível para dizer "ok" (achado da
+ * revisão do Codex no PR #78). 403 = regras recusando a leitura pública de
+ * `slugs`, a mesma que resolve o subdomínio; 5xx = Firestore com falha.
  */
-export function julgarFirestore(status: number): Pick<Verificacao, "ok" | "erro"> {
-  if (status === 200 || status === 404) return { ok: true };
+export function julgarFirestore(status: number, mensagem = ""): Pick<Verificacao, "ok" | "erro"> {
+  if (status === 200) return { ok: true };
+  if (status === 404) {
+    return /^Document ".*" not found/i.test(mensagem.trim())
+      ? { ok: true }
+      : { ok: false, erro: `Firestore 404 sem documento: ${mensagem.slice(0, 120) || "banco inexistente?"}` };
+  }
   if (status === 403) return { ok: false, erro: "leitura pública de slugs recusada (403)" };
   return { ok: false, erro: `Firestore respondeu HTTP ${status}` };
 }
