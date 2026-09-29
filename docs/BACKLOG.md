@@ -89,6 +89,10 @@ dele (validado em 28/09). Falta no Topete:
 - Barbearias em `*.topete.com.br` pelo balanceador: certificado curinga, DNS, e o
   segredo `CORTEHUB_LB_SEGREDO` no SSR mais o cabeçalho no backend service.
 - Tira as barbearias do `*.jpproject.com.br`, que é de outro projeto do dono.
+- **Os materiais de venda já usam `suabarbearia.topete.com.br`** (manuais,
+  apresentação, criativos). Não gerar QR code nem link real a partir deles antes
+  de o domínio atender. O app ainda usa `NEXT_PUBLIC_ROOT_DOMAIN=jpproject.com.br`,
+  e o Siqueira segue em `osiqueira.jpproject.com.br` até a migração.
 
 **Urgente:** apagar no Cloudflare o `A *` → `136.81.166.97`. O curinga do
 jpproject é do outro projeto e hoje responde com dois IPs.
