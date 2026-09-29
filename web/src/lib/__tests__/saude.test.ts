@@ -25,9 +25,16 @@ describe("saúde", () => {
     expect(s.version).toBeTruthy();
   });
 
-  it("status do Firestore: 200/404 respondeu; 403 e 5xx são problema", () => {
+  it("404 de DOCUMENTO é ok; 404 de BANCO inexistente é problema (revisão do PR #78)", () => {
+    expect(julgarFirestore(404, 'Document "projects/axon-barber/databases/(default)/documents/slugs/saude-monitor-hub" not found.').ok).toBe(true);
+    const semBanco = julgarFirestore(404, "The database (default) does not exist for project x Please visit https://console.cloud.google.com/datastore/setup?project=x to add a Cloud Datastore or Cloud Firestore database.");
+    expect(semBanco.ok).toBe(false);
+    expect(semBanco.erro).toMatch(/404 sem documento/);
+    expect(julgarFirestore(404).ok).toBe(false);
+  });
+
+  it("status do Firestore: 200 respondeu; 403 e 5xx são problema", () => {
     expect(julgarFirestore(200).ok).toBe(true);
-    expect(julgarFirestore(404).ok).toBe(true);
     expect(julgarFirestore(403)).toEqual({ ok: false, erro: "leitura pública de slugs recusada (403)" });
     expect(julgarFirestore(503).ok).toBe(false);
   });

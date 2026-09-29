@@ -1,7 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { headers } from "next/headers";
-import { DEFAULT_TENANT, ROOT_DOMAIN, slugFromHost, type Tenant } from "@/lib/tenant";
+import { DEFAULT_TENANT, DOMINIOS, slugFromHost, type Tenant } from "@/lib/tenant";
 /* A normalização mora em `tenant-shape` porque o painel também precisa dela:
  * ele lê a mesma ficha pelo SDK cliente, em tempo real. Duas implementações do
  * mesmo merge divergiriam, e o preço da divergência é uma política sumir num
@@ -121,7 +121,7 @@ function hostDoBalanceador(valor: string | null, segredo: string | null): string
   if (!esperado || !segredo || segredo !== esperado) return null;
   if (!valor) return null;
   const host = valor.trim().toLowerCase();
-  return host.endsWith(`.${ROOT_DOMAIN}`) ? host : null;
+  return DOMINIOS.some((d) => host.endsWith(`.${d}`)) ? host : null;
 }
 
 /**
