@@ -6,7 +6,17 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
-import { collection, deleteField, doc, getDoc, getDocs, setDoc, deleteDoc, updateDoc } from "firebase/firestore";
+import {
+  collection,
+  deleteField,
+  doc,
+  getDoc,
+  getDocs,
+  setDoc,
+  deleteDoc,
+  serverTimestamp,
+  updateDoc,
+} from "firebase/firestore";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 /**
@@ -641,6 +651,145 @@ describe("reserva: o painel fecha e marca falta — e só isso", () => {
   it("🔒 ninguém apaga reserva", async () => {
     await assertFails(deleteDoc(bk(DONO_ALFA)));
     await assertFails(deleteDoc(bk(BARBEIRO_ALFA)));
+  });
+});
+
+describe("reserva: desconto no fechamento (28/09)", () => {
+  /* A reserva semeada vale R$ 90. O gatilho financeiro calcula pagamento e
+   * comissão sobre `value − discountAmount`, então a regra é a primeira camada
+   * do limite — o servidor limita de novo. */
+  const bk = (quem: { sub: string } & Record<string, unknown>) =>
+    doc(as(quem), `barbershops/${ALFA}/bookings`, "bk-1");
+  const desconto = (
+    quem: { sub: string },
+    extra: Record<string, unknown> = {}
+  ): Record<string, unknown> => ({
+    discountAmount: 9,
+    discountInput: { tipo: "pct", valor: 10 },
+    discountReason: "fidelidade",
+    discountBy: quem.sub,
+    discountAt: serverTimestamp(),
+    ...extra,
+  });
+
+  it("o dono conclui com desconto parcial e forma de pagamento", async () => {
+    await assertSucceeds(
+      updateDoc(bk(DONO_ALFA), { status: "completed", paymentMethod: "pix", ...desconto(DONO_ALFA) })
+    );
+  });
+
+  it("o motivo é opcional", async () => {
+    await assertSucceeds(
+      updateDoc(bk(DONO_ALFA), {
+        status: "completed",
+        paymentMethod: "cash",
+        ...desconto(DONO_ALFA, { discountReason: null, discountInput: { tipo: "valor", valor: 9 } }),
+      })
+    );
+  });
+
+  it("cortesia: 100% de desconto conclui SEM forma de pagamento", async () => {
+    await assertSucceeds(
+      updateDoc(bk(DONO_ALFA), {
+        status: "completed",
+        paymentMethod: null,
+        ...desconto(DONO_ALFA, { discountAmount: 90, discountInput: { tipo: "pct", valor: 100 }, discountReason: "cortesia" }),
+      })
+    );
+  });
+
+  it("🔒 cortesia com forma de pagamento, e desconto parcial sem forma, não passam", async () => {
+    /* A forma nula é a porta do mensalista: um desconto parcial sem forma
+     * seria ambíguo para o servidor, e uma cortesia "no Pix" afirmaria
+     * dinheiro que não entrou. */
+    await assertFails(
+      updateDoc(bk(DONO_ALFA), {
+        status: "completed",
+        paymentMethod: "pix",
+        ...desconto(DONO_ALFA, { discountAmount: 90 }),
+      })
+    );
+    await assertFails(
+      updateDoc(bk(DONO_ALFA), { status: "completed", paymentMethod: null, ...desconto(DONO_ALFA) })
+    );
+  });
+
+  it("🔒 o desconto nunca passa do valor, nem é negativo", async () => {
+    await assertFails(
+      updateDoc(bk(DONO_ALFA), {
+        status: "completed",
+        paymentMethod: null,
+        ...desconto(DONO_ALFA, { discountAmount: 90.01 }),
+      })
+    );
+    await assertFails(
+      updateDoc(bk(DONO_ALFA), {
+        status: "completed",
+        paymentMethod: "pix",
+        ...desconto(DONO_ALFA, { discountAmount: -10 }),
+      })
+    );
+    await assertFails(
+      updateDoc(bk(DONO_ALFA), {
+        status: "completed",
+        paymentMethod: "pix",
+        ...desconto(DONO_ALFA, { discountAmount: "9" }),
+      })
+    );
+    await assertFails(
+      updateDoc(bk(DONO_ALFA), {
+        status: "completed",
+        paymentMethod: "pix",
+        ...desconto(DONO_ALFA, { discountInput: { tipo: "pct", valor: 150 } }),
+      })
+    );
+  });
+
+  it("🔒 o barbeiro NÃO dá desconto — é dinheiro da casa", async () => {
+    await assertFails(
+      updateDoc(bk(BARBEIRO_ALFA), { status: "completed", paymentMethod: "pix", ...desconto(BARBEIRO_ALFA) })
+    );
+  });
+
+  it("🔒 a autoria é de quem grava, com o relógio do servidor", async () => {
+    await assertFails(
+      updateDoc(bk(DONO_ALFA), {
+        status: "completed",
+        paymentMethod: "pix",
+        ...desconto(DONO_ALFA, { discountBy: "outra-pessoa" }),
+      })
+    );
+    await assertFails(
+      updateDoc(bk(DONO_ALFA), {
+        status: "completed",
+        paymentMethod: "pix",
+        ...desconto(DONO_ALFA, { discountAt: new Date("2026-01-01T12:00:00Z") }),
+      })
+    );
+    const { discountAt: _semData, ...semAutoria } = desconto(DONO_ALFA);
+    await assertFails(updateDoc(bk(DONO_ALFA), { status: "completed", paymentMethod: "pix", ...semAutoria }));
+  });
+
+  it("🔒 motivo fora da lista não entra", async () => {
+    await assertFails(
+      updateDoc(bk(DONO_ALFA), {
+        status: "completed",
+        paymentMethod: "pix",
+        ...desconto(DONO_ALFA, { discountReason: "porque sim" }),
+      })
+    );
+  });
+
+  it("🔒 desconto só junto com a conclusão — nem na falta, nem sozinho", async () => {
+    await assertFails(updateDoc(bk(DONO_ALFA), { status: "no_show", ...desconto(DONO_ALFA) }));
+    await assertFails(updateDoc(bk(DONO_ALFA), desconto(DONO_ALFA)));
+  });
+
+  it("🔒 não dá desconto em atendimento já concluído direto no banco", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `barbershops/${ALFA}/bookings`, "bk-1"), { status: "completed" });
+    });
+    await assertFails(updateDoc(bk(DONO_ALFA), desconto(DONO_ALFA)));
   });
 });
 

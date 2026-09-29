@@ -28,6 +28,7 @@ import type { Doc } from "@/lib/db/repository";
 import type { TenantPolicies } from "@/lib/tenant";
 import type { PaymentMethod } from "@/lib/types";
 import { dentroDoPeriodo, type Periodo } from "@/lib/analytics-periodo";
+import { valorCobrado } from "@/lib/desconto";
 import {
   comissaoDeProduto,
   custoDoVendido,
@@ -263,7 +264,10 @@ export function composicaoDaReceita(receita: ReceitaDoMes): LinhaDaReceita[] {
 export function previsaoDoDia(bookings: Doc<BookingDoc>[]) {
   return bookings
     .filter((b) => b.status !== "no_show" && OCCUPIES_SLOT.includes(b.status))
-    .reduce((soma, b) => soma + b.value, 0);
+    /* O concluído com desconto (28/09) prevê o que foi cobrado: senão a barra
+     * "recebido / previsão" nunca fecharia num dia com desconto. Reserva em
+     * aberto não tem desconto, e `valorCobrado` devolve o valor dela. */
+    .reduce((soma, b) => soma + valorCobrado(b), 0);
 }
 
 /**
@@ -517,7 +521,9 @@ export function comissoesDeServico(params: {
      * Cair no percentual da barbearia é melhor que somar zero — mas o nome
      * fica explícito para o dono ver que há dado a corrigir. */
     const pct = doDia?.commissionPct ?? pessoa?.commissionPct ?? padrao;
-    const base = doDia?.commissionBase ?? b.value;
+    /* Sem fato congelado, a base é o COBRADO — a comissão é sobre o que
+     * entrou, com o desconto do fechamento já tirado (decisão do dono, 28/09). */
+    const base = doDia?.commissionBase ?? valorCobrado(b);
     const valor = doDia?.commissionAmount ?? Math.round((base * pct) / 100);
 
     let linha = acc.get(b.staffId);
@@ -945,7 +951,8 @@ export function topServicos(params: {
      * defeito que `receitaDeServico` já corrigia, sobrevivendo nesta leitura. */
     const coberto = cobertoPeloPlano(b);
     // Combo de dois serviços rateia o valor entre eles.
-    const fatia = coberto ? 0 : safeDiv(b.value, b.serviceIds.length);
+    // O que entrou, não o preço: o desconto do fechamento sai da receita.
+    const fatia = coberto ? 0 : safeDiv(valorCobrado(b), b.serviceIds.length);
     for (const id of b.serviceIds) {
       const name = params.nomePorId.get(id) ?? id;
       const atual = acc.get(id) ?? { name, count: 0, revenue: 0 };
@@ -985,7 +992,7 @@ export function recorrenciaDeClientes(params: {
      * inclui a mensalidade dele, que vive em `invoices`. Um mensalista fiel
      * pode aparecer com `spent` baixo e visitas altas, e isso é o fato. */
     atual.datas.push(b.date);
-    if (!cobertoPeloPlano(b)) atual.spent += b.value;
+    if (!cobertoPeloPlano(b)) atual.spent += valorCobrado(b);
     porCliente.set(b.clientId, atual);
   }
 

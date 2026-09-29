@@ -213,7 +213,10 @@ export type Cobertura =
         | "plano_nao_cobre"
         | "cota_esgotada"
         /* O plano cobriria, e o dono registrou cobrança mesmo assim — D-3. */
-        | "cobrado_no_balcao";
+        | "cobrado_no_balcao"
+        /* Desconto de 100% no fechamento (28/09): não entrou dinheiro, e o
+         * plano NEM é consultado — a cortesia não gasta vaga da cota. */
+        | "cortesia";
       valorCoberto: 0;
     }
   | {

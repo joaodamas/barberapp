@@ -1,6 +1,8 @@
 import type { BookingDoc, SubscriberDoc } from "./domain";
 import { paymentMethodLabel } from "./payment-method";
 import { contar, contarDeTotal } from "./plural";
+import { ehCortesia } from "./desconto";
+import { formatBRL } from "./format";
 import type { BookingStatus } from "./types";
 
 export type BookingTone = "gold" | "success" | "danger" | "neutral";
@@ -110,6 +112,11 @@ export type LiquidacaoDoAtendimento = {
   /** A linha que explica: o plano e a cota, ou por que o plano não cobriu. */
   detalhe: string | null;
   coberto: boolean;
+  /**
+   * Desconto de 100% no fechamento (28/09). Como no coberto, não existe
+   * pagamento — e por isso corrigir a forma ou devolver valor não se aplica.
+   */
+  cortesia: boolean;
 };
 
 /**
@@ -134,7 +141,13 @@ export type LiquidacaoDoAtendimento = {
 export function liquidacaoDoAtendimento(
   booking: Pick<
     BookingDoc,
-    "status" | "paymentOrigin" | "paymentMethod" | "cobertura" | "paymentFormLabel"
+    | "status"
+    | "paymentOrigin"
+    | "paymentMethod"
+    | "cobertura"
+    | "paymentFormLabel"
+    | "value"
+    | "discountAmount"
   >
 ): LiquidacaoDoAtendimento {
   const cobertura = booking.cobertura;
@@ -157,12 +170,29 @@ export function liquidacaoDoAtendimento(
       label: "Coberto pelo plano",
       detalhe: `${cobertura.planName} · ${uso}`,
       coberto: true,
+      cortesia: false,
     };
+  }
+
+  /* CORTESIA (28/09): desconto de 100%, sem forma de pagamento. Sem esta
+   * linha ela cairia em "Não informado" — o produto dizendo que falta um dado
+   * num atendimento que o dono fechou de propósito sem cobrar. Lê também o
+   * desconto da reserva, e não só a marca do servidor, para a linha já sair
+   * certa nos segundos entre a conclusão e o gatilho. */
+  if (booking.status === "completed" && ehCortesia(booking)) {
+    return { label: "Cortesia", detalhe: null, coberto: false, cortesia: true };
   }
 
   const motivo =
     cobertura?.tipo === "avulso" ? (conhecido(MOTIVO_AVULSO, cobertura.motivo) ?? null) : null;
-  const detalhe = motivo ? `Fora do plano: ${motivo}` : null;
+  /* O desconto parcial aparece junto da forma: "Pix · R$ 10,00 de desconto" é
+   * o que explica por que o recebido não bate com o preço da agenda. */
+  const desconto =
+    booking.status === "completed" && Number(booking.discountAmount) > 0
+      ? `${formatBRL(Number(booking.discountAmount))} de desconto`
+      : null;
+  const detalhe =
+    [motivo ? `Fora do plano: ${motivo}` : null, desconto].filter(Boolean).join(" · ") || null;
 
   /* O rótulo CONGELADO vence o genérico.
    *
@@ -171,20 +201,21 @@ export function liquidacaoDoAtendimento(
    * qual linha explicava qual desconto no DRE. O congelado também sobrevive ao
    * dono renomear ou apagar a forma depois. */
   const metodo = booking.paymentFormLabel || conhecido(paymentMethodLabel, booking.paymentMethod);
-  if (metodo) return { label: metodo, detalhe, coberto: false };
+  if (metodo) return { label: metodo, detalhe, coberto: false, cortesia: false };
 
   /* Concluído e sem método é o caminho de exceção que o servidor já admite
    * (`paymentMethod: null` explícito, taxa DESCONHECIDA e não zero). A tela
    * precisa dizer isso com essas palavras: "A pagar no salão" num atendimento
    * que já terminou é uma cobrança que ninguém vai fazer. */
   if (booking.status === "completed") {
-    return { label: "Não informado", detalhe, coberto: false };
+    return { label: "Não informado", detalhe, coberto: false, cortesia: false };
   }
 
   return {
     label: booking.paymentOrigin === "online" ? "Aguardando pagamento" : "A pagar no salão",
     detalhe,
     coberto: false,
+    cortesia: false,
   };
 }
 

@@ -585,7 +585,7 @@ function LinhaDaAgenda({
               <CalendarX size={14} /> Cancelar
             </button>
           )}
-          {b.status === "completed" && !liquidacao.coberto && (
+          {b.status === "completed" && !liquidacao.coberto && !liquidacao.cortesia && (
             <button
               type="button"
               onClick={() => atendimento.abrirCorrecao(b)}
@@ -594,7 +594,7 @@ function LinhaDaAgenda({
               <CreditCard size={14} /> Corrigir pagamento
             </button>
           )}
-          {b.status === "completed" && (
+          {b.status === "completed" && !liquidacao.cortesia && (
             <button
               type="button"
               onClick={() => atendimento.abrirEstorno(b)}

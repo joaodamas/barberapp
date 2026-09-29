@@ -71,8 +71,12 @@ export type CommissionDoc = {
   origin: "servico" | "produto";
   /** Congelados na conclusão. Nunca releem o cadastro. */
   commissionPct: number;
+  /** Com desconto (28/09), é o valor COBRADO — a comissão é sobre ele. */
   commissionBase: number;
   commissionAmount: number;
+  /** Bruto de tabela e desconto, presentes só quando houve desconto. */
+  originalAmount?: number;
+  discountAmount?: number;
 };
 
 /**
@@ -125,7 +129,17 @@ export type PaymentDoc = {
    */
   paymentFormId?: string | null;
   paymentFormLabel?: string | null;
+  /**
+   * O que entrou. Com desconto no fechamento (28/09) é o valor COBRADO, já
+   * descontado — e é sobre ele que a taxa e a comissão foram calculadas.
+   */
   grossAmount: number;
+  /**
+   * Bruto de tabela e desconto, presentes só quando houve desconto. Ausente =
+   * sem desconto, que é o que todo pagamento anterior ao campo é.
+   */
+  originalAmount?: number;
+  discountAmount?: number;
   /** Congelada na conclusão: mudar a taxa não altera o passado. */
   feePct: number;
   feeAmount: number;
@@ -305,6 +319,22 @@ export type ClientDoc = {
   mergedInto?: string | null;
 };
 
+/** Como o dono digitou o desconto: em reais ou em percentual do valor. */
+export type TipoDeDesconto = "valor" | "pct";
+
+/**
+ * Por que o desconto foi dado — opcional, em chips de um toque (28/09).
+ *
+ * Códigos, e não o texto do chip: o rótulo pode mudar sem reescrever o
+ * histórico, e a regra do Firestore confere a lista.
+ */
+export type MotivoDoDesconto =
+  | "primeira_vez"
+  | "fidelidade"
+  | "amigo_familia"
+  | "cortesia"
+  | "outro";
+
 export type BookingDoc = {
   clientId: string;
   /**
@@ -351,6 +381,29 @@ export type BookingDoc = {
    */
   paymentFormId?: string | null;
   paymentFormLabel?: string | null;
+  /**
+   * Desconto dado no fechamento, em R$ — pedido do dono em 28/09.
+   *
+   * Gravado pela tela NA MESMA escrita da conclusão, como o método: o gatilho
+   * financeiro lê o documento depois da atualização, e gravar em duas etapas
+   * materializaria o pagamento cheio antes de o desconto existir. A regra do
+   * Firestore confere `0 ≤ discountAmount ≤ value` e que só o dono o grava; o
+   * servidor limita de novo (`functions/src/desconto.ts`).
+   *
+   * Igual a `value` é CORTESIA: conclui sem forma de pagamento, sem pagamento
+   * e com comissão sobre R$ 0,00. Ausente = sem desconto.
+   *
+   * Apagados pelo servidor se a conclusão for desfeita — o desconto do ciclo
+   * desfeito fica congelado em `cicloFinanceiro`.
+   */
+  discountAmount?: number;
+  /** O que o dono digitou — "10%" e "R$ 5,00" dão o mesmo número em R$ 50,00. */
+  discountInput?: { tipo: TipoDeDesconto; valor: number };
+  discountReason?: MotivoDoDesconto | null;
+  /** Quem deu o desconto. A regra exige que seja quem está gravando. */
+  discountBy?: string;
+  /** Quando: `serverTimestamp()` na escrita, conferido pela regra. */
+  discountAt?: unknown;
   isFitIn?: boolean;
   /** Quando o encaixe foi pedido — base para o prazo de expiração. */
   requestedAt?: string;
@@ -426,7 +479,10 @@ export type CoberturaDoAtendimento =
         | "plano_nao_cobre"
         | "cota_esgotada"
         /* O plano cobriria, e o dono registrou cobrança mesmo assim — D-3. */
-        | "cobrado_no_balcao";
+        | "cobrado_no_balcao"
+        /* Desconto de 100% no fechamento (28/09): não entrou dinheiro, e o
+         * plano NEM é consultado — a cortesia não gasta vaga da cota. */
+        | "cortesia";
       valorCoberto: 0;
     }
   | {

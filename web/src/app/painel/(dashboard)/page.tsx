@@ -607,7 +607,7 @@ export default function PainelHojePage() {
                   daquele corte —, e o servidor recusa. Oferecer o
                   botão para depois recusar seria a interface
                   prometendo o que o sistema não faz. */}
-              {booking.status === "completed" && !liquidacao.coberto && (
+              {booking.status === "completed" && !liquidacao.coberto && !liquidacao.cortesia && (
                 <button
                   onClick={() => atendimento.abrirCorrecao(booking)}
                   className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ink-muted transition-colors hover:border-gold hover:text-gold-strong"
@@ -620,7 +620,7 @@ export default function PainelHojePage() {
                   Devolver dinheiro de atendimento REALIZADO é
                   estorno, não cancelamento: o serviço aconteceu, e
                   o registro dele fica. */}
-              {booking.status === "completed" && (
+              {booking.status === "completed" && !liquidacao.cortesia && (
                 <button
                   onClick={() => atendimento.abrirEstorno(booking)}
                   className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ink-muted transition-colors hover:border-gold hover:text-gold-strong"

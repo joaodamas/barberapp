@@ -1,4 +1,5 @@
 import { EM_ABERTO, isRevenue } from "@/lib/domain";
+import { valorCobrado } from "@/lib/desconto";
 import type {
   BookingDoc,
   ClientDoc,
@@ -62,7 +63,9 @@ export function fichaDoCliente(params: {
   const datas = atendidos.map((b) => b.date).sort();
   const ultimaVisita = datas.length > 0 ? datas[datas.length - 1] : null;
 
-  const gastoEmServicos = atendidos.reduce((s, b) => s + b.value, 0);
+  /* O que o cliente PAGOU: com desconto no fechamento (28/09), o preço da
+   * agenda é maior do que o que entrou — e a cortesia entra como zero. */
+  const gastoEmServicos = atendidos.reduce((s, b) => s + valorCobrado(b), 0);
 
   /* Compras do cliente. Venda avulsa tem `clientId: null` e não entra em ficha
    * nenhuma — é o caso normal do balcão, e atribuí-la a alguém seria inventar. */
