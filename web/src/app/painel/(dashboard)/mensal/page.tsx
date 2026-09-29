@@ -9,6 +9,7 @@ import { Pill } from "@/components/ui/pill";
 import { formatBRL, formatDatePtBR, safePct, toISODate } from "@/lib/format";
 import { usePlans, useSubscribers, useSubscriptionInvoices } from "@/lib/db/use-shop-data";
 import { GerirMensalistas } from "@/components/gerir-mensalistas";
+import { HorariosFixos } from "@/components/horarios-fixos";
 import { mesAtual } from "@/lib/db/use-financeiro";
 import { resumoDasFaturas } from "@/lib/mensalidade";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
@@ -107,6 +108,8 @@ function MensalConteudo() {
           MRR. O bloco de indicadores continua abaixo, e o "Recebido" daqui é o
           único número da tela com lastro de pagamento. */}
       <GerirMensalistas competencia={competencia} />
+
+      <HorariosFixos />
 
       <div className="grid gap-4 md:grid-cols-[1fr_1.3fr] md:gap-8">
         <Card className="flex flex-col gap-3 md:p-6">

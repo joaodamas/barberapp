@@ -432,6 +432,13 @@ service cloud.firestore {
         allow read: if isStaffOf(barbershopId) || ownsResource();
         allow write: if false;
       }
+      /* Semanas do horário fixo que a rotina não conseguiu reservar (dia
+       * fechado, horário ocupado). Só o servidor escreve; a equipe lê para
+       * resolver. */
+      match /conflitos_horario_fixo/{conflitoId} {
+        allow read: if isStaffOf(barbershopId);
+        allow write: if false;
+      }
       match /subscription_invoices/{invoiceId} {
         allow read: if isStaffOf(barbershopId) || ownsResource();
         allow write: if false;
