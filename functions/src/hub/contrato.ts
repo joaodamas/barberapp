@@ -197,6 +197,24 @@ export type Transicao =
   | { tipo: "conflito"; erro: string };
 
 /**
+ * Barbearia ISENTA: acesso completo, sem cobrança, sem data para acabar.
+ *
+ * Hoje é só o O Siqueira, a barbearia fundadora (29/09): nasceu antes da
+ * plataforma e o dono decidiu que nunca paga. O campo `isento` no documento
+ * é gravado à mão (`scripts/marcar-isento.mjs`), nunca pelo Hub — é
+ * justamente contra um comando do Hub que ele protege.
+ *
+ * Não se chama `fundador` de propósito: "fundadoras" são também as 20
+ * primeiras com 30% de desconto (`DESCONTO_FUNDADOR`), que PAGAM e podem ser
+ * suspensas. O nome do campo diz o que ele faz; "Barbearia fundadora" é o
+ * motivo gravado dentro dele.
+ */
+export function isentoDeCobranca(shop: { isento?: unknown }): boolean {
+  const c = shop.isento;
+  return c === true || (typeof c === "object" && c !== null && (c as { ativa?: unknown }).ativa !== false);
+}
+
+/**
  * O que o status comercial do Hub faz com a barbearia.
  *
  *   ativo     → `status: "ativo"`; tira a suspensão; se estava encerrada e o
@@ -213,13 +231,25 @@ export type Transicao =
  * Encerrada é o estado mais forte: suspender uma conta encerrada não faz nada
  * (ela já está em leitura e com o relógio do expurgo correndo), e encerrar de
  * novo não reinicia o relógio.
+ *
+ * Barbearia isenta (`isentoDeCobranca`) não é suspensa nem cancelada pelo Hub:
+ * não há cobrança para ficar em atraso, então um "suspenso" vindo de lá só
+ * pode ser engano — um teste vencido, um boleto que não devia existir. Volta
+ * 409, que o Hub mostra ao operador; a loja segue aberta.
  */
 export function transicaoDoHub(
-  shop: { status?: unknown; expurgo?: unknown },
+  shop: { status?: unknown; expurgo?: unknown; isento?: unknown },
   alvo: StatusDoHub,
   agoraMs: number
 ): Transicao {
   const atual = typeof shop.status === "string" ? shop.status : null;
+
+  if (alvo !== "ativo" && isentoDeCobranca(shop)) {
+    return {
+      tipo: "conflito",
+      erro: `barbearia isenta (fundadora, sem cobranca): ${alvo} so pelo Topete`,
+    };
+  }
 
   if (alvo === "cancelado") {
     if (atual === "encerrada") return { tipo: "nada", para: "encerrada", motivo: "já estava encerrada" };
@@ -312,6 +342,8 @@ export type CorpoDoEvento = {
   valor?: number;
   ciclo?: "mensal";
   motivo?: string;
+  /** Barbearia sem cobrança (`isentoDeCobranca`): o Hub registra com valor 0 e não gera boleto. */
+  isento?: true;
   /** Fora do contrato v1 (o Hub ignora); ajuda o operador a ligar os registros. */
   hubTenantId?: string;
 };
@@ -367,6 +399,8 @@ export function montarEvento(p: {
   plano?: PlanId;
   motivo?: string | null;
   hubTenantId?: string | null;
+  /** Isenta: o evento leva `isento: true` e valor 0. */
+  isento?: boolean;
 }): CorpoDoEvento {
   const corpo: CorpoDoEvento = {
     produto: "barber",
@@ -385,6 +419,17 @@ export function montarEvento(p: {
     corpo.plano = p.plano;
     corpo.valor = PRECO_MENSAL[p.plano];
     corpo.ciclo = "mensal";
+  }
+  if (p.isento) {
+    corpo.isento = true;
+    /* O cadastro de uma barbearia isenta já diz ao Hub o plano e o valor
+     * zero: sem isso ela entraria lá como cliente em teste, e o fim do teste
+     * viraria cobrança. */
+    if (p.plano) {
+      corpo.plano = p.plano;
+      corpo.ciclo = "mensal";
+    }
+    if (corpo.plano) corpo.valor = 0;
   }
   if (p.evento === "pediu_cancelamento" && p.motivo) {
     corpo.motivo = String(p.motivo).trim().slice(0, 300);
