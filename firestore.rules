@@ -132,6 +132,18 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    /* Integração com o JP Projects Hub (`functions/src/hub/`). A caixa de
+     * saída dos avisos e a trilha dos comandos recebidos são do servidor:
+     * gravável, o dono se passaria por outra barbearia no Hub ou marcaria
+     * como já aplicado um comando de suspensão. Declaradas explicitamente,
+     * pela mesma razão de `platform_users`. */
+    match /plataforma_saida/{eventoId} {
+      allow read, write: if false;
+    }
+    match /plataforma_eventos/{eventoId} {
+      allow read, write: if false;
+    }
+
     match /platform_users/{userId} {
       /* Guarda o hash da senha provisória enquanto ela existe. Negado para
        * TODO MUNDO, inclusive o próprio dono e o suporte: só o Admin SDK
@@ -488,6 +500,14 @@ service cloud.firestore {
        * resolver. */
       match /conflitos_horario_fixo/{conflitoId} {
         allow read: if isStaffOf(barbershopId);
+        allow write: if false;
+      }
+
+      /* Plano escolhido e pedido de cancelamento (`escolherPlano`,
+       * `pedirCancelamento`). O dono lê para a tela dizer "pedido enviado";
+       * só a função grava, junto com o aviso ao Hub. */
+      match /pedidos_plataforma/{pedidoId} {
+        allow read: if isOwnerOf(barbershopId);
         allow write: if false;
       }
       match /subscription_invoices/{invoiceId} {
