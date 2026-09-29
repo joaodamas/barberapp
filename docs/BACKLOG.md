@@ -83,6 +83,13 @@ dele (validado em 28/09). Falta no Topete:
 
 ## 3. Domínio topete.com.br
 
+> **Decisão do dono (29/09): o O Siqueira NÃO migra.** Fica em
+> `osiqueira.jpproject.com.br` definitivamente, porque o endereço já foi
+> divulgado. `jpproject.com.br` continua como domínio legado
+> (`NEXT_PUBLIC_DOMINIOS_LEGADOS`) e `barbershops/{id}.dominio` guarda o
+> endereço dele. Só as barbearias novas nascem em `*.topete.com.br`
+> (Worker da Cloudflare, a cargo da conversa do Hub).
+
 - Comprado em 28/09, DNS a configurar.
 - Página simples no ar (também ajuda a verificação da Meta).
 - Apontar o link da apresentação e a bio do Instagram.
