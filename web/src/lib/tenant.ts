@@ -303,6 +303,12 @@ export type Tenant = {
    */
   isento?: boolean;
   /**
+   * Endereço próprio da barbearia, quando não é `{slug}.topete.com.br` — o O
+   * Siqueira fica em `osiqueira.jpproject.com.br` (29/09). Com ele gravado, o
+   * subdomínio da plataforma redireciona para cá (`destinoCanonico`).
+   */
+  dominio?: string;
+  /**
    * Plano contratado. Decide o que `acessoDaBarbearia` libera.
    *
    * Obrigatório e já normalizado: `tenant-shape` resolve ausência e valor
@@ -723,4 +729,21 @@ export function tenantCssVars(tenant: Tenant): React.CSSProperties {
     ["--color-gold" as string]: tenant.brand.accentColor,
     ...tonsDaMarca(tenant.brand.accentColor),
   };
+}
+
+/**
+ * Para onde redirecionar quem abriu a barbearia fora do endereço oficial dela.
+ *
+ * Só quando o host é um subdomínio DA PLATAFORMA (`osiqueira.topete.com.br`)
+ * e a barbearia tem outro endereço gravado. Qualquer outro host — o próprio
+ * domínio oficial, o DEV (`cortehub-dev.web.app`, que fixa a barbearia por
+ * variável), `axon-barber.web.app` — fica onde está: redirecionar o DEV para
+ * produção seria testar em cima dos clientes de verdade.
+ */
+export function destinoCanonico(host: string | null, dominio: string | undefined): string | null {
+  if (!host || !dominio) return null;
+  const h = host.trim().toLowerCase().replace(/:\d+$/, "");
+  const d = dominio.trim().toLowerCase();
+  if (h === d) return null;
+  return DOMINIOS.some((raiz) => h.endsWith(`.${raiz}`)) ? d : null;
 }

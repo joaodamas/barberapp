@@ -1,7 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { headers } from "next/headers";
-import { DEFAULT_TENANT, DOMINIOS, slugFromHost, type Tenant } from "@/lib/tenant";
+import { DEFAULT_TENANT, DOMINIOS, destinoCanonico, slugFromHost, type Tenant } from "@/lib/tenant";
 /* A normalização mora em `tenant-shape` porque o painel também precisa dela:
  * ele lê a mesma ficha pelo SDK cliente, em tempo real. Duas implementações do
  * mesmo merge divergiriam, e o preço da divergência é uma política sumir num
@@ -124,14 +124,8 @@ function hostDoBalanceador(valor: string | null, segredo: string | null): string
   return DOMINIOS.some((d) => host.endsWith(`.${d}`)) ? host : null;
 }
 
-/**
- * O slug da barbearia DESTA requisição — a regra única de host, usada por
- * `resolverTenant` e por `isPlatformRoot`. Eram duas cópias, e a de
- * `isPlatformRoot` ignorava o balanceador: atrás dele o host chega como
- * `axon-barber.web.app`, e toda barbearia nova cairia na /landing (auditoria
- * white-label, 28/09).
- */
-const slugDaRequisicao = cache(async function slugDaRequisicao(): Promise<string | null> {
+/** O host que o visitante digitou — atrás do Worker, do Hosting ou direto. */
+export const hostDaRequisicao = cache(async function hostDaRequisicao(): Promise<string | null> {
   const headerList = await headers();
 
   /* `x-forwarded-host` ANTES de `host`.
@@ -144,13 +138,25 @@ const slugDaRequisicao = cache(async function slugDaRequisicao(): Promise<string
    *
    * Em desenvolvimento não existe proxy, então o sintoma não aparece: só surge
    * no primeiro acesso real em produção. */
-  const host =
+  return (
     hostDoBalanceador(
       headerList.get(CABECALHO_DO_BALANCEADOR),
       headerList.get(CABECALHO_DO_SEGREDO)
     ) ??
     headerList.get("x-forwarded-host") ??
-    headerList.get("host");
+    headerList.get("host")
+  );
+});
+
+/**
+ * O slug da barbearia DESTA requisição — a regra única de host, usada por
+ * `resolverTenant` e por `isPlatformRoot`. Eram duas cópias, e a de
+ * `isPlatformRoot` ignorava o balanceador: atrás dele o host chega como
+ * `axon-barber.web.app`, e toda barbearia nova cairia na /landing (auditoria
+ * white-label, 28/09).
+ */
+const slugDaRequisicao = cache(async function slugDaRequisicao(): Promise<string | null> {
+  const host = await hostDaRequisicao();
 
   /* Ambiente de DEV (28/09): `cortehub-dev.web.app` não tem subdomínio de
    * barbearia. Lá o build fixa a barbearia de teste por esta variável; em
@@ -182,6 +188,17 @@ export const getTenant = cache(async function getTenant(): Promise<Tenant> {
  * isso a página da plataforma existe em `/landing` e ninguém chega nela: quem
  * digita o domínio cai numa tela de login de uma barbearia que não existe.
  */
+/**
+ * O endereço oficial da barbearia, quando ela foi aberta por outro subdomínio
+ * da plataforma — `osiqueira.topete.com.br` → `osiqueira.jpproject.com.br`.
+ * `null` = fica onde está. Ver `destinoCanonico`.
+ */
+export const enderecoOficial = cache(async function enderecoOficial(): Promise<string | null> {
+  const { estado, tenant } = await resolverTenant();
+  if (estado !== "resolvido") return null;
+  return destinoCanonico(await hostDaRequisicao(), tenant.dominio);
+});
+
 export const isPlatformRoot = cache(async function isPlatformRoot(): Promise<boolean> {
   return (await slugDaRequisicao()) === null;
 });
