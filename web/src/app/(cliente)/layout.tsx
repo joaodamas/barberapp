@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { AuthGuard } from "@/components/auth-guard";
-import { redirect } from "next/navigation";
+import { PaginaDaPlataforma } from "@/components/landing/pagina";
 import { getTenant, isPlatformRoot } from "@/lib/tenant-server";
 import { ClienteBottomNav } from "@/components/cliente-bottom-nav";
 import { ClienteSidebarNav } from "@/components/cliente-sidebar-nav";
@@ -12,9 +12,10 @@ export default async function ClienteLayout({
   children: React.ReactNode;
 }) {
   /* Domínio raiz não tem barbearia: quem chega ali quer conhecer o produto,
-   * não entrar na conta de um salão. Sem este desvio a landing existe e
-   * ninguém acha — e o visitante cai numa tela de login sem contexto. */
-  if (await isPlatformRoot()) redirect("/landing");
+   * não entrar na conta de um salão. A página da plataforma abre DIRETO, sem
+   * redirecionar — `topete.com.br` fica `topete.com.br`, e não `/landing`
+   * (pedido do dono, 29/09). */
+  if (await isPlatformRoot()) return <PaginaDaPlataforma />;
 
   const { brand } = await getTenant();
 
