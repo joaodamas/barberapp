@@ -3,16 +3,16 @@ import Link from "next/link";
 import { AConfirmar, DocumentoLegal, Secao } from "@/components/legal/documento";
 
 export const metadata: Metadata = {
-  title: "Termos de Uso — CorteHub",
+  title: "Termos de Uso — Topete",
   description:
-    "Condições de uso do CorteHub pelas barbearias: planos, responsabilidades, tratamento de dados e encerramento.",
+    "Condições de uso do Topete pelas barbearias: planos, responsabilidades, tratamento de dados e encerramento.",
 };
 
 /**
  * Termos de uso — contrato com a BARBEARIA, não com o cliente final.
  *
  * A seção 7 é a que sustenta juridicamente a postura declarada na política de
- * privacidade: a barbearia é controladora e o CorteHub é operador. Sem cláusula
+ * privacidade: a barbearia é controladora e o Topete é operador. Sem cláusula
  * escrita vinculando a barbearia a essa divisão, a postura seria uma afirmação
  * unilateral nossa — e a responsabilidade voltaria para a plataforma.
  *
@@ -24,16 +24,16 @@ export default function TermosPage() {
     <DocumentoLegal
       titulo="Termos de Uso"
       atualizadoEm="23 de setembro de 2026"
-      resumo="Este é o contrato entre o CorteHub e a barbearia que o utiliza. Diz o que entregamos, o que esperamos de você, como funcionam teste e planos, e — a parte que mais importa — que os dados dos SEUS clientes são seus, e que você responde por eles perante a lei."
+      resumo="Este é o contrato entre o Topete e a barbearia que o utiliza. Diz o que entregamos, o que esperamos de você, como funcionam teste e planos, e — a parte que mais importa — que os dados dos SEUS clientes são seus, e que você responde por eles perante a lei."
     >
-      <Secao n={1} titulo="O que é o CorteHub">
+      <Secao n={1} titulo="O que é o Topete">
         <p>
           Um sistema de gestão para barbearias: agenda que o cliente usa sozinho,
           painel do dono, controle financeiro e comunicação com o cliente. É
           oferecido como serviço pela internet, sem instalação.
         </p>
         <p>
-          O CorteHub é operado por <AConfirmar>[NOME COMPLETO]</AConfirmar>,
+          O Topete é operado por <AConfirmar>[NOME COMPLETO]</AConfirmar>,
           pessoa física, CPF <AConfirmar>[CPF]</AConfirmar>, contato em{" "}
           <AConfirmar>[E-MAIL DE CONTATO]</AConfirmar>.
         </p>
@@ -132,7 +132,7 @@ export default function TermosPage() {
             você.
           </li>
           <li>
-            <strong className="text-ink">O CorteHub é o OPERADOR.</strong>{" "}
+            <strong className="text-ink">O Topete é o OPERADOR.</strong>{" "}
             Tratamos esses dados apenas seguindo suas instruções e para fazer o
             sistema funcionar. Não usamos para finalidade própria, não vendemos e
             não compartilhamos com outra barbearia.
@@ -189,7 +189,7 @@ export default function TermosPage() {
           dentro desses 30 dias dá para reabrir.
         </p>
         <p>
-          O software, a marca e a interface do CorteHub são nossos, e o contrato
+          O software, a marca e a interface do Topete são nossos, e o contrato
           concede apenas o direito de usar o serviço enquanto ele vigorar.
         </p>
       </Secao>

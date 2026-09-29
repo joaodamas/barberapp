@@ -1,36 +1,43 @@
+import Image from "next/image";
+import localFont from "next/font/local";
+
 /**
- * O símbolo, inline.
+ * A marca da plataforma: Topete (desde 28/09/2026; antes, CorteHub).
  *
- * Inline e não `<img>`: o traço usa `currentColor`, e imagem externa não herda
- * cor do texto. Assim a mesma arte serve sobre creme e sobre escuro sem um
- * segundo arquivo que alguém esquece de atualizar.
+ * O símbolo é o mascote — o homem de topete dourado — no quadro escuro do ícone
+ * do app. A palavra é "topete" em minúsculas, na Outfit, a mesma do logo
+ * desenhado em `docs/marca` (fonte da verdade: `docs/marca/gerar-marca.py`).
+ *
+ * A Outfit entra só aqui, auto-hospedada como as outras fontes do app
+ * (`app/layout.tsx` explica por quê): um peso só, ~14 KB.
  */
-export function SimboloCorteHub({ className = "" }: { className?: string }) {
+export const outfit = localFont({
+  src: "../../assets/fontes/outfit-700.woff2",
+  weight: "700",
+  display: "swap",
+  variable: "--font-outfit",
+});
+
+/** O ícone: o mascote no quadro escuro. */
+export function SimboloTopete({ className = "h-8 w-8" }: { className?: string }) {
   return (
-    <svg viewBox="0 0 512 512" className={className} role="img" aria-label="CorteHub">
-      <g
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="58"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M 300,150 A 106,106 0 1 0 300,362" />
-        <path d="M 300,150 L 300,362" />
-        <path d="M 300,256 L 412,256" />
-        <path d="M 412,150 L 412,362" />
-      </g>
-      <circle cx="300" cy="256" r="26" fill="#d9a44f" />
-    </svg>
+    <Image
+      src="/topete-icone.svg"
+      alt=""
+      width={64}
+      height={64}
+      className={`${className} shrink-0 rounded-[22%]`}
+      unoptimized
+    />
   );
 }
 
-/** Símbolo + nome, do jeito que a marca se assina. */
-export function AssinaturaCorteHub({ className = "" }: { className?: string }) {
+/** Ícone + nome, do jeito que a marca se assina. */
+export function AssinaturaTopete({ className = "" }: { className?: string }) {
   return (
-    <span className={`inline-flex items-center gap-2.5 ${className}`}>
-      <SimboloCorteHub className="h-7 w-7 shrink-0" />
-      <span className="font-brand text-2xl tracking-tight">CorteHub</span>
+    <span className={`inline-flex items-center gap-2.5 ${className}`} aria-label="Topete">
+      <SimboloTopete />
+      <span className={`${outfit.className} text-[1.65rem] leading-none tracking-[-0.03em]`}>topete</span>
     </span>
   );
 }

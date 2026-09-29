@@ -3,9 +3,9 @@ import { AConfirmar, DocumentoLegal, Secao } from "@/components/legal/documento"
 import { getTenant, isPlatformRoot } from "@/lib/tenant-server";
 
 export const metadata: Metadata = {
-  title: "Política de Privacidade — CorteHub",
+  title: "Política de Privacidade — Topete",
   description:
-    "Como o CorteHub trata dados pessoais: quem é responsável por quê, onde os dados ficam e como exercer seus direitos.",
+    "Como o Topete trata dados pessoais: quem é responsável por quê, onde os dados ficam e como exercer seus direitos.",
 };
 
 /**
@@ -33,7 +33,7 @@ export default async function PrivacidadePage() {
     <DocumentoLegal
       titulo="Política de Privacidade"
       atualizadoEm="23 de setembro de 2026"
-      resumo="O CorteHub é a ferramenta que a barbearia usa para gerenciar a agenda dela. Quem decide guardar seus dados é a barbearia; nós só operamos o sistema por conta dela. Esta página diz exatamente quem responde por quê, que dados existem, onde eles ficam — inclusive fora do Brasil — e como pedir cópia ou exclusão."
+      resumo="O Topete é a ferramenta que a barbearia usa para gerenciar a agenda dela. Quem decide guardar seus dados é a barbearia; nós só operamos o sistema por conta dela. Esta página diz exatamente quem responde por quê, que dados existem, onde eles ficam — inclusive fora do Brasil — e como pedir cópia ou exclusão."
     >
       <Secao n={1} titulo="Quem é responsável pelo quê">
         <p>
@@ -49,21 +49,21 @@ export default async function PrivacidadePage() {
             telefone, para que usar e por quanto tempo guardar.
           </li>
           <li>
-            <strong className="text-ink">O CorteHub é o operador</strong>:
+            <strong className="text-ink">O Topete é o operador</strong>:
             trata esses dados <em>por conta da barbearia</em> e apenas para fazer
             o sistema funcionar. Não vendemos, não alugamos e não usamos os dados
             de clientes para finalidade própria.
           </li>
           <li>
             <strong className="text-ink">
-              O CorteHub é controlador dos dados da CONTA da barbearia
+              O Topete é controlador dos dados da CONTA da barbearia
             </strong>{" "}
             — e-mail do dono, dados do estabelecimento e registros de uso da
             plataforma.
           </li>
         </ul>
         <p>
-          O CorteHub é operado por <AConfirmar>[NOME COMPLETO]</AConfirmar>,
+          O Topete é operado por <AConfirmar>[NOME COMPLETO]</AConfirmar>,
           pessoa física, inscrita no CPF{" "}
           <AConfirmar>[CPF]</AConfirmar>, com contato em{" "}
           <AConfirmar>[E-MAIL DE CONTATO]</AConfirmar>.
@@ -144,7 +144,7 @@ export default async function PrivacidadePage() {
           </table>
         </div>
         <p>
-          O CorteHub <strong className="text-ink">não envia marketing</strong>{" "}
+          O Topete <strong className="text-ink">não envia marketing</strong>{" "}
           para clientes das barbearias. Mensagem de divulgação, se a barbearia
           quiser enviar um dia, depende de consentimento que ela precisará
           coletar — e que não é este documento.
@@ -210,7 +210,7 @@ export default async function PrivacidadePage() {
         <ul className="flex list-disc flex-col gap-1.5 pl-5">
           <li>
             <strong className="text-ink">Histórico de atendimento:</strong>{" "}
-            enquanto a barbearia for cliente do CorteHub, porque é o que sustenta
+            enquanto a barbearia for cliente do Topete, porque é o que sustenta
             o financeiro e o histórico dela.
           </li>
           <li>
@@ -237,12 +237,12 @@ export default async function PrivacidadePage() {
             <strong className="text-ink">Se você é cliente de uma barbearia</strong>{" "}
             — peça{" "}
             {barbearia ? `à ${barbearia}, ` : "à barbearia onde você se atende, "}
-            que é a controladora. Ela usa o CorteHub para atender ao pedido, e
+            que é a controladora. Ela usa o Topete para atender ao pedido, e
             nós a apoiamos no prazo legal.
           </li>
           <li>
             <strong className="text-ink">Se você tem conta no app</strong> — a
-            conta é do CorteHub, e não de uma barbearia, e você mesmo a exclui em{" "}
+            conta é do Topete, e não de uma barbearia, e você mesmo a exclui em{" "}
             <strong className="text-ink">Perfil → Excluir minha conta</strong>.
             Isso apaga seu login e seu perfil e tira seu nome e telefone de todas
             as barbearias; o valor dos atendimentos fica no caixa delas, sem
@@ -250,7 +250,7 @@ export default async function PrivacidadePage() {
           </li>
           <li>
             <strong className="text-ink">Se você é dono de barbearia</strong> —
-            peça diretamente ao CorteHub, em{" "}
+            peça diretamente ao Topete, em{" "}
             <AConfirmar>[E-MAIL DE CONTATO]</AConfirmar>.
           </li>
         </ul>

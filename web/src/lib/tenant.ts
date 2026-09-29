@@ -540,10 +540,10 @@ export const DEFAULT_TENANT: Tenant = {
    * a vitrine do domínio raiz apareça capada. */
   plan: "gestao",
   brand: {
-    name: "CorteHub",
-    shortName: "CorteHub",
-    logo: "/cortehub-marca.svg",
-    logoHorizontal: "/cortehub-horizontal.svg",
+    name: "Topete",
+    shortName: "Topete",
+    logo: "/topete-icone.svg",
+    logoHorizontal: "/topete-horizontal.svg",
     accentColor: "#b8863a",
     themeColor: "#ffffff",
     panelLabel: "Painel do dono",
