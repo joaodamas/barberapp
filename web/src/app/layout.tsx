@@ -3,7 +3,8 @@ import localFont from "next/font/local";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
 import { AuthProvider } from "@/lib/auth-context";
 import { TenantProvider } from "@/lib/tenant-context";
-import { getTenant, resolverTenant } from "@/lib/tenant-server";
+import { redirect } from "next/navigation";
+import { enderecoOficial, getTenant, resolverTenant } from "@/lib/tenant-server";
 import { tenantCssVars } from "@/lib/tenant";
 import { iconesDaMarca } from "@/lib/monograma";
 import "./globals.css";
@@ -107,6 +108,12 @@ export default async function RootLayout({
    * Verificado em 18/08: mesma URL, Firestore no ar → "O Siqueira Barbearia";
    * Firestore fora → "CorteHub". Nada mais mudava. */
   const { estado, tenant } = await resolverTenant();
+
+  /* Barbearia com endereço próprio aberta por outro subdomínio da plataforma
+   * (`osiqueira.topete.com.br`, desde o Worker de 29/09): vai para o oficial.
+   * Um endereço só evita login e instalação do app divididos em dois. */
+  const oficial = await enderecoOficial();
+  if (oficial) redirect(`https://${oficial}`);
 
   return (
     <html

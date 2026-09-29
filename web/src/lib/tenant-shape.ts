@@ -50,6 +50,11 @@ export function toTenant(id: string, data: Record<string, unknown>): Tenant {
     (typeof data.isento === "object" && data.isento !== null && (data.isento as { ativa?: unknown }).ativa !== false)
       ? { isento: true }
       : {}),
+    /* Só hostname puro: é destino de redirecionamento, e lixo aqui viraria
+     * redirecionamento aberto. As regras já impedem o dono de gravar. */
+    ...(typeof data.dominio === "string" && /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(data.dominio.trim())
+      ? { dominio: data.dominio.trim().toLowerCase() }
+      : {}),
     brand: normalizarMarca(brand),
     contact: { ...DEFAULT_TENANT.contact, ...contact },
     /* Barbearia sem `locale` gravado herda o padrão da plataforma. Nunca

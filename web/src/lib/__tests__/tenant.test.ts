@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  destinoCanonico,
   ALL_FEATURES,
   DEFAULT_TENANT,
   featuresForPlan,
@@ -322,5 +323,28 @@ describe("dois domínios (29/09)", () => {
   });
   it("domínio de fora não vira barbearia", () => {
     expect(slugFromHost("osiqueira.outrosite.com.br")).toBeNull();
+  });
+});
+
+describe("destinoCanonico — o endereço oficial da barbearia (29/09)", () => {
+  it("subdomínio da plataforma vai para o domínio próprio", () => {
+    expect(destinoCanonico("osiqueira.topete.com.br", "osiqueira.jpproject.com.br")).toBe(
+      "osiqueira.jpproject.com.br"
+    );
+  });
+
+  it("já no endereço oficial, fica (senão seria um laço de redirecionamento)", () => {
+    expect(destinoCanonico("osiqueira.jpproject.com.br", "osiqueira.jpproject.com.br")).toBeNull();
+    expect(destinoCanonico("OSIQUEIRA.jpproject.com.br:443", "osiqueira.jpproject.com.br")).toBeNull();
+  });
+
+  it("o DEV nunca é mandado para produção", () => {
+    expect(destinoCanonico("cortehub-dev.web.app", "osiqueira.jpproject.com.br")).toBeNull();
+    expect(destinoCanonico("localhost:3000", "osiqueira.jpproject.com.br")).toBeNull();
+  });
+
+  it("sem domínio próprio, nada muda", () => {
+    expect(destinoCanonico("nova.topete.com.br", undefined)).toBeNull();
+    expect(destinoCanonico(null, "x.jpproject.com.br")).toBeNull();
   });
 });
