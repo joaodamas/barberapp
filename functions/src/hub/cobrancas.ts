@@ -27,7 +27,10 @@ import { PLATAFORMA_TOKEN, PROJETO_DE_PRODUCAO, projetoAtual } from "./saida";
 export const URL_DAS_COBRANCAS =
   "https://southamerica-east1-jpproject-hub.cloudfunctions.net/plataformaCobrancas";
 
-const TEMPO_LIMITE_MS = 10_000;
+/* O PDF vem do Inter na hora e pode passar de 10s (o Hub dá 30s do lado
+ * dele). 25s cabe no limite da callable (60s) e ainda responde ao dono. Se
+ * estourar, tentar de novo é rápido: linha e Pix ficam em cache no Hub. */
+const TEMPO_LIMITE_MS = 25_000;
 
 /** Situação do boleto como o dono entende. O Hub guarda o valor cru do Inter. */
 export type SituacaoDoBoleto = "pago" | "aberto" | "atrasado" | "processando" | "cancelado";
@@ -185,6 +188,9 @@ export const segundaVia = onCall<{ barbershopId: string; id: string }>(
       throw new HttpsError("unavailable", "Não conseguimos falar com a cobrança agora. Tente de novo em instantes.");
     }
     if (r.status === 404) throw new HttpsError("not-found", "Boleto não encontrado.");
+    if (r.status === 503) {
+      throw new HttpsError("unavailable", "O banco está fora do ar agora. Tente de novo em alguns minutos.");
+    }
     if (r.status < 200 || r.status >= 300) {
       throw new HttpsError("unavailable", "Não conseguimos buscar o boleto agora. Tente de novo em instantes.");
     }
