@@ -2,7 +2,9 @@ import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { exigirEdicao, idSeguro, vinculosDe } from "./acesso";
-import { documentoDaReserva, gravarComTravaDeHorario, validarPedido } from "./booking";
+import { createHash } from "node:crypto";
+import { OCUPAM_SLOT, documentoDaReserva, gravarComTravaDeHorario, validarPedido } from "./booking";
+import { horarioDisponivel, janelasOcupadas } from "./agenda";
 import { hojeNoFuso, localeDoDocumento } from "./locale";
 
 /**
@@ -19,9 +21,11 @@ import { hojeNoFuso, localeDoDocumento } from "./locale";
  *
  * Três decisões que não são óbvias:
  *
- * - **Id determinístico por ocorrência** (`fixo_{assinatura}_{data}`). Se o
- *   dono ou o cliente cancelar UMA semana, o documento continua existindo como
- *   cancelado, e a rotina não o recria. Cancelar a semana não cancela o fixo.
+ * - **Id determinístico por ocorrência** (`fixo_{assinatura}_{versão}_{data}`).
+ *   Se o dono ou o cliente cancelar UMA semana, o documento continua existindo
+ *   como cancelado, e a rotina não o recria. A VERSÃO muda quando o horário
+ *   muda (outra hora, outro barbeiro, outro serviço): aí as semanas antigas em
+ *   aberto são liberadas e as novas nascem com o horário novo.
  * - **Dia fechado ou horário ocupado não viram reserva por cima.** Viram um
  *   conflito registrado, para o dono resolver.
  * - **Se o cliente já tem horário naquele dia**, a rotina não cria outro: o
@@ -103,8 +107,14 @@ export function datasDoHorarioFixo(params: {
   return datas;
 }
 
-export const idDaOcorrencia = (subscriptionId: string, data: string) =>
-  `fixo_${subscriptionId}_${data}`;
+/** Impressão digital do horário: muda quando qualquer coisa que o define muda. */
+export function versaoDoHorario(h: HorarioFixo): string {
+  const chave = JSON.stringify([h.diaDaSemana, h.hora, h.staffId, [...h.serviceIds].sort(), h.frequencia]);
+  return createHash("sha1").update(chave).digest("hex").slice(0, 8);
+}
+
+export const idDaOcorrencia = (subscriptionId: string, versao: string, data: string) =>
+  `fixo_${subscriptionId}_${versao}_${data}`;
 
 export type ResultadoDaOcorrencia =
   | { data: string; resultado: "criada" | "ja-existe" | "cliente-ja-marcado" }
@@ -137,10 +147,11 @@ export async function garantirReservasDoFixo(params: {
     ? await shopRef.collection("bookings").where("clientId", "==", clientId).get()
     : null;
   const conflitos = shopRef.collection("conflitos_horario_fixo");
+  const versao = versaoDoHorario(horario);
   const resultados: ResultadoDaOcorrencia[] = [];
 
   for (const data of datas) {
-    const id = idDaOcorrencia(subscriptionId, data);
+    const id = idDaOcorrencia(subscriptionId, versao, data);
     const ref = shopRef.collection("bookings").doc(id);
     if ((await ref.get()).exists) {
       resultados.push({ data, resultado: "ja-existe" });
@@ -167,10 +178,26 @@ export async function garantirReservasDoFixo(params: {
         date: data,
         time: horario.hora,
         staffId: horario.staffId,
+        /* Sem antecedência mínima (é a barbearia marcando), mas DENTRO do
+         * expediente e fora dos intervalos do barbeiro. */
         exigirAntecedencia: false,
+        exigirExpediente: true,
       });
       if (params.simular) {
-        resultados.push({ data, resultado: "criada" });
+        /* A prévia confere a ocupação como a gravação confere: dizer "será
+         * reservado" e dar conflito ao confirmar seria a prévia mentindo. */
+        const doDia = await shopRef.collection("bookings").where("date", "==", data).get();
+        const ocupadas = janelasOcupadas(
+          doDia.docs
+            .filter((d) => d.get("staffId") === pedido.staffId && OCUPAM_SLOT.includes(d.get("status")))
+            .map((d) => ({ time: String(d.get("time")), durationMin: d.get("durationMin") })),
+          pedido.slotMinutes
+        );
+        if (!horarioDisponivel({ time: horario.hora, durationMin: pedido.duracaoDaReserva, ocupadas })) {
+          resultados.push({ data, resultado: "conflito", motivo: "Horário ocupado por outro atendimento." });
+        } else {
+          resultados.push({ data, resultado: "criada" });
+        }
         continue;
       }
       await gravarComTravaDeHorario({
@@ -283,17 +310,32 @@ export const definirHorarioFixo = onCall<{
     return { ocorrencias };
   }
 
+  /* Horário MUDOU: libera as semanas antigas em aberto antes de reservar as
+   * novas. Sem isto, a versão antiga seguia valendo nas reservas já criadas. */
+  const anterior = subSnap.get("horarioFixo") as HorarioFixo | undefined;
+  const mudou =
+    !!horario && horarioFixoValido(anterior) && versaoDoHorario(anterior) !== versaoDoHorario(horario);
   await subSnap.ref.update({
     horarioFixo: horario ?? FieldValue.delete(),
     horarioFixoAtualizadoEm: FieldValue.serverTimestamp(),
   });
+  const hojeDaLoja = hojeNoFuso(localeDoDocumento(shopSnap.data()).timeZone);
+  const liberadasNaMudanca = mudou
+    ? await liberarOcorrenciasFuturas({
+        db,
+        shopRef,
+        subscriptionId,
+        hoje: hojeDaLoja,
+        motivo: "Horário fixo alterado",
+      })
+    : 0;
   if (!horario) {
     /* Tirar o fixo libera só o que ainda não aconteceu. */
     const liberadas = await liberarOcorrenciasFuturas({
       db,
       shopRef,
       subscriptionId,
-      hoje: hojeNoFuso(localeDoDocumento(shopSnap.data()).timeZone),
+      hoje: hojeDaLoja,
       motivo: "Horário fixo removido",
     });
     return { ocorrencias: [], liberadas };
@@ -305,7 +347,7 @@ export const definirHorarioFixo = onCall<{
     subscriptionId,
     assinatura,
   });
-  return { ocorrencias };
+  return { ocorrencias, liberadas: liberadasNaMudanca };
 });
 
 /**

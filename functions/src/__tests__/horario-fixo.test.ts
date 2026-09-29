@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { datasDoHorarioFixo, diaDaSemanaDe, horarioFixoValido, idDaOcorrencia } from "../horario-fixo";
+import { datasDoHorarioFixo, diaDaSemanaDe, horarioFixoValido, idDaOcorrencia, versaoDoHorario } from "../horario-fixo";
 
 const base = { hora: "17:00", staffId: "romulo", serviceIds: ["corte"] };
 
@@ -46,6 +46,13 @@ describe("horário fixo do mensalista", () => {
   });
 
   it("id da ocorrência é estável: cancelar uma semana não faz a rotina recriar", () => {
-    expect(idDaOcorrencia("abc", "2026-10-02")).toBe("fixo_abc_2026-10-02");
+    expect(idDaOcorrencia("abc", "v1", "2026-10-02")).toBe("fixo_abc_v1_2026-10-02");
+  });
+
+  it("a versão muda quando o horário muda, e não muda com a ordem dos serviços", () => {
+    const h = { ...base, diaDaSemana: 5, frequencia: "semanal" as const, inicio: "2026-10-02" };
+    expect(versaoDoHorario(h)).toBe(versaoDoHorario({ ...h, inicio: "2026-10-09" }));
+    expect(versaoDoHorario(h)).not.toBe(versaoDoHorario({ ...h, hora: "18:00" }));
+    expect(versaoDoHorario({ ...h, serviceIds: ["a", "b"] })).toBe(versaoDoHorario({ ...h, serviceIds: ["b", "a"] }));
   });
 });
