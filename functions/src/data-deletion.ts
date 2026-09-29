@@ -177,6 +177,44 @@ export function statusAoReabrir(statusAntes: unknown): "ativo" | "trial" | "susp
   return statusAntes === "ativo" || statusAntes === "trial" ? statusAntes : "suspenso";
 }
 
+/**
+ * O que gravar na barbearia ao encerrar a conta.
+ *
+ * Extraído de `encerrarConta` quando o Hub passou a poder encerrar também (o
+ * status `cancelado` de lá, `functions/src/hub/`): dois caminhos gravando os
+ * campos à mão iam divergir no primeiro campo novo, e o expurgo lê exatamente
+ * estes. `statusAtual` nulo quando a conta já estava encerrada — o que fica
+ * guardado é o status de ANTES, para `reabrirConta` devolver.
+ */
+export function camposDeEncerramento(params: {
+  statusAtual: unknown;
+  agoraMs: number;
+  /** uid do dono, ou "hub" quando veio do painel da JP Projects. */
+  por: string;
+  motivo?: unknown;
+}) {
+  return {
+    status: "encerrada",
+    statusAntesDeEncerrar: params.statusAtual ?? null,
+    encerradaEm: FieldValue.serverTimestamp(),
+    encerradaEmMs: params.agoraMs,
+    encerradaPor: params.por,
+    encerramentoMotivo: params.motivo ? String(params.motivo).slice(0, 500) : null,
+  };
+}
+
+/** O contrário de `camposDeEncerramento`: volta ao `status` dado e limpa o rastro. */
+export function camposDeReabertura(status: string) {
+  return {
+    status,
+    statusAntesDeEncerrar: FieldValue.delete(),
+    encerradaEm: FieldValue.delete(),
+    encerradaEmMs: FieldValue.delete(),
+    encerradaPor: FieldValue.delete(),
+    encerramentoMotivo: FieldValue.delete(),
+  };
+}
+
 /** Só o que precisa do bucket — injetável para o emulador e para o teste. */
 export type Balde = {
   getFiles(opts: { prefix: string }): Promise<[Array<{ name: string }>, ...unknown[]]>;
@@ -351,14 +389,15 @@ export const encerrarConta = onCall<{ barbershopId: string; motivo?: string }>(
       if (jaEncerrada && Number.isFinite(desde) && desde > 0) return desde;
 
       const agora = Date.now();
-      tx.update(ref, {
-        status: "encerrada",
-        statusAntesDeEncerrar: jaEncerrada ? null : snap.get("status") ?? null,
-        encerradaEm: FieldValue.serverTimestamp(),
-        encerradaEmMs: agora,
-        encerradaPor: uid,
-        encerramentoMotivo: motivo ? String(motivo).slice(0, 500) : null,
-      });
+      tx.update(
+        ref,
+        camposDeEncerramento({
+          statusAtual: jaEncerrada ? null : snap.get("status") ?? null,
+          agoraMs: agora,
+          por: uid,
+          motivo,
+        })
+      );
       return agora;
     });
 
@@ -402,14 +441,7 @@ export const reabrirConta = onCall<{ barbershopId: string }>(async (request) => 
     }
 
     const volta = statusAoReabrir(snap.get("statusAntesDeEncerrar"));
-    tx.update(ref, {
-      status: volta,
-      statusAntesDeEncerrar: FieldValue.delete(),
-      encerradaEm: FieldValue.delete(),
-      encerradaEmMs: FieldValue.delete(),
-      encerradaPor: FieldValue.delete(),
-      encerramentoMotivo: FieldValue.delete(),
-    });
+    tx.update(ref, camposDeReabertura(volta));
     return volta;
   });
 

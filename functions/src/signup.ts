@@ -6,6 +6,8 @@ import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { featuresFor, type PlanId } from "./plans";
 import { politicasIniciais } from "./financial-events";
 import { criarCodigoDeEntrada } from "./entrada";
+import { montarEvento } from "./hub/contrato";
+import { enfileirarNaTransacao, enfileirarSeNovo } from "./hub/saida";
 
 /**
  * Cadastro self-service de uma barbearia.
@@ -238,6 +240,21 @@ export const signUpBarbershop = onCall<SignUpInput>(async (request) => {
       tx.set(shopRef.collection("services").doc(service.id), { ...service, active: true });
     }
 
+    /* O aviso ao Hub nasce na mesma transação da barbearia: existe se e só se
+     * ela existe. Quem entrega é a caixa de saída (`hub/saida.ts`). */
+    enfileirarNaTransacao(
+      tx,
+      db,
+      montarEvento({
+        evento: "cadastrada",
+        barbershopId: shopRef.id,
+        slug,
+        nome: name,
+        ocorridoEm: new Date(now),
+      }),
+      { agoraMs: now }
+    );
+
     tx.set(shopRef.collection("audit_log").doc(), {
       action: "barbershop.signup",
       by: uid,
@@ -335,12 +352,36 @@ export const completeOnboardingStep = onCall<{
     update[campo] = valor;
   }
 
-  if (step === "compartilhar") {
-    update["onboarding.completedAt"] = FieldValue.serverTimestamp();
-    update["onboarding.sharedLink"] = true;
+  if (step !== "compartilhar") {
+    await shopRef.update(update);
+    return { ok: true };
   }
 
-  await shopRef.update(update);
+  update["onboarding.completedAt"] = FieldValue.serverTimestamp();
+  update["onboarding.sharedLink"] = true;
+
+  /* O último passo conclui o onboarding, e o Hub fica sabendo pela caixa de
+   * saída — na mesma transação, para o aviso não existir sem o fato nem o
+   * fato sem o aviso. O id do evento é fixo por barbearia: refazer o passo
+   * regrava a data aqui, mas não avisa o Hub de novo. */
+  await db.runTransaction(async (tx) => {
+    const shop = await tx.get(shopRef);
+    if (!shop.exists) throw new HttpsError("not-found", "Barbearia não encontrada.");
+    const aviso = await enfileirarSeNovo(
+      tx,
+      db,
+      montarEvento({
+        evento: "onboarding_concluido",
+        barbershopId: shopRef.id,
+        slug: String(shop.get("slug") ?? ""),
+        nome: String(shop.get("brand.name") ?? shop.get("slug") ?? ""),
+        ocorridoEm: new Date(),
+      }),
+      { agoraMs: Date.now() }
+    );
+    tx.update(shopRef, update);
+    aviso.gravar();
+  });
   return { ok: true };
 });
 

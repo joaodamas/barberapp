@@ -2,10 +2,12 @@ import { CAMINHO_FINANCEIRO } from "./politicas-financeiras";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { vinculosDe } from "./acesso";
 import { getAuth } from "firebase-admin/auth";
-import { FieldValue, getFirestore } from "firebase-admin/firestore";
-import { featuresFor, toPlanId } from "./plans";
+import { FieldValue, getFirestore, type Firestore } from "firebase-admin/firestore";
+import { featuresFor, toPlanId, type PlanId } from "./plans";
 import { RESERVED_SLUGS, TRIAL_DAYS } from "./signup";
 import { politicasIniciais } from "./financial-events";
+import { montarEvento } from "./hub/contrato";
+import { enfileirarNaTransacao } from "./hub/saida";
 
 /**
  * Provisionamento de uma nova barbearia.
@@ -99,12 +101,78 @@ export const provisionBarbershop = onCall<ProvisionInput>(async (request) => {
     );
   }
 
-  const shopRef = db.collection("barbershops").doc();
-  const slugRef = db.collection("slugs").doc(slug);
   /* Provisionamento é manual e feito pela plataforma, mas o plano ainda passa
    * pelo normalizador: digitar "gestão" com acento gravaria um plano que não
    * existe, e a barbearia abriria capada sem erro em lugar nenhum. */
   const plan = toPlanId(input.plan ?? "gestao");
+
+  const { barbershopId } = await criarBarbeariaAssistida(db, {
+    slug,
+    name,
+    plan,
+    owner: { uid: owner.uid, displayName: owner.displayName ?? null, email: ownerEmail },
+    address: input.address,
+    whatsapp: input.whatsapp,
+    accentColor: input.accentColor,
+    seedServices: input.seedServices,
+    criadoPor: request.auth?.uid ?? null,
+  });
+
+  // O claim é gravado FORA da transação porque o Auth não participa dela. Se
+  // falhar aqui, a barbearia existe sem dono — daí o log explícito e a
+  // orientação de reexecutar `grantShopRole`, que é idempotente.
+  try {
+    await grantRole(owner.uid, barbershopId, "owner");
+  } catch (error) {
+    console.error("[provisioning] barbearia criada sem vínculo do dono", {
+      barbershopId,
+      ownerUid: owner.uid,
+      error,
+    });
+    throw new HttpsError(
+      "internal",
+      `Barbearia ${barbershopId} criada, mas o vínculo do dono falhou. Rode grantShopRole para ${ownerEmail}.`
+    );
+  }
+
+  return { barbershopId, slug, ownerUid: owner.uid };
+});
+
+/**
+ * Cria a barbearia assistida: documento, índice de slug, política financeira,
+ * dono como primeiro barbeiro e membro, serviços iniciais e o aviso ao Hub —
+ * tudo numa transação.
+ *
+ * Extraída de `provisionBarbershop` quando o Hub passou a provisionar também
+ * (`/plataforma/provisionar`, `hub/plataforma.ts`): duas cópias desta
+ * transação iam divergir no primeiro campo novo, e foi assim que a
+ * self-service e a assistida já nasceram diferentes uma vez (ver `schedule`).
+ *
+ * Não mexe no claim: o Auth não participa da transação, e quem chama grava o
+ * vínculo com `grantRole` depois.
+ */
+export type NovaBarbearia = {
+  slug: string;
+  name: string;
+  plan: PlanId;
+  owner: { uid: string; displayName: string | null; email: string };
+  address?: string;
+  whatsapp?: string;
+  accentColor?: string;
+  seedServices?: boolean;
+  /** uid do operador, ou `null` quando veio do Hub. */
+  criadoPor: string | null;
+  /** Presente quando a criação veio do Hub. */
+  hubTenantId?: string;
+};
+
+export async function criarBarbeariaAssistida(
+  db: Firestore,
+  input: NovaBarbearia
+): Promise<{ barbershopId: string }> {
+  const { slug, name, plan, owner } = input;
+  const shopRef = db.collection("barbershops").doc();
+  const slugRef = db.collection("slugs").doc(slug);
 
   /* O trial precisa ter DATA DE FIM, como no cadastro self-service.
    *
@@ -165,7 +233,7 @@ export const provisionBarbershop = onCall<ProvisionInput>(async (request) => {
        * o barbeiro (auditoria de 28/09, M4). */
       policies: {},
       createdAt: FieldValue.serverTimestamp(),
-      createdBy: request.auth?.uid ?? null,
+      createdBy: input.criadoPor,
     });
 
     tx.set(slugRef, { barbershopId: shopRef.id });
@@ -188,7 +256,7 @@ export const provisionBarbershop = onCall<ProvisionInput>(async (request) => {
 
     tx.set(shopRef.collection("members").doc(owner.uid), {
       role: "owner",
-      email: ownerEmail,
+      email: owner.email,
       addedAt: FieldValue.serverTimestamp(),
     });
 
@@ -198,33 +266,53 @@ export const provisionBarbershop = onCall<ProvisionInput>(async (request) => {
       }
     }
 
+    /* Onde o Hub guarda este cliente. Em `private/`, e não na ficha: a ficha
+     * da barbearia é pública, e o vínculo com a cobrança é contrato. */
+    if (input.hubTenantId) {
+      tx.set(shopRef.collection("private").doc("hub"), {
+        tenantId: input.hubTenantId,
+        origem: "hub",
+        vinculadoEm: FieldValue.serverTimestamp(),
+      });
+    }
+
+    /* O aviso ao Hub nasce com a barbearia (caixa de saída, `hub/saida.ts`).
+     * Vai também quando foi o próprio Hub que pediu a criação: o evento é
+     * idempotente lá, e é ele que liga o cliente do Hub ao id daqui. Adiado
+     * dois minutos nesse caso, para o Hub terminar de gravar o `externoId`
+     * que recebe na resposta antes de o aviso chegar — sem isso, um cliente
+     * cujo id no Hub não é o slug poderia virar dois. */
+    enfileirarNaTransacao(
+      tx,
+      db,
+      montarEvento({
+        evento: "cadastrada",
+        barbershopId: shopRef.id,
+        slug,
+        nome: name,
+        ocorridoEm: new Date(agora),
+        hubTenantId: input.hubTenantId ?? null,
+      }),
+      { agoraMs: agora, adiarMs: input.hubTenantId ? 2 * 60_000 : 0 }
+    );
+
     tx.set(shopRef.collection("audit_log").doc(), {
-      action: "barbershop.provisioned",
-      by: request.auth?.uid ?? null,
+      action: input.hubTenantId ? "barbershop.provisioned_by_hub" : "barbershop.provisioned",
+      by: input.criadoPor,
       at: FieldValue.serverTimestamp(),
-      detail: { slug, name, ownerEmail, plan },
+      detail: {
+        slug,
+        name,
+        ownerEmail: owner.email,
+        plan,
+        ...(input.hubTenantId ? { origem: "hub", hubTenantId: input.hubTenantId } : {}),
+      },
     });
   });
 
-  // O claim é gravado FORA da transação porque o Auth não participa dela. Se
-  // falhar aqui, a barbearia existe sem dono — daí o log explícito e a
-  // orientação de reexecutar `grantShopRole`, que é idempotente.
-  try {
-    await grantRole(owner.uid, shopRef.id, "owner");
-  } catch (error) {
-    console.error("[provisioning] barbearia criada sem vínculo do dono", {
-      barbershopId: shopRef.id,
-      ownerUid: owner.uid,
-      error,
-    });
-    throw new HttpsError(
-      "internal",
-      `Barbearia ${shopRef.id} criada, mas o vínculo do dono falhou. Rode grantShopRole para ${ownerEmail}.`
-    );
-  }
 
-  return { barbershopId: shopRef.id, slug, ownerUid: owner.uid };
-});
+  return { barbershopId: shopRef.id };
+}
 
 /** Concede ou revoga papel de alguém numa barbearia. Idempotente. */
 export const grantShopRole = onCall<{
@@ -283,7 +371,7 @@ export const grantShopRole = onCall<{
 
 /* ------------------------------------------------------------------ */
 
-async function grantRole(uid: string, barbershopId: string, role: "owner" | "staff" | null) {
+export async function grantRole(uid: string, barbershopId: string, role: "owner" | "staff" | null) {
   const auth = getAuth();
   const user = await auth.getUser(uid);
   const claims = { ...(user.customClaims ?? {}) };

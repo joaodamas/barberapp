@@ -64,6 +64,10 @@ export {
   anonimizarCliente,
   excluirMinhaConta,
 } from "./titular";
+/* Integração com o JP Projects Hub — `docs/INTEGRACAO-HUB.md`. */
+export { plataforma } from "./hub/plataforma";
+export { enviarAvisoAoHub, reenviarAvisosAoHub } from "./hub/saida";
+export { escolherPlano, pedirCancelamento } from "./hub/pedidos";
 export { TEMPLATES } from "./whatsapp/templates";
 export type {
   TemplateDef,

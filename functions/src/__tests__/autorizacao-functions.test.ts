@@ -71,9 +71,13 @@ function todosOsHandlers(): Handler[] {
   const arquivos = readdirSync(SRC)
     .filter((f) => f.endsWith(".ts"))
     .concat(
-      readdirSync(resolve(SRC, "whatsapp"))
-        .filter((f) => f.endsWith(".ts"))
-        .map((f) => `whatsapp/${f}`)
+      // Subpastas com handlers. `hub/` entrou com a integração do Hub (29/09):
+      // sem ela aqui, as callables do dono de lá passariam sem conferência.
+      ["whatsapp", "hub"].flatMap((pasta) =>
+        readdirSync(resolve(SRC, pasta))
+          .filter((f) => f.endsWith(".ts"))
+          .map((f) => `${pasta}/${f}`)
+      )
     );
 
   return arquivos.flatMap((a) => {
@@ -106,7 +110,12 @@ describe("inventário", () => {
  * deles é outra e está testada em `webhooks públicos` abaixo: assinatura HMAC
  * do corpo cru, mais verificação de autoria por evento.
  */
-const WEBHOOKS = new Set(["whatsappWebhook"]);
+const WEBHOOKS = new Set([
+  "whatsappWebhook",
+  /* A API do JP Projects Hub. Quem chama é o Hub, com o token compartilhado
+   * (`CORTEHUB_TOKEN`); a guarda está testada em `a API do Hub` abaixo. */
+  "plataforma",
+]);
 
 describe("toda function que recebe barbershopId verifica o vínculo", () => {
   const queRecebemTenant = HANDLERS.filter(
@@ -285,5 +294,20 @@ describe("webhooks públicos têm a guarda que lhes cabe", () => {
   it("🔒 não ressuscita reserva já encerrada", () => {
     const fonte = readFileSync(resolve(SRC, "whatsapp/webhook.ts"), "utf8");
     expect(/completed.*cancelled_by_client|status.*terminal|atual/.test(fonte)).toBe(true);
+  });
+});
+
+describe("a API do Hub", () => {
+  it("🔒 confere o token antes de qualquer rota", () => {
+    /* `plataforma` suspende e encerra barbearias. Sem o token conferido ANTES
+     * de rotear, bastaria descobrir a URL. */
+    const h = HANDLERS.find((x) => x.nome === "plataforma");
+    expect(h, "plataforma não encontrada em hub/").toBeTruthy();
+    const corpo = h!.corpo;
+    const token = corpo.indexOf("tokenConfere(");
+    expect(token).toBeGreaterThan(-1);
+    expect(token).toBeLessThan(corpo.indexOf("rotaDe("));
+    // Segredo vazio recusa tudo, em vez de aceitar tudo.
+    expect(corpo).toMatch(/if \(!esperado\)/);
   });
 });
