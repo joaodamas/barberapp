@@ -137,7 +137,7 @@ const INTELIGENTE = [
 
 export default function LandingPage() {
   return (
-    <div className={`${FUNDO} ${TEXTO} ${outfit.variable} min-h-screen overflow-y-auto`}>
+    <div className={`${FUNDO} ${TEXTO} ${outfit.variable} min-h-screen overflow-y-auto overflow-x-hidden`}>
       {/* Grade de fundo: o "papel quadriculado" do software, apagando para baixo. */}
       <div
         aria-hidden
@@ -165,7 +165,7 @@ export default function LandingPage() {
 
       {/* ------------------------------------------------------------ Hero */}
       <section className="relative z-10 mx-auto w-full max-w-6xl px-5 pb-20 pt-6 md:px-8 md:pb-32 md:pt-14">
-        <div className="grid items-center gap-14 lg:grid-cols-[1.05fr_1fr]">
+        <div className="grid grid-cols-1 items-center gap-14 lg:grid-cols-[1.05fr_1fr]">
           <Reveal>
             <p
               className={`mb-6 inline-flex items-center gap-2 rounded-full border ${BORDA} bg-[#14120F] px-3 py-1 text-xs ${APAGADO}`}
@@ -207,9 +207,9 @@ export default function LandingPage() {
                 unoptimized
                 className="relative z-10 h-full w-full drop-shadow-[0_30px_60px_rgba(224,174,88,0.25)]"
               />
-              <Aviso rotulo="Reserva confirmada" texto="Sexta, 17:00 · Corte + barba" className="left-0 top-[12%] md:-left-8" />
-              <Aviso rotulo="Encaixe" texto="Dá para encaixar às 11:00" className="bottom-[22%] right-0 md:-right-6" />
-              <Aviso rotulo="Fechamento de setembro" texto="Sobrou R$ 9.148" className="bottom-[2%] left-[6%]" />
+              <Aviso rotulo="Reserva confirmada" texto="Sexta, 17:00 · Corte + barba" className="left-0 top-[8%] max-w-[70%] md:-left-8" />
+              <Aviso rotulo="Encaixe" texto="Dá para encaixar às 11:00" className="bottom-[24%] right-0 max-w-[62%] md:-right-6" />
+              <Aviso rotulo="Fechamento de setembro" texto="Sobrou R$ 2.941" className="bottom-[2%] left-[6%]" />
             </div>
           </Reveal>
         </div>
@@ -225,11 +225,11 @@ export default function LandingPage() {
             </h2>
           </Reveal>
           <Reveal delay={120}>
-            <div className="relative mt-12 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-              <div className="rotate-[-0.8deg] rounded-2xl shadow-[0_40px_80px_-30px_#000]">
+            <div className="relative mt-12 grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+              <div className="min-w-0 overflow-x-auto rounded-2xl shadow-[0_40px_80px_-30px_#000] lg:rotate-[-0.8deg]">
                 <AgendaDoDia />
               </div>
-              <div className="rotate-[0.8deg] self-end rounded-2xl shadow-[0_40px_80px_-30px_#000]">
+              <div className="min-w-0 self-end rounded-2xl shadow-[0_40px_80px_-30px_#000] lg:rotate-[0.8deg]">
                 <ResumoDoMes />
               </div>
             </div>
@@ -305,7 +305,7 @@ export default function LandingPage() {
 
       {/* ------------------------------------------------- Projeção de caixa */}
       <section className="relative z-10 mx-auto w-full max-w-6xl px-5 py-16 md:px-8 md:py-28">
-        <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-20">
+        <div className="grid grid-cols-1 items-center gap-12 lg:grid-cols-2 lg:gap-20">
           <Reveal>
             <p className="text-sm text-[#E0AE58]">Projeção de caixa</p>
             <h2 className="mt-3 text-balance font-[family-name:var(--font-outfit)] text-3xl leading-tight tracking-[-0.02em] md:text-5xl">
@@ -339,7 +339,7 @@ export default function LandingPage() {
 
       {/* -------------------------------------------------------- Equipe */}
       <section className={`relative z-10 border-y ${BORDA} bg-[#100E0B]`}>
-        <div className="mx-auto grid w-full max-w-6xl items-center gap-10 px-5 py-16 md:px-8 md:py-24 lg:grid-cols-2 lg:gap-16">
+        <div className="mx-auto grid grid-cols-1 w-full max-w-6xl items-center gap-10 px-5 py-16 md:px-8 md:py-24 lg:grid-cols-2 lg:gap-16">
           <Reveal>
             <p className="text-sm text-[#E0AE58]">Equipe e números</p>
             <h2 className="mt-3 text-balance font-[family-name:var(--font-outfit)] text-3xl leading-tight tracking-[-0.02em] md:text-4xl">
@@ -375,7 +375,7 @@ export default function LandingPage() {
 
       {/* -------------------------------------------------------- Origem */}
       <section className="relative z-10 mx-auto w-full max-w-6xl px-5 py-16 md:px-8 md:py-24">
-        <div className="grid items-center gap-10 lg:grid-cols-[0.8fr_1fr] lg:gap-16">
+        <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-[0.8fr_1fr] lg:gap-16">
           <Reveal>
             <div className={`relative mx-auto max-w-sm overflow-hidden rounded-2xl border ${BORDA} lg:max-w-none`}>
               <Image
