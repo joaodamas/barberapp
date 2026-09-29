@@ -26,7 +26,7 @@ describe("saúde", () => {
   });
 
   it("404 de DOCUMENTO é ok; 404 de BANCO inexistente é problema (revisão do PR #78)", () => {
-    expect(julgarFirestore(404, 'Document "projects/axon-barber/databases/(default)/documents/slugs/__saude__" not found.').ok).toBe(true);
+    expect(julgarFirestore(404, 'Document "projects/axon-barber/databases/(default)/documents/slugs/saude-monitor-hub" not found.').ok).toBe(true);
     const semBanco = julgarFirestore(404, "The database (default) does not exist for project x Please visit https://console.cloud.google.com/datastore/setup?project=x to add a Cloud Datastore or Cloud Firestore database.");
     expect(semBanco.ok).toBe(false);
     expect(semBanco.erro).toMatch(/404 sem documento/);
