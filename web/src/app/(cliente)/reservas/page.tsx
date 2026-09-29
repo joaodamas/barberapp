@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { bookingStatusMeta } from "@/lib/booking-status";
 import { labelDoPagamento } from "@/lib/payment-method";
+import { ehCortesia, valorCobrado } from "@/lib/desconto";
 import { formatBRL, formatDatePtBR, toISODate } from "@/lib/format";
 import { useTenant } from "@/lib/tenant-context";
 import { useAuth } from "@/lib/auth-context";
@@ -454,11 +455,20 @@ export default function ReservasPage() {
                       {bServices.map((s) => s.name).join(" + ")}
                     </p>
                     <p className="truncate text-xs text-ink-muted first-letter:uppercase md:text-sm">
-                      {formatDatePtBR(b.date)} às {b.time} · {labelDoPagamento(b.paymentOrigin, b.paymentMethod)}
+                      {/* A cortesia (desconto de 100%, 28/09) é concluída sem
+                          forma de pagamento — e `labelDoPagamento` leria isso
+                          como "A pagar no salão", cobrando do cliente um corte
+                          que o dono deu de presente. */}
+                      {formatDatePtBR(b.date)} às {b.time} ·{" "}
+                      {ehCortesia(b) ? "Cortesia" : labelDoPagamento(b.paymentOrigin, b.paymentMethod)}
                     </p>
                   </div>
-                  <span className="shrink-0 font-display font-semibold text-ink">
-                    {formatBRL(b.value)}
+                  {/* Com desconto, o cliente vê o preço riscado e o que pagou. */}
+                  <span className="shrink-0 text-right font-display font-semibold text-ink">
+                    {valorCobrado(b) < b.value && (
+                      <s className="mr-1.5 text-xs font-normal text-ink-muted">{formatBRL(b.value)}</s>
+                    )}
+                    {formatBRL(valorCobrado(b))}
                   </span>
                 </Card>
               );

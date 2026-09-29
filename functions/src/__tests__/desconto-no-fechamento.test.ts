@@ -5,6 +5,8 @@ import { descontoAplicavel, ehCortesia } from "../desconto";
 import {
   brutoDoFatoCongelado,
   calcularEventoFinanceiro,
+  descontoDaReconclusao,
+  descontoDaReservaCongelado,
   SEM_TAXA,
   type PaymentFees,
 } from "../financial-events";
@@ -206,5 +208,59 @@ describe("reversão congela o bruto E o desconto — P1-7", () => {
     for (const campo of ["discountAmount", "discountInput", "discountReason", "discountBy", "discountAt"]) {
       expect(fonte, campo).toMatch(new RegExp(`${campo}: FieldValue\\.delete\\(\\)`));
     }
+  });
+});
+
+describe("a reconclusão devolve o desconto congelado à RESERVA — revisão do PR #82", () => {
+  /* A reversão apaga os campos de desconto da reserva, e a reconclusão usava
+   * o congelado só no pagamento: as leituras da tela (`valorCobrado`,
+   * "Descontos do mês", gasto do cliente) voltavam ao preço cheio. */
+  const reserva = {
+    status: "completed",
+    value: 50,
+    discountAmount: 10,
+    discountInput: { tipo: "pct", valor: 20 },
+    discountReason: "fidelidade",
+    discountBy: "dono-1",
+    discountAt: "carimbo-do-servidor",
+  };
+
+  it("a reversão congela o que o dono digitou, o motivo e a autoria", () => {
+    expect(descontoDaReservaCongelado(reserva)).toEqual({
+      discountInput: { tipo: "pct", valor: 20 },
+      discountReason: "fidelidade",
+      discountBy: "dono-1",
+      discountAt: "carimbo-do-servidor",
+    });
+    expect(descontoDaReservaCongelado({ value: 50 })).toBeNull();
+    expect(descontoDaReservaCongelado(undefined)).toBeNull();
+  });
+
+  it("a reconclusão regrava o valor congelado com a autoria congelada", () => {
+    const congelado = descontoDaReservaCongelado(reserva);
+    expect(descontoDaReconclusao({ desconto: 10, congelado })).toEqual({
+      discountAmount: 10,
+      ...congelado,
+    });
+  });
+
+  it("ciclo sem autoria congelada ainda regrava o valor", () => {
+    expect(descontoDaReconclusao({ desconto: 10, congelado: null })).toEqual({
+      discountAmount: 10,
+      discountInput: { tipo: "valor", valor: 10 },
+      discountReason: null,
+      discountBy: null,
+      discountAt: null,
+    });
+  });
+
+  it("congelado sem desconto: `null` — o gatilho apaga um desconto que não valeu", () => {
+    expect(descontoDaReconclusao({ desconto: 0, congelado: null })).toBeNull();
+  });
+
+  it("o gatilho congela na reversão e regrava na materialização da reconclusão", () => {
+    const fonte = readFileSync(resolve(__dirname, "..", "financial-events.ts"), "utf8");
+    expect(fonte).toMatch(/descontoDaReserva:\s*descontoDaReservaCongelado\(atual\.data\(\)\)/);
+    expect(fonte).toMatch(/reconclusao && ciclo\?\.pagamento \? camposDeDescontoNaReserva/);
   });
 });

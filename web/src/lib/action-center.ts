@@ -1,5 +1,6 @@
 import type { Doc } from "@/lib/db/repository";
 import { cobertoPeloPlano } from "@/lib/domain";
+import { ehCortesia } from "@/lib/desconto";
 import type { BookingDoc, PaymentDoc, ServiceDoc } from "@/lib/domain";
 import { taxasEmBranco, type FormaDePagamento } from "@/lib/formas-de-pagamento";
 import { dentroDoPeriodo, type Periodo } from "@/lib/analytics";
@@ -129,8 +130,15 @@ export function fechamentosPendentes(bookings: Doc<BookingDoc>[]): ActionItem[] 
      * maquininha nenhuma. Verificado na tela em 18/08.
      *
      * É a mesma distinção que `caixaDoDia` passou a fazer: ausência de
-     * pagamento e pagamento sem forma informada são coisas opostas. */
-    .filter((b) => b.status === "completed" && !b.paymentMethod && !cobertoPeloPlano(b))
+     * pagamento e pagamento sem forma informada são coisas opostas.
+     *
+     * A CORTESIA (desconto de 100%, 28/09) é o terceiro motivo, e pela mesma
+     * razão: não entrou dinheiro, o servidor não cria pagamento, e "Registrar
+     * pagamento" levaria a uma correção que ele recusa (`sem_pagamento`). */
+    .filter(
+      (b) =>
+        b.status === "completed" && !b.paymentMethod && !cobertoPeloPlano(b) && !ehCortesia(b)
+    )
     .map((b) => ({
       id: `fechamento-pendente:${b.id}`,
       severity: "critical" as const,

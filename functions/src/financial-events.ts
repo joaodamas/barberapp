@@ -372,7 +372,72 @@ export type CicloFinanceiro = {
    * que recebeu uma vez só.
    */
   comissaoVigenteId?: string | null;
+  /**
+   * O resto do desconto que estava na reserva — o que o dono digitou, o
+   * motivo, quem deu e quando. Revisão do PR #82.
+   *
+   * A reversão apaga os campos de desconto da reserva (a reserva volta à
+   * agenda, e um desconto exibido ali seria de um fechamento desfeito). O VALOR
+   * do desconto fica em `pagamento.discountAmount`, mas as leituras da tela
+   * leem a RESERVA (`valorCobrado`, "Descontos do mês", gasto do cliente).
+   * Sem isto, a reconclusão materializava o pagamento com desconto e a
+   * reserva voltava a dizer preço cheio. Ausente = não havia desconto.
+   */
+  descontoDaReserva?: DescontoDaReserva | null;
 };
+
+/** Os campos de autoria e origem do desconto, congelados na reversão. */
+export type DescontoDaReserva = {
+  discountInput?: unknown;
+  discountReason?: unknown;
+  discountBy?: unknown;
+  discountAt?: unknown;
+};
+
+/**
+ * O que a reversão congela da reserva sobre o desconto. Nulo sem desconto.
+ */
+export function descontoDaReservaCongelado(
+  reserva: Record<string, unknown> | undefined
+): DescontoDaReserva | null {
+  if (!reserva || !(Number(reserva.discountAmount) > 0)) return null;
+  return {
+    discountInput: reserva.discountInput ?? null,
+    discountReason: reserva.discountReason ?? null,
+    discountBy: reserva.discountBy ?? null,
+    discountAt: reserva.discountAt ?? null,
+  };
+}
+
+/**
+ * Os campos de desconto que a RECONCLUSÃO regrava na reserva — revisão do
+ * PR #82.
+ *
+ * Numa reconclusão com fato congelado, quem manda é o desconto congelado (a
+ * mesma regra do bruto, P1-7). A reserva precisa dizer o mesmo que o
+ * pagamento, senão as leituras derivadas dela contam o preço cheio de um
+ * atendimento que foi cobrado com desconto. Por isso:
+ *
+ * - desconto congelado > 0 → regrava o valor e a autoria congelada (sem ela,
+ *   o valor vira o próprio registro: "R$ X em reais");
+ * - desconto congelado = 0 → `null`, e o chamador APAGA os campos: um
+ *   desconto que a escrita da reconclusão tenha trazido não valeu, e deixá-lo
+ *   na reserva afirmaria um desconto que o pagamento não teve.
+ */
+export function descontoDaReconclusao(params: {
+  desconto: number;
+  congelado?: DescontoDaReserva | null;
+}): Record<string, unknown> | null {
+  if (!(params.desconto > 0)) return null;
+  const c = params.congelado ?? null;
+  return {
+    discountAmount: params.desconto,
+    discountInput: c?.discountInput ?? { tipo: "valor", valor: params.desconto },
+    discountReason: c?.discountReason ?? null,
+    discountBy: c?.discountBy ?? null,
+    discountAt: c?.discountAt ?? null,
+  };
+}
 
 /**
  * O bruto e o desconto do fato, para a reversão congelar — P1-7 + desconto.
@@ -600,6 +665,9 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
 
       const congelado: CicloFinanceiro = {
         revertidoEm: chave,
+        /* Lido da reserva ATUAL, dentro da transação — é ela que o `set` abaixo
+         * vai limpar. */
+        descontoDaReserva: descontoDaReservaCongelado(atual.data()),
         comissao: comissaoSnap.exists
           ? {
               commissionPct: Number(comissaoSnap.get("commissionPct")) || 0,
@@ -805,6 +873,18 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
         )
       : comissaoRef;
 
+    const regravado = descontoDaReconclusao({
+      desconto: coberto ? 0 : desconto,
+      congelado: ciclo?.descontoDaReserva ?? null,
+    });
+    const camposDeDescontoNaReserva: Record<string, unknown> = regravado ?? {
+      discountAmount: FieldValue.delete(),
+      discountInput: FieldValue.delete(),
+      discountReason: FieldValue.delete(),
+      discountBy: FieldValue.delete(),
+      discountAt: FieldValue.delete(),
+    };
+
     await db.runTransaction(async (tx) => {
       /* Conferido de novo DENTRO da transação: se a conclusão foi desfeita
        * entre a saída cedo e aqui, a transação relê e este evento para. */
@@ -823,6 +903,10 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
           ...(reconclusao
             ? { cicloFinanceiro: { ...ciclo, comissaoVigenteId: comissaoDoCicloRef.id } }
             : {}),
+          /* A reserva volta a dizer o desconto do FATO — revisão do PR #82. Só
+           * na reconclusão com fato congelado: fora dela, o desconto da
+           * reserva é o que o dono acabou de gravar, e já bate com o pagamento. */
+          ...(reconclusao && ciclo?.pagamento ? camposDeDescontoNaReserva : {}),
         },
         { merge: true }
       );
