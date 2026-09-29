@@ -2,7 +2,7 @@ import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { idSeguro, vinculosDe } from "../acesso";
 import { toPlanId, type PlanId } from "../plans";
-import { montarEvento, type CorpoDoEvento } from "./contrato";
+import { isentoDeCobranca, montarEvento, type CorpoDoEvento } from "./contrato";
 import { enfileirarSeNovo } from "./saida";
 
 /**
@@ -24,7 +24,7 @@ import { enfileirarSeNovo } from "./saida";
 async function registrarPedido(
   barbershopId: string,
   uid: string,
-  montar: (shop: { slug: string; nome: string }) => CorpoDoEvento,
+  montar: (shop: { slug: string; nome: string; isento: boolean }) => CorpoDoEvento,
   exigirAberta: boolean
 ) {
   const db = getFirestore();
@@ -43,6 +43,7 @@ async function registrarPedido(
     const corpo = montar({
       slug: String(shop.get("slug") ?? ""),
       nome: String(shop.get("brand.name") ?? shop.get("slug") ?? ""),
+      isento: isentoDeCobranca(shop.data() ?? {}),
     });
     const pedidoRef = shopRef.collection("pedidos_plataforma").doc(corpo.eventoId);
     const aviso = await enfileirarSeNovo(tx, db, corpo, { agoraMs: Date.now() });

@@ -30,9 +30,10 @@ import { initializeApp, getApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 
 const require = createRequire(import.meta.url);
-let contrato, saida;
+let contrato, saida, planos;
 try {
   contrato = require("../lib/hub/contrato.js");
+  planos = require("../lib/plans.js");
   saida = require("../lib/hub/saida.js");
 } catch (e) {
   console.error("Não achei o código compilado. Rode `npm run build` antes.\n", e.message);
@@ -65,12 +66,15 @@ for (const shop of docs) {
     continue;
   }
   const criadaEm = shop.get("createdAt")?.toDate?.() ?? new Date();
+  // Isenta (o O Siqueira), o cadastro já vai com plano e valor 0.
+  const isento = contrato.isentoDeCobranca(shop.data() ?? {});
   const corpo = contrato.montarEvento({
     evento: "cadastrada",
     barbershopId: shop.id,
     slug: String(shop.get("slug") ?? ""),
     nome,
     ocorridoEm: criadaEm,
+    ...(isento ? { isento: true, plano: planos.toPlanId(shop.get("plan")) } : {}),
   });
   const ref = saida.refDoAviso(db, corpo.eventoId);
   const existente = await ref.get();

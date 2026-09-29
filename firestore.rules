@@ -207,7 +207,16 @@ service cloud.firestore {
                                                       * Financeiro avançado sem
                                                       * pagar (auditoria 28/09, M1). */
                                                      'featuresExtras', 'trialEncerradoEm',
-                                                     'planoDefinidoEm', 'planoDefinidoMotivo']));
+                                                     'planoDefinidoEm', 'planoDefinidoMotivo',
+                                                     /* `isento` impede a suspensão
+                                                      * pelo Hub: gravável, qualquer
+                                                      * dono se isentava de pagar.
+                                                      * `dominio` é para onde o login
+                                                      * da plataforma manda a equipe
+                                                      * (`meusDestinos`): gravável,
+                                                      * virava redirecionamento para
+                                                      * qualquer site (29/09). */
+                                                     'isento', 'dominio']));
 
       /* -------- contrato com a plataforma: nunca público -------- */
 

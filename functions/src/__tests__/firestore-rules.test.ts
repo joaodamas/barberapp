@@ -284,6 +284,19 @@ describe("contrato com a plataforma", () => {
     );
   });
 
+  it("🔒 o dono NÃO se isenta de pagar nem troca o endereço do login (29/09)", async () => {
+    /* `isento` impede a suspensão pelo Hub; `dominio` é para onde o login da
+     * plataforma manda a equipe. Os dois são da plataforma. */
+    await assertFails(
+      updateDoc(doc(as(DONO_ALFA), "barbershops", ALFA), {
+        isento: { ativa: true, motivo: "eu mesmo" },
+      })
+    );
+    await assertFails(
+      updateDoc(doc(as(DONO_ALFA), "barbershops", ALFA), { dominio: "golpe.example.com" })
+    );
+  });
+
   it("🔒 o dono NÃO estende o próprio período de teste", async () => {
     await assertFails(
       updateDoc(doc(as(DONO_ALFA), "barbershops", ALFA), {

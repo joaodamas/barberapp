@@ -5,6 +5,7 @@ import {
   comDominioAutorizado,
   desfechoDaResposta,
   diaEmSaoPaulo,
+  isentoDeCobranca,
   esperaAntesDaTentativa,
   idDoEvento,
   idDoEventoRecebido,
@@ -350,5 +351,66 @@ describe("domínios autorizados do Firebase Auth", () => {
   });
   it("lista ausente vira lista com o domínio", () => {
     expect(comDominioAutorizado(undefined, "x.topete.com.br")).toEqual(["x.topete.com.br"]);
+  });
+});
+
+describe("barbearia isenta (a fundadora)", () => {
+  const agora = 1_790_000_000_000;
+  const isento = { ativa: true, motivo: "Barbearia fundadora" };
+
+  it("o Hub não suspende nem cancela", () => {
+    expect(transicaoDoHub({ status: "ativo", isento }, "suspenso", agora).tipo).toBe("conflito");
+    expect(transicaoDoHub({ status: "ativo", isento }, "cancelado", agora).tipo).toBe("conflito");
+  });
+
+  it("mas ativar continua valendo (tirar de uma suspensão antiga, por exemplo)", () => {
+    const t = transicaoDoHub({ status: "suspenso", isento }, "ativo", agora);
+    expect(t).toMatchObject({ tipo: "aplicar", para: "ativo" });
+  });
+
+  it("isenção desligada volta a obedecer o Hub", () => {
+    expect(isentoDeCobranca({ isento: { ativa: false } })).toBe(false);
+    expect(isentoDeCobranca({})).toBe(false);
+    expect(transicaoDoHub({ status: "ativo", isento: { ativa: false } }, "suspenso", agora).tipo).toBe("aplicar");
+  });
+
+  it("o cadastro vai ao Hub com o plano, valor zero e a marca de isenção", () => {
+    const corpo = montarEvento({
+      evento: "cadastrada",
+      barbershopId: "ZE8iNGVKp3l7OqZFJbqF",
+      slug: "osiqueira",
+      nome: "O Siqueira",
+      ocorridoEm: new Date(agora),
+      plano: "gestao",
+      isento: true,
+    });
+    expect(corpo).toMatchObject({ isento: true, plano: "gestao", valor: 0, ciclo: "mensal" });
+    /* O id não muda: a carga inicial continua idempotente. */
+    expect(corpo.eventoId).toBe("cadastrada:ZE8iNGVKp3l7OqZFJbqF");
+  });
+
+  it("escolher plano isento não manda preço", () => {
+    const corpo = montarEvento({
+      evento: "plano_escolhido",
+      barbershopId: "x",
+      slug: "x",
+      nome: "x",
+      ocorridoEm: new Date(agora),
+      plano: "gestao",
+      isento: true,
+    });
+    expect(corpo.valor).toBe(0);
+  });
+
+  it("sem isenção, o cadastro segue sem plano nem valor, como no contrato v1", () => {
+    const corpo = montarEvento({
+      evento: "cadastrada",
+      barbershopId: "x",
+      slug: "x",
+      nome: "x",
+      ocorridoEm: new Date(agora),
+    });
+    expect(corpo).not.toHaveProperty("isento");
+    expect(corpo).not.toHaveProperty("valor");
   });
 });
