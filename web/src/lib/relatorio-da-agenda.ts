@@ -236,9 +236,16 @@ export function montarRelatorio(reservas: readonly Reserva[], mes: string, ctx: 
       case "concluido":
         resumo.concluidos += 1;
         resumo.valorPrevisto += linha.valor;
-        resumo.valorRealizado += linha.valor;
-        if (b.cobertura?.tipo === "plano") {
-          resumo.valorCobertoPeloPlano += valorSeguro(b.cobertura.valorCoberto);
+        {
+          /* O que o plano cobriu NÃO é dinheiro deste atendimento: a mensalidade
+           * já entra como receita própria no Financeiro. Somar o preço cheio
+           * faria o PDF divergir do Financeiro (revisão do PR #81). */
+          const coberto =
+            b.cobertura?.tipo === "plano"
+              ? Math.min(linha.valor, valorSeguro(b.cobertura.valorCoberto))
+              : 0;
+          resumo.valorRealizado += linha.valor - coberto;
+          resumo.valorCobertoPeloPlano += coberto;
         }
         break;
       case "a_fazer":

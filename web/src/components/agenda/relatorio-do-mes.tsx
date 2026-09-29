@@ -189,9 +189,9 @@ export function RelatorioDoMes({ mesParam }: { mesParam?: string }) {
                 <p className="text-xs text-ink-muted">Valor realizado</p>
                 <p className="font-display text-xl text-ink">{formatBRL(resumo.valorRealizado)}</p>
                 <p className="text-xs text-ink-muted">
-                  Só concluídos
+                  Pago nos atendimentos concluídos
                   {resumo.valorCobertoPeloPlano > 0 &&
-                    ` · ${formatBRL(resumo.valorCobertoPeloPlano)} cobertos pelo plano dos mensalistas`}
+                    ` · mais ${formatBRL(resumo.valorCobertoPeloPlano)} cobertos pelo plano (a mensalidade entra no Financeiro)`}
                 </p>
               </Card>
             </div>

@@ -262,7 +262,8 @@ describe("parte coberta pelo plano", () => {
       "2026-10",
       ctx
     );
-    expect(r.resumo.valorRealizado).toBe(90);
+    // O corte coberto pelo plano não é dinheiro do atendimento: só os R$ 40 do avulso.
+    expect(r.resumo.valorRealizado).toBe(40);
     expect(r.resumo.valorCobertoPeloPlano).toBe(50);
   });
 });
