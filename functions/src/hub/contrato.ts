@@ -1,6 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { FieldValue } from "firebase-admin/firestore";
-import { toPlanId, type PlanId } from "../plans";
+import { PRECOS_POR_PLANO, toPlanId, type PlanId } from "../plans";
 import { validateSlug } from "../signup";
 import { camposDeEncerramento, camposDeReabertura } from "../data-deletion";
 
@@ -290,17 +290,14 @@ export function transicaoDoHub(
 export type EventoDoTopete = "cadastrada" | "onboarding_concluido" | "plano_escolhido" | "pediu_cancelamento";
 
 /**
- * Preço mensal de cada plano, em R$ — o `valor` de `plano_escolhido`.
- *
- * TODO: ler de `plans.ts` quando o preço entrar lá (está sendo adicionado em
- * paralelo). Duas tabelas de preço é o tipo de coisa que diverge; esta é a
- * mínima para o aviso sair, e o Hub não cobra por ela — o operador confere e
- * aplica.
+ * Preço mensal de cada plano, em R$ — o `valor` de `plano_escolhido`. Lido da
+ * tabela única de `plans.ts` (29/09): uma fonte só para a tela, a landing e o
+ * aviso ao Hub. O Hub não cobra por ele — o operador confere e aplica.
  */
 export const PRECO_MENSAL: Record<PlanId, number> = {
-  agenda: 97,
-  crescimento: 197,
-  gestao: 247,
+  agenda: PRECOS_POR_PLANO.agenda.mensal,
+  crescimento: PRECOS_POR_PLANO.crescimento.mensal,
+  gestao: PRECOS_POR_PLANO.gestao.mensal,
 };
 
 export type CorpoDoEvento = {
