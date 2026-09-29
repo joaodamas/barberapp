@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Topete · Apresentação</title>
+<link rel="stylesheet" href="base.css">
+<style>
+@page{size:338.67mm 190.5mm;margin:0}
+body{background:var(--preto)}
+.slide{width:338.67mm;height:190.5mm;position:relative;overflow:hidden;page-break-after:always;padding:16mm 20mm;display:flex;flex-direction:column;background:var(--papel)}
+.slide.escuro{background:var(--preto);color:var(--marfim)}
+.slide.escuro .rot{color:var(--latao)}
+.slide h2{font-size:40pt;line-height:1.02;max-width:210mm}
+.slide.escuro h2 em{font-style:normal;color:var(--latao)}
+.slide h2 em{font-style:normal;color:var(--latao-escuro)}
+.lead{font-size:16pt;line-height:1.45;color:var(--tinta-2);max-width:180mm;margin-top:5mm}
+.escuro .lead{color:#CFC6B4}
+.rodape{position:absolute;left:20mm;right:20mm;bottom:9mm;display:flex;justify-content:space-between;font-size:10pt;color:#9A907C}
+.rodape img{height:6mm}
+.num-slide{font-weight:800;color:var(--latao-escuro)}
+.escuro .num-slide{color:var(--latao)}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8mm;margin-top:auto;margin-bottom:12mm}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8mm}
+.card{border-top:2px solid var(--latao);padding-top:4mm;display:grid;gap:2mm}
+.card h3{font-size:19pt}
+.card p{color:var(--tinta-2);font-size:13pt;line-height:1.45}
+.escuro .card p{color:#CFC6B4}
+.lado{display:grid;grid-template-columns:1fr auto;gap:14mm;align-items:center;flex:1}
+.lista{display:grid;gap:4mm;margin-top:7mm;padding:0;list-style:none;counter-reset:n}
+.lista li{display:grid;grid-template-columns:11mm 1fr;gap:4mm;counter-increment:n;font-size:13pt;line-height:1.4}
+.lista li::before{content:counter(n);width:9mm;height:9mm;border-radius:50%;background:var(--preto);color:var(--latao);display:grid;place-items:center;font-weight:800;font-family:Fraunces;font-size:12pt}
+.escuro .lista li::before{background:var(--latao);color:var(--preto)}
+.lista b{display:block;font-size:15pt}
+.lista span{color:var(--tinta-2)}
+.escuro .lista span{color:#CFC6B4}
+/* capa */
+.capa{justify-content:space-between}
+.capa .poste{position:absolute;right:0;top:0;bottom:0;width:14mm;background:repeating-linear-gradient(-45deg,var(--latao) 0 7mm,var(--preto) 7mm 14mm,var(--marfim) 14mm 21mm,var(--preto) 21mm 28mm)}
+.capa h1{font-size:64pt;line-height:.95;max-width:190mm}
+.capa h1 em{font-style:normal;color:var(--latao)}
+.capa .sub{font-size:17pt;color:#CFC6B4;max-width:180mm;margin-top:6mm}
+/* tabela */
+table{border-collapse:collapse;width:100%;font-size:13.5pt}
+td,th{padding:3mm 4mm;border-bottom:1px solid var(--linha);text-align:left}
+th{font-size:8pt;letter-spacing:.14em;text-transform:uppercase;color:var(--tinta-2)}
+td:nth-child(2){text-align:right;font-weight:700}
+tr.total td{border-top:2px solid var(--tinta);font-size:13pt;border-bottom:none}
+/* planos */
+.planos{display:grid;grid-template-columns:repeat(3,1fr);gap:7mm;margin-top:8mm}
+.plano{border:1px solid var(--linha);border-radius:5mm;padding:7mm;background:#fff;display:grid;gap:3mm;align-content:start}
+.plano.dest{border:2px solid var(--latao);background:var(--preto);color:var(--marfim)}
+.plano.dest .rot{color:var(--latao)}
+.preco{font-family:Fraunces;font-weight:700;font-size:30pt;line-height:1}
+.preco small{font-family:Manrope;font-size:10pt;font-weight:600;color:var(--tinta-2)}
+.plano.dest .preco small{color:#CFC6B4}
+.plano ul{margin:0;padding-left:5mm;display:grid;gap:1.6mm;font-size:12.5pt}
+.teto{font-size:11pt;font-weight:800;color:var(--latao-escuro)}
+.plano.dest .teto{color:var(--latao)}
+.faixa{display:flex;gap:8mm;margin-top:6mm;font-size:12pt}
+.faixa div{flex:1;background:var(--marfim);border-radius:3mm;padding:4mm 5mm}
+.slide .fone{zoom:1.32}
+.slide .rot{font-size:10pt}
+.plano .rot{font-size:9pt}
+</style>
+</head>
+<body>
+
+<!-- 1 capa -->
+<section class="slide escuro capa">
+  <div class="poste"></div>
+  <img src="../marca/topete-mascote.svg" alt="" style="position:absolute;right:34mm;top:26mm;height:140mm;width:auto">
+  <img src="../marca/topete-logo-escuro-transparente.svg" alt="Topete" style="height:20mm;width:auto;align-self:flex-start;margin-left:-2mm">
+  <div>
+    <p class="rot">Sistema para barbearias</p>
+    <h1 style="margin-top:4mm">Agenda cheia.<br><em>Cadeira</em> girando.</h1>
+    <p class="sub">Agendamento online com a marca da sua barbearia, agenda do dia na palma da mão, mensalistas e financeiro, tudo num lugar só.</p>
+  </div>
+  <p style="font-size:9pt;color:#9A907C">@usetopete · topete.com.br</p>
+</section>
+
+<!-- 2 problema -->
+<section class="slide">
+  <p class="rot">O dia a dia de hoje</p>
+  <h2 style="margin-top:3mm">A agenda mora no WhatsApp. O caixa, no caderno. O mensalista, <em>na memória.</em></h2>
+  <div class="grid3">
+    <div class="card"><h3>“Tem horário sábado?”</h3><p>Dezenas de mensagens por dia só para marcar e desmarcar. O barbeiro para o corte para responder.</p></div>
+    <div class="card"><h3>Horário vago que ninguém viu</h3><p>Cliente desmarca em cima da hora, o horário fica vazio e ninguém fica sabendo a tempo de encaixar outro.</p></div>
+    <div class="card"><h3>O mês fecha no escuro</h3><p>Quanto entrou, quanto foi de comissão, quanto a maquininha comeu, quanto sobrou. Ninguém sabe ao certo.</p></div>
+  </div>
+  <div class="rodape"><span>Topete · Apresentação</span><span class="num-slide">02</span></div>
+</section>
+
+<!-- 3 cliente -->
+<section class="slide">
+  <div class="lado">
+    <div>
+      <p class="rot">Para o cliente da barbearia</p>
+      <h2 style="margin-top:3mm">Três toques e o horário <em>é dele.</em></h2>
+      <p class="lead">O cliente abre o link da barbearia (Instagram, Google, status do WhatsApp) e agenda sozinho, a qualquer hora, sem baixar aplicativo.</p>
+      <ol class="lista">
+        <li><div><b>Escolhe o serviço</b><span>O tempo soma sozinho: corte + barba de 60 minutos reserva uma hora inteira.</span></div></li>
+        <li><div><b>Escolhe o dia, o barbeiro e o horário</b><span>Só aparecem horários que cabem de verdade.</span></div></li>
+        <li><div><b>Confirma com a conta</b><span>E-mail confirmado ou conta Google. Depois ele remarca e cancela pelo celular.</span></div></li>
+      </ol>
+    </div>
+    <div class="fone"><div class="tela">
+      <div class="tela-top"><span class="m-logo">BZ</span><div><b>Barbearia do Zé</b><small>barbeariadoze.topete.com.br</small></div></div>
+      <div class="tela-corpo">
+        <span class="t-rot">Serviço</span>
+        <div class="t-serv on"><div><b>Corte + barba</b><br><span style="color:#6B6456">60 min</span></div><b>R$ 90</b></div>
+        <div class="t-serv"><div><b>Corte</b><br><span style="color:#6B6456">30 min</span></div><b>R$ 50</b></div>
+        <span class="t-rot">Dia</span>
+        <div class="t-dias"><div class="t-dia">SEX<b>02</b></div><div class="t-dia on">SÁB<b>03</b></div><div class="t-dia off">DOM<b>04</b></div><div class="t-dia">SEG<b>05</b></div></div>
+        <span class="t-rot">Horário · com Diego</span>
+        <div class="t-horas"><div class="t-hora">09:00</div><div class="t-hora on">10:00</div><div class="t-hora enc">11:00</div><div class="t-hora">14:00</div><div class="t-hora">15:00</div><div class="t-hora enc">16:00</div><div class="t-hora">17:00</div><div class="t-hora">18:00</div></div>
+        <div class="t-btn">Confirmar reserva · R$ 90</div>
+      </div>
+    </div></div>
+  </div>
+  <div class="rodape"><span>Topete · Apresentação</span><span class="num-slide">03</span></div>
+</section>
+
+<!-- 4 encaixe -->
+<section class="slide escuro">
+  <p class="rot">Encaixe</p>
+  <h2 style="margin-top:3mm">Horário ocupado não é porta fechada. <em>Vira encaixe.</em></h2>
+  <p class="lead">O horário ocupado aparece tracejado. O cliente pede, o barbeiro decide, e o Topete mostra se cabe pelo tempo de cada serviço.</p>
+  <div class="grid3">
+    <div class="card"><h3>O cliente pede</h3><p>Escolhe o horário marcado como encaixe e avisa a barbearia pelo WhatsApp com a mensagem pronta.</p></div>
+    <div class="card"><h3>O Topete sugere</h3><p>“Dá para encaixar”, “Apertado” ou “Não recomendado”, olhando o que já está marcado ao redor.</p></div>
+    <div class="card"><h3>O barbeiro aprova</h3><p>Aprovou, vira atendimento. Recusou, o cliente vê outros horários livres. Sem resposta, expira sozinho.</p></div>
+  </div>
+  <div class="rodape"><span>Topete · Apresentação</span><span class="num-slide">04</span></div>
+</section>
+
+<!-- 5 agenda do dono -->
+<section class="slide">
+  <div class="lado">
+    <div>
+      <p class="rot">Para o dono</p>
+      <h2 style="margin-top:3mm">O dia inteiro <em>numa tela só.</em></h2>
+      <p class="lead">A grade do dia mostra o que está livre, o que está ocupado e onde cada pedido de encaixe cairia. Tocou num atendimento, abre o detalhe com as ações.</p>
+      <ol class="lista">
+        <li><div><b>Marca, remarca e cancela</b><span>Quem ligou ou chegou no balcão entra em segundos, em qualquer dia.</span></div></li>
+        <li><div><b>Libera a agenda por período</b><span>De 15 em 15 dias para o avulso; o mensalista enxerga mais à frente.</span></div></li>
+        <li><div><b>Fecha cada atendimento</b><span>Um toque na forma de pagamento e o valor entra no caixa, com a comissão calculada.</span></div></li>
+      </ol>
+    </div>
+    <div class="fone"><div class="tela">
+      <div class="tela-top preta"><span class="m-logo">BZ</span><div><b>Agenda · Sábado, 03</b><small>7 atendimentos · 1 pedido de encaixe</small></div></div>
+      <div class="tela-corpo">
+        <div class="t-grade">
+          <span class="h">09:00</span><div class="t-slot oc"><b>Rafael · Corte</b>09:00–09:30</div>
+          <span class="h">09:30</span><div class="t-slot">Livre · marcar</div>
+          <span class="h">10:00</span><div class="t-slot oc"><b>Lucas · Corte + barba</b>10:00–11:00</div>
+          <span class="h">11:00</span><div class="t-slot enc"><b>Encaixe · João</b>Dá para encaixar</div>
+          <span class="h">11:30</span><div class="t-slot">Livre · marcar</div>
+          <span class="h">12:00</span><div class="t-slot pausa">Intervalo</div>
+          <span class="h">13:00</span><div class="t-slot oc"><b>Pedro · Barba</b>13:00–13:30</div>
+          <span class="h">13:30</span><div class="t-slot">Livre · marcar</div>
+          <span class="h">14:00</span><div class="t-slot oc"><b>André · mensalista</b>14:00–14:30</div>
+          <span class="h">14:30</span><div class="t-slot">Livre · marcar</div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+  <div class="rodape"><span>Topete · Apresentação</span><span class="num-slide">05</span></div>
+</section>
+
+<!-- 6 negócio -->
+<section class="slide">
+  <p class="rot">O negócio por trás da cadeira</p>
+  <h2 style="margin-top:3mm">Cliente que volta é o que <em>paga o aluguel.</em></h2>
+  <div class="grid3" style="grid-template-columns:repeat(3,1fr);row-gap:9mm">
+    <div class="card"><h3>Mensalistas</h3><p>Planos como “cortes ilimitados” ou “2 cortes por mês”, faturas do mês e quem está em aberto. O mensalista agenda com prioridade.</p></div>
+    <div class="card"><h3>Clientes</h3><p>A ficha de cada um: visitas, último corte, quanto gastou, próximo horário. E quem está sumindo, para chamar de volta.</p></div>
+    <div class="card"><h3>Fidelidade</h3><p>Carimbo a cada atendimento, com a regra e o prêmio que você definir.</p></div>
+    <div class="card"><h3>Loja</h3><p>Pomada, shampoo, óleo de barba. Venda no balcão, estoque baixando sozinho e aviso de reposição.</p></div>
+    <div class="card"><h3>Equipe</h3><p>Cada barbeiro com os próprios serviços, horários e comissão. O cliente escolhe com quem quer cortar.</p></div>
+    <div class="card"><h3>WhatsApp</h3><p>Mensagem pronta para confirmar, avisar e remarcar, com um toque. Lembretes automáticos em breve.</p></div>
+  </div>
+  <div class="rodape"><span>Topete · Apresentação</span><span class="num-slide">06</span></div>
+</section>
+
+<!-- 7 financeiro -->
+<section class="slide">
+  <div class="grid2" style="flex:1;align-items:center;gap:16mm">
+    <div>
+      <p class="rot">Financeiro</p>
+      <h2 style="margin-top:3mm">O número do mês, <em>sem caderno.</em></h2>
+      <p class="lead">Cada corte concluído entra no caixa com a forma de pagamento. Cada venda, cada despesa, cada taxa de maquininha. No fim do mês o Topete mostra quanto sobrou, e projeta o que ainda vai entrar.</p>
+    </div>
+    <div>
+      <table class="mono">
+        <thead><tr><th>Fechamento do mês</th><th style="text-align:right">Valor</th></tr></thead>
+        <tbody>
+          <tr><td>Atendimentos</td><td>R$ 18.450</td></tr>
+          <tr><td>Mensalidades (40 mensalistas)</td><td>R$ 5.960</td></tr>
+          <tr><td>Loja</td><td>R$ 1.320</td></tr>
+          <tr><td>Taxas das maquininhas</td><td>− R$ 512</td></tr>
+          <tr><td>Comissões dos barbeiros</td><td>− R$ 9.870</td></tr>
+          <tr><td>Despesas fixas</td><td>− R$ 6.200</td></tr>
+          <tr class="total"><td><b>Sobrou para a barbearia</b></td><td>R$ 9.148</td></tr>
+        </tbody>
+      </table>
+      <p style="font-size:8pt;color:var(--tinta-2);margin-top:3mm">Valores ilustrativos de uma barbearia com 3 barbeiros.</p>
+    </div>
+  </div>
+  <div class="rodape"><span>Topete · Apresentação</span><span class="num-slide">07</span></div>
+</section>
+
+<!-- 8 marca -->
+<section class="slide escuro">
+  <p class="rot">Sua marca, seu app</p>
+  <h2 style="margin-top:3mm">O cliente vê a sua barbearia. <em>Não a gente.</em></h2>
+  <p class="lead">Cada barbearia tem endereço próprio, logo e cores. O cliente instala na tela do celular como um aplicativo, com o ícone da barbearia, e ele se atualiza sozinho.</p>
+  <div class="grid3">
+    <div class="card"><h3>suabarbearia.topete.com.br</h3><p>Para a bio do Instagram, o Google e o QR code do balcão.</p></div>
+    <div class="card"><h3>Logo e cores da casa</h3><p>Botões e destaques seguem a cor da barbearia, com contraste garantido para leitura.</p></div>
+    <div class="card"><h3>Seguro e seu</h3><p>Dados em São Paulo, cópia de segurança automática, cada barbearia isolada das outras e LGPD pelo próprio app.</p></div>
+  </div>
+  <div class="rodape"><span>Topete · Apresentação</span><span class="num-slide">08</span></div>
+</section>
+
+<!-- 9 implantação -->
+<section class="slide">
+  <p class="rot">Como começar</p>
+  <h2 style="margin-top:3mm">Da conversa ao primeiro agendamento <em>em um dia.</em></h2>
+  <ol class="lista" style="grid-template-columns:1fr 1fr;column-gap:14mm;margin-top:10mm">
+    <li><div><b>Conversa de 20 minutos</b><span>Mostramos funcionando e entendemos a sua rotina.</span></div></li>
+    <li><div><b>Configuração junto com você</b><span>Endereço, logo, cores, serviços, preços, horários e equipe.</span></div></li>
+    <li><div><b>Mensalistas e clientes</b><span>Cadastramos com você quem já é da casa.</span></div></li>
+    <li><div><b>Primeiro acesso do dono</b><span>Você cria sua senha e instala o painel no celular.</span></div></li>
+    <li><div><b>Divulgação do link</b><span>QR code no balcão, link na bio e mensagem pronta para os clientes.</span></div></li>
+    <li><div><b>Acompanhamento</b><span>A gente olha a primeira semana com você.</span></div></li>
+  </ol>
+  <div class="rodape"><span>Topete · Apresentação</span><span class="num-slide">09</span></div>
+</section>
+
+<!-- 10 planos -->
+<section class="slide">
+  <p class="rot">Planos</p>
+  <h2 style="margin-top:3mm">Preço por barbearia, <em>não por cadeira.</em></h2>
+  <div class="planos">
+    <div class="plano"><p class="rot">Agenda</p><p class="preco mono">R$ 97<small> /mês</small></p><p class="teto">Até 3 barbeiros</p>
+      <ul><li>Agendamento online com a sua marca</li><li>Encaixe com aprovação</li><li>Grade do dia e liberação da agenda</li><li>Clientes, caixa do dia e comissões</li></ul></div>
+    <div class="plano dest"><p class="rot">Crescimento · mais escolhido</p><p class="preco mono">R$ 197<small> /mês</small></p><p class="teto">Até 6 barbeiros</p>
+      <ul><li>Tudo do Agenda</li><li>Mensalistas e faturas</li><li>Fidelidade e loja com estoque</li><li>Projeção do mês</li></ul></div>
+    <div class="plano"><p class="rot">Gestão</p><p class="preco mono">R$ 247<small> /mês</small></p><p class="teto">Até 10 barbeiros</p>
+      <ul><li>Tudo do Crescimento</li><li>DRE e fechamento do mês</li><li>Suporte prioritário</li></ul></div>
+  </div>
+  <div class="faixa">
+    <div><b>Barbeiro extra:</b> R$ 19/mês acima do teto.</div>
+    <div><b>Anual:</b> pague 10 meses, use 12.</div>
+    <div><b>Fundadores:</b> 30% de desconto para sempre nas 20 primeiras barbearias.</div>
+  </div>
+  <div class="rodape"><span>Topete · Apresentação</span><span class="num-slide">10</span></div>
+</section>
+
+<!-- 11 contato -->
+<section class="slide escuro capa">
+  <div class="poste"></div>
+  <img src="../marca/topete-mascote.svg" alt="" style="position:absolute;right:34mm;bottom:22mm;height:120mm;width:auto">
+  <img src="../marca/topete-logo-escuro-transparente.svg" alt="Topete" style="height:18mm;width:auto;align-self:flex-start">
+  <div>
+    <h2 style="font-size:44pt">Vamos encher a sua <em>agenda?</em></h2>
+    <p class="lead">Chame no Instagram e marque uma demonstração de 20 minutos. A gente mostra o Topete funcionando com os serviços da sua barbearia.</p>
+  </div>
+  <p style="font-size:14pt;font-weight:800;color:var(--latao)">@usetopete · topete.com.br</p>
+</section>
+</body>
+</html>
