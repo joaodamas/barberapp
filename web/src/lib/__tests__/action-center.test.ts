@@ -97,6 +97,23 @@ describe("fechamento pendente", () => {
     expect(fechamentosPendentes([avulso])).toHaveLength(1);
   });
 
+  it("cortesia (desconto de 100%, 28/09) NÃO é pendência", () => {
+    /* Sem forma de pagamento de propósito: não entrou dinheiro, o servidor não
+     * cria pagamento, e "Registrar pagamento" levaria a uma correção que ele
+     * recusa (`sem_pagamento`). Vale antes do gatilho (só o desconto na
+     * reserva) e depois (a marca `cortesia` na cobertura). */
+    const antesDoGatilho = bk({ id: "c1", paymentMethod: null, discountAmount: 50 });
+    const depoisDoGatilho = bk({
+      id: "c2",
+      paymentMethod: null,
+      discountAmount: 50,
+      cobertura: { tipo: "avulso", motivo: "cortesia", valorCoberto: 0 },
+    });
+    expect(fechamentosPendentes([antesDoGatilho, depoisDoGatilho])).toHaveLength(0);
+    // Desconto PARCIAL sem forma continua sendo pendência: houve cobrança.
+    expect(fechamentosPendentes([bk({ id: "c3", paymentMethod: null, discountAmount: 10 })])).toHaveLength(1);
+  });
+
   it("morre quando o pagamento é registrado, não por descarte", () => {
     const antes = fechamentosPendentes([bk({ id: "1", paymentMethod: null })]);
     const depois = fechamentosPendentes([bk({ id: "1", paymentMethod: "debit" })]);

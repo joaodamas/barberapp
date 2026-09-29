@@ -10,6 +10,7 @@ import {
   idDaComissaoDeCicloNovo,
   idDoEstornoDaComissaoDeServico,
 } from "./comissoes";
+import { descontoAplicavel, ehCortesia } from "./desconto";
 
 /**
  * Materialização do evento financeiro do atendimento.
@@ -208,8 +209,20 @@ export function calcularEventoFinanceiro(params: {
   formas?: FormaDePagamento[];
   /** A forma escolhida no fechamento, congelada junto com a taxa dela. */
   formaId?: string | null;
+  /**
+   * Desconto dado no fechamento, em R$ — pedido do dono em 28/09.
+   *
+   * Limitado aqui ao `valor` (nunca passa do bruto), e ausente vale zero.
+   */
+  desconto?: unknown;
 }) {
-  const valor = Number(params.valor) || 0;
+  /* `valor` continua sendo o BRUTO de tabela — o preço do atendimento. O que
+   * vira dinheiro é o COBRADO: é sobre ele que a maquininha cobra a taxa e que
+   * o barbeiro ganha a comissão (decisão 3 do dono). Calcular a comissão sobre
+   * o bruto faria a casa pagar do bolso o desconto que ela mesma deu. */
+  const bruto = Number(params.valor) || 0;
+  const desconto = descontoAplicavel({ valor: bruto, discountAmount: params.desconto });
+  const valor = centavos(bruto - desconto);
   const commissionPct = percentualDaComissao({
     doProfissional: params.commissionPctDoBarbeiro,
     padrao: params.padraoPct,
@@ -233,16 +246,30 @@ export function calcularEventoFinanceiro(params: {
     formaId: params.formaId,
   });
 
+  /* O bruto de tabela e o desconto vão para os DOIS documentos, mas só quando
+   * houve desconto: `grossAmount` e `commissionBase` já são o cobrado, e o par
+   * é o que deixa o fato auditável — "R$ 50,00 com R$ 10,00 de desconto" não se
+   * reconstrói a partir de R$ 40,00. Ausente = sem desconto, que é o que todo
+   * documento anterior ao campo é.
+   *
+   * Na comissão ele também existe porque a CORTESIA não tem pagamento: é a
+   * comissão (base R$ 0,00) que guarda o bruto que a reversão precisa congelar. */
+  const doDesconto = desconto > 0 ? { originalAmount: bruto, discountAmount: desconto } : {};
+
   return {
     commission: {
       commissionPct,
       commissionBase: valor,
       commissionAmount: centavos((valor * commissionPct) / 100),
+      ...doDesconto,
     },
     payment: {
       paymentOrigin: params.origem ?? "in_person",
       ...payment,
+      ...doDesconto,
     },
+    /** Desconto de 100%: não entrou dinheiro — ver `ehCortesia`. */
+    cortesia: ehCortesia({ valor: bruto, desconto }),
   };
 }
 
@@ -322,8 +349,20 @@ export type CicloFinanceiro = {
     uid: string | null;
     staffName: string | null;
   } | null;
-  /** CONGELADO do pagamento apagado — o bruto é o do FATO, não o da reserva hoje. */
-  pagamento: { grossAmount: number } | null;
+  /**
+   * CONGELADO do pagamento apagado — o bruto é o do FATO, não o da reserva hoje.
+   *
+   * Com desconto (28/09), `grossAmount` aqui é o bruto de TABELA, e não o
+   * cobrado que o pagamento guardava: o desconto é reaplicado na reconclusão, e
+   * congelar o cobrado descontaria duas vezes. `discountAmount` é congelado
+   * junto, pela mesma razão do bruto — a reconclusão não reconstrói o fato a
+   * partir do que a reserva diz agora. Ausente = sem desconto, que é o que todo
+   * ciclo anterior ao campo é.
+   *
+   * A CORTESIA não tem pagamento; nela o par sai da comissão (base R$ 0,00),
+   * que carrega o bruto e o desconto exatamente para isto.
+   */
+  pagamento: { grossAmount: number; discountAmount?: number } | null;
   /**
    * Qual documento de comissão está valendo agora.
    *
@@ -333,7 +372,111 @@ export type CicloFinanceiro = {
    * que recebeu uma vez só.
    */
   comissaoVigenteId?: string | null;
+  /**
+   * O resto do desconto que estava na reserva — o que o dono digitou, o
+   * motivo, quem deu e quando. Revisão do PR #82.
+   *
+   * A reversão apaga os campos de desconto da reserva (a reserva volta à
+   * agenda, e um desconto exibido ali seria de um fechamento desfeito). O VALOR
+   * do desconto fica em `pagamento.discountAmount`, mas as leituras da tela
+   * leem a RESERVA (`valorCobrado`, "Descontos do mês", gasto do cliente).
+   * Sem isto, a reconclusão materializava o pagamento com desconto e a
+   * reserva voltava a dizer preço cheio. Ausente = não havia desconto.
+   */
+  descontoDaReserva?: DescontoDaReserva | null;
 };
+
+/** Os campos de autoria e origem do desconto, congelados na reversão. */
+export type DescontoDaReserva = {
+  discountInput?: unknown;
+  discountReason?: unknown;
+  discountBy?: unknown;
+  discountAt?: unknown;
+};
+
+/**
+ * O que a reversão congela da reserva sobre o desconto. Nulo sem desconto.
+ */
+export function descontoDaReservaCongelado(
+  reserva: Record<string, unknown> | undefined
+): DescontoDaReserva | null {
+  if (!reserva || !(Number(reserva.discountAmount) > 0)) return null;
+  return {
+    discountInput: reserva.discountInput ?? null,
+    discountReason: reserva.discountReason ?? null,
+    discountBy: reserva.discountBy ?? null,
+    discountAt: reserva.discountAt ?? null,
+  };
+}
+
+/**
+ * Os campos de desconto que a RECONCLUSÃO regrava na reserva — revisão do
+ * PR #82.
+ *
+ * Numa reconclusão com fato congelado, quem manda é o desconto congelado (a
+ * mesma regra do bruto, P1-7). A reserva precisa dizer o mesmo que o
+ * pagamento, senão as leituras derivadas dela contam o preço cheio de um
+ * atendimento que foi cobrado com desconto. Por isso:
+ *
+ * - desconto congelado > 0 → regrava o valor e a autoria congelada (sem ela,
+ *   o valor vira o próprio registro: "R$ X em reais");
+ * - desconto congelado = 0 → `null`, e o chamador APAGA os campos: um
+ *   desconto que a escrita da reconclusão tenha trazido não valeu, e deixá-lo
+ *   na reserva afirmaria um desconto que o pagamento não teve.
+ */
+export function descontoDaReconclusao(params: {
+  desconto: number;
+  congelado?: DescontoDaReserva | null;
+}): Record<string, unknown> | null {
+  if (!(params.desconto > 0)) return null;
+  const c = params.congelado ?? null;
+  return {
+    discountAmount: params.desconto,
+    discountInput: c?.discountInput ?? { tipo: "valor", valor: params.desconto },
+    discountReason: c?.discountReason ?? null,
+    discountBy: c?.discountBy ?? null,
+    discountAt: c?.discountAt ?? null,
+  };
+}
+
+/**
+ * O bruto e o desconto do fato, para a reversão congelar — P1-7 + desconto.
+ *
+ * Pura para ser verificável sem emulador, como `decidirEfeito`. Recebe os dois
+ * documentos que a reversão lê e devolve o que vai para
+ * `cicloFinanceiro.pagamento`:
+ *
+ * - com pagamento: o bruto de TABELA (`originalAmount`, quando houve desconto;
+ *   senão `grossAmount`, que então já era o bruto) e o desconto;
+ * - sem pagamento e com desconto na comissão: é a CORTESIA, e o par sai da
+ *   comissão, que o carrega por isso;
+ * - sem os dois: `null`, como sempre foi (o atendimento coberto pelo plano).
+ *
+ * O erro que ela evita é o do desconto em dobro: congelar o `grossAmount` de
+ * um pagamento com desconto (o COBRADO) e reaplicar o desconto na reconclusão
+ * transformaria R$ 50,00 − R$ 10,00 em R$ 40,00 − R$ 10,00.
+ */
+export function brutoDoFatoCongelado(
+  pagamento: Record<string, unknown> | null,
+  comissao: Record<string, unknown> | null
+): CicloFinanceiro["pagamento"] {
+  if (pagamento) {
+    const desconto = Number(pagamento.discountAmount) || 0;
+    const bruto =
+      desconto > 0 && pagamento.originalAmount !== undefined
+        ? Number(pagamento.originalAmount) || 0
+        : Number(pagamento.grossAmount) || 0;
+    return desconto > 0 ? { grossAmount: bruto, discountAmount: desconto } : { grossAmount: bruto };
+  }
+  const descontoDaComissao = Number(comissao?.discountAmount) || 0;
+  if (comissao && descontoDaComissao > 0) {
+    return {
+      grossAmount: Number(comissao.originalAmount) || 0,
+      discountAmount: descontoDaComissao,
+    };
+  }
+  return null;
+}
 
 /**
  * O documento de comissão que está valendo para esta reserva.
@@ -522,6 +665,9 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
 
       const congelado: CicloFinanceiro = {
         revertidoEm: chave,
+        /* Lido da reserva ATUAL, dentro da transação — é ela que o `set` abaixo
+         * vai limpar. */
+        descontoDaReserva: descontoDaReservaCongelado(atual.data()),
         comissao: comissaoSnap.exists
           ? {
               commissionPct: Number(comissaoSnap.get("commissionPct")) || 0,
@@ -535,9 +681,10 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
          * `depois.value` de agora: editar o preço do serviço entre as duas
          * conclusões faria o "mesmo" pagamento renascer com outro bruto, e nada
          * registraria a troca. */
-        pagamento: pagamentoSnap.exists
-          ? { grossAmount: Number(pagamentoSnap.get("grossAmount")) || 0 }
-          : null,
+        pagamento: brutoDoFatoCongelado(
+          pagamentoSnap.exists ? pagamentoSnap.data() ?? null : null,
+          comissaoSnap.exists ? comissaoSnap.data() ?? null : null
+        ),
       };
 
       if (comissaoSnap.exists && congelado.comissao?.staffId) {
@@ -573,6 +720,16 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
           paymentMethod: null,
           paymentFormId: null,
           paymentFormLabel: null,
+          /* O desconto sai com o método: ele foi dado NAQUELE fechamento, que
+           * acaba de ser desfeito. O valor que vale para a reconclusão já está
+           * congelado em `cicloFinanceiro.pagamento`; deixar os campos na
+           * reserva faria uma reserva de volta à agenda exibir um desconto de
+           * um atendimento que, para o produto, ainda não aconteceu. */
+          discountAmount: FieldValue.delete(),
+          discountInput: FieldValue.delete(),
+          discountReason: FieldValue.delete(),
+          discountBy: FieldValue.delete(),
+          discountAt: FieldValue.delete(),
           cicloFinanceiro: congelado,
         },
         { merge: true }
@@ -595,6 +752,17 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
     const valor = reconclusao && ciclo?.pagamento
       ? ciclo.pagamento.grossAmount
       : Number(depois.value) || 0;
+    /* O desconto do FATO, com a mesma regra do bruto — P1-7.
+     *
+     * Numa reconclusão com pagamento congelado, vale o desconto congelado junto
+     * dele (ausente = zero, que é o que todo ciclo anterior ao campo teve). Fora
+     * disso vale o que o dono gravou na conclusão, limitado ao bruto aqui
+     * dentro — a regra do Firestore já confere, e o servidor não depende dela. */
+    const descontoPedido = reconclusao && ciclo?.pagamento
+      ? ciclo.pagamento.discountAmount ?? 0
+      : depois.discountAmount;
+    const desconto = descontoAplicavel({ valor, discountAmount: descontoPedido });
+    const cortesia = ehCortesia({ valor, desconto });
     const metodo = (depois.paymentMethod ?? null) as PaymentMethod | null;
     const staffId = String(depois.staffId ?? "");
     const date = String(depois.date ?? "");
@@ -635,6 +803,37 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
      * congelado já vem resolvido em `commissionPct`. */
     const pctCongelado = reconclusao ? ciclo?.comissao?.commissionPct ?? null : null;
 
+    /* A cobertura já decidida MANDA — D2.
+     *
+     * Reprocessamento não redecide: a cobertura é congelada como o percentual e
+     * a taxa. Redecidir a cada retry faria o mesmo atendimento sair coberto
+     * numa passada e cobrado na outra, conforme o estado da assinatura no
+     * instante do retry.
+     *
+     * CORTESIA NÃO PASSA PELO PLANO (28/09). Ela chega com `metodo: null`, que
+     * é exatamente a entrada do caminho do mensalista: sem este desvio, a
+     * cortesia dada a um cliente com plano viraria "coberto pelo plano" e
+     * gastaria uma vaga da cota que ele pagou — o dono deu um presente e o
+     * cliente perderia um corte. A decisão foi do dono, no balcão; ela é
+     * gravada como fato próprio, e o plano nem é consultado. */
+    const cobertura: Cobertura =
+      (depois.cobertura as Cobertura | undefined) ??
+      (cortesia
+        ? { tipo: "avulso", motivo: "cortesia", valorCoberto: 0 }
+        : await resolverCobertura({
+            db,
+            barbershopId,
+            bookingId,
+            clientId: String(depois.clientId ?? ""),
+            date,
+            valor,
+            /* D-3 · o que o dono informou entra na decisão. Método preenchido é
+             * afirmação de que houve dinheiro, e ela vence a cobertura do plano. */
+            metodoInformado: metodo,
+          }));
+
+    const coberto = cobertura.tipo === "plano";
+
     const { commission, payment } = calcularEventoFinanceiro({
       valor,
       metodo,
@@ -652,29 +851,12 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
         null,
       padraoPct,
       fees,
+      /* O atendimento coberto pelo plano ignora desconto: quem pagou por ele foi
+       * a mensalidade, e não há cobrança no balcão para descontar. Só chega
+       * aqui por escrita direta — a tela esconde o controle para mensalista e a
+       * regra exige método em todo desconto que não seja cortesia. */
+      desconto: coberto ? 0 : desconto,
     });
-
-    /* A cobertura já decidida MANDA — D2.
-     *
-     * Reprocessamento não redecide: a cobertura é congelada como o percentual e
-     * a taxa. Redecidir a cada retry faria o mesmo atendimento sair coberto
-     * numa passada e cobrado na outra, conforme o estado da assinatura no
-     * instante do retry. */
-    const cobertura =
-      (depois.cobertura as Cobertura | undefined) ??
-      (await resolverCobertura({
-        db,
-        barbershopId,
-        bookingId,
-        clientId: String(depois.clientId ?? ""),
-        date,
-        valor,
-        /* D-3 · o que o dono informou entra na decisão. Método preenchido é
-         * afirmação de que houve dinheiro, e ela vence a cobertura do plano. */
-        metodoInformado: metodo,
-      }));
-
-    const coberto = cobertura.tipo === "plano";
 
     /* Onde a comissão deste ciclo é gravada.
      *
@@ -690,6 +872,18 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
             idDaComissaoDeCicloNovo(bookingId, chaveDesteCiclo)
         )
       : comissaoRef;
+
+    const regravado = descontoDaReconclusao({
+      desconto: coberto ? 0 : desconto,
+      congelado: ciclo?.descontoDaReserva ?? null,
+    });
+    const camposDeDescontoNaReserva: Record<string, unknown> = regravado ?? {
+      discountAmount: FieldValue.delete(),
+      discountInput: FieldValue.delete(),
+      discountReason: FieldValue.delete(),
+      discountBy: FieldValue.delete(),
+      discountAt: FieldValue.delete(),
+    };
 
     await db.runTransaction(async (tx) => {
       /* Conferido de novo DENTRO da transação: se a conclusão foi desfeita
@@ -709,6 +903,10 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
           ...(reconclusao
             ? { cicloFinanceiro: { ...ciclo, comissaoVigenteId: comissaoDoCicloRef.id } }
             : {}),
+          /* A reserva volta a dizer o desconto do FATO — revisão do PR #82. Só
+           * na reconclusão com fato congelado: fora dela, o desconto da
+           * reserva é o que o dono acabou de gravar, e já bate com o pagamento. */
+          ...(reconclusao && ciclo?.pagamento ? camposDeDescontoNaReserva : {}),
         },
         { merge: true }
       );
@@ -752,6 +950,17 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
        * depois reconhecido como coberto tem de perder o pagamento que já
        * existe. Deixá-lo seria receita fantasma sem tela onde reencontrá-la. */
       if (coberto) {
+        tx.delete(pagamentoRef);
+        return;
+      }
+      /* CORTESIA TAMBÉM NÃO GERA PAGAMENTO — decisão 2 do dono (28/09).
+       *
+       * Não entrou dinheiro. Um pagamento de R$ 0,00 somaria zero na receita,
+       * mas contaria como atendimento pago no ticket médio e apareceria no
+       * extrato como "recebido". O fato fica na reserva (`cobertura.motivo:
+       * "cortesia"` e o desconto) e na comissão, com base R$ 0,00. O `delete`
+       * cobre a mesma reconclusão que o caso coberto cobre. */
+      if (cortesia) {
         tx.delete(pagamentoRef);
         return;
       }

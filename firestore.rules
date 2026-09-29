@@ -304,6 +304,52 @@ service cloud.firestore {
 
       /* -------- agenda -------- */
 
+      /* Desconto no fechamento — pedido do dono em 28/09.
+       *
+       * Os campos só entram JUNTO com a conclusão (a chamada vem de dentro do
+       * ramo `completed`) e só pelo DONO: o barbeiro concluía em nome próprio
+       * antes desta regra existir, e desconto é dinheiro da casa. Sem tocar em
+       * campo de desconto, nada aqui é exigido — a conclusão de sempre passa
+       * igual.
+       *
+       * O que a regra garante, porque o gatilho financeiro confia no documento:
+       * - 0 ≤ discountAmount ≤ value (decisão 4: sem teto, mas nunca acima do
+       *   valor). O servidor limita de novo; esta é a primeira camada;
+       * - autoria: `discountBy` é quem grava e `discountAt` é o relógio do
+       *   servidor — não dá para atribuir o desconto a outra pessoa nem datá-lo;
+       * - desconto parcial exige forma de pagamento, e 100% (cortesia) exige
+       *   NENHUMA. É o que separa a cortesia do caminho do mensalista, que
+       *   também conclui sem forma — ver `functions/src/desconto.ts`. */
+      function descontoDoFechamentoValido(barbershopId) {
+        let depois = request.resource.data;
+        let mexeu = depois.diff(resource.data).affectedKeys()
+          .hasAny(['discountAmount', 'discountInput', 'discountReason', 'discountBy', 'discountAt']);
+        return !mexeu || (
+          isOwnerOf(barbershopId)
+          && depois.keys().hasAll(['discountAmount', 'discountInput', 'discountBy', 'discountAt'])
+          && depois.discountAmount is number
+          && depois.discountAmount >= 0
+          && depois.discountAmount <= resource.data.value
+          && depois.discountInput is map
+          && depois.discountInput.keys().hasOnly(['tipo', 'valor'])
+          && depois.discountInput.tipo in ['valor', 'pct']
+          && depois.discountInput.valor is number
+          && depois.discountInput.valor >= 0
+          && (depois.discountInput.tipo != 'pct' || depois.discountInput.valor <= 100)
+          && depois.get('discountReason', null)
+               in [null, 'primeira_vez', 'fidelidade', 'amigo_familia', 'cortesia', 'outro']
+          && depois.discountBy == request.auth.uid
+          && depois.discountAt == request.time
+          && (
+            depois.discountAmount == 0
+            || (depois.discountAmount >= resource.data.value
+                && depois.get('paymentMethod', null) == null)
+            || (depois.discountAmount < resource.data.value
+                && depois.get('paymentMethod', null) != null)
+          )
+        );
+      }
+
       match /bookings/{bookingId} {
         allow read: if isStaffOf(barbershopId)
                     || (isSignedIn() && resource.data.clientId == request.auth.uid);
@@ -343,14 +389,19 @@ service cloud.firestore {
          * concluído mexe em dinheiro congelado e é do servidor. */
         allow update: if isStaffOf(barbershopId)
           && request.resource.data.diff(resource.data).affectedKeys()
-               .hasOnly(['status', 'paymentMethod', 'paymentFormId', 'paymentFormLabel'])
+               .hasOnly(['status', 'paymentMethod', 'paymentFormId', 'paymentFormLabel',
+                         'discountAmount', 'discountInput', 'discountReason',
+                         'discountBy', 'discountAt'])
           && resource.data.status in ['pending_payment', 'confirmed', 'confirmed_by_client', 'fit_in_requested']
           && (
             (request.resource.data.status == 'completed'
-              && request.resource.data.get('paymentMethod', null) in [null, 'pix', 'cash', 'debit', 'credit'])
+              && request.resource.data.get('paymentMethod', null) in [null, 'pix', 'cash', 'debit', 'credit']
+              && descontoDoFechamentoValido(barbershopId))
             || (request.resource.data.status == 'no_show'
               && !request.resource.data.diff(resource.data).affectedKeys()
-                    .hasAny(['paymentMethod', 'paymentFormId', 'paymentFormLabel']))
+                    .hasAny(['paymentMethod', 'paymentFormId', 'paymentFormLabel',
+                             'discountAmount', 'discountInput', 'discountReason',
+                             'discountBy', 'discountAt']))
           );
         /* Histórico não se apaga: reserva errada se cancela. */
         allow delete: if false;

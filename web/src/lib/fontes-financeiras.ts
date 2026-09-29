@@ -9,6 +9,7 @@ import type {
 } from "@/lib/domain";
 import { cobertoPeloPlano, isRevenue } from "@/lib/domain";
 import { dentroDoPeriodo, type Periodo } from "@/lib/analytics-periodo";
+import { ehCortesia, valorCobrado } from "@/lib/desconto";
 
 /**
  * De onde cada linha financeira tira o número — Rodada 3.2.
@@ -164,6 +165,12 @@ export function receitaDeServico(params: {
     (b) =>
       isRevenue(b) &&
       !cobertoPeloPlano(b) &&
+      /* A CORTESIA sai pela mesma razão do coberto (28/09): não tem pagamento,
+       * e mantê-la aqui a faria cair no fallback como "sem fato materializado"
+       * — o aviso de apuração incompleta por um atendimento que, de propósito,
+       * não gerou dinheiro — e derrubaria o ticket médio. Ela aparece em
+       * "Descontos do mês", que é onde o custo dela é lido. */
+      !ehCortesia(b) &&
       dentroDoPeriodo(b.date, params.periodo) &&
       (params.apenasEncaixes === undefined || Boolean(b.isFitIn) === params.apenasEncaixes)
   );
@@ -174,7 +181,10 @@ export function receitaDeServico(params: {
     const pago = porBooking.get(b.id);
     if (pago) bruta += Number(pago.grossAmount) || 0;
     else {
-      bruta += Number(b.value) || 0;
+      /* O COBRADO, e não o preço: o desconto foi gravado na mesma escrita da
+       * conclusão, então mesmo antes de o pagamento existir a reserva já sabe
+       * quanto entrou. */
+      bruta += valorCobrado(b);
       semFato++;
     }
   }

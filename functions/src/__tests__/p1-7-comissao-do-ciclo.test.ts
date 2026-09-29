@@ -230,7 +230,10 @@ describe("P1-7 · o que a fonte precisa continuar dizendo", () => {
   });
 
   it("o pagamento é congelado ANTES de ser apagado", () => {
-    expect(fonte).toMatch(/pagamento:\s*pagamentoSnap\.exists/);
+    /* Desde o desconto no fechamento (28/09) o congelado passa por
+     * `brutoDoFatoCongelado`, que guarda o bruto de TABELA e o desconto — a
+     * conta dele é testada em `desconto-no-fechamento.test.ts`. */
+    expect(fonte).toMatch(/pagamento:\s*brutoDoFatoCongelado\(\s*pagamentoSnap\.exists/);
   });
 
   it("a reversão limpa o `paymentMethod` junto com a cobertura", () => {

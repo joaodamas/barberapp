@@ -5,6 +5,7 @@ import { Check } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
+import { Segmented } from "@/components/ui/segmented";
 import { EstornarValor } from "@/components/estornar-valor";
 import { CorrigirPagamento } from "@/components/corrigir-pagamento";
 import { RemarcarAtendimento } from "@/components/agenda/remarcar-atendimento";
@@ -17,7 +18,15 @@ import { useSubscribers } from "@/lib/db/use-shop-data";
 import { patchDoc } from "@/lib/db/repository";
 import { soAvisaSeGravou } from "@/lib/so-avisa-se-gravou";
 import { assinaturaAtivaDe, termosDoPlano } from "@/lib/booking-status";
-import type { BookingDoc } from "@/lib/domain";
+import { useAuth } from "@/lib/auth-context";
+import {
+  MOTIVOS_DE_DESCONTO,
+  calcularDesconto,
+  camposDoDesconto,
+  lerNumeroDigitado,
+  valorCobrado,
+} from "@/lib/desconto";
+import type { BookingDoc, MotivoDoDesconto, TipoDeDesconto } from "@/lib/domain";
 import type { Doc } from "@/lib/db/repository";
 
 /**
@@ -73,6 +82,42 @@ export function useAcoesDoAtendimento() {
     ? assinaturaAtivaDe(assinaturas, aFechar.clientId)
     : null;
 
+  /* DESCONTO NO FECHAMENTO — pedido do dono em 28/09.
+   *
+   * Só o DONO dá desconto: a regra do Firestore recusa os campos vindos de
+   * qualquer outro papel, e mostrar o controle ao barbeiro seria oferecer um
+   * botão que falha na hora de gravar.
+   *
+   * Para mensalista o controle não aparece (decisão 6 do dono). A tela não sabe
+   * se ESTE corte está coberto — quem decide é o servidor, com a cota —, então
+   * esconde para todo cliente com plano ativo. Desconto sobre corte coberto
+   * seria desconto sobre dinheiro que não entrou no balcão. */
+  const { user, claims } = useAuth();
+  const ehDono = claims.barbershops?.[tenant.id] === "owner";
+  const podeDarDesconto = !!aFechar && ehDono && !!user && !assinaturaDoFechamento;
+  const [descontoAberto, setDescontoAberto] = useState(false);
+  const [descontoTipo, setDescontoTipo] = useState<TipoDeDesconto>("valor");
+  const [descontoTexto, setDescontoTexto] = useState("");
+  const [descontoMotivo, setDescontoMotivo] = useState<MotivoDoDesconto | null>(null);
+  const descontoEntrada = lerNumeroDigitado(descontoTexto);
+  const descontoIlegivel = descontoTexto.trim() !== "" && descontoEntrada === null;
+  /* Fechado ou invisível, o cálculo é o de "sem desconto" — nenhum campo vai
+   * para a reserva. É o que garante que o caminho do mensalista (`null`) nunca
+   * leve desconto junto por um estado esquecido aberto. */
+  const calculoDoDesconto = calcularDesconto({
+    valor: aFechar?.value ?? 0,
+    tipo: descontoTipo,
+    entrada: podeDarDesconto && descontoAberto ? descontoEntrada : null,
+  });
+  const descontoBloqueia = podeDarDesconto && descontoAberto && (calculoDoDesconto.excedeu || descontoIlegivel);
+
+  function limparDesconto() {
+    setDescontoAberto(false);
+    setDescontoTipo("valor");
+    setDescontoTexto("");
+    setDescontoMotivo(null);
+  }
+
   /* Remarcar pelo dono: o servidor (`rescheduleBooking`) já aceitava o dono
    * sem os limites do cliente — faltava a tela. O aviso ao cliente é um botão
    * depois de gravar, como no encaixe. */
@@ -112,11 +157,33 @@ export function useAcoesDoAtendimento() {
   async function concluirCom(forma: FormaDePagamento | null) {
     const booking = aFechar;
     if (!booking) return;
+    if (descontoBloqueia) return;
+    /* O desconto vai na MESMA escrita, pela mesma razão do método: o gatilho
+     * lê o documento atualizado, e gravar depois materializaria o pagamento
+     * cheio. `null` = sem desconto, e a escrita fica idêntica à de antes. */
+    const desconto =
+      podeDarDesconto && user
+        ? camposDoDesconto({
+            calculo: calculoDoDesconto,
+            tipo: descontoTipo,
+            entrada: descontoEntrada,
+            motivo: descontoMotivo,
+            uid: user.uid,
+          })
+        : null;
+    /* Cortesia conclui SEM forma — não entrou dinheiro. Com forma, é desconto
+     * parcial; a regra recusa as duas combinações trocadas. */
+    if (desconto && calculoDoDesconto.cortesia !== (forma === null)) return;
     setSalvando(true);
     setErroAoFechar(null);
     const r = await soAvisaSeGravou({
-      gravar: () =>
-        patchDoc(tenant.id, "bookings", booking.id, {
+      gravar: async () => {
+        /* `discountAt` é o relógio do SERVIDOR: a regra o confere contra
+         * `request.time`. Carregado sob demanda, como o resto do SDK. */
+        const autoria = desconto
+          ? { discountAt: (await import("firebase/firestore")).serverTimestamp() }
+          : {};
+        return patchDoc(tenant.id, "bookings", booking.id, {
           status: "completed",
           /* O MEIO e a FORMA, na mesma escrita.
            *
@@ -127,9 +194,15 @@ export function useAcoesDoAtendimento() {
           paymentMethod: forma?.base ?? null,
           paymentFormId: forma?.id ?? null,
           paymentFormLabel: forma?.label ?? null,
-        }),
+          ...(desconto ?? {}),
+          ...autoria,
+        });
+      },
       // Fechar o diálogo É o aviso: é assim que o dono lê "deu certo".
-      avisar: () => setAFechar(null),
+      avisar: () => {
+        setAFechar(null);
+        limparDesconto();
+      },
     });
     setSalvando(false);
     if (!r.ok) setErroAoFechar(r.erro);
@@ -364,8 +437,11 @@ export function useAcoesDoAtendimento() {
           aoFechar={() => setAEstornar(null)}
           origem="servico"
           refId={aEstornar.id}
-          descricao={`${aEstornar.clientName} · ${formatBRL(aEstornar.value)} · ${aEstornar.time}`}
-          valorPago={aEstornar.value}
+          descricao={`${aEstornar.clientName} · ${formatBRL(valorCobrado(aEstornar))} · ${aEstornar.time}`}
+          /* O que o cliente PAGOU, e não o preço: com desconto, devolver o
+           * valor cheio devolveria dinheiro que nunca entrou. O servidor já
+           * limita pelo `grossAmount` do pagamento; a tela diz o mesmo. */
+          valorPago={valorCobrado(aEstornar)}
         />
       )}
 
@@ -379,8 +455,10 @@ export function useAcoesDoAtendimento() {
           aberto
           aoFechar={() => setACorrigir(null)}
           bookingId={aCorrigir.id}
-          descricao={`${aCorrigir.clientName} · ${formatBRL(aCorrigir.value)} · ${aCorrigir.time}`}
-          valor={aCorrigir.value}
+          descricao={`${aCorrigir.clientName} · ${formatBRL(valorCobrado(aCorrigir))} · ${aCorrigir.time}`}
+          /* O bruto do pagamento é o COBRADO: a correção troca a forma e a
+           * taxa, e o desconto dado no fechamento continua valendo. */
+          valor={valorCobrado(aCorrigir)}
           metodoAtual={aCorrigir.paymentMethod ?? null}
           formaAtual={aCorrigir.paymentFormId ?? null}
           formaAtualLabel={aCorrigir.paymentFormLabel ?? null}
@@ -394,14 +472,130 @@ export function useAcoesDoAtendimento() {
           COMO pagou; o mensalista responde SE houve cobrança — D2. */}
       <Modal
         open={!!aFechar}
-        onClose={() => setAFechar(null)}
+        onClose={() => {
+          setAFechar(null);
+          limparDesconto();
+        }}
         title={
           assinaturaDoFechamento ? "Concluir atendimento" : "Como o cliente pagou?"
         }
       >
         <p className="mb-4 text-sm text-ink-muted">
-          {aFechar?.clientName} · {aFechar ? formatBRL(aFechar.value) : ""}
+          {aFechar?.clientName} ·{" "}
+          {aFechar && calculoDoDesconto.desconto > 0 ? (
+            <>
+              <s>{formatBRL(aFechar.value)}</s>{" "}
+              <span className="font-medium text-ink">{formatBRL(calculoDoDesconto.cobrar)}</span>
+            </>
+          ) : aFechar ? (
+            formatBRL(aFechar.value)
+          ) : (
+            ""
+          )}
         </p>
+
+        {/* DESCONTO — decisões do dono em 28/09.
+            Fechado por padrão: o gesto mais repetido do dia continua sendo um
+            toque na forma de pagamento. Aberto, a conta aparece enquanto ele
+            digita, e as formas de pagamento concluem com o valor descontado —
+            nenhum "Aplicar" no meio. */}
+        {podeDarDesconto && !descontoAberto && (
+          <button
+            type="button"
+            onClick={() => setDescontoAberto(true)}
+            className="alvo-toque mb-4 -mt-2 cursor-pointer text-sm font-medium text-gold-strong underline-offset-4 hover:underline"
+          >
+            Dar desconto
+          </button>
+        )}
+        {podeDarDesconto && descontoAberto && aFechar && (
+          <div className="mb-5 flex flex-col gap-3 rounded-xl border border-border bg-surface-raised px-3 py-3">
+            <div className="flex items-end gap-2">
+              <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs text-ink-muted">
+                Desconto
+                <input
+                  inputMode="decimal"
+                  autoComplete="off"
+                  value={descontoTexto}
+                  onChange={(e) => setDescontoTexto(e.target.value)}
+                  placeholder={descontoTipo === "pct" ? "Ex.: 10" : "Ex.: 5,00"}
+                  className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink"
+                />
+              </label>
+              <div className="w-28 shrink-0">
+                <Segmented
+                  label="Desconto em reais ou em percentual"
+                  value={descontoTipo}
+                  onChange={setDescontoTipo}
+                  options={[
+                    { value: "valor", label: "R$" },
+                    { value: "pct", label: "%" },
+                  ]}
+                />
+              </div>
+            </div>
+
+            {/* A conta em tempo real. Acima do valor, a tela AVISA e não
+                conclui: limitar em silêncio gravaria um número diferente do
+                que o dono digitou (decisão 4 — sem teto, mas nunca acima do
+                valor do atendimento). */}
+            {descontoIlegivel ? (
+              <p role="alert" className="text-sm text-danger">
+                Digite só o número — por exemplo, 5 ou 5,50.
+              </p>
+            ) : calculoDoDesconto.excedeu ? (
+              <p role="alert" className="text-sm text-danger">
+                O desconto não pode passar do valor do atendimento ({formatBRL(aFechar.value)}).
+              </p>
+            ) : calculoDoDesconto.cortesia ? (
+              <p className="text-sm text-ink">
+                <span className="font-medium">Cortesia</span> · não entra dinheiro, nem
+                taxa, e a comissão do barbeiro fica em {formatBRL(0)}.
+              </p>
+            ) : (
+              <p className="text-sm text-ink">
+                Cobrar <span className="font-medium">{formatBRL(calculoDoDesconto.cobrar)}</span>
+                {calculoDoDesconto.desconto > 0 && (
+                  <span className="text-ink-muted">
+                    {" "}· {formatBRL(calculoDoDesconto.desconto)} de desconto; a
+                    comissão e a taxa saem do valor cobrado
+                  </span>
+                )}
+              </p>
+            )}
+
+            {/* Motivo OPCIONAL, um toque — tocar de novo desmarca. */}
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Motivo do desconto (opcional)">
+              {MOTIVOS_DE_DESCONTO.map((m) => {
+                const ativo = descontoMotivo === m.id;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    aria-pressed={ativo}
+                    onClick={() => setDescontoMotivo(ativo ? null : m.id)}
+                    className={
+                      "cursor-pointer rounded-full border px-3 py-1 text-xs transition-colors " +
+                      (ativo
+                        ? "border-gold bg-gold/15 text-gold-strong"
+                        : "border-border text-ink-muted hover:border-gold hover:text-ink")
+                    }
+                  >
+                    {m.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              type="button"
+              onClick={limparDesconto}
+              className="alvo-toque self-start cursor-pointer text-xs text-ink-muted hover:text-ink"
+            >
+              Tirar o desconto
+            </button>
+          </div>
+        )}
 
         {/* D2 · o mensalista deixa de ser obrigado a escolher um meio de
             pagamento para dinheiro que não entrou.
@@ -454,12 +648,25 @@ export function useAcoesDoAtendimento() {
         {/* Duas colunas até quatro formas; três quando a barbearia cadastrou
             mais, para a lista não virar uma coluna de rolagem no celular de
             quem está com o cliente esperando. */}
+        {/* Cortesia (100%) conclui sem perguntar a forma: não entrou dinheiro,
+            e oferecer "Pix" ou "Dinheiro" ali seria pedir ao dono que
+            inventasse um meio para R$ 0,00 — decisão 2 do dono. */}
+        {podeDarDesconto && calculoDoDesconto.cortesia && !descontoBloqueia ? (
+          <button
+            type="button"
+            disabled={salvando}
+            onClick={() => void concluirCom(null)}
+            className="flex min-h-16 w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-gold/50 bg-gold/10 text-sm font-medium text-gold-strong transition-colors hover:border-gold hover:bg-gold/15"
+          >
+            <Check size={16} /> Concluir como cortesia
+          </button>
+        ) : (
         <div className={formasDeCobranca.length > 4 ? "grid grid-cols-3 gap-2" : "grid grid-cols-2 gap-3"}>
           {formasDeCobranca.map((forma) => (
             <button
               key={forma.id}
               type="button"
-              disabled={salvando}
+              disabled={salvando || descontoBloqueia}
               onClick={() => void concluirCom(forma)}
               className="flex min-h-16 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-xl border border-border px-2 text-center text-sm font-medium text-ink transition-colors hover:border-gold hover:bg-gold/10 hover:text-gold-strong"
             >
@@ -472,6 +679,7 @@ export function useAcoesDoAtendimento() {
             </button>
           ))}
         </div>
+        )}
         {erroAoFechar && (
           <p role="alert" className="mt-4 text-sm text-danger">
             {erroAoFechar}
@@ -579,6 +787,7 @@ export function useAcoesDoAtendimento() {
   return {
     abrirConcluir: (b: Doc<BookingDoc>) => {
       setErroAoFechar(null);
+      limparDesconto();
       /* 🔒 R1 · concluído nunca reabre a conclusão: vai para a correção. */
       if (b.status === "completed") return setACorrigir(b);
       setAFechar(b);

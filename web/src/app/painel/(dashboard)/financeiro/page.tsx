@@ -27,6 +27,8 @@ import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
 import { paymentGateways } from "@/lib/business-rules";
 import { composicaoDaReceita } from "@/lib/analytics";
+import { mesPeriodo } from "@/lib/analytics-periodo";
+import { descontosDoPeriodo } from "@/lib/desconto";
 
 const REVENUE_BAR_SHADES = ["bg-gold", "bg-gold/75", "bg-gold/50", "bg-gold/30"];
 
@@ -45,6 +47,12 @@ export default function FinanceiroPage() {
    * não tem lastro de recebimento enquanto não houver cobrança. Ela aparece
    * logo abaixo, com nome próprio. */
   const revenueBreakdown = composicaoDaReceita(receita);
+
+  /* Descontos do mês (28/09) — o que a casa deixou de cobrar no fechamento.
+   * Lido das reservas, porque a cortesia não tem pagamento. NÃO é dedução da
+   * receita acima: ela já é o valor cobrado, com o desconto fora. Mostrar como
+   * dedução o subtrairia duas vezes. */
+  const descontos = descontosDoPeriodo(raw.bookings, mesPeriodo(mes));
 
   const mrr = {
     billed: receita.mensalistas,
@@ -277,6 +285,20 @@ export default function FinanceiroPage() {
                 </div>
               </div>
             ))}
+            {descontos.quantidade > 0 && (
+              <div className="flex items-start justify-between gap-3 border-t border-border pt-3 text-sm">
+                <span className="text-ink-muted">
+                  Descontos do mês
+                  <span className="block text-xs">
+                    {contar(descontos.quantidade, "atendimento", "atendimentos")}
+                    {descontos.cortesias > 0 &&
+                      ` (${contar(descontos.cortesias, "cortesia", "cortesias")})`}
+                    {" "}· já fora da receita acima
+                  </span>
+                </span>
+                <span className="shrink-0 font-medium text-ink">{formatBRL(descontos.total)}</span>
+              </div>
+            )}
           </Card>
         </div>
 
