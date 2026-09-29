@@ -483,3 +483,77 @@ table th {
     transition: none;
   }
 }
+
+/* --- Impressão do relatório da agenda ------------------------------------- */
+
+/* A folha do relatório mensal (`/painel/agenda/relatorio`, pedido de 28/09).
+ * O dono toca "Baixar PDF", o navegador abre a impressão, e "Salvar como PDF"
+ * sai daqui — sem biblioteca de PDF no pacote.
+ *
+ * Tudo fica atrás de `body:has([data-relatorio])`: imprimir qualquer outra tela
+ * continua como sempre foi, e o relatório não precisa que o layout do painel
+ * saiba que ele existe.
+ *
+ * As regras são de propósito FORA de camada: o Tailwind põe os utilitários em
+ * `@layer utilities`, e CSS sem camada vence camada — é o que deixa desfazer o
+ * `md:h-full md:overflow-hidden` do layout sem caçar cada classe. */
+@page {
+  size: A4;
+  margin: 12mm 12mm 14mm;
+}
+
+@media print {
+  body:has([data-relatorio]) {
+    background: var(--color-surface) !important;
+  }
+
+  /* O layout do painel prende a altura na tela (`h-full` + `overflow-hidden`,
+   * para a lateral ficar parada). No papel isso cortaria o relatório na
+   * primeira folha: toda a cadeia até ele volta a crescer com o conteúdo. */
+  html:has([data-relatorio]),
+  body:has([data-relatorio]),
+  body:has([data-relatorio]) :has([data-relatorio]) {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-width: none !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Menu lateral, barra de baixo, cabeçalho do celular, avisos: tudo que não
+   * é o relatório nem o caminho até ele sai do papel. */
+  body:has([data-relatorio]) :not(:has([data-relatorio])):not([data-relatorio]):not([data-relatorio] *) {
+    display: none !important;
+  }
+
+  [data-relatorio] {
+    color: var(--color-ink);
+    font-size: 10.5pt;
+    /* As cores de situação (falta em vermelho, concluído em verde) e o fundo
+     * do cabeçalho da tabela são informação, não enfeite: sem isto o modo
+     * econômico do navegador os apaga. */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  [data-relatorio] .card-elevated {
+    box-shadow: none;
+  }
+
+  /* Um dia não começa numa folha e termina na outra. Dia maior que uma folha
+   * quebra mesmo assim — e aí o cabeçalho da tabela se repete na seguinte. */
+  [data-relatorio] .sem-quebra {
+    break-inside: avoid;
+  }
+  [data-relatorio] h2 {
+    break-after: avoid;
+  }
+  [data-relatorio] thead {
+    display: table-header-group;
+  }
+  [data-relatorio] tr {
+    break-inside: avoid;
+  }
+}

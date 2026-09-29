@@ -9,9 +9,11 @@ import {
   ChevronLeft,
   ChevronRight,
   CreditCard,
+  FileText,
   RotateCcw,
   UserX,
 } from "lucide-react";
+import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
@@ -168,12 +170,26 @@ export default function AgendaPage() {
             {rotuloLongo}
           </h1>
         </div>
-        {podeEditar && (
-          <Button onClick={() => setMarcando(true)} className="hidden md:inline-flex">
-            <CalendarPlus size={16} />
-            Marcar atendimento
-          </Button>
-        )}
+        <div className="flex shrink-0 items-center gap-2">
+          {/* O mês do dia que está na tela: quem navegou até outubro quer o
+              relatório de outubro. Aparece também no celular, e para quem só
+              lê: imprimir não edita nada. */}
+          <Link
+            href={`/painel/agenda/relatorio?mes=${dia.slice(0, 7)}`}
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border bg-surface-raised px-4 text-sm text-ink transition-colors hover:border-gold/60"
+          >
+            <FileText size={16} />
+            {/* No celular o título do dia já disputa a linha. */}
+            <span className="sm:hidden">Relatório</span>
+            <span className="hidden sm:inline">Relatório do mês</span>
+          </Link>
+          {podeEditar && (
+            <Button onClick={() => setMarcando(true)} className="hidden md:inline-flex">
+              <CalendarPlus size={16} />
+              Marcar atendimento
+            </Button>
+          )}
+        </div>
       </div>
 
       <LiberacaoDaAgenda />
