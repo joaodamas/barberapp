@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { destinoDoCadastro } from "@/lib/platform";
+import { PRECOS_POR_PLANO } from "@/lib/tenant";
 import { ArrowRight, Check } from "lucide-react";
 import fotoEquipe from "@/assets/fotos/barbearia-equipe.webp";
 import fotoDono from "@/assets/fotos/dono-no-salao.webp";
@@ -393,15 +394,18 @@ export function PaginaDaPlataforma() {
             Preço por barbearia, <span className={LATAO}>não por cadeira</span>
           </h2>
           <p className={`mt-4 max-w-xl leading-relaxed ${APAGADO}`}>
-            Contratar alguém não aumenta sua conta. A marca própria vem inclusa, e não
-            existe taxa de instalação.
+            A mensalidade cobre a equipe até o teto do plano. A marca própria vem
+            inclusa, e não existe taxa de instalação.
           </p>
         </Reveal>
         <div className="mt-12 grid gap-4 md:grid-cols-3">
+          {/* Preço e teto saem de `PRECOS_POR_PLANO`, a mesma tabela que a tela
+              Equipe usa para avisar do barbeiro extra — a página não pode
+              prometer um teto e o painel cobrar outro. */}
           {[
-            { nome: "Agenda", preco: "97", texto: "Agenda com link e marca próprios, encaixe, clientes e caixa do dia.", destaque: false },
-            { nome: "Crescimento", preco: "197", texto: "Tudo do Agenda, mais mensalistas com horário fixo, fidelidade e loja.", destaque: true },
-            { nome: "Gestão", preco: "297", texto: "Tudo, mais DRE, projeção de caixa e fechamento mensal.", destaque: false },
+            { nome: "Agenda", plano: PRECOS_POR_PLANO.agenda, texto: "Agenda com link e marca próprios, encaixe, clientes e caixa do dia.", destaque: false },
+            { nome: "Crescimento", plano: PRECOS_POR_PLANO.crescimento, texto: "Tudo do Agenda, mais mensalistas com horário fixo, fidelidade e loja.", destaque: true },
+            { nome: "Gestão", plano: PRECOS_POR_PLANO.gestao, texto: "Tudo, mais DRE, projeção de caixa e fechamento mensal.", destaque: false },
           ].map((p, i) => (
             <Reveal key={p.nome} delay={i * 90}>
               <div
@@ -419,14 +423,21 @@ export function PaginaDaPlataforma() {
                 )}
                 <p className="text-sm font-medium">{p.nome}</p>
                 <p className="font-brand text-4xl tracking-[-0.03em]">
-                  R$ {p.preco}
+                  R$ {p.plano.mensal}
                   <span className={`text-base ${APAGADO}`}>/mês</span>
+                </p>
+                <p className={`text-sm font-medium ${LATAO}`}>
+                  Até {p.plano.tetoDeBarbeiros} barbeiros
                 </p>
                 <p className={`text-sm leading-relaxed ${APAGADO}`}>{p.texto}</p>
               </div>
             </Reveal>
           ))}
         </div>
+        <p className={`mt-6 text-sm ${APAGADO}`}>
+          <span className={`font-medium ${TEXTO}`}>Barbeiro extra:</span> R${" "}
+          {PRECOS_POR_PLANO.agenda.barbeiroExtra}/mês cada, acima do teto do plano.
+        </p>
       </section>
 
       {/* ---------------------------------------------------- Fechamento */}

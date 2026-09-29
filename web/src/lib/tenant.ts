@@ -202,7 +202,7 @@ export type TenantFeatures = {
 
 /**
  * Plano contratado na plataforma. Ver `docs/COBRANCA-E-ENTRADA.md` para a
- * matriz e o preço de cada um.
+ * matriz; preço e teto de barbeiros em `PRECOS_POR_PLANO`.
  */
 export type PlanId = "agenda" | "crescimento" | "gestao";
 
@@ -437,6 +437,59 @@ export const FEATURES_POR_PLANO: Record<PlanId, TenantFeatures> = {
   },
   gestao: ALL_FEATURES,
 };
+
+/**
+ * Preço e teto de equipe de cada plano — tabela aprovada pelo dono em 29/09.
+ *
+ * Espelha `PRECOS_POR_PLANO` em `functions/src/plans.ts`; o teste de paridade
+ * compara os dois. Ninguém crava "97" ou "até 3 barbeiros" em componente: a
+ * landing e a tela Equipe leem daqui.
+ *
+ * O teto conta barbeiro **ativo**. Acima dele a barbearia não é bloqueada —
+ * cada um a mais custa `barbeiroExtra` por mês, e quem cobra é o Hub (boleto).
+ */
+export type PrecoDoPlano = {
+  /** Mensalidade do plano, em R$. */
+  mensal: number;
+  /** Quantos barbeiros ativos a mensalidade cobre. */
+  tetoDeBarbeiros: number;
+  /** R$ por mês de cada barbeiro ativo acima do teto. */
+  barbeiroExtra: number;
+};
+
+export const PRECOS_POR_PLANO: Record<PlanId, PrecoDoPlano> = {
+  agenda: { mensal: 97, tetoDeBarbeiros: 3, barbeiroExtra: 19 },
+  crescimento: { mensal: 197, tetoDeBarbeiros: 6, barbeiroExtra: 19 },
+  // Era R$ 297 até 29/09.
+  gestao: { mensal: 247, tetoDeBarbeiros: 10, barbeiroExtra: 19 },
+};
+
+/** Como o plano aparece para o dono e na landing. */
+export const NOME_DO_PLANO: Record<PlanId, string> = {
+  agenda: "Agenda",
+  crescimento: "Crescimento",
+  gestao: "Gestão",
+};
+
+/**
+ * Barbearias fundadoras: 30% de desconto vitalício nas 20 primeiras.
+ *
+ * Só registro — o desconto é aplicado pelo Hub na cobrança. Nenhuma conta
+ * daqui o desconta, para a tela nunca afirmar um valor que o boleto não diz.
+ */
+export const DESCONTO_FUNDADOR = { percentual: 30, vagas: 20 } as const;
+
+/** Barbeiros ativos acima do teto do plano — nunca negativo. */
+export function barbeirosExtras(plan: PlanId, ativos: number): number {
+  const n = Number.isFinite(ativos) ? Math.floor(ativos) : 0;
+  return Math.max(n - PRECOS_POR_PLANO[plan].tetoDeBarbeiros, 0);
+}
+
+/** Mensalidade com os extras, sem desconto de fundador. */
+export function valorMensal(plan: PlanId, ativos: number): number {
+  const p = PRECOS_POR_PLANO[plan];
+  return p.mensal + barbeirosExtras(plan, ativos) * p.barbeiroExtra;
+}
 
 /**
  * O que a barbearia pode FAZER agora.
