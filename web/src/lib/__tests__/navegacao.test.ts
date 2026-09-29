@@ -22,6 +22,7 @@ import {
 const rotasDoPainel = [
   "/painel",
   "/painel/agenda",
+  "/painel/assinatura",
   "/painel/clientes",
   "/painel/configuracoes",
   "/painel/equipe",

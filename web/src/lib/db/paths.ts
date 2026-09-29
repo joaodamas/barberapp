@@ -42,6 +42,8 @@ export const SHOP_COLLECTIONS = {
   clientOccurrences: "client_occurrences",
   whatsappMessages: "whatsapp_messages",
   auditLog: "audit_log",
+  /** Plano pedido e cancelamento pedido ao Hub. Só o dono lê; só o servidor grava. */
+  pedidosPlataforma: "pedidos_plataforma",
 } as const;
 
 export type ShopCollection = keyof typeof SHOP_COLLECTIONS;

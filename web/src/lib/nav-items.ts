@@ -3,6 +3,7 @@ import {
   BarChart3,
   CalendarDays,
   Clock,
+  CreditCard,
   LineChart,
   Link2,
   Percent,
@@ -221,6 +222,7 @@ export const painelNavItems: NavItem[] = [
       { href: "/painel/meu-link", label: "Meu link", icon: Link2 },
       { href: "/painel/servicos", label: "Serviços", icon: Scissors },
       { href: "/painel/equipe", label: "Equipe", icon: UsersRound },
+      { href: "/painel/assinatura", label: "Assinatura", icon: CreditCard },
     ],
   },
 ];

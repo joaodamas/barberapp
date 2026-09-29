@@ -68,6 +68,7 @@ export {
 export { plataforma } from "./hub/plataforma";
 export { enviarAvisoAoHub, reenviarAvisosAoHub } from "./hub/saida";
 export { escolherPlano, pedirCancelamento } from "./hub/pedidos";
+export { minhaAssinatura, segundaVia } from "./hub/cobrancas";
 export { TEMPLATES } from "./whatsapp/templates";
 export type {
   TemplateDef,
