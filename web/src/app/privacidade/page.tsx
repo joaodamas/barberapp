@@ -66,7 +66,7 @@ export default async function PrivacidadePage() {
           O Topete é operado por <AConfirmar>[NOME COMPLETO]</AConfirmar>,
           pessoa física, inscrita no CPF{" "}
           <AConfirmar>[CPF]</AConfirmar>, com contato em{" "}
-          <AConfirmar>[E-MAIL DE CONTATO]</AConfirmar>.
+          <a className="text-gold-strong underline underline-offset-2" href="mailto:contato@topete.com.br">contato@topete.com.br</a>.
         </p>
       </Secao>
 
@@ -251,7 +251,7 @@ export default async function PrivacidadePage() {
           <li>
             <strong className="text-ink">Se você é dono de barbearia</strong> —
             peça diretamente ao Topete, em{" "}
-            <AConfirmar>[E-MAIL DE CONTATO]</AConfirmar>.
+            <a className="text-gold-strong underline underline-offset-2" href="mailto:contato@topete.com.br">contato@topete.com.br</a>.
           </li>
         </ul>
         <p>
