@@ -113,7 +113,7 @@ export async function enfileirarSeNovo(
 const RESERVA_MS = 60_000;
 const TEMPO_LIMITE_MS = 15_000;
 
-function projetoAtual(): string {
+export function projetoAtual(): string {
   if (process.env.GCLOUD_PROJECT) return process.env.GCLOUD_PROJECT;
   try {
     return JSON.parse(process.env.FIREBASE_CONFIG ?? "{}").projectId ?? "";

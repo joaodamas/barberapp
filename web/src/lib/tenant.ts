@@ -297,6 +297,12 @@ export type Tenant = {
    */
   encerradaEmMs?: number;
   /**
+   * Barbearia sem cobrança, para sempre (o O Siqueira, a fundadora — 29/09).
+   * Só a tela de Assinatura lê: troca preço e boletos por "sem mensalidade".
+   * Quem decide é o servidor (`isentoDeCobranca`); o dono não grava o campo.
+   */
+  isento?: boolean;
+  /**
    * Plano contratado. Decide o que `acessoDaBarbearia` libera.
    *
    * Obrigatório e já normalizado: `tenant-shape` resolve ausência e valor

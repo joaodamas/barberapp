@@ -254,3 +254,38 @@ como o webhook do WhatsApp, e a barreira é o token.
   `gestao`. Quando o Hub a ativa, ela continua em `gestao` até o operador
   aplicar o plano pedido (`definirPlano`).
 - **`GET /api/health`** (§3 do contrato) ficou fora desta entrega.
+
+## Cobranças para o dono (tela de Assinatura, 29/09)
+
+O dono vê plano, boletos e segunda via em `/painel/assinatura`. O Topete pergunta ao Hub **pelo servidor**
+(`minhaAssinatura`, `segundaVia` em `functions/src/hub/cobrancas.ts`), com o mesmo `PLATAFORMA_TOKEN` dos avisos.
+
+**O Hub precisa expor** `POST https://southamerica-east1-jpproject-hub.cloudfunctions.net/plataformaCobrancas`,
+`Authorization: Bearer <PLATAFORMA_TOKEN>`, com duas ações:
+
+1. Listar — `{ "produto": "barber", "externoId": "<barbershopId>", "acao": "listar" }`
+   ```json
+   {
+     "ok": true,
+     "assinatura": { "plano": "Crescimento", "valor": 137.9, "ciclo": "mensal", "status": "ativo", "proximoVencimento": "2026-11-10" },
+     "cobrancas": [
+       { "id": "<codigoSolicitacao>", "valor": 137.9, "vencimento": "2026-10-10", "situacao": "A_RECEBER", "pagoEm": null }
+     ]
+   }
+   ```
+   - Tenant achado por `externoId`; `assinatura` vem de `subscriptions/sub-{tenantId}` (`valor` já com desconto de
+     fundadora e barbeiro extra — é o que a tela mostra como mensalidade).
+   - `cobrancas`: as 12 mais recentes de `cobrancas` com esse `tenantId`; `situacao` é o valor cru do Inter
+     (o Topete traduz); `pagoEm` em ISO ou `null`.
+   - Tenant desconhecido → `404`.
+
+2. Segunda via — `{ "produto": "barber", "externoId": "<barbershopId>", "acao": "segunda_via", "id": "<codigoSolicitacao>" }`
+   ```json
+   { "ok": true, "linhaDigitavel": "...", "pixCopiaECola": "...", "pdfBase64": "..." }
+   ```
+   - **Conferir que `cobrancas/{id}.tenantId` é o tenant desse `externoId`** — senão `404`. Sem isso, um id de
+     outro cliente abriria o boleto dele.
+   - Mesma lógica de `interCobrancaEntrega` com `comPdf: true`.
+
+Enquanto a rota não existir (404), a tela diz "Seus boletos ainda não aparecem aqui" — não inventa boleto nem
+"em dia". Barbearia `isento` (o O Siqueira) não consulta o Hub.

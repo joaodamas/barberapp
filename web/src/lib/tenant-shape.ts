@@ -44,6 +44,12 @@ export function toTenant(id: string, data: Record<string, unknown>): Tenant {
       ? { encerradaEmMs: data.encerradaEmMs }
       : {}),
     plan,
+    /* Mesma leitura de `isentoDeCobranca` no servidor: objeto sem `ativa:
+     * false`, ou `true`. */
+    ...(data.isento === true ||
+    (typeof data.isento === "object" && data.isento !== null && (data.isento as { ativa?: unknown }).ativa !== false)
+      ? { isento: true }
+      : {}),
     brand: normalizarMarca(brand),
     contact: { ...DEFAULT_TENANT.contact, ...contact },
     /* Barbearia sem `locale` gravado herda o padrão da plataforma. Nunca
