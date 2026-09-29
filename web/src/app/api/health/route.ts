@@ -15,7 +15,11 @@ async function verificarFirestore(projectId: string): Promise<Verificacao> {
     : `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
   const t0 = Date.now();
   try {
-    const res = await fetch(`${base}/slugs/__saude__`, {
+    // Id comum de propósito: ids com dois sublinhados ("__x__") são RESERVADOS
+    // no Firestore e voltam 400 — medido em 29/09, o endpoint diria "problema"
+    // sempre. Se um dia uma barbearia usar este slug, a leitura volta 200, que
+    // também é "respondeu".
+    const res = await fetch(`${base}/slugs/saude-monitor-hub`, {
       cache: "no-store",
       signal: AbortSignal.timeout(LIMITE_MS),
     });

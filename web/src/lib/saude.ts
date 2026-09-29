@@ -12,6 +12,7 @@
  * Não lê dado de barbearia nem de cliente: pergunta ao Firestore por um slug
  * que não existe. Resposta 404 do FIRESTORE prova que ele está de pé e que as
  * regras respondem — é a mesma leitura pública que resolve o subdomínio.
+ * (Formato conferido contra a API real em 29/09/2026.)
  */
 
 export type Verificacao = { ok: boolean; ms: number; erro?: string };
