@@ -19,6 +19,8 @@ import { destinoInterno } from "@/lib/destino-interno";
 import { marcarLinkEnviado } from "@/lib/verificacao-de-email";
 import { useAuth } from "@/lib/auth-context";
 import { useTenant, useTenantIndisponivel } from "@/lib/tenant-context";
+import { DEFAULT_TENANT } from "@/lib/tenant";
+import { destinoDoCadastro } from "@/lib/platform";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -87,6 +89,13 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  /* Domínio da PLATAFORMA (topete.com.br), sem barbearia (29/09). Aqui a tela
+   * tem a cara do Topete, e quem entra é mandado ao painel da barbearia dele,
+   * que mora no endereço dela. */
+  const plataforma = !indisponivel && tenant.id === DEFAULT_TENANT.id;
+  type Destino = { barbershopId: string; nome: string; papel: "owner" | "staff"; url: string };
+  const [destinos, setDestinos] = useState<Destino[] | null>(null);
+
   // Dono cai no painel, cliente cai no app — a conta decide, não a porta.
   useEffect(() => {
     if (loading || !user) return;
@@ -114,9 +123,35 @@ export default function LoginPage() {
       router.replace(next);
       return;
     }
+    if (plataforma) {
+      /* O painel mora no endereço da barbearia. Com um vínculo só, vai direto;
+       * com vários, a tela pergunta qual. A sessão não atravessa domínios, então
+       * lá o login é pedido uma vez (o passe de entrada vem depois). */
+      let cancelado = false;
+      void (async () => {
+        try {
+          const { callFunction } = await import("@/lib/firebase");
+          const r = await callFunction<Record<string, never>, { destinos: Destino[] }>("meusDestinos", {});
+          if (cancelado) return;
+          if (r.destinos.length === 1) {
+            const d = r.destinos[0];
+            // Destino é OUTRO domínio (o da barbearia), não uma rota deste app.
+            // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+            window.location.assign(`${d.url}${d.papel === "owner" ? "/painel" : "/"}`);
+            return;
+          }
+          setDestinos(r.destinos);
+        } catch {
+          if (!cancelado) setDestinos([]);
+        }
+      })();
+      return () => {
+        cancelado = true;
+      };
+    }
     const papel = claims.barbershops?.[tenant.id] ?? claims.role;
     router.replace(papel === "owner" ? "/painel" : "/");
-  }, [loading, user, claims, tenant.id, router]);
+  }, [loading, user, claims, tenant.id, router, plataforma]);
 
   /**
    * O verificador é criado SOB DEMANDA, na hora de enviar o código.
@@ -248,7 +283,12 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-6 overflow-y-auto bg-canvas px-4 py-10 md:h-full">
+    <div
+      className={
+        "flex min-h-screen flex-col items-center justify-center gap-6 overflow-y-auto px-4 py-10 md:h-full " +
+        (plataforma ? "bg-[#0B0A08]" : "bg-canvas")
+      }
+    >
       {/* A marca só é afirmada quando o produto TEM certeza de qual é.
 
           Com o Firestore fora, `resolverTenant` devolve o tenant padrão e esta
@@ -268,6 +308,22 @@ export default function LoginPage() {
             conexão. Você ainda pode entrar; seus dados continuam onde estavam.
           </p>
         </div>
+      ) : plataforma ? (
+        <div className="flex max-w-sm flex-col items-center gap-3 text-center">
+          <Image
+            src="/topete-mascote.svg"
+            alt=""
+            width={120}
+            height={120}
+            priority
+            unoptimized
+            className="h-28 w-28"
+          />
+          <h1 className="font-brand text-3xl text-[#F4EFE4]">Entre no Topete</h1>
+          <p className="text-sm text-[#A79F8F]">
+            Dono de barbearia: entre e você vai direto para o painel da sua barbearia.
+          </p>
+        </div>
       ) : (
         <div className="flex flex-col items-center gap-2 text-center">
           <Image src={brand.logo} alt="" width={56} height={56} priority />
@@ -276,6 +332,39 @@ export default function LoginPage() {
         </div>
       )}
 
+      {plataforma && user && destinos !== null ? (
+        <Card className="flex w-full max-w-sm flex-col gap-3 p-6">
+          {destinos.length > 0 ? (
+            <>
+              <p className="text-sm font-medium text-ink">Qual barbearia você quer abrir?</p>
+              {destinos.map((d) => (
+                <a
+                  key={d.barbershopId}
+                  href={`${d.url}${d.papel === "owner" ? "/painel" : "/"}`}
+                  className="flex items-center justify-between rounded-xl border border-border px-4 py-3 text-sm text-ink transition-colors hover:border-gold"
+                >
+                  <span>{d.nome}</span>
+                  <span className="text-xs text-ink-muted">{d.url.replace("https://", "")}</span>
+                </a>
+              ))}
+            </>
+          ) : (
+            <>
+              <p className="text-sm font-medium text-ink">Esta conta não está ligada a nenhuma barbearia.</p>
+              <p className="text-sm text-ink-muted">
+                Se você é cliente, entre pelo endereço da sua barbearia — ele está no Instagram dela ou
+                no QR code do balcão. Se quer o Topete na sua barbearia, fale com a gente.
+              </p>
+              <a
+                href={destinoDoCadastro()}
+                className="inline-flex min-h-11 items-center justify-center rounded-xl bg-gold px-4 text-sm font-semibold text-ink"
+              >
+                Quero conhecer o Topete
+              </a>
+            </>
+          )}
+        </Card>
+      ) : (
       <Card className="flex w-full max-w-sm flex-col gap-4 p-6">
         {mostrarSeletor() && (
         <div className="flex gap-2 rounded-xl border border-border bg-surface p-1">
@@ -412,6 +501,16 @@ export default function LoginPage() {
               {emailMode === "criar" ? "Criar conta" : "Entrar"}
             </Button>
             <div className="flex items-center justify-between text-xs">
+              {/* Na plataforma não se cria conta avulsa: o cadastro está fechado e
+                  a conta do dono nasce na ativação da barbearia. */}
+              {plataforma ? (
+                <a
+                  href={destinoDoCadastro()}
+                  className="alvo-toque text-gold-strong transition-opacity hover:opacity-80"
+                >
+                  Quero conhecer o Topete
+                </a>
+              ) : (
               <button
                 type="button"
                 onClick={() => {
@@ -423,6 +522,7 @@ export default function LoginPage() {
               >
                 {emailMode === "criar" ? "Já tenho conta" : "Criar uma conta"}
               </button>
+              )}
               {emailMode === "entrar" && (
                 <button
                   type="button"
@@ -458,6 +558,7 @@ export default function LoginPage() {
           Continuar com Google
         </Button>
       </Card>
+      )}
 
       <div id="recaptcha-container" />
     </div>
