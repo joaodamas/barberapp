@@ -687,3 +687,82 @@ export const registrarPagamentoDeMensalidade = onCall<{
     };
   });
 });
+
+/**
+ * Valor novo para UM mensalista (30/09).
+ *
+ * Pedido do dono: "possibilidade de mudar o valor do mensal dos clientes". O
+ * `price` da assinatura é o contrato daquele cliente — mudar o PLANO não o
+ * alcança, de propósito (D2). Aqui é a porta explícita para renegociar um.
+ *
+ * O que muda: as faturas emitidas daqui para frente. A fatura já emitida
+ * congelou o valor (`amount`), e só é reescrita se o dono pedir
+ * (`aplicarNaFaturaAberta`) E ela ainda estiver `aberta` — fatura paga é
+ * dinheiro que entrou e nunca muda de valor.
+ */
+export function valorDoMensalValido(valor: unknown): number | null {
+  const n = typeof valor === "number" ? valor : Number(valor);
+  if (!Number.isFinite(n) || n <= 0 || n > 100_000) return null;
+  return Math.round(n * 100) / 100;
+}
+
+export const ajustarValorDoMensal = onCall<{
+  barbershopId: string;
+  subscriptionId: string;
+  valor: number;
+  aplicarNaFaturaAberta?: boolean;
+}>(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Entre na sua conta.");
+  const { barbershopId, subscriptionId } = request.data ?? {};
+  if (!barbershopId || !subscriptionId) {
+    throw new HttpsError("invalid-argument", "Assinatura não informada.");
+  }
+  /* Preço é decisão do dono, não da equipe. */
+  if (vinculosDe(request)[String(barbershopId)] !== "owner") {
+    throw new HttpsError("permission-denied", "Só o dono muda o valor da mensalidade.");
+  }
+  await exigirEdicao(String(barbershopId));
+
+  const valor = valorDoMensalValido(request.data?.valor);
+  if (valor === null) throw new HttpsError("invalid-argument", "Informe um valor maior que zero.");
+
+  const db = getFirestore();
+  const shopRef = db.doc(`barbershops/${barbershopId}`);
+  const ref = shopRef.collection("subscriptions").doc(String(subscriptionId));
+
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) throw new HttpsError("not-found", "Assinatura não encontrada.");
+    if (snap.get("status") === "cancelado") {
+      throw new HttpsError("failed-precondition", "Esse mensalista já foi encerrado.");
+    }
+    const antes = Number(snap.get("price")) || 0;
+
+    const abertas = request.data?.aplicarNaFaturaAberta
+      ? (
+          await tx.get(
+            shopRef
+              .collection("subscription_invoices")
+              .where("subscriptionId", "==", String(subscriptionId))
+              .where("status", "==", "aberta")
+          )
+        ).docs
+      : [];
+
+    tx.update(ref, { price: valor, priceAjustadoEm: FieldValue.serverTimestamp(), priceAjustadoPor: uid });
+    for (const f of abertas) tx.update(f.ref, { amount: valor, amountAjustadoDe: Number(f.get("amount")) || 0 });
+    tx.set(shopRef.collection("audit_log").doc(), {
+      action: "subscription.price_changed",
+      by: uid,
+      at: FieldValue.serverTimestamp(),
+      detail: {
+        subscriptionId: String(subscriptionId),
+        de: antes,
+        para: valor,
+        faturasAjustadas: abertas.map((f) => f.id),
+      },
+    });
+    return { subscriptionId: String(subscriptionId), de: antes, para: valor, faturasAjustadas: abertas.length };
+  });
+});
