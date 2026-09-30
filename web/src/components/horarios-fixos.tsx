@@ -6,11 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
 import { Pill } from "@/components/ui/pill";
+import { SemanasDoMensalista, ValorDoMensal } from "@/components/mensalista-acoes";
 import { useTenant } from "@/lib/tenant-context";
 import { useServices, useStaff, useSubscribers } from "@/lib/db/use-shop-data";
 import { useShopCollection } from "@/lib/db/use-collection";
 import { horariosDaJornada, jornadaDoDia } from "@/lib/jornada";
-import { formatDatePtBR, toISODate } from "@/lib/format";
+import { formatBRL, formatDatePtBR, toISODate } from "@/lib/format";
 import { contar } from "@/lib/plural";
 import type { Doc } from "@/lib/db/repository";
 import type { ConflitoHorarioFixoDoc, HorarioFixo, SubscriberDoc } from "@/lib/domain";
@@ -62,6 +63,8 @@ export function HorariosFixos() {
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
+  const [noValor, setNoValor] = useState<Doc<SubscriberDoc> | null>(null);
+  const [nasSemanas, setNasSemanas] = useState<Doc<SubscriberDoc> | null>(null);
 
   const horas = useMemo(() => {
     const inicio = proximaData(dia);
@@ -158,7 +161,8 @@ export function HorariosFixos() {
       </div>
       <p className="text-xs text-ink-muted">
         Defina o dia e a hora de cada mensalista. As próximas 8 semanas ficam reservadas para ele, e o
-        sistema completa sozinho toda madrugada. Cancelar uma semana na agenda não tira o horário fixo.
+        sistema completa sozinho toda madrugada. Em &quot;Semanas&quot; você remarca ou pula uma semana sem mexer nas
+        outras.
       </p>
 
       {aviso && (
@@ -186,12 +190,21 @@ export function HorariosFixos() {
         {ativas.map((a) => {
           const h = a.horarioFixo;
           return (
-            <li key={a.id} className="flex items-center justify-between gap-3 py-2.5">
+            <li key={a.id} className="flex flex-wrap items-center justify-between gap-3 py-2.5">
               <div className="min-w-0">
                 <p className="truncate text-sm text-ink">{a.name}</p>
-                <p className="text-xs text-ink-muted">{a.planName}</p>
+                <p className="text-xs text-ink-muted">
+                  {a.planName} ·{" "}
+                  <button
+                    type="button"
+                    onClick={() => setNoValor(a)}
+                    className="underline decoration-dotted underline-offset-2 hover:text-ink"
+                  >
+                    {formatBRL(Number(a.price) || 0)}/mês · editar
+                  </button>
+                </p>
               </div>
-              <div className="flex shrink-0 items-center gap-2">
+              <div className="flex shrink-0 flex-wrap items-center gap-2">
                 {h ? (
                   <Pill tone="gold">
                     {DIAS_CURTOS[h.diaDaSemana]} {h.hora}
@@ -199,6 +212,11 @@ export function HorariosFixos() {
                   </Pill>
                 ) : (
                   <Pill tone="neutral">Sem horário fixo</Pill>
+                )}
+                {h && (
+                  <Button variant="secondary" className="min-h-9 px-3 text-xs" onClick={() => setNasSemanas(a)}>
+                    Semanas
+                  </Button>
                 )}
                 <Button variant="secondary" className="min-h-9 px-3 text-xs" onClick={() => abrir(a)}>
                   {h ? "Alterar" : "Definir"}
@@ -208,6 +226,9 @@ export function HorariosFixos() {
           );
         })}
       </ul>
+
+      {noValor && <ValorDoMensal assinatura={noValor} onClose={() => setNoValor(null)} />}
+      {nasSemanas && <SemanasDoMensalista assinatura={nasSemanas} onClose={() => setNasSemanas(null)} />}
 
       <Modal
         open={!!editando}

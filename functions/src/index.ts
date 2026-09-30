@@ -46,6 +46,7 @@ export { registrarMovimentoDeCaixa } from "./caixa";
 export {
   criarMensalista,
   cancelarMensalista,
+  ajustarValorDoMensal,
   gerarFaturasDoMes,
   registrarPagamentoDeMensalidade,
 } from "./mensalistas";
