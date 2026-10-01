@@ -205,7 +205,7 @@ export type Transicao =
  * justamente contra um comando do Hub que ele protege.
  *
  * Não se chama `fundador` de propósito: "fundadoras" são também as 20
- * primeiras com 30% de desconto (`DESCONTO_FUNDADOR`), que PAGAM e podem ser
+ * primeiras com 30% de desconto no 1º mês (`DESCONTO_FUNDADOR`), que PAGAM e podem ser
  * suspensas. O nome do campo diz o que ele faz; "Barbearia fundadora" é o
  * motivo gravado dentro dele.
  */

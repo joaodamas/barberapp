@@ -111,12 +111,14 @@ export const PRECOS_POR_PLANO: Record<PlanId, PrecoDoPlano> = {
 };
 
 /**
- * Barbearias fundadoras: 30% de desconto vitalício nas 20 primeiras.
+ * Barbearias fundadoras: 30% de desconto NO PRIMEIRO MÊS, nas 20 primeiras.
+ * Do segundo mês em diante, mensalidade cheia (decisão do dono, 01/10/2026 —
+ * antes era "vitalício").
  *
  * Só registro. Quem aplica o desconto é o Hub, na cobrança; nenhuma conta
  * daqui o desconta, para a tela nunca afirmar um valor que o boleto não diz.
  */
-export const DESCONTO_FUNDADOR = { percentual: 30, vagas: 20 } as const;
+export const DESCONTO_FUNDADOR = { percentual: 30, vagas: 20, meses: 1 } as const;
 
 export function precoDoPlano(plan: PlanId): PrecoDoPlano {
   return PRECOS_POR_PLANO[plan];

@@ -24,7 +24,7 @@ import { useTenant } from "@/lib/tenant-context";
  * Pela lente de confiança, a tela nunca afirma o que não sabe:
  *   - boleto só aparece se o Hub devolveu; sem resposta, diz que não conseguiu
  *     buscar, e não "tudo em dia";
- *   - o valor da mensalidade é o do Hub (que já tem desconto de fundadora e
+ *   - o valor da mensalidade é o do Hub (que já tem o desconto de fundadora do 1º mês e
  *     barbeiro extra); sem ele, a tela diz "preço de tabela";
  *   - a barbearia isenta (o O Siqueira) não vê preço nem boleto.
  */

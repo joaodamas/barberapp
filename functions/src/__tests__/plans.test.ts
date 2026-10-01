@@ -21,7 +21,7 @@ describe("tabela de preços (29/09)", () => {
   });
 
   it("fundadores: 30% nas 20 primeiras", () => {
-    expect(DESCONTO_FUNDADOR).toEqual({ percentual: 30, vagas: 20 });
+    expect(DESCONTO_FUNDADOR).toEqual({ percentual: 30, vagas: 20, meses: 1 });
   });
 });
 
