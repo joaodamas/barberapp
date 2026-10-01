@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { datasDoHorarioFixo, diaDaSemanaDe, horarioFixoValido, idDaOcorrencia, versaoDoHorario } from "../horario-fixo";
+import { datasDoHorarioFixo, diaDaSemanaDe, semanaJaResolvida, horarioFixoValido, idDaOcorrencia, versaoDoHorario } from "../horario-fixo";
 
 const base = { hora: "17:00", staffId: "romulo", serviceIds: ["corte"] };
 
@@ -54,5 +54,26 @@ describe("horário fixo do mensalista", () => {
     expect(versaoDoHorario(h)).toBe(versaoDoHorario({ ...h, inicio: "2026-10-09" }));
     expect(versaoDoHorario(h)).not.toBe(versaoDoHorario({ ...h, hora: "18:00" }));
     expect(versaoDoHorario({ ...h, serviceIds: ["a", "b"] })).toBe(versaoDoHorario({ ...h, serviceIds: ["b", "a"] }));
+  });
+});
+
+describe("semanaJaResolvida — a rotina não recria a semana que o cliente já resolveu (30/09)", () => {
+  it("o caso do Cleiton: quarta remarcada para terça não volta como fixo", () => {
+    const reservas = [{ date: "2026-09-30", status: "completed", rescheduledFrom: { date: "2026-10-01" } }];
+    expect(semanaJaResolvida("2026-10-01", reservas)).toBe(true);
+  });
+
+  it("horário marcado à mão no mesmo dia continua contando", () => {
+    expect(semanaJaResolvida("2026-10-02", [{ date: "2026-10-02", status: "confirmed" }])).toBe(true);
+  });
+
+  it("semana cancelada não é recriada pela rotina", () => {
+    expect(semanaJaResolvida("2026-10-02", [{ date: "2026-10-02", status: "cancelled_by_client" }])).toBe(true);
+  });
+
+  it("outra data, ou falta registrada, não bloqueia a semana", () => {
+    expect(semanaJaResolvida("2026-10-09", [{ date: "2026-10-02", status: "confirmed" }])).toBe(false);
+    expect(semanaJaResolvida("2026-10-09", [{ date: "2026-10-09", status: "no_show" }])).toBe(false);
+    expect(semanaJaResolvida("2026-10-09", [])).toBe(false);
   });
 });
