@@ -31,8 +31,9 @@ paridade — a landing e a tela Equipe leem de lá, ninguém crava o número.
 - **O teto não bloqueia.** A tela Equipe mostra "X de N barbeiros no plano" e,
   ao passar do teto, avisa o valor do extra antes e depois — o dono decide. Quem
   cobra o excedente é o Hub.
-- **Fundadores:** 30% de desconto vitalício nas 20 primeiras barbearias
-  (`DESCONTO_FUNDADOR`). Só registrado aqui; quem aplica é o Hub, na cobrança.
+- **Fundadores:** 30% de desconto **só no primeiro mês** nas 20 primeiras
+  barbearias; do segundo mês em diante, mensalidade cheia (01/10/2026 — antes
+  era vitalício) (`DESCONTO_FUNDADOR`). Só registrado aqui; quem aplica é o Hub, na cobrança.
 - **Anual:** pague 10 meses, use 12 (materiais de venda).
 
 ---

@@ -108,7 +108,7 @@ jpproject é do outro projeto e hoje responde com dois IPs.
 
 - Decidir a proposta: Agenda R$ 97 (até 3 barbeiros), Crescimento R$ 197 (até 6),
   Gestão R$ 247 (até 10), R$ 19 por barbeiro extra, anual "pague 10, use 12",
-  fundadores 30% vitalício nas 20 primeiras.
+  fundadores 30% no 1º mês nas 20 primeiras (era vitalício até 01/10).
 - Refletir no código (`plans.ts`) e fazer o gating valer: hoje nenhuma tela
   obedece plano nem trial.
 - O cadastro self-service ("Testar 7 dias") segue fechado por decisão do dono.

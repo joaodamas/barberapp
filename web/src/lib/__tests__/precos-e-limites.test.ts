@@ -24,7 +24,7 @@ describe("tabela de preços (29/09)", () => {
   });
 
   it("fundadores: 30% vitalício nas 20 primeiras", () => {
-    expect(DESCONTO_FUNDADOR).toEqual({ percentual: 30, vagas: 20 });
+    expect(DESCONTO_FUNDADOR).toEqual({ percentual: 30, vagas: 20, meses: 1 });
   });
 
   it("a tabela do site é a mesma do servidor", async () => {

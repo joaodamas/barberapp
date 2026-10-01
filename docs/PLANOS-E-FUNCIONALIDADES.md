@@ -110,7 +110,7 @@ Corte por **camada de necessidade**:
 > **Revisão de 29/09 — tabela em vigor.** Gestão caiu para **R$ 247** e cada
 > plano passou a ter teto de barbeiros ativos: Agenda até 3, Crescimento até 6,
 > Gestão até 10; acima disso, R$ 19/mês por barbeiro extra. Fundadores: 30%
-> vitalício nas 20 primeiras. A fonte é `PRECOS_POR_PLANO`
+> só no 1º mês nas 20 primeiras (era vitalício até 01/10). A fonte é `PRECOS_POR_PLANO`
 > (`functions/src/plans.ts`) e `COBRANCA-E-ENTRADA.md` §0. As contas abaixo
 > com R$ 297 e o "nunca por profissional" são o raciocínio de 02/08, mantido
 > como histórico.

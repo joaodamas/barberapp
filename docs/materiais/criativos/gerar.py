@@ -68,10 +68,10 @@ pagina("07-fundadores", 1080, 1350, f'''<div class="glow" style="width:900px;hei
 <img src="{M}" style="position:absolute;right:-60px;bottom:40px;width:520px;opacity:.95">
 <div class="peca"><div class="topo">{MARCA}<span class="tag">Vagas limitadas</span></div>
 <div><p class="tag" style="font-size:24px">Barbearias fundadoras</p>
-<h1 style="font-size:124px;margin-top:14px"><em>20</em> vagas.<br>30% off<br><em>pra sempre.</em></h1></div>
+<h1 style="font-size:124px;margin-top:14px"><em>20</em> vagas.<br>30% off<br><em>no 1º mês.</em></h1></div>
 <div style="max-width:560px"><div class="cartao" style="padding:26px 30px"><span style="font-size:22px;color:#9C927E;text-decoration:line-through">R$ 97/mês</span>
 <p style="font-family:Outfit;font-size:64px;letter-spacing:-2px">R$ 67,90<span style="font-size:26px;color:#9C927E;font-family:Manrope"> /mês</span></p>
-<p style="font-size:22px;color:#CFC6B4">no plano Agenda, enquanto for cliente</p></div>
+<p style="font-size:22px;color:#CFC6B4">no 1º mês do plano Agenda · depois R$ 97/mês</p></div>
 <p style="margin-top:28px;font-size:30px;font-weight:800">Manda <span style="color:#E0AE58">FUNDADOR</span> no direct.</p></div></div>''')
 
 # 8 · Story de lançamento
@@ -81,5 +81,5 @@ pagina("08-story-lancamento", 1080, 1920, f'''<div class="glow" style="width:110
 <div style="text-align:center;margin-top:auto"><p class="tag" style="font-size:26px">Chegou o sistema da sua barbearia</p>
 <h1 style="font-size:120px;margin-top:20px">Agenda cheia.<br><em>Cadeira girando.</em></h1>
 <div style="margin:56px auto 0;display:inline-block;background:linear-gradient(135deg,#FFE3A3,#E0AE58 45%,#A8752A);color:#0E0D0B;border-radius:999px;padding:28px 56px;font-size:36px;font-weight:800">Responda FUNDADOR</div>
-<p style="margin-top:28px;font-size:26px;color:#9C927E;font-weight:700">20 vagas com 30% off pra sempre</p></div></div>''')
+<p style="margin-top:28px;font-size:26px;color:#9C927E;font-weight:700">20 vagas com 30% off no 1º mês</p></div></div>''')
 print("ok")
