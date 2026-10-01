@@ -201,7 +201,10 @@ jobs:
 
       # O navegador da fumaça é instalado AGORA, antes da credencial existir
       # em disco — pela mesma razão dos `npm ci` acima.
+      # Travou 35 min instalando o Chromium em 01/10 (runner do GitHub) e
+      # segurou o deploy. Com teto, falha cedo e dá para rodar de novo.
       - name: Preparar a fumaça
+        timeout-minutes: 10
         working-directory: scripts/fumaca
         run: |
           npm install --no-audit --no-fund
