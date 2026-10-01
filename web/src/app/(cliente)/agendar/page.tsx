@@ -32,10 +32,7 @@ import {
 } from "@/lib/db/perfil";
 import type { TimeSlot } from "@/lib/types";
 import { ConfirmeSeuEmail } from "@/components/confirme-seu-email";
-import {
-  ehRecusaPorEmailNaoVerificado,
-  precisaConfirmarEmail,
-} from "@/lib/verificacao-de-email";
+import { ehRecusaPorEmailNaoVerificado } from "@/lib/verificacao-de-email";
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -240,13 +237,9 @@ export default function AgendarPage() {
       setErroReserva("Informe um WhatsApp válido com DDD — é por ele que a barbearia fala com você.");
       return;
     }
-    /* A mesma regra do servidor, antes de chamá-lo: nada é enviado a
-     * `createBooking` por quem ele vai recusar. */
-    if (precisaConfirmarEmail(user)) {
-      setErroReserva(null);
-      setPedirConfirmacaoDeEmail(true);
-      return;
-    }
+    /* Confirmar o e-mail deixou de ser obrigatório para agendar (01/10). Só
+     * quem já tem um horário em aberto e não confirmou é recusado pelo
+     * servidor — e aí a recusa reabre o cartão de confirmação. */
     setConfirmando(true);
     setErroReserva(null);
     try {
@@ -889,7 +882,7 @@ export default function AgendarPage() {
             <ConfirmeSeuEmail
               user={user}
               rolarAteAqui
-              explicacao="É o que garante que a reserva é de uma pessoa de verdade. Sua escolha fica aqui: confirmado o e-mail, a reserva segue."
+              explicacao="Você já tem um horário marcado. Para segurar mais de um ao mesmo tempo, confirme seu e-mail — sua escolha fica aqui e a reserva segue. Não achou o e-mail? Olhe no spam ou em Promoções."
               aoConfirmar={() => {
                 setPedirConfirmacaoDeEmail(false);
                 void confirmarReserva();
