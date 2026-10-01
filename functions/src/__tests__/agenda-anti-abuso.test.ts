@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  MAX_ATIVAS_SEM_CONFIRMACAO,
   MOTIVO_EMAIL_NAO_VERIFICADO,
   RESERVAS_POR_DIA,
   excedeuLimiteDiario,
@@ -104,12 +105,14 @@ function corpoDe(nome: string): string {
 }
 
 describe("onde a exigência vale", () => {
-  it("🔒 createBooking exige a conta verificada ANTES de ler a barbearia", () => {
+  it("🔒 createBooking: conta sem e-mail confirmado agenda, mas com UM horário em aberto (01/10)", () => {
     const corpo = corpoDe("createBooking");
-    const guarda = corpo.indexOf("podeAgendarComEstaConta(request.auth?.token)");
-    expect(guarda).toBeGreaterThan(0);
-    expect(guarda).toBeLessThan(corpo.indexOf("shopRef.get()"));
+    /* Não bloqueia mais: nenhum throw por conta não confirmada antes da reserva. */
+    expect(corpo).not.toMatch(/if \(!podeAgendarComEstaConta/);
+    /* O teto de ativas depende da confirmação, e a recusa no teto leva o motivo. */
+    expect(corpo).toMatch(/contaConfirmada \? policies\.booking\?\.maxActivePerClient \?\? 3 : MAX_ATIVAS_SEM_CONFIRMACAO/);
     expect(corpo).toMatch(/motivo: MOTIVO_EMAIL_NAO_VERIFICADO/);
+    expect(MAX_ATIVAS_SEM_CONFIRMACAO).toBe(1);
   });
 
   it("🔒 createBooking passa o teto diário para a transação", () => {

@@ -111,6 +111,9 @@ export function idDaReservaPorChave(uid: string, chave: unknown): string | undef
 export const MOTIVO_EMAIL_NAO_VERIFICADO = "email-nao-verificado";
 export const MOTIVO_LIMITE_DIARIO = "limite-diario";
 
+/** Horários em aberto ao mesmo tempo para conta SEM e-mail confirmado (01/10). */
+export const MAX_ATIVAS_SEM_CONFIRMACAO = 1;
+
 /** O que do token decide se a conta pode agendar. */
 export type TokenDoCliente = {
   email_verified?: unknown;
@@ -175,19 +178,16 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Entre na sua conta para agendar.");
 
-  /* Antes de qualquer leitura: conta sem prova de dono não custa nem o `get`
-   * da barbearia. A mensagem não afirma que um link foi enviado — quem envia é
-   * a tela, e daqui não dá para saber se chegou. */
-  if (!podeAgendarComEstaConta(request.auth?.token)) {
-    const email = String(request.auth?.token.email ?? "").trim();
-    throw new HttpsError(
-      "failed-precondition",
-      email
-        ? `Confirme seu e-mail para agendar. O link de confirmação vai para ${email}.`
-        : "Confirme seu e-mail para agendar.",
-      { motivo: MOTIVO_EMAIL_NAO_VERIFICADO }
-    );
-  }
+  /* Confirmar o e-mail deixou de ser obrigatório (decisão do dono, 01/10):
+   * 30% das contas novas não confirmavam — o e-mail do Firebase cai no spam —
+   * e o cliente ficava sem agendar. A proteção do achado M2 continua, mais
+   * leve: conta sem prova de dono agenda, mas segura UM horário por vez
+   * (`MAX_ATIVAS_SEM_CONFIRMACAO`). Um script que crie contas em massa
+   * consegue um horário por conta, não três, e o teto diário segue valendo.
+   * Ao bater o teto, a recusa leva o motivo que a tela usa para oferecer a
+   * confirmação. */
+  const contaConfirmada = podeAgendarComEstaConta(request.auth?.token);
+  const emailDaConta = String(request.auth?.token.email ?? "").trim();
 
   const { barbershopId, serviceIds, date, time, paymentOrigin, isFitIn } = request.data ?? {};
 
@@ -288,7 +288,15 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
     time,
     duracaoDaReserva,
     slotMinutes,
-    maxAtivas: policies.booking?.maxActivePerClient ?? 3,
+    maxAtivas: contaConfirmada ? policies.booking?.maxActivePerClient ?? 3 : MAX_ATIVAS_SEM_CONFIRMACAO,
+    recusaNoTeto: contaConfirmada
+      ? undefined
+      : {
+          mensagem: emailDaConta
+            ? `Você já tem um horário marcado. Para marcar mais de um ao mesmo tempo, confirme seu e-mail (o link vai para ${emailDaConta}).`
+            : "Você já tem um horário marcado. Para marcar mais de um ao mesmo tempo, confirme seu e-mail.",
+          motivo: MOTIVO_EMAIL_NAO_VERIFICADO,
+        },
     hojeNaBarbearia: hojeNoFuso(locale.timeZone),
     /* G3 · o cadastro nasce com a reserva.
      *
@@ -902,6 +910,8 @@ export async function gravarComTravaDeHorario(params: {
   duracaoDaReserva: number;
   slotMinutes: number;
   maxAtivas: number;
+  /** Mensagem e motivo próprios quando o teto de ativas recusa (conta sem e-mail confirmado). */
+  recusaNoTeto?: { mensagem: string; motivo: string };
   /** Hoje no fuso da barbearia — decide o que ainda conta como reserva ativa. */
   hojeNaBarbearia: string;
   documento: Record<string, unknown>;
@@ -1027,6 +1037,11 @@ export async function gravarComTravaDeHorario(params: {
     }).length;
 
     if (ativas >= maxAtivas) {
+      if (params.recusaNoTeto) {
+        throw new HttpsError("resource-exhausted", params.recusaNoTeto.mensagem, {
+          motivo: params.recusaNoTeto.motivo,
+        });
+      }
       throw new HttpsError(
         "resource-exhausted",
         `Você já tem ${ativas} horário(s) marcado(s). Cancele um antes de marcar outro.`
