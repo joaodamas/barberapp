@@ -5,6 +5,7 @@ import { OCCUPIES_SLOT, type BookingDoc } from "@/lib/domain";
 import type { Doc } from "@/lib/db/repository";
 import type { NivelDoEncaixe } from "@/lib/encaixe";
 import { EtiquetaMensalista } from "@/components/agenda/etiqueta-mensalista";
+import { EtiquetaEncaixe } from "@/components/agenda/etiqueta-encaixe";
 
 /**
  * O dia inteiro em grade — pedido do dono (28/09): ver de relance o que está
@@ -178,7 +179,7 @@ export function GradeDoDia({
                   : feito
                     ? "border-success/40 bg-success/5 text-ink"
                     : b.isFitIn
-                      ? "border-gold/60 bg-gold/10 text-ink"
+                      ? "border-encaixe/50 border-l-4 border-l-encaixe bg-encaixe/5 text-ink"
                       : "border-gold/40 bg-gold/5 text-ink")
               }
               style={{ gridColumn: 2 + faixa, gridRow: `${linhaDe(inicio)} / ${linhaDe(fim - 1) + 1}` }}
@@ -187,11 +188,11 @@ export function GradeDoDia({
                 <span className="truncate">
                   {paraHora(inicio)}–{paraHora(fim)} · {b.clientName}
                 </span>
+                {b.isFitIn && <EtiquetaEncaixe />}
                 {mensalistas?.has(b.clientId) && <EtiquetaMensalista />}
               </span>
               <span className="w-full truncate text-[11px] text-ink-muted">
                 {((b as { serviceNames?: string[] }).serviceNames ?? []).join(" + ") || "Serviço"}
-                {b.isFitIn ? " · encaixe" : ""}
                 {b.horarioFixoId ? " · horário fixo" : ""}
                 {feito ? " · concluído" : falta ? " · não veio" : ""}
               </span>
