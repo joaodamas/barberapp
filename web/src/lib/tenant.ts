@@ -493,12 +493,14 @@ export const NOME_DO_PLANO: Record<PlanId, string> = {
 };
 
 /**
- * Barbearias fundadoras: 30% de desconto vitalício nas 20 primeiras.
+ * Barbearias fundadoras: 30% de desconto NO PRIMEIRO MÊS, nas 20 primeiras.
+ * Do segundo mês em diante, mensalidade cheia (decisão do dono, 01/10/2026 —
+ * antes era "vitalício").
  *
  * Só registro — o desconto é aplicado pelo Hub na cobrança. Nenhuma conta
  * daqui o desconta, para a tela nunca afirmar um valor que o boleto não diz.
  */
-export const DESCONTO_FUNDADOR = { percentual: 30, vagas: 20 } as const;
+export const DESCONTO_FUNDADOR = { percentual: 30, vagas: 20, meses: 1 } as const;
 
 /** Barbeiros ativos acima do teto do plano — nunca negativo. */
 export function barbeirosExtras(plan: PlanId, ativos: number): number {
