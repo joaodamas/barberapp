@@ -543,9 +543,17 @@ export default function PainelHojePage() {
             </>
           );
           const acoes = ({ booking, statusMeta, liquidacao, emAberto, podeConcluir, atrasado }: Linha) => (
-            <div className="flex flex-wrap items-center gap-2">
-              {!emAberto && (
-                <Pill tone={statusMeta.tone}>{statusMeta.label}</Pill>
+            <div className="flex flex-wrap items-center gap-x-1 gap-y-2 md:flex-nowrap">
+              {/* Concluído é o estado BOM do dia, e era um cinza igual ao de
+                  qualquer outro — o olho não separava o feito do pendente
+                  (pedido do dono, 30/09). Verde só aqui; falta e cancelado
+                  seguem com a etiqueta de sempre. */}
+              {booking.status === "completed" ? (
+                <span className="mr-1 inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-success/10 px-2.5 py-1 text-xs font-medium text-success">
+                  <Check size={13} strokeWidth={2.5} /> Concluído
+                </span>
+              ) : (
+                !emAberto && <Pill tone={statusMeta.tone}>{statusMeta.label}</Pill>
               )}
               {podeConcluir && (
                 <button
@@ -610,9 +618,10 @@ export default function PainelHojePage() {
               {booking.status === "completed" && !liquidacao.coberto && !liquidacao.cortesia && (
                 <button
                   onClick={() => atendimento.abrirCorrecao(booking)}
-                  className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ink-muted transition-colors hover:border-gold hover:text-gold-strong"
+                  title="Corrigir a forma de pagamento"
+                  className={ACAO_DISCRETA}
                 >
-                  <CreditCard size={14} /> Corrigir pagamento
+                  <CreditCard size={13} /> Corrigir
                 </button>
               )}
               {/* D22 · e este é o "outro caminho" que o comentário
@@ -623,9 +632,10 @@ export default function PainelHojePage() {
               {booking.status === "completed" && !liquidacao.cortesia && (
                 <button
                   onClick={() => atendimento.abrirEstorno(booking)}
-                  className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ink-muted transition-colors hover:border-gold hover:text-gold-strong"
+                  title="Devolver dinheiro deste atendimento"
+                  className={ACAO_DISCRETA}
                 >
-                  <RotateCcw size={14} /> Devolver
+                  <RotateCcw size={13} /> Devolver
                 </button>
               )}
             </div>
@@ -1027,3 +1037,9 @@ function SeletorDeDia({
     </div>
   );
 }
+
+/* Ação de atendimento JÁ concluído: rara, e por isso quieta. Com borda e o
+ * mesmo peso de "Concluir", "Corrigir pagamento" e "Devolver" empilhavam em
+ * duas linhas e disputavam o olho com o status (30/09). */
+const ACAO_DISCRETA =
+  "inline-flex min-h-9 cursor-pointer items-center gap-1 whitespace-nowrap rounded-md px-2 text-xs text-ink-muted transition-colors hover:bg-surface-raised hover:text-ink";
