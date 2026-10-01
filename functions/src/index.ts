@@ -51,7 +51,7 @@ export {
   registrarPagamentoDeMensalidade,
 } from "./mensalistas";
 export { availableSlots } from "./availability";
-export { definirHorarioFixo, garantirHorariosFixos } from "./horario-fixo";
+export { apagarSemanaDoFixo, definirHorarioFixo, garantirHorariosFixos } from "./horario-fixo";
 export { meusDestinos } from "./destinos";
 export { revisarAssinaturas } from "./billing";
 export { definirPlano } from "./subscription";

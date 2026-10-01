@@ -18,6 +18,7 @@ export const bookingStatusMeta: Record<BookingStatus, BookingStatusMeta> = {
   cancelled_by_shop: { label: "Cancelado pela loja", tone: "danger" },
   expired: { label: "Expirado", tone: "danger" },
   fit_in_requested: { label: "Encaixe pendente", tone: "gold" },
+  removido: { label: "Apagado da agenda", tone: "neutral" },
 };
 
 /**

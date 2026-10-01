@@ -229,6 +229,9 @@ export function montarRelatorio(reservas: readonly Reserva[], mes: string, ctx: 
 
   for (const b of reservas) {
     if (!doMes(b.date, mes)) continue;
+    /* Semana do fixo apagada pelo dono: não aconteceu e não foi desmarcada —
+     * fora do relatório, nem como cancelado. */
+    if (b.status === "removido") continue;
     const linha = paraLinha(b, ctx);
     resumo.total += 1;
 

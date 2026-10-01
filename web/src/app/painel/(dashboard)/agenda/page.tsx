@@ -10,6 +10,7 @@ import {
   ChevronRight,
   CreditCard,
   FileText,
+  Eraser,
   RotateCcw,
   UserX,
 } from "lucide-react";
@@ -110,8 +111,10 @@ export default function AgendaPage() {
       date: iso,
     }) > 0;
 
+  /* `removido` (semana do fixo apagada) nunca aparece, nem com "mostrar
+   * cancelados": não é horário encerrado, é horário que não existe. */
   const doDia = todas
-    .filter((b) => b.date === dia)
+    .filter((b) => b.date === dia && b.status !== "removido")
     .sort((a, b) => (a.time ?? "").localeCompare(b.time ?? ""));
   const encerrados = (b: Doc<BookingDoc>) =>
     b.status.startsWith("cancelled") || b.status === "expired";
@@ -574,6 +577,15 @@ function LinhaDaAgenda({
               className={botao + " hover:border-gold hover:text-gold-strong"}
             >
               <CalendarClock size={14} /> Remarcar
+            </button>
+          )}
+          {emAberto && b.horarioFixoId && (
+            <button
+              type="button"
+              onClick={() => atendimento.abrirApagarSemana(b)}
+              className={botao + " hover:border-danger hover:text-danger"}
+            >
+              <Eraser size={14} /> Apagar agendamento
             </button>
           )}
           {emAberto && (

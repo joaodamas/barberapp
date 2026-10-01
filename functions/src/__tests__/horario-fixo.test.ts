@@ -77,3 +77,9 @@ describe("semanaJaResolvida — a rotina não recria a semana que o cliente já 
     expect(semanaJaResolvida("2026-10-09", [])).toBe(false);
   });
 });
+
+describe("semana apagada (removido) não volta", () => {
+  it("a data com a ocorrência apagada conta como resolvida", () => {
+    expect(semanaJaResolvida("2026-10-03", [{ date: "2026-10-03", status: "removido" }])).toBe(true);
+  });
+});

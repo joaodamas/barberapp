@@ -148,8 +148,9 @@ export function semanaJaResolvida(
     if (r.date !== data) return false;
     const status = String(r.status ?? "");
     return (
-      ["confirmed", "confirmed_by_client", "pending_payment", "fit_in_requested", "completed"].includes(status) ||
-      status.startsWith("cancelled")
+      ["confirmed", "confirmed_by_client", "pending_payment", "fit_in_requested", "completed", "removido"].includes(
+        status
+      ) || status.startsWith("cancelled")
     );
   });
 }
@@ -445,3 +446,63 @@ export const garantirHorariosFixos = onSchedule(
     }
   }
 );
+
+/**
+ * Apaga UMA semana do horário fixo (30/09).
+ *
+ * Pedido do dono: o cliente adiantou ou adiou a semana, e a ocorrência fixa
+ * daquela data sobrou na agenda. "Não é um cancelamento" — então não pode ir
+ * por `cancelBooking`: cancelamento conta no relatório do mês e nos números.
+ *
+ * O documento NÃO é apagado de verdade: sem ele, a rotina da madrugada veria a
+ * data vazia e recriaria o fixo (foi o caso do Cleiton). Ele vira
+ * `status: "removido"`, que nenhuma tela mostra nem conta, e que não ocupa a
+ * vaga. As outras semanas não são tocadas.
+ *
+ * Só ocorrência do fixo (`horarioFixoId`), só em aberto, só de hoje em diante:
+ * horário avulso continua sendo cancelado do jeito de sempre.
+ */
+export const apagarSemanaDoFixo = onCall<{ barbershopId: string; bookingId: string }>(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Entre na sua conta.");
+  const { barbershopId, bookingId } = request.data ?? {};
+  if (!barbershopId || !bookingId) throw new HttpsError("invalid-argument", "Horário não informado.");
+  const papel = vinculosDe(request)[String(barbershopId)];
+  if (papel !== "owner" && papel !== "staff") {
+    throw new HttpsError("permission-denied", "Só a barbearia apaga horário da agenda.");
+  }
+  await exigirEdicao(String(barbershopId));
+
+  const db = getFirestore();
+  const shopRef = db.doc(`barbershops/${barbershopId}`);
+  const shopSnap = await shopRef.get();
+  if (!shopSnap.exists) throw new HttpsError("not-found", "Barbearia não encontrada.");
+  const hoje = hojeNoFuso(localeDoDocumento(shopSnap.data()).timeZone);
+  const ref = shopRef.collection("bookings").doc(String(bookingId));
+
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) throw new HttpsError("not-found", "Horário não encontrado.");
+    if (!snap.get("horarioFixoId")) {
+      throw new HttpsError("failed-precondition", "Só horário do fixo do mensalista pode ser apagado. Os outros se cancelam.");
+    }
+    if (!["confirmed", "confirmed_by_client"].includes(String(snap.get("status")))) {
+      throw new HttpsError("failed-precondition", "Esse horário não está mais em aberto.");
+    }
+    if (String(snap.get("date")) < hoje) {
+      throw new HttpsError("failed-precondition", "Horário que já passou não se apaga.");
+    }
+    tx.update(ref, {
+      status: "removido",
+      removidoEm: FieldValue.serverTimestamp(),
+      removidoPor: uid,
+    });
+    tx.set(shopRef.collection("audit_log").doc(), {
+      action: "booking.semana_do_fixo_apagada",
+      by: uid,
+      at: FieldValue.serverTimestamp(),
+      detail: { bookingId: ref.id, date: snap.get("date"), time: snap.get("time"), clientId: snap.get("clientId") ?? null },
+    });
+    return { bookingId: ref.id, date: String(snap.get("date")) };
+  });
+});

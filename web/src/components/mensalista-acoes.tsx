@@ -21,7 +21,8 @@ import type { BookingDoc, SubscriberDoc } from "@/lib/domain";
  *    Remarcar aqui é o MESMO `rescheduleBooking` da agenda: move a própria
  *    reserva da semana, e a rotina do horário fixo não recria aquela data
  *    (o id da ocorrência continua existindo). As outras semanas não mudam.
- *    "Pular" cancela só aquela semana, pelo `cancelBooking` do dono.
+ *    "Apagar" tira só aquela semana (`apagarSemanaDoFixo`) — não é
+ *    cancelamento: não conta em número nem relatório.
  *
  * 2. **Mudar o valor do mensal** de um cliente (`ajustarValorDoMensal`).
  */
@@ -132,8 +133,8 @@ export function SemanasDoMensalista({
     setErro(null);
     try {
       const { callFunction } = await import("@/lib/firebase");
-      await callFunction("cancelBooking", { barbershopId: tenant.id, bookingId: aPular.id });
-      setAviso(`${formatDatePtBR(aPular.date)} liberado. As outras semanas continuam fixas.`);
+      await callFunction("apagarSemanaDoFixo", { barbershopId: tenant.id, bookingId: aPular.id });
+      setAviso(`${formatDatePtBR(aPular.date)} apagado da agenda. Os próximos continuam fixos.`);
       setAPular(null);
     } catch (e) {
       setErro(mensagemDoErro(e));
@@ -148,7 +149,7 @@ export function SemanasDoMensalista({
         open={!aRemarcar}
         onClose={onClose}
         title="Próximas semanas"
-        description={`${assinatura.name} · remarque ou pule uma semana sem mexer nas outras`}
+        description={`${assinatura.name} · remarque ou apague um agendamento sem mexer nos outros`}
       >
         <div className="flex flex-col gap-3">
           {aviso && (
@@ -182,13 +183,15 @@ export function SemanasDoMensalista({
                         Remarcar
                       </Button>
                       <Button variant="ghost" size="sm" onClick={() => setAPular(b)}>
-                        Pular
+                        Apagar
                       </Button>
                     </div>
                   ) : (
                     <Pill tone="neutral">
-                      {b.status.startsWith("cancelled")
-                        ? "Pulada"
+                      {b.status === "removido"
+                        ? "Apagada"
+                        : b.status.startsWith("cancelled")
+                        ? "Cancelada"
                         : b.status === "completed"
                           ? "Concluída"
                           : b.status === "no_show"
@@ -211,7 +214,7 @@ export function SemanasDoMensalista({
       <Modal
         open={!!aPular}
         onClose={() => setAPular(null)}
-        title="Pular esta semana?"
+        title="Apagar este agendamento?"
         description={aPular ? `${formatDatePtBR(aPular.date)} às ${aPular.time} fica livre na agenda.` : undefined}
         footer={
           <div className="flex justify-end gap-2">
@@ -219,12 +222,14 @@ export function SemanasDoMensalista({
               Voltar
             </Button>
             <Button onClick={pular} disabled={trabalhando}>
-              {trabalhando ? "Liberando…" : "Pular esta semana"}
+              {trabalhando ? "Apagando…" : "Apagar agendamento"}
             </Button>
           </div>
         }
       >
-        <p className="text-sm text-ink-muted">O horário fixo continua valendo nas outras semanas.</p>
+        <p className="text-sm text-ink-muted">
+          Só este agendamento sai da agenda e não conta como cancelamento. Os próximos continuam fixos.
+        </p>
       </Modal>
 
       {aRemarcar && (
