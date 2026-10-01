@@ -50,6 +50,11 @@ export function useAcoesDoAtendimento() {
   const [aFechar, setAFechar] = useState<Doc<BookingDoc> | null>(null);
   const [faltaDe, setFaltaDe] = useState<Doc<BookingDoc> | null>(null);
   const [aCancelar, setACancelar] = useState<Doc<BookingDoc> | null>(null);
+  /* Apagar a semana do fixo (30/09) — não é cancelamento: ver
+   * `apagarSemanaDoFixo` em functions/src/horario-fixo.ts. */
+  const [aApagar, setAApagar] = useState<Doc<BookingDoc> | null>(null);
+  const [apagando, setApagando] = useState(false);
+  const [erroApagar, setErroApagar] = useState<string | null>(null);
   const [aEstornar, setAEstornar] = useState<Doc<BookingDoc> | null>(null);
   /* R1 · a correção de pagamento tem estado PRÓPRIO, separado de `aFechar`.
    * Compartilhar o estado com a conclusão era compartilhar o caminho, e é
@@ -270,6 +275,22 @@ export function useAcoesDoAtendimento() {
       );
     } finally {
       setCancelando(false);
+    }
+  }
+
+  async function confirmarApagarSemana() {
+    const booking = aApagar;
+    if (!booking) return;
+    setApagando(true);
+    setErroApagar(null);
+    try {
+      const { callFunction } = await import("@/lib/firebase");
+      await callFunction("apagarSemanaDoFixo", { barbershopId: tenant.id, bookingId: booking.id });
+      setAApagar(null);
+    } catch (err) {
+      setErroApagar((err as { message?: string })?.message ?? "Não foi possível apagar agora.");
+    } finally {
+      setApagando(false);
     }
   }
 
@@ -771,6 +792,33 @@ export function useAcoesDoAtendimento() {
         </div>
       </Modal>
 
+      <Modal
+        open={!!aApagar}
+        onClose={() => !apagando && setAApagar(null)}
+        title="Apagar só esta semana?"
+      >
+        <p className="mb-3 text-sm text-ink">
+          {aApagar?.clientName} · {aApagar ? formatarDiaCurto(aApagar.date) : ""} às {aApagar?.time}
+        </p>
+        <p className="mb-5 text-sm text-ink-muted">
+          Para quando o mensalista adiantou ou adiou a semana. O horário sai da agenda e fica livre;
+          não conta como cancelamento e as outras semanas do horário fixo continuam.
+        </p>
+        {erroApagar && (
+          <p className="mb-4 text-sm text-danger" role="alert">
+            {erroApagar}
+          </p>
+        )}
+        <div className="flex gap-2">
+          <Button className="flex-1" disabled={apagando} onClick={() => void confirmarApagarSemana()}>
+            {apagando ? "Apagando…" : "Apagar esta semana"}
+          </Button>
+          <Button variant="secondary" className="flex-1" disabled={apagando} onClick={() => setAApagar(null)}>
+            Voltar
+          </Button>
+        </div>
+      </Modal>
+
       {aRemarcar && (
         <RemarcarAtendimento
           booking={aRemarcar}
@@ -799,6 +847,10 @@ export function useAcoesDoAtendimento() {
     abrirCancelar: (b: Doc<BookingDoc>) => {
       setErroCancelar(null);
       setACancelar(b);
+    },
+    abrirApagarSemana: (b: Doc<BookingDoc>) => {
+      setErroApagar(null);
+      setAApagar(b);
     },
     abrirCorrecao: (b: Doc<BookingDoc>) => setACorrigir(b),
     abrirEstorno: (b: Doc<BookingDoc>) => setAEstornar(b),

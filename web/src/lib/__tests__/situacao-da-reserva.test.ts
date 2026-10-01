@@ -134,12 +134,13 @@ describe("status desconhecido não derruba a tela Hoje", () => {
     expect(meta.label.length).toBeLessThan(60);
   });
 
-  it("os nove status conhecidos continuam com o rótulo de sempre", () => {
+  it("os dez status conhecidos continuam com o rótulo de sempre", () => {
     /* A guarda não pode ter mexido no que já funcionava. */
     for (const status of Object.keys(bookingStatusMeta) as BookingStatus[]) {
       expect(metaDoStatus(status)).toEqual(bookingStatusMeta[status]);
     }
-    expect(Object.keys(bookingStatusMeta)).toHaveLength(9);
+    /* 10 desde 30/09: `removido`, a semana do fixo apagada pelo dono. */
+    expect(Object.keys(bookingStatusMeta)).toHaveLength(10);
   });
 });
 

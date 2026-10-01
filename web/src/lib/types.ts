@@ -16,7 +16,14 @@ export type BookingStatus =
   | "cancelled_by_client"
   | "cancelled_by_shop"
   | "expired"
-  | "fit_in_requested";
+  | "fit_in_requested"
+  /**
+   * Semana do horário fixo APAGADA pelo dono (30/09) — o cliente adiantou ou
+   * adiou, e a ocorrência daquela semana sobrou. Não é cancelamento: não conta
+   * em número, relatório nem histórico, e some da agenda. O documento fica
+   * (com este status) só para a rotina do fixo não recriar a data.
+   */
+  | "removido";
 
 /**
  * ONDE o pagamento acontece.

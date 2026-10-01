@@ -270,7 +270,7 @@ async function aplicarBotao(
    * no celular do cliente e ele pode tocar em "Confirmo" dias depois — sem
    * esta guarda, isso ressuscitaria uma reserva cancelada. */
   const atual = reserva.get("status");
-  if (["completed", "cancelled_by_client", "cancelled_by_shop", "expired"].includes(atual)) {
+  if (["completed", "cancelled_by_client", "cancelled_by_shop", "expired", "removido"].includes(atual)) {
     console.info(`[whatsapp] ${action} ignorado: reserva ${bookingId} está "${atual}"`);
     return;
   }

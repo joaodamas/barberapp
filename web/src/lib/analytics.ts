@@ -885,7 +885,11 @@ export function indicadores(params: {
   /** Horários oferecidos no período — capacidade da jornada. */
   capacidade: number;
 }): Indicadores {
-  const doPeriodo = params.bookings.filter((b) => dentroDoPeriodo(b.date, params.periodo));
+  /* Semana do fixo apagada (`removido`) não aconteceu nem foi desmarcada: é
+   * correção de agenda, e entrar no total diluiria a taxa de faltas. */
+  const doPeriodo = params.bookings.filter(
+    (b) => b.status !== "removido" && dentroDoPeriodo(b.date, params.periodo)
+  );
   const ocupados = doPeriodo.filter((b) => OCCUPIES_SLOT.includes(b.status));
   const noShow = doPeriodo.filter((b) => b.status === "no_show");
   const cancelados = doPeriodo.filter((b) => b.status === "cancelled_by_client");

@@ -102,8 +102,19 @@ export const usePlans = () =>
 export const useProducts = () =>
   useShopCollection<ProductDoc>("products", { orderByField: "name" });
 
-export const useBookings = () =>
-  useShopCollection<BookingDoc>("bookings", { orderByField: "date", direction: "desc" });
+/**
+ * As reservas do painel — SEM as semanas do fixo apagadas (`removido`, 30/09).
+ *
+ * Tirar aqui, na fonte, e não em cada tela: são cinco telas que leem daqui
+ * (Hoje, Agenda, Números, Clientes, relatório do mês), e cada uma que
+ * esquecesse o filtro mostraria um horário que não existe, ou contaria um
+ * "agendamento" a mais no total e diluiria a taxa de faltas.
+ */
+export function useBookings() {
+  const r = useShopCollection<BookingDoc>("bookings", { orderByField: "date", direction: "desc" });
+  const items = useMemo(() => r.items.filter((b) => b.status !== "removido"), [r.items]);
+  return { ...r, items };
+}
 
 /**
  * A carteira de clientes da barbearia — G3.
