@@ -13,7 +13,7 @@ cliente continua no WhatsApp. Grátis: a API de bots do Telegram não cobra.
 | Agenda do dia | dono (tudo); barbeiro (a dele) | 7h |
 | Fechamento do dia | só dono | 21h |
 
-Cada aviso liga e desliga por pessoa em **Ajustes → Avisos no Telegram**.
+Cada aviso liga e desliga por pessoa em **Ajustes → Avisos**.
 
 ## Como liga
 
@@ -39,3 +39,13 @@ Cada aviso liga e desliga por pessoa em **Ajustes → Avisos no Telegram**.
 Enquanto o token for `pendente`, tudo fica desligado sem erro, e a tela diz que
 o bot está sendo configurado. Um bot tem um webhook só: o de produção aponta
 para o `axon-barber`; para testar no DEV, crie um segundo bot.
+
+## Notificação do app (PWA) — mesmos avisos, sem Telegram
+
+Em **Ajustes → Avisos → Neste celular**, cada aparelho liga a sua notificação
+(`registrarPush` grava `barbershops/{id}/push_tokens/{sha1(token)}`). Os
+gatilhos `pushAoCriarReserva` / `pushAoMudarReserva` usam a mesma régua do
+Telegram (`avisoDaCriacao`) e mandam só `data` pelo FCM; quem desenha a
+notificação é `web/public/sw.js` (handlers `push` e `notificationclick`, sem
+tocar no cache). Tocar abre `/painel/agenda`. iPhone: só com o app na tela de
+início (iOS 16.4+) — a tela explica. Aparelho que sumiu é apagado no envio.

@@ -184,3 +184,47 @@ self.addEventListener("fetch", (event) => {
       .catch(() => caches.match(request))
   );
 });
+
+/* ------------------------------------------------------------------ */
+/* Notificação do app (01/10/2026)                                     */
+/* ------------------------------------------------------------------ */
+/* O servidor manda só `data` pelo Firebase Cloud Messaging
+ * (`functions/src/push/push.ts`); quem desenha a notificação é este worker.
+ * Nada aqui toca no cache: os dois blocos acima continuam exatamente como
+ * estavam depois do incidente de 28/09. */
+self.addEventListener("push", (event) => {
+  let carga = {};
+  try {
+    carga = event.data ? event.data.json() : {};
+  } catch {
+    carga = {};
+  }
+  /* O FCM entrega `{ data: {...}, from, fcmMessageId }`. */
+  const d = carga.data || carga;
+  const titulo = d.titulo || "Topete";
+  event.waitUntil(
+    self.registration.showNotification(titulo, {
+      body: d.corpo || "",
+      icon: "/icone/192",
+      badge: "/icone/192",
+      tag: d.tag || undefined,
+      data: { url: d.url || "/painel" },
+    })
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const destino = new URL((event.notification.data && event.notification.data.url) || "/painel", self.location.origin).href;
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((abertas) => {
+      /* App já aberto: traz para a frente e navega; senão, abre. */
+      for (const janela of abertas) {
+        if (janela.url.startsWith(self.location.origin) && "focus" in janela) {
+          return janela.focus().then((j) => (j && "navigate" in j ? j.navigate(destino) : j));
+        }
+      }
+      return self.clients.openWindow(destino);
+    })
+  );
+});

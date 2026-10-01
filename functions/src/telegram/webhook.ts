@@ -76,7 +76,7 @@ async function tratarMensagem(m: NonNullable<Atualizacao["message"]>) {
   if (!codigo) {
     await enviar(
       chatId,
-      "Oi! Eu sou o bot de avisos do <b>Topete</b>.\n\nPara conectar, o dono da barbearia abre o painel → <b>Ajustes → Avisos no Telegram</b> e manda o convite para você."
+      "Oi! Eu sou o bot de avisos do <b>Topete</b>.\n\nPara conectar, o dono da barbearia abre o painel → <b>Ajustes → Avisos</b> e manda o convite para você."
     );
     return;
   }

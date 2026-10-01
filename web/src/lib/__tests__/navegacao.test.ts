@@ -37,7 +37,7 @@ const rotasDoPainel = [
   "/painel/mensal",
   "/painel/numeros",
   "/painel/servicos",
-  "/painel/telegram",
+  "/painel/avisos",
 ];
 
 function todosOsDestinos(items: NavItem[]): string[] {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Copy, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -9,6 +9,12 @@ import { useShopCollection } from "@/lib/db/use-collection";
 import { useStaff } from "@/lib/db/use-shop-data";
 import { mensagemDoErro } from "@/lib/direitos-do-titular";
 import { useTenant } from "@/lib/tenant-context";
+import {
+  ativarNotificacao,
+  desativarNotificacao,
+  estadoDaNotificacao,
+  type EstadoDaNotificacao,
+} from "@/lib/notificacoes";
 
 /**
  * Avisos no Telegram (01/10).
@@ -41,7 +47,7 @@ const ROTULOS: Record<Tipo, string> = {
   fechamento: "Fechamento do dia (21h)",
 };
 
-export default function TelegramPage() {
+export default function AvisosPage() {
   const tenant = useTenant();
   const { items: contatos, status } = useShopCollection<Contato>("telegramContatos");
   const { items: equipe } = useStaff();
@@ -87,18 +93,21 @@ export default function TelegramPage() {
     <div className="flex flex-col gap-6 pt-1 md:gap-8 md:pt-2">
       <header className="flex flex-col gap-1">
         <p className="text-sm text-ink-muted">Ajustes</p>
-        <h1 className="font-display text-3xl text-ink md:text-4xl">Avisos no Telegram</h1>
+        <h1 className="font-display text-3xl text-ink md:text-4xl">Avisos</h1>
         <p className="max-w-2xl text-sm text-ink-muted">
-          Pedido de encaixe chega com botão de aprovar, sem abrir o painel. E também: cliente que cancelou,
-          agendamento novo pelo link e a agenda do dia logo cedo. Grátis.
+          Saiba na hora quando chega pedido de encaixe, quando um cliente cancela ou marca pelo link — no
+          celular ou no Telegram. Os dois são grátis.
         </p>
       </header>
 
+      <NesteCelular barbershopId={tenant.id} />
+
       <Card className="flex flex-col gap-4 md:p-6">
         <div>
-          <h2 className="text-sm font-semibold text-ink md:text-base">Conectar</h2>
+          <h2 className="text-sm font-semibold text-ink md:text-base">Telegram</h2>
           <p className="mt-1 text-xs text-ink-muted md:text-sm">
-            Abre o Telegram no bot do Topete — é só tocar em <b>Iniciar</b>. Para um barbeiro, gere o convite e mande para
+            O encaixe chega com botão de <b>Aprovar</b>, sem abrir o painel, e de manhã vem a agenda do dia. Abre o
+            Telegram no bot do Topete — é só tocar em <b>Iniciar</b>. Para um barbeiro, gere o convite e mande para
             ele: o convite vale 15 minutos.
           </p>
         </div>
@@ -172,7 +181,7 @@ export default function TelegramPage() {
       </Card>
 
       <Card className="flex flex-col gap-3 md:p-6">
-        <h2 className="text-sm font-semibold text-ink md:text-base">Quem recebe</h2>
+        <h2 className="text-sm font-semibold text-ink md:text-base">Quem recebe no Telegram</h2>
         {status === "carregando" && <p className="text-sm text-ink-muted">Carregando…</p>}
         {status !== "carregando" && ativos.length === 0 && (
           <p className="text-sm text-ink-muted">Ninguém conectado ainda.</p>
@@ -218,5 +227,79 @@ export default function TelegramPage() {
         </ul>
       </Card>
     </div>
+  );
+}
+
+/**
+ * Notificação neste aparelho, pelo app instalado. Cada aparelho liga o seu:
+ * o dono no celular dele, o barbeiro no dele.
+ */
+function NesteCelular({ barbershopId }: { barbershopId: string }) {
+  const [estado, setEstado] = useState<EstadoDaNotificacao>("carregando");
+  const [trabalhando, setTrabalhando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  useEffect(() => {
+    let vivo = true;
+    estadoDaNotificacao(barbershopId)
+      .then((e) => vivo && setEstado(e))
+      .catch(() => vivo && setEstado("indisponivel"));
+    return () => {
+      vivo = false;
+    };
+  }, [barbershopId]);
+
+  async function alternar() {
+    setTrabalhando(true);
+    setErro(null);
+    try {
+      setEstado(estado === "ligado" ? await desativarNotificacao(barbershopId) : await ativarNotificacao(barbershopId));
+    } catch (e) {
+      setErro(mensagemDoErro(e));
+    } finally {
+      setTrabalhando(false);
+    }
+  }
+
+  return (
+    <Card className="flex flex-col gap-3 md:p-6">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold text-ink md:text-base">Neste celular</h2>
+        {estado === "ligado" && <Pill tone="success">Notificações ligadas</Pill>}
+      </div>
+      <p className="text-xs text-ink-muted md:text-sm">
+        Encaixe, cancelamento e agendamento novo aparecem como notificação, igual a qualquer app. Tocar abre a agenda.
+      </p>
+      {estado === "precisa-tela-inicio" && (
+        <p className="rounded-lg bg-surface-raised p-3 text-sm text-ink">
+          No iPhone, a notificação só funciona com o app na tela de início: toque em <b>Compartilhar</b> →{" "}
+          <b>Adicionar à Tela de Início</b>, abra pelo ícone e volte aqui.
+        </p>
+      )}
+      {estado === "bloqueado" && (
+        <p className="rounded-lg bg-surface-raised p-3 text-sm text-ink">
+          As notificações estão bloqueadas para este site. Libere nas configurações do navegador (ícone de cadeado ao
+          lado do endereço) e volte aqui.
+        </p>
+      )}
+      {estado === "indisponivel" && (
+        <p className="text-sm text-ink-muted">Este navegador não recebe notificações. Use o Telegram abaixo.</p>
+      )}
+      {(estado === "desligado" || estado === "ligado") && (
+        <Button
+          variant={estado === "ligado" ? "secondary" : "primary"}
+          className="self-start"
+          disabled={trabalhando}
+          onClick={() => void alternar()}
+        >
+          {trabalhando ? "Um instante…" : estado === "ligado" ? "Desligar neste celular" : "Ativar notificações"}
+        </Button>
+      )}
+      {erro && (
+        <p role="alert" className="text-sm text-danger">
+          {erro}
+        </p>
+      )}
+    </Card>
   );
 }

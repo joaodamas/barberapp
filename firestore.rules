@@ -535,6 +535,12 @@ service cloud.firestore {
         allow read: if isOwnerOf(barbershopId);
         allow write: if false;
       }
+      /* Aparelhos que recebem notificação do app (01/10). O token é um
+       * endereço de entrega: legível, outro membro da equipe mandaria
+       * notificação falsa para o celular do dono. Só o servidor. */
+      match /push_tokens/{aparelhoId} {
+        allow read, write: if false;
+      }
       match /subscription_invoices/{invoiceId} {
         allow read: if isStaffOf(barbershopId) || ownsResource();
         allow write: if false;

@@ -299,6 +299,9 @@ describe("contrato com a plataforma", () => {
       setDoc(doc(as(DONO_ALFA), `barbershops/${ALFA}/telegram_contatos`, "999"), { chatId: "999", alvo: "dono", ativo: true })
     );
     await assertFails(getDoc(doc(as(DONO_ALFA), "telegram_convites", "codigo-1")));
+    /* Token de notificação do celular: nem o dono lê, ninguém grava. */
+    await assertFails(getDoc(doc(as(DONO_ALFA), `barbershops/${ALFA}/push_tokens`, "x")));
+    await assertFails(setDoc(doc(as(DONO_ALFA), `barbershops/${ALFA}/push_tokens`, "x"), { token: "t" }));
     await assertFails(setDoc(doc(as(DONO_ALFA), "telegram_chats", "999"), { barbershopId: ALFA }));
   });
 
