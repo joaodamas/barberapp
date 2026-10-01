@@ -4,6 +4,7 @@ import { jornadaDoDia, paraHora, paraMinutos, type EntradaDeJornada } from "@/li
 import { OCCUPIES_SLOT, type BookingDoc } from "@/lib/domain";
 import type { Doc } from "@/lib/db/repository";
 import type { NivelDoEncaixe } from "@/lib/encaixe";
+import { EtiquetaMensalista } from "@/components/agenda/etiqueta-mensalista";
 
 /**
  * O dia inteiro em grade — pedido do dono (28/09): ver de relance o que está
@@ -37,7 +38,10 @@ export function GradeDoDia({
   aoSelecionar,
   aoMarcarLivre,
   podeEditar,
+  mensalistas,
 }: {
+  /** Clientes com plano ativo (`useMensalistasAtivos`). */
+  mensalistas?: Set<string>;
   dia: string;
   reservas: Doc<BookingDoc>[];
   pedidos: Array<{ booking: Doc<BookingDoc>; nivel: NivelDoEncaixe }>;
@@ -179,13 +183,16 @@ export function GradeDoDia({
               }
               style={{ gridColumn: 2 + faixa, gridRow: `${linhaDe(inicio)} / ${linhaDe(fim - 1) + 1}` }}
             >
-              <span className="w-full truncate text-xs font-semibold">
-                {paraHora(inicio)}–{paraHora(fim)} · {b.clientName}
+              <span className="flex w-full min-w-0 items-center gap-1.5 text-xs font-semibold">
+                <span className="truncate">
+                  {paraHora(inicio)}–{paraHora(fim)} · {b.clientName}
+                </span>
+                {mensalistas?.has(b.clientId) && <EtiquetaMensalista />}
               </span>
               <span className="w-full truncate text-[11px] text-ink-muted">
                 {((b as { serviceNames?: string[] }).serviceNames ?? []).join(" + ") || "Serviço"}
                 {b.isFitIn ? " · encaixe" : ""}
-                {b.horarioFixoId ? " · fixo" : ""}
+                {b.horarioFixoId ? " · horário fixo" : ""}
                 {feito ? " · concluído" : falta ? " · não veio" : ""}
               </span>
             </button>
