@@ -149,3 +149,5 @@ export {
   telegramAgendaDoDia,
   telegramFechamentoDoDia,
 } from "./telegram/gatilhos";
+export { registrarPush, removerPush } from "./push/push";
+export { pushAoCriarReserva, pushAoMudarReserva } from "./push/gatilhos";

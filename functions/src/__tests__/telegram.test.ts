@@ -94,3 +94,15 @@ describe("textos", () => {
     expect(t).toContain("2 horários ainda estão em aberto");
   });
 });
+
+describe("notificação do app (push)", async () => {
+  const { textoDaNotificacao } = await import("../push/gatilhos");
+  it("encaixe chama para responder; cancelamento diz que ficou livre", () => {
+    const r = { clientName: "Cleiton", serviceNames: ["Corte adulto"], date: "2026-10-03", time: "17:30", staffName: "Rômulo" };
+    expect(textoDaNotificacao("encaixe", r)).toEqual({
+      titulo: "🔔 Pedido de encaixe",
+      corpo: "Cleiton · Corte adulto\nsáb 03/10 às 17:30 · Rômulo — toque para responder",
+    });
+    expect(textoDaNotificacao("cancelamento", r).corpo).toContain("ficou livre");
+  });
+});
