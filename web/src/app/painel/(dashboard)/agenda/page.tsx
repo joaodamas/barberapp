@@ -585,7 +585,7 @@ function LinhaDaAgenda({
               onClick={() => atendimento.abrirApagarSemana(b)}
               className={botao + " hover:border-danger hover:text-danger"}
             >
-              <Eraser size={14} /> Apagar semana
+              <Eraser size={14} /> Apagar agendamento
             </button>
           )}
           {emAberto && (

@@ -134,7 +134,7 @@ export function SemanasDoMensalista({
     try {
       const { callFunction } = await import("@/lib/firebase");
       await callFunction("apagarSemanaDoFixo", { barbershopId: tenant.id, bookingId: aPular.id });
-      setAviso(`${formatDatePtBR(aPular.date)} apagado da agenda. As outras semanas continuam fixas.`);
+      setAviso(`${formatDatePtBR(aPular.date)} apagado da agenda. Os próximos continuam fixos.`);
       setAPular(null);
     } catch (e) {
       setErro(mensagemDoErro(e));
@@ -149,7 +149,7 @@ export function SemanasDoMensalista({
         open={!aRemarcar}
         onClose={onClose}
         title="Próximas semanas"
-        description={`${assinatura.name} · remarque ou apague uma semana sem mexer nas outras`}
+        description={`${assinatura.name} · remarque ou apague um agendamento sem mexer nos outros`}
       >
         <div className="flex flex-col gap-3">
           {aviso && (
@@ -214,7 +214,7 @@ export function SemanasDoMensalista({
       <Modal
         open={!!aPular}
         onClose={() => setAPular(null)}
-        title="Apagar só esta semana?"
+        title="Apagar este agendamento?"
         description={aPular ? `${formatDatePtBR(aPular.date)} às ${aPular.time} fica livre na agenda.` : undefined}
         footer={
           <div className="flex justify-end gap-2">
@@ -222,13 +222,13 @@ export function SemanasDoMensalista({
               Voltar
             </Button>
             <Button onClick={pular} disabled={trabalhando}>
-              {trabalhando ? "Apagando…" : "Apagar esta semana"}
+              {trabalhando ? "Apagando…" : "Apagar agendamento"}
             </Button>
           </div>
         }
       >
         <p className="text-sm text-ink-muted">
-          Sai da agenda e não conta como cancelamento. O horário fixo continua nas outras semanas.
+          Só este agendamento sai da agenda e não conta como cancelamento. Os próximos continuam fixos.
         </p>
       </Modal>
 

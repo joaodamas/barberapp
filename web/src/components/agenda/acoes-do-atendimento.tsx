@@ -795,14 +795,14 @@ export function useAcoesDoAtendimento() {
       <Modal
         open={!!aApagar}
         onClose={() => !apagando && setAApagar(null)}
-        title="Apagar só esta semana?"
+        title="Apagar este agendamento?"
       >
         <p className="mb-3 text-sm text-ink">
           {aApagar?.clientName} · {aApagar ? formatarDiaCurto(aApagar.date) : ""} às {aApagar?.time}
         </p>
         <p className="mb-5 text-sm text-ink-muted">
-          Para quando o mensalista adiantou ou adiou a semana. O horário sai da agenda e fica livre;
-          não conta como cancelamento e as outras semanas do horário fixo continuam.
+          Só este agendamento do horário fixo sai da agenda — para quando o cliente adiantou ou adiou.
+          Não conta como cancelamento, e os próximos agendamentos fixos dele continuam.
         </p>
         {erroApagar && (
           <p className="mb-4 text-sm text-danger" role="alert">
@@ -811,7 +811,7 @@ export function useAcoesDoAtendimento() {
         )}
         <div className="flex gap-2">
           <Button className="flex-1" disabled={apagando} onClick={() => void confirmarApagarSemana()}>
-            {apagando ? "Apagando…" : "Apagar esta semana"}
+            {apagando ? "Apagando…" : "Apagar agendamento"}
           </Button>
           <Button variant="secondary" className="flex-1" disabled={apagando} onClick={() => setAApagar(null)}>
             Voltar
