@@ -131,3 +131,30 @@ jpproject é do outro projeto e hoje responde com dois IPs.
 ## 8. Acesso próprio para cada barbeiro
 
 Hoje o painel é só do dono. O manual já diz "em breve".
+
+## 9. Instagram — agendar as publicações (01/10)
+
+O calendário de outubro está pronto (`docs/materiais/calendario-outubro-2026.html`,
+PDF na mesa em `Topete/Atualizado 01-10-2026/PDFs`): 16 posts no feed, story de
+lançamento e rotina de stories. Falta deixar tudo agendado.
+
+**Caminho escolhido: Meta Business Suite (grátis).** Antes, uma vez só:
+@usetopete como conta profissional, Página do Facebook do Topete, as duas
+ligadas no Business Suite. Depois, cada post: Criar publicação → Instagram →
+imagens na ordem → legenda → Programar (data e hora). Horários sugeridos: feed
+às 21h, stories de oferta às 8h.
+
+O que fazer quando for a hora:
+- Desenhar as artes dos 5 carrosséis novos (texto slide a slide já está no
+  calendário): C1 agenda no WhatsApp, C2 mensalista sem planilha, C3 cadeira
+  vazia, C4 caderno × WhatsApp × Topete, C5 qual plano é o seu.
+- Capas dos 4 reels (R1 marcando em 20s, R2 fechamento em 1 minuto, R3 um dia
+  na O Siqueira com o Rômulo, R4 perguntas de barbeiro). A gravação é do dono.
+- Montar `Agendar/` na pasta da mesa: uma pasta por data
+  (`02-10 qui 21h · feed · 01-lancamento`), imagens numeradas e `legenda.txt`.
+- Apagar ou corrigir post já publicado com "30% pra sempre" (a oferta agora é
+  30% só no 1º mês).
+
+Depois, se o volume crescer: publicação automática pela API do Instagram
+(conta profissional + app no Meta for Developers + token que renova sozinho).
+Contra: o post sai sem ninguém olhar na hora.
