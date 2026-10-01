@@ -138,6 +138,10 @@ describe("contraste dos tokens — WCAG AA", () => {
       expect(contraste(token("success"), fundo)).toBeGreaterThanOrEqual(AA_TEXTO);
     });
 
+    it(`etiqueta de encaixe sobre ${onde}`, () => {
+      expect(contraste(token("encaixe"), fundo)).toBeGreaterThanOrEqual(AA_TEXTO);
+    });
+
     it(`valor negativo sobre ${onde}`, () => {
       expect(contraste(token("danger"), fundo)).toBeGreaterThanOrEqual(AA_TEXTO);
     });
