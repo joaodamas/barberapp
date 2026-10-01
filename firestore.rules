@@ -144,6 +144,16 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    /* Avisos no Telegram (01/10): convite de uso único e o índice
+     * conversa → barbearia. Só o servidor: gravável, alguém amarraria o
+     * próprio Telegram à barbearia de outro e aprovaria encaixe lá. */
+    match /telegram_convites/{codigo} {
+      allow read, write: if false;
+    }
+    match /telegram_chats/{chatId} {
+      allow read, write: if false;
+    }
+
     match /platform_users/{userId} {
       /* Guarda o hash da senha provisória enquanto ela existe. Negado para
        * TODO MUNDO, inclusive o próprio dono e o suporte: só o Admin SDK
@@ -516,6 +526,12 @@ service cloud.firestore {
        * `pedirCancelamento`). O dono lê para a tela dizer "pedido enviado";
        * só a função grava, junto com o aviso ao Hub. */
       match /pedidos_plataforma/{pedidoId} {
+        allow read: if isOwnerOf(barbershopId);
+        allow write: if false;
+      }
+      /* Quem recebe os avisos no Telegram. O dono lê para a tela; quem liga e
+       * desliga é o servidor (convite e webhook). */
+      match /telegram_contatos/{chatId} {
         allow read: if isOwnerOf(barbershopId);
         allow write: if false;
       }

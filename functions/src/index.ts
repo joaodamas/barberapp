@@ -141,3 +141,11 @@ export const setOwnerRole = onCall<{ uid: string; isOwner: boolean }>(
     return { uid, role: claims.role ?? null };
   }
 );
+export { criarConviteTelegram, desligarTelegram, ajustarAvisosTelegram } from "./telegram/convite";
+export { telegramWebhook } from "./telegram/webhook";
+export {
+  telegramAoCriarReserva,
+  telegramAoMudarReserva,
+  telegramAgendaDoDia,
+  telegramFechamentoDoDia,
+} from "./telegram/gatilhos";
