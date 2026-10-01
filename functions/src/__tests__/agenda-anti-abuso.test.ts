@@ -120,6 +120,13 @@ describe("onde a exigência vale", () => {
     expect(corpo).toMatch(/limiteDiario:\s*\{[\s\S]*?refDoLimiteDiario\(db, uid,[\s\S]*?RESERVAS_POR_DIA/);
   });
 
+  it("🔒 encaixe direto (por cima de horário ocupado) é só do balcão (01/10)", () => {
+    /* O cliente PEDE encaixe e espera aprovação; quem encaixa direto é a equipe. */
+    expect(corpoDe("createBooking")).not.toMatch(/"encaixar"/);
+    const balcao = corpoDe("createBookingAtCounter");
+    expect(balcao.match(/seOcupado: encaixe \? "encaixar" : "recusar"/g)?.length).toBe(2);
+  });
+
   it("o balcão (dono marcando por alguém) NÃO exige e NÃO conta", () => {
     const corpo = corpoDe("createBookingAtCounter");
     expect(corpo).not.toMatch(/podeAgendarComEstaConta/);

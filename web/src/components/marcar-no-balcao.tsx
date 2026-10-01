@@ -73,6 +73,9 @@ export function MarcarNoBalcao({
     return i >= 0 ? i : firstBookableIndex(dias);
   });
   const [hora, setHora] = useState<string | null>(null);
+  /* Encaixe do balcão (01/10): hora livre digitada, mesmo por cima de outro
+   * cliente. Já nasce confirmado — quem decide que cabe é o barbeiro. */
+  const [encaixando, setEncaixando] = useState(false);
 
   const [busca, setBusca] = useState("");
   const [clienteEscolhido, setClienteEscolhido] = useState<Doc<ClientDoc> | null>(null);
@@ -189,6 +192,7 @@ export function MarcarNoBalcao({
   function limpar() {
     setDiaIndex(firstBookableIndex(dias));
     setHora(null);
+    setEncaixando(false);
     setBusca("");
     setClienteEscolhido(null);
     setNomeNovo("");
@@ -224,6 +228,7 @@ export function MarcarNoBalcao({
         time: hora,
         staffId: barbeiroId,
         serviceIds: servicosEscolhidos,
+        ...(encaixando ? { encaixe: true } : {}),
         ...(clienteEscolhido
           ? { clientId: clienteEscolhido.id }
           : {
@@ -444,7 +449,7 @@ export function MarcarNoBalcao({
             <p className="text-xs text-ink-muted">Carregando horários…</p>
           ) : horariosLivres.length === 0 ? (
             <p className="text-xs text-ink-muted">
-              Nenhum horário livre nesse dia para esse barbeiro.
+              Nenhum horário livre nesse dia para esse barbeiro — dá para encaixar logo abaixo.
             </p>
           ) : (
             <div className="grid grid-cols-4 gap-1.5">
@@ -452,11 +457,14 @@ export function MarcarNoBalcao({
                 <button
                   key={h}
                   type="button"
-                  aria-pressed={hora === h}
-                  onClick={() => setHora(h)}
+                  aria-pressed={!encaixando && hora === h}
+                  onClick={() => {
+                    setEncaixando(false);
+                    setHora(h);
+                  }}
                   className={
                     "rounded-lg border py-2 text-xs transition-colors " +
-                    (hora === h
+                    (!encaixando && hora === h
                       ? "border-gold bg-gold/10 text-ink"
                       : "border-border text-ink-muted hover:border-gold/60")
                   }
@@ -464,6 +472,37 @@ export function MarcarNoBalcao({
                   {h}
                 </button>
               ))}
+            </div>
+          )}
+
+          {barbeiroId && (
+            <div className="mt-1 flex flex-col gap-2 rounded-lg border border-dashed border-gold/50 p-3">
+              <label className="flex items-center gap-2 text-xs font-medium text-ink">
+                <input
+                  type="checkbox"
+                  checked={encaixando}
+                  onChange={(e) => {
+                    setEncaixando(e.target.checked);
+                    setHora(null);
+                  }}
+                />
+                Encaixar em outro horário
+              </label>
+              {encaixando && (
+                <>
+                  <input
+                    type="time"
+                    step={300}
+                    value={hora ?? ""}
+                    onChange={(e) => setHora(e.target.value || null)}
+                    className="min-h-11 w-36 rounded-lg border border-border bg-surface px-3 text-sm text-ink"
+                    aria-label="Horário do encaixe"
+                  />
+                  <p className="text-[11px] text-ink-muted">
+                    Pode ser por cima de outro cliente: entra confirmado e aparece como encaixe na agenda.
+                  </p>
+                </>
+              )}
             </div>
           )}
         </section>

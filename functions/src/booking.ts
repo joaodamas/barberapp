@@ -662,6 +662,12 @@ type ReservaNoBalcaoInput = {
   clientId?: string;
   clientName?: string;
   clientWhatsapp?: string;
+  /**
+   * Encaixe do balcão (01/10): o barbeiro marca POR CIMA de um horário
+   * ocupado. É ele mesmo decidindo que cabe, então já nasce confirmado, com
+   * `isFitIn` — diferente do pedido de encaixe do cliente, que espera aprovação.
+   */
+  encaixe?: boolean;
 };
 
 /**
@@ -749,6 +755,7 @@ export const createBookingAtCounter = onCall<ReservaNoBalcaoInput>(async (reques
     exigirAntecedencia: false,
   });
 
+  const encaixe = request.data?.encaixe === true;
   const nome = nomeLimpo(request.data?.clientName);
   const whatsapp = String(request.data?.clientWhatsapp ?? "").replace(/\D/g, "");
   const escolhido = String(request.data?.clientId ?? "").trim();
@@ -782,6 +789,7 @@ export const createBookingAtCounter = onCall<ReservaNoBalcaoInput>(async (reques
       slotMinutes: pedido.slotMinutes,
       maxAtivas: policies.booking?.maxActivePerClient ?? 3,
       hojeNaBarbearia: hojeNoFuso(locale.timeZone),
+      seOcupado: encaixe ? "encaixar" : "recusar",
       documento: documentoDaReserva({
         clientId: escolhido,
         clientName: String(clienteSnap.get("name") ?? nome ?? "Cliente"),
@@ -819,6 +827,7 @@ export const createBookingAtCounter = onCall<ReservaNoBalcaoInput>(async (reques
     slotMinutes: pedido.slotMinutes,
     maxAtivas: policies.booking?.maxActivePerClient ?? 3,
     hojeNaBarbearia: hojeNoFuso(locale.timeZone),
+    seOcupado: encaixe ? "encaixar" : "recusar",
     cliente: {
       barbershopId,
       uid: null,
@@ -945,8 +954,10 @@ export async function gravarComTravaDeHorario(params: {
    * O que fazer se o horário estiver ocupado. `recusar` (padrão) é a reserva
    * normal. `pedirEncaixe` grava o pedido como `fit_in_requested`, que não
    * ocupa a agenda e espera o barbeiro — ver `responderEncaixe`.
+   * `encaixar` é o balcão: grava confirmado, com `isFitIn`, por cima do que
+   * já está lá — quem decide que cabe é quem está na cadeira.
    */
-  seOcupado?: "recusar" | "pedirEncaixe";
+  seOcupado?: "recusar" | "pedirEncaixe" | "encaixar";
   /**
    * Recebe o status gravado, a cada tentativa da transação — a última chamada
    * é a da tentativa que efetivou. Numa repetição idempotente, é o status do
@@ -971,6 +982,7 @@ export async function gravarComTravaDeHorario(params: {
   await db.runTransaction(async (tx) => {
     /* Reiniciado a cada tentativa: a transação pode rodar mais de uma vez. */
     let virouEncaixe = false;
+    let encaixadoNoBalcao = false;
     /* Repetição da MESMA tentativa: a reserva já existe, e o pedido já foi
      * atendido. Devolver o id em vez de disputar o horário de novo — senão a
      * segunda chamada perdia para a primeira e respondia "esse horário acabou
@@ -1079,13 +1091,16 @@ export async function gravarComTravaDeHorario(params: {
           ocupadas,
         })
       ) {
-        if (params.seOcupado !== "pedirEncaixe") {
+        if (params.seOcupado === "encaixar") {
+          encaixadoNoBalcao = true;
+        } else if (params.seOcupado !== "pedirEncaixe") {
           throw new HttpsError(
             "already-exists",
             "Esse horário acabou de ser reservado. Escolha outro, por favor."
           );
+        } else {
+          virouEncaixe = true;
         }
-        virouEncaixe = true;
       }
     }
 
@@ -1107,6 +1122,7 @@ export async function gravarComTravaDeHorario(params: {
     tx.set(bookingRef, {
       ...params.documento,
       ...(virouEncaixe ? { status: "fit_in_requested", isFitIn: true } : {}),
+      ...(encaixadoNoBalcao ? { isFitIn: true } : {}),
       clientId: cadastro?.id ?? params.clientId,
     });
     params.aoDefinirStatus?.(
