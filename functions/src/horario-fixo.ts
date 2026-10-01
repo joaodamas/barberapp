@@ -126,6 +126,34 @@ export type ResultadoDaOcorrencia =
  * Nada aqui apaga: ocorrência cancelada continua cancelada, e conflito vira
  * registro para o dono, não reserva por cima de ninguém.
  */
+/**
+ * O cliente já resolveu ESTA data por outro caminho — então a rotina não a
+ * reserva.
+ *
+ * Três casos:
+ *   - já tem horário nesse dia (o de sempre, marcado à mão);
+ *   - o horário desse dia foi REMARCADO para outro (`rescheduledFrom`): o
+ *     cliente adiantou ou adiou a semana. Era o furo de 30/09 — o Cleiton
+ *     tinha quarta 10h à mão, remarcou para terça, e a rotina da madrugada viu
+ *     a quarta "livre" e recriou o fixo: dois horários na mesma semana;
+ *   - o horário desse dia foi CANCELADO: a semana foi desmarcada, e a rotina
+ *     não pode desfazer a decisão de quem cancelou.
+ */
+export function semanaJaResolvida(
+  data: string,
+  reservas: Array<{ date?: unknown; status?: unknown; rescheduledFrom?: { date?: unknown } | null }>
+): boolean {
+  return reservas.some((r) => {
+    if (r.rescheduledFrom && r.rescheduledFrom.date === data) return true;
+    if (r.date !== data) return false;
+    const status = String(r.status ?? "");
+    return (
+      ["confirmed", "confirmed_by_client", "pending_payment", "fit_in_requested", "completed"].includes(status) ||
+      status.startsWith("cancelled")
+    );
+  });
+}
+
 export async function garantirReservasDoFixo(params: {
   db: FirebaseFirestore.Firestore;
   shopRef: FirebaseFirestore.DocumentReference;
@@ -157,12 +185,13 @@ export async function garantirReservasDoFixo(params: {
       resultados.push({ data, resultado: "ja-existe" });
       continue;
     }
-    const jaMarcado = doCliente?.docs.some(
-      (d) =>
-        d.get("date") === data &&
-        ["confirmed", "confirmed_by_client", "pending_payment", "fit_in_requested", "completed"].includes(
-          String(d.get("status"))
-        )
+    const jaMarcado = semanaJaResolvida(
+      data,
+      (doCliente?.docs ?? []).map((d) => ({
+        date: d.get("date"),
+        status: d.get("status"),
+        rescheduledFrom: d.get("rescheduledFrom"),
+      }))
     );
     if (jaMarcado) {
       resultados.push({ data, resultado: "cliente-ja-marcado" });
