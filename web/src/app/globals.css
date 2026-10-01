@@ -43,6 +43,10 @@
    * derruba o branco por cima para ~4,3:1. */
   --color-success: #047857;
   --color-danger: #b91c1c;
+  /* Encaixe (01/10): a única cor que não é da marca nem de estado. Dourado
+   * é horário comum, verde é concluído, vermelho é falta — o encaixe sumia
+   * no meio do dourado. Azul 700: 6,7:1 sobre branco, passa AA como texto. */
+  --color-encaixe: #1d4ed8;
 
   /* Contorno decorativo de card (não é alvo de WCAG 1.4.11) e contorno de
    * CONTROLE, que precisa ser perceptível. */
@@ -94,6 +98,7 @@
   --color-ink-muted: var(--color-ink-muted);
   --color-success: var(--color-success);
   --color-danger: var(--color-danger);
+  --color-encaixe: var(--color-encaixe);
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);

@@ -35,6 +35,7 @@ import { contar } from "@/lib/plural";
 import { conflitosDoEncaixe, livresNoDia, recomendarEncaixe, type NivelDoEncaixe } from "@/lib/encaixe";
 import { GradeDoDia } from "@/components/agenda/grade-do-dia";
 import { EtiquetaMensalista, useMensalistasAtivos } from "@/components/agenda/etiqueta-mensalista";
+import { EtiquetaEncaixe } from "@/components/agenda/etiqueta-encaixe";
 import type { Doc } from "@/lib/db/repository";
 
 /**
@@ -501,6 +502,7 @@ function LinhaDaAgenda({
       className={
         "flex flex-col gap-2 py-3 " +
         (pedido ? "border-gold/50 bg-gold/5 " : "") +
+        (b.isFitIn && !pedido ? "border-l-4 border-l-encaixe " : "") +
         (atrasado ? "border-danger/40 " : "") +
         (encerrado ? "opacity-60" : "")
       }
@@ -509,9 +511,7 @@ function LinhaDaAgenda({
         <div className="min-w-0">
           <p className="text-sm font-semibold text-ink md:text-base">
             {b.time} – {fimDoHorario(b.time, duracao)}
-            {b.isFitIn && !pedido && (
-              <span className="ml-2 text-xs font-normal text-ink-muted">encaixe</span>
-            )}
+            {b.isFitIn && !pedido && <EtiquetaEncaixe className="ml-2 align-middle" />}
           </p>
           <p className="flex min-w-0 items-center gap-2 text-sm text-ink">
             <span className="truncate">{b.clientName}</span>

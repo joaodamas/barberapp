@@ -21,6 +21,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { EtiquetaEncaixe } from "@/components/agenda/etiqueta-encaixe";
 import { cn } from "@/lib/cn";
 import { Pill } from "@/components/ui/pill";
 import { Button } from "@/components/ui/button";
@@ -715,9 +716,7 @@ export default function PainelHojePage() {
                         </td>
                         <td className="px-4 py-3 text-ink">
                           {l.booking.clientName}
-                          {l.booking.isFitIn && (
-                            <span className="ml-2 text-xs text-ink-muted">encaixe</span>
-                          )}
+                          {l.booking.isFitIn && <EtiquetaEncaixe className="ml-2 align-middle" />}
                         </td>
                         <td className="whitespace-nowrap px-4 py-3">{telefone(l)}</td>
                         <td className="px-4 py-3 text-ink-muted">

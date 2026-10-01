@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { CalendarX2, Phone } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { EtiquetaEncaixe } from "@/components/agenda/etiqueta-encaixe";
 import { Pill } from "@/components/ui/pill";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
@@ -372,7 +373,10 @@ export default function ReservasPage() {
                   <Card key={b.id} className="flex flex-col gap-3 md:p-6">
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <p className="text-ink md:text-lg">{nomes}</p>
+                        <p className="flex flex-wrap items-center gap-2 text-ink md:text-lg">
+                          {nomes}
+                          {b.isFitIn && !ehPedido && <EtiquetaEncaixe />}
+                        </p>
                         {/* `capitalize` sobe TODA palavra e em português produz
                             "Quarta-Feira, 19 De Agosto Às 14:00". Só a primeira. */}
                         <p className="text-sm text-ink-muted first-letter:uppercase md:text-base">
