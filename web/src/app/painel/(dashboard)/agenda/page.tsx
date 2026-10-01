@@ -34,6 +34,7 @@ import { formatBRL, formatPhonePtBR, toISODate } from "@/lib/format";
 import { contar } from "@/lib/plural";
 import { conflitosDoEncaixe, livresNoDia, recomendarEncaixe, type NivelDoEncaixe } from "@/lib/encaixe";
 import { GradeDoDia } from "@/components/agenda/grade-do-dia";
+import { EtiquetaMensalista, useMensalistasAtivos } from "@/components/agenda/etiqueta-mensalista";
 import type { Doc } from "@/lib/db/repository";
 
 /**
@@ -50,6 +51,7 @@ export default function AgendaPage() {
   const { podeEditar } = useAcesso();
   const { items: todas, status, error } = useBookings();
   const atendimento = useAcoesDoAtendimento();
+  const mensalistas = useMensalistasAtivos();
   const [marcando, setMarcando] = useState(false);
   const [mostrarCancelados, setMostrarCancelados] = useState(false);
   /* Grade é o padrão (pedido de 28/09: ver livre, ocupado e encaixes lado a
@@ -330,6 +332,7 @@ export default function AgendaPage() {
             aoSelecionar={(id) => setSelecionadoId((atual) => (atual === id ? null : id))}
             aoMarcarLivre={() => setMarcando(true)}
             podeEditar={podeEditar}
+            mensalistas={mensalistas}
           />
         );
         return (
@@ -373,6 +376,7 @@ export default function AgendaPage() {
                   })()
                 ) : (
                   <LinhaDaAgenda
+                    mensalista={mensalistas.has(selecionado.clientId)}
                     booking={selecionado}
                     hoje={hoje}
                     agora={agora}
@@ -406,6 +410,7 @@ export default function AgendaPage() {
           {visiveis.map((b) => (
             <LinhaDaAgenda
               key={b.id}
+              mensalista={mensalistas.has(b.clientId)}
               booking={b}
               hoje={hoje}
               agora={agora}
@@ -455,6 +460,7 @@ function fimDoHorario(time: string, minutos: number | undefined) {
  * só o que está em aberto; corrigir e devolver só o concluído.
  */
 function LinhaDaAgenda({
+  mensalista = false,
   booking: b,
   hoje,
   agora,
@@ -463,6 +469,8 @@ function LinhaDaAgenda({
   podeEditar,
   atendimento,
 }: {
+  /** Cliente com plano ativo — etiqueta ao lado do nome. */
+  mensalista?: boolean;
   booking: Doc<BookingDoc>;
   hoje: string;
   agora: Date | null;
@@ -505,7 +513,10 @@ function LinhaDaAgenda({
               <span className="ml-2 text-xs font-normal text-ink-muted">encaixe</span>
             )}
           </p>
-          <p className="truncate text-sm text-ink">{b.clientName}</p>
+          <p className="flex min-w-0 items-center gap-2 text-sm text-ink">
+            <span className="truncate">{b.clientName}</span>
+            {mensalista && <EtiquetaMensalista />}
+          </p>
           <p className="text-xs text-ink-muted">
             {servicos || "Serviço"} · {duracao} min · {formatBRL(b.value ?? 0)}
           </p>
