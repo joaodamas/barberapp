@@ -284,6 +284,24 @@ describe("contrato com a plataforma", () => {
     );
   });
 
+  it("🔒 Telegram: só o dono lê quem recebe os avisos; ninguém grava nem lê convite (01/10)", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, `barbershops/${ALFA}/telegram_contatos`, "123"), { chatId: "123", alvo: "dono", ativo: true });
+      await setDoc(doc(db, "telegram_convites", "codigo-1"), { barbershopId: ALFA });
+      await setDoc(doc(db, "telegram_chats", "123"), { barbershopId: ALFA });
+    });
+    await assertSucceeds(getDoc(doc(as(DONO_ALFA), `barbershops/${ALFA}/telegram_contatos`, "123")));
+    await assertFails(getDoc(doc(as(BARBEIRO_ALFA), `barbershops/${ALFA}/telegram_contatos`, "123")));
+    await assertFails(getDoc(doc(as(CLIENTE), `barbershops/${ALFA}/telegram_contatos`, "123")));
+    /* Gravável, alguém amarraria o próprio Telegram e aprovaria encaixe. */
+    await assertFails(
+      setDoc(doc(as(DONO_ALFA), `barbershops/${ALFA}/telegram_contatos`, "999"), { chatId: "999", alvo: "dono", ativo: true })
+    );
+    await assertFails(getDoc(doc(as(DONO_ALFA), "telegram_convites", "codigo-1")));
+    await assertFails(setDoc(doc(as(DONO_ALFA), "telegram_chats", "999"), { barbershopId: ALFA }));
+  });
+
   it("🔒 o dono NÃO se isenta de pagar nem troca o endereço do login (29/09)", async () => {
     /* `isento` impede a suspensão pelo Hub; `dominio` é para onde o login da
      * plataforma manda a equipe. Os dois são da plataforma. */

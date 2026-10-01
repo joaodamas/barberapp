@@ -44,6 +44,8 @@ export const SHOP_COLLECTIONS = {
   auditLog: "audit_log",
   /** Plano pedido e cancelamento pedido ao Hub. Só o dono lê; só o servidor grava. */
   pedidosPlataforma: "pedidos_plataforma",
+  /** Conversas do Telegram que recebem os avisos. Só o dono lê; só o servidor grava. */
+  telegramContatos: "telegram_contatos",
 } as const;
 
 export type ShopCollection = keyof typeof SHOP_COLLECTIONS;

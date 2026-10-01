@@ -1492,7 +1492,24 @@ export const responderEncaixe = onCall<{
   }
   await exigirEdicao(barbershopId);
 
+  return aplicarRespostaDoEncaixe({ barbershopId, bookingId, aprovar, por: uid });
+});
+
+/**
+ * A decisão do encaixe, sem a casca da callable — a mesma transação para o
+ * painel (`responderEncaixe`) e para o botão do Telegram (`telegram/`).
+ * Quem chama já conferiu que a pessoa pode responder.
+ *
+ * `por` é o uid de quem respondeu, ou `telegram:{chatId}` quando veio do bot.
+ */
+export async function aplicarRespostaDoEncaixe(params: {
+  barbershopId: string;
+  bookingId: string;
+  aprovar: boolean;
+  por: string;
+}): Promise<{ status: "confirmed" | "cancelled_by_shop" | "expired" }> {
   const db = getFirestore();
+  const { barbershopId, bookingId, aprovar, por } = params;
   const shopRef = db.doc(`barbershops/${barbershopId}`);
   const bookingRef = shopRef.collection("bookings").doc(bookingId);
   const { timeZone } = localeDoDocumento((await shopRef.get()).data());
@@ -1528,7 +1545,7 @@ export const responderEncaixe = onCall<{
       status: resultado,
       isFitIn: true,
       respondidoEm: FieldValue.serverTimestamp(),
-      respondidoPor: uid,
+      respondidoPor: por,
       ...(aprovar
         ? {}
         : {
@@ -1540,7 +1557,7 @@ export const responderEncaixe = onCall<{
   });
 
   return { status: resultado };
-});
+}
 
 /**
  * Pedido de encaixe que ninguém respondeu até a hora vira `expired`.
