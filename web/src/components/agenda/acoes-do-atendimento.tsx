@@ -9,6 +9,7 @@ import { Segmented } from "@/components/ui/segmented";
 import { EstornarValor } from "@/components/estornar-valor";
 import { CorrigirPagamento } from "@/components/corrigir-pagamento";
 import { RemarcarAtendimento } from "@/components/agenda/remarcar-atendimento";
+import { AdicionarServico } from "@/components/agenda/adicionar-servico";
 import { formasAtivas, type FormaDePagamento } from "@/lib/formas-de-pagamento";
 import { formatBRL, formatPctPtBR, toISODate } from "@/lib/format";
 import { refundAmountFor } from "@/lib/business-rules";
@@ -514,6 +515,15 @@ export function useAcoesDoAtendimento() {
             ""
           )}
         </p>
+
+        {aFechar && !assinaturaDoFechamento && (
+          <AdicionarServico
+            barbershopId={tenant.id}
+            bookingId={aFechar.id}
+            servicosAtuais={((aFechar as { serviceNames?: string[] }).serviceNames ?? []).map(String)}
+            aoAdicionar={(novo) => setAFechar((atual) => (atual ? { ...atual, ...novo } : atual))}
+          />
+        )}
 
         {/* DESCONTO — decisões do dono em 28/09.
             Fechado por padrão: o gesto mais repetido do dia continua sendo um
