@@ -1,0 +1,9 @@
+{
+  "name": "topete-gravador-tour",
+  "private": true,
+  "type": "module",
+  "description": "Grava o tour (HTML com render(t) assíncrono) quadro a quadro: puppeteer-core + Chrome do Mac + ffmpeg.",
+  "dependencies": {
+    "puppeteer-core": "^24.0.0"
+  }
+}
