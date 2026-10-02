@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { estagioDaFatura, estagioDaRegua, resumoDasFaturas } from "@/lib/mensalidade";
+import { abertasDeMesesAnteriores, estagioDaFatura, estagioDaRegua, mesVizinho, resumoDasFaturas } from "@/lib/mensalidade";
 
 /**
  * G2 · a régua de cobrança no web.
@@ -107,5 +107,33 @@ describe("G2 · resumo da competência separa contratado de recebido", () => {
     expect(vazio.faturado).toBe(0);
     expect(vazio.recebido).toBe(0);
     expect(vazio.quantidade).toBe(0);
+  });
+});
+
+describe("abertasDeMesesAnteriores (02/10 — setembro sumiu quando virou outubro)", () => {
+  const f = (competencia: string, status: "aberta" | "paga" | "cancelada", dueDate: string) => ({ competencia, status, dueDate });
+
+  it("mostra as abertas de meses anteriores, não as do mês visto nem as futuras", () => {
+    const todas = [f("2026-09", "aberta", "2026-09-10"), f("2026-10", "aberta", "2026-10-10"), f("2026-11", "aberta", "2026-11-10")];
+    expect(abertasDeMesesAnteriores(todas, "2026-10")).toEqual([todas[0]]);
+  });
+
+  it("ignora pagas e canceladas — só o que ainda dá para receber", () => {
+    const todas = [f("2026-09", "paga", "2026-09-05"), f("2026-09", "cancelada", "2026-09-06"), f("2026-08", "aberta", "2026-08-20")];
+    expect(abertasDeMesesAnteriores(todas, "2026-10").map((x) => x.competencia)).toEqual(["2026-08"]);
+  });
+
+  it("ordena pelo vencimento, a mais antiga primeiro, atravessando o ano", () => {
+    const todas = [f("2026-01", "aberta", "2026-01-15"), f("2025-12", "aberta", "2025-12-15")];
+    expect(abertasDeMesesAnteriores(todas, "2026-02").map((x) => x.competencia)).toEqual(["2025-12", "2026-01"]);
+  });
+});
+
+describe("mesVizinho", () => {
+  it("anda para frente e para trás, virando o ano", () => {
+    expect(mesVizinho("2026-10", -1)).toBe("2026-09");
+    expect(mesVizinho("2026-12", 1)).toBe("2027-01");
+    expect(mesVizinho("2026-01", -1)).toBe("2025-12");
+    expect(mesVizinho("2026-10", 0)).toBe("2026-10");
   });
 });

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEstadoDoFinanceiro } from "@/lib/tenant-live";
 import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import {
@@ -55,6 +56,7 @@ import { toISODate } from "@/lib/format";
 
 export default function PainelHojePage() {
   const tenant = useTenant();
+  const estadoDoFinanceiro = useEstadoDoFinanceiro();
   /* As formas que o dono cadastrou — ou as quatro de sempre, derivadas das
    * taxas, para a barbearia que nunca abriu a tela de Ajustes. */
   const formasDeCobranca = formasAtivas(tenant.policies);
@@ -145,7 +147,7 @@ export default function PainelHojePage() {
    * não aqui. Antes era um array montado na tela com duas condicionais: cada
    * regra nova cresceria em JSX, e a operação passaria a ser interpretada de
    * um jeito em cada tela. */
-  const itensDeAcao = avaliarOperacao({
+  const itensDeAcaoBrutos = avaliarOperacao({
     bookings,
     /* Sem filtrar por data: o que conta como "ficou para trás" é decisão de
      * operação, e ela mora no motor. A tela entrega tudo que conhece. */
@@ -159,6 +161,11 @@ export default function PainelHojePage() {
     agora,
     toleranciaAtrasoMin,
   });
+  /* "Taxas não informadas" só com as taxas CONFIRMADAS pelo servidor (02/10):
+   * o cache local já afirmou 0% para taxas que existiam. */
+  const itensDeAcao = estadoDoFinanceiro === "confirmado"
+    ? itensDeAcaoBrutos
+    : itensDeAcaoBrutos.filter((i) => i.id !== "taxas-nao-configuradas");
   /* O atendimento atrasado de HOJE já está na agenda logo abaixo, com os
    * mesmos botões — no "Precisa de você" ele aparecia duas vezes na mesma
    * tela (apontado pelo dono em 24/09). Fica só na agenda, em destaque.

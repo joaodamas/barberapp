@@ -5,6 +5,8 @@ import { AlertTriangle, Check, Clock, Loader2, Percent } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useTenant } from "@/lib/tenant-context";
+import { useEstadoDoFinanceiro } from "@/lib/tenant-live";
+import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
 import { patchTenant, salvarFinanceiro } from "@/lib/db/repository";
 import { formatBRL } from "@/lib/format";
 import { EditorDeFormasDePagamento } from "@/components/formas-de-pagamento-editor";
@@ -38,6 +40,10 @@ const TOLERANCIA_MAX = 120;
 
 export default function ConfiguracoesPage() {
   const tenant = useTenant();
+  /* Só o SERVIDOR confirma as taxas (02/10): o cache local já disse "não
+   * existe" para taxas que existiam, e a tela abriu com 0% editável. */
+  const estadoDoFinanceiro = useEstadoDoFinanceiro();
+  const financeiroConfirmado = estadoDoFinanceiro === "confirmado";
 
   /**
    * O formulário NÃO semeia do tenant — ele exibe o tenant até alguém digitar.
@@ -67,7 +73,7 @@ export default function ConfiguracoesPage() {
   const tolerancia = rascunhoTolerancia ?? tenant.policies.booking.lateToleranceMinutes;
   const comissao = rascunhoComissao ?? tenant.policies.commissionSplit.barberPct;
 
-  const naoConfigurado = taxasEmBranco(formas);
+  const naoConfigurado = financeiroConfirmado && taxasEmBranco(formas);
   const mudou =
     JSON.stringify(formas) !== JSON.stringify(formasSalvas) ||
     tolerancia !== tenant.policies.booking.lateToleranceMinutes ||
@@ -102,6 +108,8 @@ export default function ConfiguracoesPage() {
   }
 
   async function salvar() {
+    /* Nunca grava padrões por cima do que o servidor ainda não confirmou. */
+    if (!financeiroConfirmado) return;
     setSalvando(true);
     setErro(null);
     try {
@@ -188,7 +196,15 @@ export default function ConfiguracoesPage() {
             </p>
           </div>
 
-          <EditorDeFormasDePagamento formas={formas} onChange={alterarFormas} />
+          {estadoDoFinanceiro === "erro" ? (
+            <ErroAoCarregar oQue="as suas taxas" />
+          ) : !financeiroConfirmado ? (
+            <p className="flex items-center gap-2 text-sm text-ink-muted">
+              <Loader2 size={14} className="animate-spin" /> Carregando as suas taxas…
+            </p>
+          ) : (
+            <EditorDeFormasDePagamento formas={formas} onChange={alterarFormas} />
+          )}
 
         </Card>
 
@@ -325,7 +341,7 @@ export default function ConfiguracoesPage() {
       </section>
 
       <div className="flex items-center gap-3">
-        <Button onClick={salvar} disabled={salvando || !mudou}>
+        <Button onClick={salvar} disabled={salvando || !mudou || !financeiroConfirmado}>
           {salvando ? <Loader2 size={16} className="animate-spin" /> : null}
           {salvando ? "Salvando…" : "Salvar alterações"}
         </Button>

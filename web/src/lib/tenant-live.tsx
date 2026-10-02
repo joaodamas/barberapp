@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { doc, onSnapshot } from "firebase/firestore";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { doc, getDocFromServer, onSnapshot } from "firebase/firestore";
 import { getDb } from "@/lib/firebase";
 import { TenantProvider } from "@/lib/tenant-context";
 import { toTenant } from "@/lib/tenant-shape";
@@ -32,6 +32,29 @@ import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
  * quando chega. Sem isso, o painel voltaria a piscar a marca da plataforma
  * antes da do cliente, que é o sintoma que resolver no servidor evitou.
  */
+/**
+ * O financeiro (taxas, formas, comissão) já foi CONFIRMADO pelo servidor? (02/10)
+ *
+ * Com o cache persistente do Firestore, o navegador do dono do Siqueira ficou
+ * com `barbershops/{id}` e `private/financeiro` marcados como INEXISTENTES no
+ * cache local — enquanto existiam no servidor, com nove formas e taxas. O
+ * painel caiu nos padrões (0%) e afirmou "Suas taxas de maquininha ainda não
+ * foram informadas". Pior: a tela de Ajustes abria editável, e um Salvar
+ * gravaria os zeros por cima das taxas verdadeiras.
+ *
+ * Regra: "não existe" vindo do CACHE não é resposta — só o servidor diz que o
+ * documento não existe. Até ele responder, quem afirmar algo sobre taxas ou
+ * comissão (ou deixar editar) espera.
+ *
+ * Fora do painel (sem TenantLive) não há o que confirmar: o valor padrão é
+ * "confirmado", e nada muda para quem não lê o financeiro.
+ */
+export type EstadoDoFinanceiro = "carregando" | "confirmado" | "erro";
+const FinanceiroConfirmadoContext = createContext<EstadoDoFinanceiro>("confirmado");
+export function useEstadoDoFinanceiro(): EstadoDoFinanceiro {
+  return useContext(FinanceiroConfirmadoContext);
+}
+
 export function TenantLive({
   inicial,
   indisponivel = false,
@@ -62,6 +85,7 @@ export function TenantLive({
    * ficha pública era legível sem login. O painel junta as duas: o privado por
    * cima do público, que é a mesma regra do servidor (`politicasDe`). */
   const [financeiro, setFinanceiro] = useState<Record<string, unknown> | null>(null);
+  const [estadoDoFinanceiro, setEstadoDoFinanceiro] = useState<EstadoDoFinanceiro>("carregando");
   const tenant = useMemo<Tenant>(() => {
     if (!ficha) return inicial;
     const policies = (ficha.data.policies ?? {}) as Record<string, unknown>;
@@ -103,12 +127,28 @@ export function TenantLive({
     getDb()
       .then((db) => {
         if (cancelado) return;
+        const ref = doc(db, "barbershops", inicial.id);
+        let conferiu = false;
         parar = onSnapshot(
-          doc(db, "barbershops", inicial.id),
+          ref,
+          { includeMetadataChanges: true },
           (snap) => {
             const data = snap.data();
-            if (!data) return;
-            setFicha({ id: snap.id, data });
+            if (data) {
+              setFicha({ id: snap.id, data });
+              return;
+            }
+            /* Sem dados e vindo do CACHE: o cache local pode estar errado
+             * (02/10). Pergunta ao servidor uma vez, sem apagar nada. */
+            if (snap.metadata.fromCache && !conferiu) {
+              conferiu = true;
+              getDocFromServer(ref)
+                .then((s) => {
+                  const d = s.data();
+                  if (!cancelado && d) setFicha({ id: s.id, data: d });
+                })
+                .catch((erro) => console.error("[tenant-live] servidor não confirmou a barbearia", erro));
+            }
           },
           (erro) => {
             /* Degrada para o valor do servidor em vez de derrubar o painel:
@@ -133,14 +173,48 @@ export function TenantLive({
     getDb()
       .then((db) => {
         if (cancelado) return;
+        const ref = doc(db, "barbershops", inicial.id, "private", "financeiro");
+        let conferiu = false;
         parar = onSnapshot(
-          doc(db, "barbershops", inicial.id, "private", "financeiro"),
-          (snap) => setFinanceiro(snap.data() ?? {}),
-          /* Sem permissão (quem não é da casa) ou sem rede: segue com o que a
-           * ficha pública ainda tiver. Durante a migração é o valor antigo;
-           * depois dela, os padrões — e o servidor, que é quem calcula
-           * dinheiro, lê o privado por conta própria. */
-          (erro) => console.error("[tenant-live] falha ao ler o financeiro", erro)
+          ref,
+          { includeMetadataChanges: true },
+          (snap) => {
+            const data = snap.data();
+            if (data) {
+              setFinanceiro(data);
+              /* Dado do cache pode estar velho; só o servidor CONFIRMA. */
+              if (!snap.metadata.fromCache) setEstadoDoFinanceiro("confirmado");
+              return;
+            }
+            if (!snap.metadata.fromCache) {
+              /* O servidor disse que não existe: aí sim, padrões. */
+              setFinanceiro({});
+              setEstadoDoFinanceiro("confirmado");
+              return;
+            }
+            /* "Não existe" vindo do cache não é resposta (02/10). */
+            if (!conferiu) {
+              conferiu = true;
+              getDocFromServer(ref)
+                .then((s) => {
+                  if (cancelado) return;
+                  setFinanceiro(s.data() ?? {});
+                  setEstadoDoFinanceiro("confirmado");
+                })
+                .catch((erro) => {
+                  console.error("[tenant-live] servidor não confirmou o financeiro", erro);
+                  if (!cancelado) setEstadoDoFinanceiro("erro");
+                });
+            }
+          },
+          /* Sem permissão ou sem rede: ninguém afirma nada sobre taxas — a
+           * tela de Ajustes mostra o erro e não deixa salvar padrões. O
+           * servidor, que é quem calcula dinheiro, lê o privado por conta
+           * própria. */
+          (erro) => {
+            console.error("[tenant-live] falha ao ler o financeiro", erro);
+            setEstadoDoFinanceiro("erro");
+          }
         );
       })
       .catch(() => undefined);
@@ -169,5 +243,9 @@ export function TenantLive({
 
   /* O tenant do servidor é reprovido pelo layout raiz; este Provider mais
    * interno vence para tudo que estiver abaixo dele. */
-  return <TenantProvider tenant={tenant}>{children}</TenantProvider>;
+  return (
+    <FinanceiroConfirmadoContext.Provider value={estadoDoFinanceiro}>
+      <TenantProvider tenant={tenant}>{children}</TenantProvider>
+    </FinanceiroConfirmadoContext.Provider>
+  );
 }

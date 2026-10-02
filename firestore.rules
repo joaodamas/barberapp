@@ -423,7 +423,11 @@ service cloud.firestore {
                .hasOnly(['status', 'paymentMethod', 'paymentFormId', 'paymentFormLabel',
                          'discountAmount', 'discountInput', 'discountReason',
                          'discountBy', 'discountAt'])
-          && resource.data.status in ['pending_payment', 'confirmed', 'confirmed_by_client', 'fit_in_requested']
+          && (resource.data.status in ['pending_payment', 'confirmed', 'confirmed_by_client', 'fit_in_requested']
+              /* "Veio depois" (02/10): a falta pode virar atendimento concluído
+               * — e SÓ concluído, pelo mesmo ramo com método e desconto
+               * validados. O gatilho financeiro materializa no_show → completed. */
+              || (resource.data.status == 'no_show' && request.resource.data.status == 'completed'))
           && (
             (request.resource.data.status == 'completed'
               && request.resource.data.get('paymentMethod', null) in [null, 'pix', 'cash', 'debit', 'credit']
