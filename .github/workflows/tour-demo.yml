@@ -9,6 +9,16 @@ name: tour de apresentação (gravação)
 # Manual de propósito; roda sozinho só quando o próprio tour muda.
 on:
   workflow_dispatch:
+    inputs:
+      nome:
+        description: "Nome da barbearia no tour (padrão: Barbearia Navalha, fictícia)"
+        required: false
+      slug:
+        description: "Slug, só letras minúsculas, números e hífen (padrão: navalha)"
+        required: false
+      cor:
+        description: "Cor de destaque em #rrggbb (padrão: #b8863a)"
+        required: false
   pull_request:
     paths:
       - scripts/tour-demo/**
@@ -67,6 +77,9 @@ jobs:
           NEXT_PUBLIC_USE_EMULATOR: "true"
           NEXT_PUBLIC_ROOT_DOMAIN: lvh.me
           NEXT_PUBLIC_FIREBASE_PROJECT_ID: demo-tour
+          DEMO_NOME: ${{ inputs.nome }}
+          DEMO_SLUG: ${{ inputs.slug }}
+          DEMO_COR: ${{ inputs.cor }}
         run: |
           firebase emulators:start --only auth,firestore,functions --project demo-tour > emulador.log 2>&1 &
           # A porta 5001 responde antes de as funções carregarem; o sinal certo é o do log.

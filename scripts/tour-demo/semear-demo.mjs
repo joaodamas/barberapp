@@ -30,8 +30,14 @@ initializeApp({ projectId: PROJETO });
 const db = getFirestore();
 const auth = getAuth();
 
-const SHOP = "shop-navalha";
-const SLUG = "navalha";
+/* Nome, endereço e cor vêm do ambiente — para gerar o tour com o nome do
+ * prospect. O padrão é a Navalha, inventada. Nunca o nome de um cliente real
+ * sem o consentimento dele. */
+const NOME = process.env.DEMO_NOME || "Barbearia Navalha";
+const SLUG = (process.env.DEMO_SLUG || "navalha").toLowerCase().replace(/[^a-z0-9-]/g, "");
+const CURTO = process.env.DEMO_NOME_CURTO || NOME.replace(/^barbearia\s+/i, "");
+const COR = /^#[0-9a-f]{6}$/i.test(process.env.DEMO_COR ?? "") ? process.env.DEMO_COR : "#b8863a";
+const SHOP = `shop-${SLUG}`;
 const shopRef = db.doc(`barbershops/${SHOP}`);
 const FUNCOES = `http://127.0.0.1:5001/${PROJETO}/southamerica-east1`;
 
@@ -58,7 +64,7 @@ const REF_HORA = "15:00";
 const REF_ISO = `${REF_DIA}T${REF_HORA}:00-03:00`;
 const SAIDA = new URL("./saida/", import.meta.url).pathname;
 mkdirSync(SAIDA, { recursive: true });
-writeFileSync(SAIDA + "ref.json", JSON.stringify({ ref: REF_ISO, dia: REF_DIA, hora: REF_HORA }));
+writeFileSync(SAIDA + "ref.json", JSON.stringify({ ref: REF_ISO, dia: REF_DIA, hora: REF_HORA, nome: NOME, slug: SLUG }));
 console.log("REF do tour:", REF_ISO, "(hoje real:", hojeReal, horaSP + "h)");
 
 /* Aleatório com semente: duas rodadas gravam o mesmo mês. */
@@ -94,9 +100,9 @@ await shopRef.set({
   features: { whatsapp: true, loyalty: true, subscriptions: true, store: true, advancedFinance: true },
   /* Sem `logo`: a barbearia sem logo próprio ganha o monograma dela. */
   brand: {
-    name: "Barbearia Navalha",
-    shortName: "Navalha",
-    accentColor: "#b8863a",
+    name: NOME,
+    shortName: CURTO,
+    accentColor: COR,
     themeColor: "#ffffff",
     panelLabel: "Painel do dono",
     clientTagline: "Corte, barba e resenha",
@@ -444,5 +450,5 @@ for (const [mes, lista] of [[mesAnt, 1], [mesRef, 0]]) {
 /* Dá tempo aos gatilhos do emulador. */
 await new Promise((r) => setTimeout(r, 8000));
 const [pag, com] = await Promise.all([shopRef.collection("payments").count().get(), shopRef.collection("commissions").count().get()]);
-console.log("SEMEADO: Barbearia Navalha · pagamentos", pag.data().count, "· comissões", com.data().count);
+console.log(`SEMEADO: ${NOME} (${SLUG}) · pagamentos`, pag.data().count, "· comissões", com.data().count);
 process.exit(0);

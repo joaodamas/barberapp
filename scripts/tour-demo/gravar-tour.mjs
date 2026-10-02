@@ -16,10 +16,11 @@
 import { chromium, devices } from "playwright";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 
-const BASE = process.env.BASE ?? "http://navalha.lvh.me:3000";
 const SAIDA = new URL("./saida/", import.meta.url).pathname;
 mkdirSync(SAIDA, { recursive: true });
-const { ref } = JSON.parse(readFileSync(SAIDA + "ref.json", "utf8"));
+const { ref, nome, slug } = JSON.parse(readFileSync(SAIDA + "ref.json", "utf8"));
+/* O slug vem do semeador (DEMO_SLUG), para o tour com o nome do prospect. */
+const BASE = process.env.BASE ?? `http://${slug ?? "navalha"}.lvh.me:3000`;
 
 const APARELHOS = {
   celular: {
@@ -27,14 +28,47 @@ const APARELHOS = {
     deviceScaleFactor: 2,
     recordVideo: { dir: SAIDA + "bruto", size: { width: 780, height: 1688 } },
   },
+  /* 1440×900 de tela com densidade 2: o vídeo sai em 2880×1800, nítido o
+   * bastante para a edição dar zoom num detalhe sem pixelar. */
   computador: {
     viewport: { width: 1440, height: 900 },
-    deviceScaleFactor: 1,
-    recordVideo: { dir: SAIDA + "bruto", size: { width: 1440, height: 900 } },
+    deviceScaleFactor: 2,
+    recordVideo: { dir: SAIDA + "bruto", size: { width: 2880, height: 1800 } },
   },
 };
 
 const espera = (page, ms) => page.waitForTimeout(ms);
+
+/* ---- Linha do tempo de cada vídeo ----
+ * Para a edição dar zoom no detalhe e pôr o efeito sonoro no quadro certo:
+ * `t` em segundos desde o início do vídeo (a página nasce junto com ele) e a
+ * caixa em px da viewport (CSS; no vídeo, multiplicar pela densidade). */
+let linha = { t0: Date.now(), eventos: [] };
+const agoraNoVideo = () => +((Date.now() - linha.t0) / 1000).toFixed(2);
+const caixaDe = (b) => (b ? { x: Math.round(b.x), y: Math.round(b.y), w: Math.round(b.width), h: Math.round(b.height) } : null);
+function registrar(tipo, alvo, caixa, extra = {}) {
+  linha.eventos.push({ t: agoraNoVideo(), tipo, alvo, caixa, ...extra });
+}
+async function dialogosVisiveis(page) {
+  return page.locator('[role="dialog"]:visible, [role="alertdialog"]:visible').count().catch(() => 0);
+}
+/** Toca no elemento registrando onde ele estava — e o que apareceu depois. */
+async function clicar(page, locator) {
+  await locator.scrollIntoViewIfNeeded({ timeout: 8000 }).catch(() => {});
+  const caixa = caixaDe(await locator.boundingBox({ timeout: 8000 }).catch(() => null));
+  const texto = ((await locator.innerText({ timeout: 2000 }).catch(() => "")) || (await locator.getAttribute("aria-label").catch(() => "")) || "")
+    .trim().replace(/\s+/g, " ").slice(0, 60);
+  const antes = await dialogosVisiveis(page);
+  registrar("clique", texto, caixa);
+  await locator.click();
+  /* Modal ou folha que surge com o toque: a caixa dela é o zoom seguinte. */
+  await espera(page, 450);
+  if ((await dialogosVisiveis(page)) > antes) {
+    const d = page.locator('[role="dialog"]:visible, [role="alertdialog"]:visible').last();
+    const titulo = ((await d.getAttribute("aria-label").catch(() => "")) || (await d.locator("h1,h2,h3").first().innerText({ timeout: 1000 }).catch(() => "")) || "modal").trim().slice(0, 60);
+    registrar("aparece", titulo, caixaDe(await d.boundingBox().catch(() => null)));
+  }
+}
 
 async function pronta(page) {
   /* Mesma regra do passeio: texto na tela e nenhum esqueleto carregando. */
@@ -50,6 +84,7 @@ async function pronta(page) {
 
 /** Rolagem suave (easing), no elemento que de fato rola. */
 async function rolar(page, px = 700, ms = 2600) {
+  registrar("rola", `${px}px em ${ms}ms`, { x: 0, y: 0, ...(() => { const v = page.viewportSize(); return { w: v.width, h: v.height }; })() }, { duracao: ms / 1000 });
   await page.evaluate(
     ({ px, ms }) =>
       new Promise((ok) => {
@@ -83,28 +118,28 @@ const CLIENTE = [
   ["agendar", "/agendar", async (p) => {
     await espera(p, 1200);
     const passo1 = p.locator("button[aria-pressed]");
-    await passo1.filter({ hasText: /^Corte\b/ }).first().click();
+    await clicar(p, passo1.filter({ hasText: /^Corte\b/ }).first());
     await espera(p, 900);
-    await passo1.filter({ hasText: /^Barba\b/ }).first().click();
+    await clicar(p, passo1.filter({ hasText: /^Barba\b/ }).first());
     await espera(p, 1800);
-    await p.getByRole("button", { name: "Continuar" }).click();
+    await clicar(p, p.getByRole("button", { name: "Continuar" }));
     await espera(p, 1500);
     /* Dia: o terceiro da faixa — sempre futuro no relógio real. */
     const dias = p.locator("button[aria-pressed]").filter({ hasText: /\d/ });
-    await dias.nth(2).click().catch(() => {});
+    await clicar(p, dias.nth(2)).catch(() => {});
     await espera(p, 1200);
-    await p.getByRole("button", { name: "Diego" }).click().catch(() => {});
+    await clicar(p, p.getByRole("button", { name: "Diego" })).catch(() => {});
     await espera(p, 2200);
     const horario = p.getByRole("button", { name: /^\d\d:\d\d$/ }).first();
     await mostrar(p, horario);
-    await horario.click();
+    await clicar(p, horario);
     await espera(p, 1500);
     const continuar = p.getByRole("button", { name: "Continuar" });
-    if (await continuar.isVisible().catch(() => false)) await continuar.click();
+    if (await continuar.isVisible().catch(() => false)) await clicar(p, continuar);
     await espera(p, 2000);
     const confirmar = p.getByRole("button", { name: "Confirmar reserva" });
     await mostrar(p, confirmar);
-    await confirmar.click();
+    await clicar(p, confirmar);
     await espera(p, 3500);
   }],
   ["reservas", "/reservas", async (p) => { await espera(p, 1500); await rolar(p, 500); await espera(p, 1200); }],
@@ -124,46 +159,46 @@ const DONO = [
     const aprovar = p.getByRole("button", { name: "Aprovar encaixe" }).first();
     await mostrar(p, aprovar);
     await espera(p, 1200);
-    await aprovar.click();
+    await clicar(p, aprovar);
     await espera(p, 3000);
   }],
   ["agenda", "/painel/agenda", async (p) => {
     await espera(p, 1500);
     await rolar(p, 500, 2400);
     await espera(p, 1000);
-    await p.getByRole("tab", { name: "Lista" }).click();
+    await clicar(p, p.getByRole("tab", { name: "Lista" }));
     await espera(p, 1500);
     await rolar(p, 600, 2600);
     await espera(p, 1200);
   }],
   ["marcar-atendimento", "/painel", async (p) => {
     await espera(p, 1000);
-    await p.getByRole("button", { name: "Marcar atendimento" }).first().click();
+    await clicar(p, p.getByRole("button", { name: "Marcar atendimento" }).first());
     await espera(p, 1300);
     const dialogo = p.getByRole("dialog");
-    await dialogo.getByRole("button", { name: /^Corte\b/ }).first().click();
+    await clicar(p, dialogo.getByRole("button", { name: /^Corte\b/ }).first());
     await espera(p, 900);
-    await dialogo.getByRole("button", { name: "Caio" }).click().catch(() => {});
+    await clicar(p, dialogo.getByRole("button", { name: "Caio" })).catch(() => {});
     await espera(p, 2500);
     const horario = dialogo.getByRole("button", { name: /^\d\d:\d\d$/ }).first();
     await mostrar(p, horario);
-    await horario.click();
+    await clicar(p, horario);
     await espera(p, 2500);
   }],
   ["concluir-atendimento", "/painel", async (p) => {
     await espera(p, 1000);
     const concluir = p.getByRole("button", { name: "Concluir", exact: true }).first();
     await mostrar(p, concluir);
-    await concluir.click();
+    await clicar(p, concluir);
     await espera(p, 1300);
     const dialogo = p.getByRole("dialog");
-    await dialogo.getByRole("button", { name: "Adicionar serviço" }).click();
+    await clicar(p, dialogo.getByRole("button", { name: "Adicionar serviço" }));
     await espera(p, 1200);
-    await dialogo.getByRole("button", { name: /^Sobrancelha ·/ }).click();
+    await clicar(p, dialogo.getByRole("button", { name: /^Sobrancelha ·/ }));
     await espera(p, 1800);
-    await dialogo.getByRole("button", { name: "Somar ao atendimento" }).click();
+    await clicar(p, dialogo.getByRole("button", { name: "Somar ao atendimento" }));
     await espera(p, 2500);
-    await dialogo.getByRole("button", { name: /Pix/ }).first().click();
+    await clicar(p, dialogo.getByRole("button", { name: /Pix/ }).first());
     await espera(p, 2500);
   }],
   ["mensalistas", "/painel/mensal", passear()],
@@ -217,11 +252,13 @@ for (const [aparelho, cfg] of Object.entries(APARELHOS)) {
       const page = await ctx.newPage();
       const erros = [];
       page.on("pageerror", (e) => erros.push(e.message.slice(0, 160)));
-      const t0 = Date.now();
+      linha = { t0: Date.now(), eventos: [] };
+      const t0 = linha.t0;
       let falha = null;
       try {
         await page.goto(BASE + rota, { waitUntil: "domcontentloaded", timeout: 60000 });
         await pronta(page);
+        registrar("aparece", "tela pronta", { x: 0, y: 0, w: cfg.viewport.width, h: cfg.viewport.height });
       } catch (e) {
         falha = "carregar: " + e.message.slice(0, 160);
       }
@@ -241,7 +278,7 @@ for (const [aparelho, cfg] of Object.entries(APARELHOS)) {
       await page.close();
       await video.saveAs(`${SAIDA}${nome}.webm`);
       await video.delete().catch(() => {});
-      roteiro.push({ modulo, quem, aparelho, rota, arquivo: `${nome}.webm`, foto: `${nome}.png`, inicio: +inicio.toFixed(2), duracao: +duracao.toFixed(2), falha, erros });
+      roteiro.push({ modulo, quem, aparelho, densidade: cfg.deviceScaleFactor, viewport: cfg.viewport, eventos: linha.eventos, rota, arquivo: `${nome}.webm`, foto: `${nome}.png`, inicio: +inicio.toFixed(2), duracao: +duracao.toFixed(2), falha, erros });
       console.log(`${falha ? "FALHOU" : "ok"} ${nome} · pronta em ${inicio.toFixed(1)}s · ${duracao.toFixed(1)}s${falha ? " · " + falha : ""}`);
     }
     await ctx.close();
@@ -249,6 +286,6 @@ for (const [aparelho, cfg] of Object.entries(APARELHOS)) {
 }
 await browser.close();
 
-writeFileSync(SAIDA + "roteiro.json", JSON.stringify({ ref, base: BASE, videos: roteiro }, null, 2));
+writeFileSync(SAIDA + "roteiro.json", JSON.stringify({ ref, nome, base: BASE, videos: roteiro }, null, 2));
 const falhas = roteiro.filter((r) => r.falha);
 console.log(`TOUR GRAVADO: ${roteiro.length} vídeos, ${falhas.length} com falha`);
