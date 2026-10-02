@@ -4,8 +4,8 @@ import localFont from "next/font/local";
 /**
  * A marca da plataforma: Topete (desde 28/09/2026; antes, CorteHub).
  *
- * O símbolo é o mascote — o homem de topete dourado — no quadro escuro do ícone
- * do app. A palavra é "topete" em minúsculas, na Outfit, a mesma do logo
+ * O símbolo é o mascote — o homem de topete dourado — SEM o quadro escuro do
+ * ícone do app (pedido do dono em 02/10: o quadrado fica só para o ícone do PWA). A palavra é "topete" em minúsculas, na Outfit, a mesma do logo
  * desenhado em `docs/marca` (fonte da verdade: `docs/marca/gerar-marca.py`).
  *
  * A Outfit entra só aqui, auto-hospedada como as outras fontes do app
@@ -18,15 +18,15 @@ export const outfit = localFont({
   variable: "--font-outfit",
 });
 
-/** O ícone: o mascote no quadro escuro. */
+/** O símbolo: o mascote, sem fundo. */
 export function SimboloTopete({ className = "h-8 w-8" }: { className?: string }) {
   return (
     <Image
-      src="/topete-icone.svg"
+      src="/topete-mascote.svg"
       alt=""
       width={64}
       height={64}
-      className={`${className} shrink-0 rounded-[22%]`}
+      className={`${className} shrink-0`}
       unoptimized
     />
   );
