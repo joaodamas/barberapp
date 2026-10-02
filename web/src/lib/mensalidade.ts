@@ -94,3 +94,31 @@ export function resumoDasFaturas(
     porEstagio,
   };
 }
+
+/**
+ * Mensalidades em aberto de competências ANTERIORES à vista (02/10).
+ *
+ * A tela mostrava só a competência do mês corrente. Virou outubro, outubro
+ * ainda não tinha sido emitido, e as faturas abertas de setembro sumiram da
+ * tela — o barbeiro ficou sem onde dar baixa de quem pagou atrasado. Dívida
+ * velha não pode desaparecer só porque o calendário andou.
+ *
+ * Competência é `AAAA-MM`: a comparação de texto é a comparação de datas.
+ * Ordem: a que venceu primeiro vem primeiro.
+ */
+export function abertasDeMesesAnteriores<
+  T extends Pick<SubscriptionInvoiceDoc, "competencia" | "status" | "dueDate">,
+>(faturas: T[], competencia: string): T[] {
+  return faturas
+    .filter((f) => f.status === "aberta" && f.competencia < competencia)
+    .sort((a, b) => (a.dueDate < b.dueDate ? -1 : a.dueDate > b.dueDate ? 1 : 0));
+}
+
+/** `AAAA-MM` deslocado em meses — o seletor de competência da tela. */
+export function mesVizinho(competencia: string, delta: number): string {
+  const [a, m] = competencia.split("-").map(Number);
+  const total = a * 12 + (m - 1) + delta;
+  const ano = Math.floor(total / 12);
+  const mes = (total % 12) + 1;
+  return `${ano}-${String(mes).padStart(2, "0")}`;
+}
