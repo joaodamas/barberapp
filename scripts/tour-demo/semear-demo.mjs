@@ -256,7 +256,7 @@ for (const m of MENSALISTAS) {
   console.log("  mensalista", CLIENTES[m.c].name, m.plano, m.fixo ? `fixo ${m.fixo.hora}` : "");
 }
 const faturas = await chamar("gerarFaturasDoMes", {});
-const abertas = await shopRef.collection("subscriptionInvoices").get();
+const abertas = await shopRef.collection("subscription_invoices").get();
 let pagas = 0;
 for (const f of abertas.docs) {
   if (pagas >= 4) break;

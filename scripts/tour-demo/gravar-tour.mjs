@@ -137,6 +137,15 @@ const CLIENTE = [
     const continuar = p.getByRole("button", { name: "Continuar" });
     if (await continuar.isVisible().catch(() => false)) await clicar(p, continuar);
     await espera(p, 2000);
+    /* O WhatsApp do cliente fica em branco na primeira reserva: digita devagar. */
+    const zap = p.getByRole("textbox", { name: /whatsapp/i });
+    if (await zap.isVisible().catch(() => false) && !(await zap.inputValue().catch(() => ""))) {
+      await mostrar(p, zap);
+      registrar("clique", "Seu WhatsApp", caixaDe(await zap.boundingBox().catch(() => null)));
+      await zap.click();
+      await zap.pressSequentially("11974440000", { delay: 90 });
+      await espera(p, 900);
+    }
     const confirmar = p.getByRole("button", { name: "Confirmar reserva" });
     await mostrar(p, confirmar);
     await clicar(p, confirmar);
