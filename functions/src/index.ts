@@ -152,3 +152,4 @@ export {
 export { registrarPush, removerPush } from "./push/push";
 export { pushAoCriarReserva, pushAoMudarReserva } from "./push/gatilhos";
 export { adicionarServicosAoAtendimento } from "./servicos-extras";
+export { editarCobrancaDoAtendimento } from "./edicao-de-cobranca";
