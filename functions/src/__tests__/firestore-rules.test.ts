@@ -686,6 +686,41 @@ describe("reserva: o painel fecha e marca falta — e só isso", () => {
     await assertFails(deleteDoc(bk(DONO_ALFA)));
     await assertFails(deleteDoc(bk(BARBEIRO_ALFA)));
   });
+
+  /* "Veio depois" (02/10): o cliente marcado como falta aparece e é atendido.
+   * O painel grava no_show → completed direto, mas a regra só aceitava origem
+   * em aberto — o botão era recusado pelo banco. */
+  describe("veio depois: falta → concluído", () => {
+    const marcarFalta = () =>
+      testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await updateDoc(doc(ctx.firestore(), `barbershops/${ALFA}/bookings`, "bk-1"), { status: "no_show" });
+      });
+
+    it("o barbeiro conclui quem tinha faltado, com meio e forma de pagamento", async () => {
+      await marcarFalta();
+      await assertSucceeds(
+        updateDoc(bk(BARBEIRO_ALFA), { status: "completed", paymentMethod: "pix", paymentFormId: "pix", paymentFormLabel: "Pix" })
+      );
+    });
+
+    it("o dono conclui quem tinha faltado", async () => {
+      await marcarFalta();
+      await assertSucceeds(updateDoc(bk(DONO_ALFA), { status: "completed", paymentMethod: "cash" }));
+    });
+
+    it("🔒 cliente não conclui a falta", async () => {
+      await marcarFalta();
+      await assertFails(updateDoc(bk(CLIENTE), { status: "completed", paymentMethod: "pix" }));
+    });
+
+    it("🔒 da falta só se vai para concluído — e sem forjar valor nem método", async () => {
+      await marcarFalta();
+      await assertFails(updateDoc(bk(DONO_ALFA), { status: "confirmed" }));
+      await assertFails(updateDoc(bk(DONO_ALFA), { status: "cancelled_by_shop" }));
+      await assertFails(updateDoc(bk(DONO_ALFA), { status: "completed", paymentMethod: "bitcoin" }));
+      await assertFails(updateDoc(bk(DONO_ALFA), { status: "completed", paymentMethod: "cash", value: 99999 }));
+    });
+  });
 });
 
 describe("reserva: desconto no fechamento (28/09)", () => {

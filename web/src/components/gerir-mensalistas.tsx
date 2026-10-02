@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Search, UserPlus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
@@ -14,7 +14,7 @@ import { useTenant } from "@/lib/tenant-context";
 import { useClients, usePlans, useSubscriptionInvoices } from "@/lib/db/use-shop-data";
 import { filtrarClientes } from "@/lib/clientes-busca";
 import { mascararWhatsapp } from "@/lib/whatsapp-numero";
-import { estagioDaFatura, resumoDasFaturas } from "@/lib/mensalidade";
+import { abertasDeMesesAnteriores, estagioDaFatura, mesVizinho, resumoDasFaturas } from "@/lib/mensalidade";
 import { EstornarValor } from "@/components/estornar-valor";
 import { paymentMethodLabel } from "@/lib/payment-method";
 import { formasAtivas, type FormaDePagamento } from "@/lib/formas-de-pagamento";
@@ -42,8 +42,12 @@ import type { ClientDoc, SubscriptionInvoiceDoc } from "@/lib/domain";
  * Rodada 3. `analytics.ts` não foi tocado.
  */
 
-export function GerirMensalistas({ competencia }: { competencia: string }) {
+export function GerirMensalistas({ competencia: mesCorrente }: { competencia: string }) {
   const tenant = useTenant();
+  /* A competência VISTA (02/10): antes era sempre o mês corrente, e a dívida
+   * de setembro sumia quando virava outubro. */
+  const [competencia, setCompetencia] = useState(mesCorrente);
+  const [emitindo, setEmitindo] = useState(false);
   const formasDeCobranca = formasAtivas(tenant.policies);
   const { items: clientes } = useClients();
   const { items: planos } = usePlans();
@@ -75,6 +79,10 @@ export function GerirMensalistas({ competencia }: { competencia: string }) {
     () => faturas.filter((f) => f.competencia === competencia),
     [faturas, competencia]
   );
+  const anteriores = useMemo(
+    () => abertasDeMesesAnteriores(faturas, competencia),
+    [faturas, competencia]
+  );
 
   const podeContratar = !!cliente && !!planoId;
 
@@ -103,11 +111,14 @@ export function GerirMensalistas({ competencia }: { competencia: string }) {
 
   async function gerarFaturas() {
     setErro(null);
+    setEmitindo(true);
     try {
       const { callFunction } = await import("@/lib/firebase");
       await callFunction("gerarFaturasDoMes", { barbershopId: tenant.id, competencia });
     } catch (err) {
       setErro((err as { message?: string })?.message ?? "Não foi possível emitir agora.");
+    } finally {
+      setEmitindo(false);
     }
   }
 
@@ -134,105 +145,19 @@ export function GerirMensalistas({ competencia }: { competencia: string }) {
     }
   }
 
-  return (
-    <div className="flex flex-col gap-4">
-      {/* ---- Faturado × recebido, separados ---- */}
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 md:gap-4">
-        <Card className="flex flex-col gap-1 p-3 md:p-5">
-          <p className="text-[11px] uppercase tracking-wide text-ink-muted">Faturado</p>
-          <p className="font-display text-lg font-semibold text-ink md:text-2xl">
-            {formatBRL(resumo.faturado)}
-          </p>
-          <p className="text-[11px] text-ink-muted">
-            {contar(resumo.quantidade, "mensalidade", "mensalidades")} em{" "}
-            {rotuloDoMes(competencia)}
-          </p>
-        </Card>
-        <Card className="flex flex-col gap-1 p-3 md:p-5">
-          <p className="text-[11px] uppercase tracking-wide text-ink-muted">Recebido</p>
-          <p className="font-display text-lg font-semibold text-success md:text-2xl">
-            {formatBRL(resumo.recebido)}
-          </p>
-          {/* A frase que separa o contratado do realizado, sem exigir que o
-              dono conheça a modelagem. */}
-          <p className="text-[11px] text-ink-muted">
-            {contar(resumo.pagas, "confirmada", "confirmadas")} — o resto ainda é
-            cobrança
-          </p>
-        </Card>
-        <Card className="flex flex-col gap-1 p-3 md:p-5">
-          <p className="text-[11px] uppercase tracking-wide text-ink-muted">Em aberto</p>
-          <p className="font-display text-lg font-semibold text-ink md:text-2xl">
-            {formatBRL(resumo.emAberto)}
-          </p>
-          <p className="text-[11px] text-ink-muted">
-            {resumo.quantidade - resumo.pagas} a receber
-          </p>
-        </Card>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <Button onClick={() => setContratando(true)}>
-          <UserPlus size={16} />
-          Novo mensalista
-        </Button>
-        {/* Sem plano no catálogo não há o que contratar, e até 20/08 o produto
-            mandava o dono "falar com quem cuida da sua conta na plataforma"
-            para cadastrar um. A porta fica ao lado da contratação porque é aqui
-            que a falta aparece. */}
-        <Button variant="secondary" onClick={() => setEditandoPlanos(true)}>
-          Planos
-        </Button>
-        <Button variant="secondary" onClick={gerarFaturas}>
-          Emitir mensalidades de {rotuloDoMes(competencia)}
-        </Button>
-      </div>
-
-      {erro && (
-        <p role="alert" className="text-xs text-danger">
-          {erro}
-        </p>
-      )}
-
-      {/* ---- As faturas da competência ---- */}
-      <Card className="overflow-hidden p-0">
-        {status === "pronto" && doMes.length === 0 ? (
-          /* Estado vazio diz QUAL período está sendo visto — a lição de P1-1.
-             "Nenhuma mensalidade ainda" seria falso: pode haver de outro mês. */
-          <div className="p-6 text-center">
-            <p className="text-sm text-ink">
-              Nenhuma mensalidade em {rotuloDoMes(competencia)}
-            </p>
-            {/* Dizia o que é e de qual mês, e parava aí. Faltava a outra
-                metade: o botão que resolve está logo acima e o vazio não o
-                mencionava. */}
-            <p className="mt-1 text-xs text-ink-muted">
-              Toque em &quot;Emitir mensalidades de {rotuloDoMes(competencia)}&quot;
-              para gerar a cobrança de cada mensalista ativo.
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-surface-raised text-[11px] uppercase tracking-wide text-ink-muted">
-                <tr>
-                  <th className="px-4 py-2 text-left md:px-6">Cliente</th>
-                  <th className="px-4 py-2 text-left">Plano</th>
-                  <th className="px-4 py-2 text-left">Vence</th>
-                  <th className="px-4 py-2 text-left">Situação</th>
-                  <th className="px-4 py-2 text-right md:px-6">Valor</th>
-                  <th className="px-4 py-2" />
-                </tr>
-              </thead>
-              <tbody>
-                {doMes.map((f) => {
+  function linhaDaFatura(f: Doc<SubscriptionInvoiceDoc>, mostrarMes: boolean) {
                   const estagio = estagioDaFatura(f, hoje);
                   const nome =
                     clientes.find((c) => c.id === f.clientId)?.name ?? "Cliente";
                   return (
                     <tr key={f.id} className="border-b border-border/60 last:border-0">
                       <td className="px-4 py-3 text-ink md:px-6">{nome}</td>
-                      <td className="px-4 py-3 text-ink-muted">{f.planName}</td>
+                      <td className="px-4 py-3 text-ink-muted">
+                        {f.planName}
+                        {mostrarMes && (
+                          <span className="block text-[11px] text-ink-muted">ref. {rotuloDoMes(f.competencia)}</span>
+                        )}
+                      </td>
                       <td className="whitespace-nowrap px-4 py-3 text-ink-muted">
                         {formatDatePtBR(f.dueDate)}
                       </td>
@@ -283,7 +208,132 @@ export function GerirMensalistas({ competencia }: { competencia: string }) {
                       </td>
                     </tr>
                   );
-                })}
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* ---- Faturado × recebido, separados ---- */}
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 md:gap-4">
+        <Card className="flex flex-col gap-1 p-3 md:p-5">
+          <p className="text-[11px] uppercase tracking-wide text-ink-muted">Faturado</p>
+          <p className="font-display text-lg font-semibold text-ink md:text-2xl">
+            {formatBRL(resumo.faturado)}
+          </p>
+          <p className="text-[11px] text-ink-muted">
+            {contar(resumo.quantidade, "mensalidade", "mensalidades")} em{" "}
+            {rotuloDoMes(competencia)}
+          </p>
+        </Card>
+        <Card className="flex flex-col gap-1 p-3 md:p-5">
+          <p className="text-[11px] uppercase tracking-wide text-ink-muted">Recebido</p>
+          <p className="font-display text-lg font-semibold text-success md:text-2xl">
+            {formatBRL(resumo.recebido)}
+          </p>
+          {/* A frase que separa o contratado do realizado, sem exigir que o
+              dono conheça a modelagem. */}
+          <p className="text-[11px] text-ink-muted">
+            {contar(resumo.pagas, "confirmada", "confirmadas")} — o resto ainda é
+            cobrança
+          </p>
+        </Card>
+        <Card className="flex flex-col gap-1 p-3 md:p-5">
+          <p className="text-[11px] uppercase tracking-wide text-ink-muted">Em aberto</p>
+          <p className="font-display text-lg font-semibold text-ink md:text-2xl">
+            {formatBRL(resumo.emAberto)}
+          </p>
+          <p className="text-[11px] text-ink-muted">
+            {resumo.quantidade - resumo.pagas} a receber
+          </p>
+        </Card>
+      </div>
+
+      <div className="flex items-center gap-1">
+        <Button variant="ghost" aria-label="Mês anterior" className="min-h-9 px-2" onClick={() => setCompetencia((c) => mesVizinho(c, -1))}>
+          <ChevronLeft size={16} />
+        </Button>
+        <p className="min-w-36 text-center text-sm font-medium capitalize text-ink">
+          {rotuloDoMes(competencia)}
+          {competencia === mesCorrente && <span className="ml-1 text-xs font-normal text-ink-muted">(este mês)</span>}
+        </p>
+        <Button variant="ghost" aria-label="Próximo mês" className="min-h-9 px-2" onClick={() => setCompetencia((c) => mesVizinho(c, 1))}>
+          <ChevronRight size={16} />
+        </Button>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Button onClick={() => setContratando(true)}>
+          <UserPlus size={16} />
+          Novo mensalista
+        </Button>
+        {/* Sem plano no catálogo não há o que contratar, e até 20/08 o produto
+            mandava o dono "falar com quem cuida da sua conta na plataforma"
+            para cadastrar um. A porta fica ao lado da contratação porque é aqui
+            que a falta aparece. */}
+        <Button variant="secondary" onClick={() => setEditandoPlanos(true)}>
+          Planos
+        </Button>
+        <Button variant="secondary" onClick={gerarFaturas} disabled={emitindo}>
+          {emitindo ? "Emitindo…" : `Emitir mensalidades de ${rotuloDoMes(competencia)}`}
+        </Button>
+      </div>
+
+      {/* ---- Em aberto de meses anteriores (02/10) ---- */}
+      {anteriores.length > 0 && (
+        <Card className="overflow-hidden p-0">
+          <div className="border-b border-border/60 px-4 py-3 md:px-6">
+            <p className="text-sm font-medium text-ink">Em aberto de meses anteriores</p>
+            <p className="text-xs text-ink-muted">
+              {contar(anteriores.length, "mensalidade", "mensalidades")} antes de {rotuloDoMes(competencia)} ainda a receber
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <tbody>{anteriores.map((f) => linhaDaFatura(f, true))}</tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      {erro && (
+        <p role="alert" className="text-xs text-danger">
+          {erro}
+        </p>
+      )}
+
+      {/* ---- As faturas da competência ---- */}
+      <Card className="overflow-hidden p-0">
+        {status === "pronto" && doMes.length === 0 ? (
+          /* Estado vazio diz QUAL período está sendo visto — a lição de P1-1.
+             "Nenhuma mensalidade ainda" seria falso: pode haver de outro mês. */
+          <div className="p-6 text-center">
+            <p className="text-sm text-ink">
+              Nenhuma mensalidade em {rotuloDoMes(competencia)}
+            </p>
+            {/* Dizia o que é e de qual mês, e parava aí. Faltava a outra
+                metade: o botão que resolve está logo acima e o vazio não o
+                mencionava. */}
+            <p className="mt-1 text-xs text-ink-muted">
+              Emita para gerar a cobrança de cada mensalista ativo.
+            </p>
+            <Button className="mt-3" onClick={gerarFaturas} disabled={emitindo}>
+              {emitindo ? "Emitindo…" : `Emitir mensalidades de ${rotuloDoMes(competencia)}`}
+            </Button>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-surface-raised text-[11px] uppercase tracking-wide text-ink-muted">
+                <tr>
+                  <th className="px-4 py-2 text-left md:px-6">Cliente</th>
+                  <th className="px-4 py-2 text-left">Plano</th>
+                  <th className="px-4 py-2 text-left">Vence</th>
+                  <th className="px-4 py-2 text-left">Situação</th>
+                  <th className="px-4 py-2 text-right md:px-6">Valor</th>
+                  <th className="px-4 py-2" />
+                </tr>
+              </thead>
+              <tbody>
+                {doMes.map((f) => linhaDaFatura(f, false))}
               </tbody>
             </table>
           </div>
