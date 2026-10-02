@@ -186,7 +186,9 @@ describe("R1 · a ação existe na linha do atendimento concluído", () => {
      * abertura. Um modal sempre montado reaproveitaria a chave, e a segunda
      * correção cairia no caminho de retry do servidor. */
     expect(PAINEL).toContain("{aCorrigir && (");
-    expect(PAINEL).toContain("<CorrigirPagamento");
+    /* Desde 02/10 a porta abre o editor completo da cobrança (serviços,
+     * desconto e forma), que contém a correção da forma — mesmo invariante. */
+    expect(PAINEL).toContain("<EditarCobranca");
   });
 
   it("não oferece a porta no coberto pelo plano — ali não existe pagamento", () => {
