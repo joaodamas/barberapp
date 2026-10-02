@@ -15,7 +15,7 @@
  * o job rode; as telas do mês usam `refFinanceiro`, o fim de um mês cheio.
  */
 import { chromium, devices } from "playwright";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { linkSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 
 const SAIDA = new URL("./saida/", import.meta.url).pathname;
@@ -64,17 +64,20 @@ async function comecarGravacao(page, cfg, pasta) {
     await cdp.send("Page.stopScreencast").catch(() => {});
     await new Promise((r) => setTimeout(r, 300));
     if (quadros.length === 0) return 0;
-    /* Duração de cada quadro = até o próximo; o primeiro cobre desde t0. */
-    const linhas = [];
-    quadros.forEach((q, i) => {
-      const de = i === 0 ? t0 / 1000 : q.t;
-      const ate = i + 1 < quadros.length ? quadros[i + 1].t : tFim / 1000;
-      linhas.push(`file '${q.arq}'`, `duration ${Math.max(0.001, ate - de).toFixed(4)}`);
-    });
-    linhas.push(`file '${quadros.at(-1).arq}'`);
-    writeFileSync(`${pasta}/lista.txt`, linhas.join("\n"));
-    execFileSync("ffmpeg", ["-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", `${pasta}/lista.txt`,
-      "-vf", `fps=30,scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:white,format=yuv420p`,
+    /* 30 fps exatos: para cada instante de saída, o último quadro que o
+     * Chrome entregou até ali (hard link, sem copiar bytes). Tela parada manda
+     * um quadro só — e continua valendo até o fim. */
+    const fps = 30;
+    const total = Math.max(1, Math.round(((tFim - t0) / 1000) * fps));
+    mkdirSync(`${pasta}/saida`, { recursive: true });
+    let atual = 0;
+    for (let k = 0; k < total; k++) {
+      const instante = t0 / 1000 + k / fps;
+      while (atual + 1 < quadros.length && quadros[atual + 1].t <= instante) atual++;
+      linkSync(quadros[atual].arq, `${pasta}/saida/s${String(k).padStart(5, "0")}.jpg`);
+    }
+    execFileSync("ffmpeg", ["-v", "error", "-y", "-framerate", String(fps), "-i", `${pasta}/saida/s%05d.jpg`,
+      "-vf", `scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:white,format=yuv420p`,
       "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-movflags", "+faststart", saida]);
     rmSync(pasta, { recursive: true, force: true });
     /* Conferência: o arquivo tem de durar o que foi filmado. */
