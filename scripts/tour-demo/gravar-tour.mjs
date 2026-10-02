@@ -14,7 +14,8 @@
  * o job rode.
  */
 import { chromium, devices } from "playwright";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 
 const SAIDA = new URL("./saida/", import.meta.url).pathname;
 mkdirSync(SAIDA, { recursive: true });
@@ -26,16 +27,55 @@ const APARELHOS = {
   celular: {
     ...devices["iPhone 13"],
     deviceScaleFactor: 2,
-    recordVideo: { dir: SAIDA + "bruto", size: { width: 780, height: 1688 } },
   },
   /* 1440×900 de tela com densidade 2: o vídeo sai em 2880×1800, nítido o
    * bastante para a edição dar zoom num detalhe sem pixelar. */
   computador: {
     viewport: { width: 1440, height: 900 },
     deviceScaleFactor: 2,
-    recordVideo: { dir: SAIDA + "bruto", size: { width: 2880, height: 1800 } },
   },
 };
+
+/* ---- Gravação pelo screencast do Chrome ----
+ * O `recordVideo` do Playwright grava na densidade 1 e completa o resto do
+ * quadro com cinza: pedir 2880×1800 dava um 1440×900 no canto. O screencast
+ * (CDP) entrega cada quadro já na densidade da tela, com o instante em que
+ * foi desenhado — e só quando algo muda. O ffmpeg remonta a 30 fps
+ * respeitando esses instantes, então a linha do tempo continua valendo. */
+async function comecarGravacao(page, cfg, pasta) {
+  rmSync(pasta, { recursive: true, force: true });
+  mkdirSync(pasta, { recursive: true });
+  const w = cfg.viewport.width * cfg.deviceScaleFactor;
+  const h = cfg.viewport.height * cfg.deviceScaleFactor;
+  const cdp = await page.context().newCDPSession(page);
+  const quadros = [];
+  cdp.on("Page.screencastFrame", ({ data, metadata, sessionId }) => {
+    const arq = `${pasta}/q${String(quadros.length).padStart(5, "0")}.jpg`;
+    writeFileSync(arq, Buffer.from(data, "base64"));
+    quadros.push({ arq, t: metadata.timestamp });
+    cdp.send("Page.screencastFrameAck", { sessionId }).catch(() => {});
+  });
+  await cdp.send("Page.startScreencast", { format: "jpeg", quality: 90, maxWidth: w, maxHeight: h, everyNthFrame: 1 });
+  return async function terminar(saida, t0, tFim) {
+    await cdp.send("Page.stopScreencast").catch(() => {});
+    await new Promise((r) => setTimeout(r, 300));
+    if (quadros.length === 0) return 0;
+    /* Duração de cada quadro = até o próximo; o primeiro cobre desde t0. */
+    const linhas = [];
+    quadros.forEach((q, i) => {
+      const de = i === 0 ? t0 / 1000 : q.t;
+      const ate = i + 1 < quadros.length ? quadros[i + 1].t : tFim / 1000;
+      linhas.push(`file '${q.arq}'`, `duration ${Math.max(0.001, ate - de).toFixed(4)}`);
+    });
+    linhas.push(`file '${quadros.at(-1).arq}'`);
+    writeFileSync(`${pasta}/lista.txt`, linhas.join("\n"));
+    execFileSync("ffmpeg", ["-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", `${pasta}/lista.txt`,
+      "-vf", `fps=30,scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:white,format=yuv420p`,
+      "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-movflags", "+faststart", saida]);
+    rmSync(pasta, { recursive: true, force: true });
+    return quadros.length;
+  };
+}
 
 const espera = (page, ms) => page.waitForTimeout(ms);
 
@@ -258,9 +298,7 @@ async function entrar(ctx, email, senha, destino) {
   await botao.click({ timeout: 30000 });
   await page.waitForURL(destino, { timeout: 60000 });
   await pronta(page);
-  const video = page.video();
   await page.close();
-  await video?.delete().catch(() => {});
 }
 
 const roteiro = [];
@@ -278,6 +316,8 @@ for (const [aparelho, cfg] of Object.entries(APARELHOS)) {
 
     for (const [modulo, rota, acao] of modulos) {
       const page = await ctx.newPage();
+      const nome = `${aparelho}__${modulo}`;
+      const terminar = await comecarGravacao(page, cfg, `${SAIDA}quadros-${nome}`);
       const erros = [];
       page.on("pageerror", (e) => erros.push(e.message.slice(0, 160)));
       linha = { t0: Date.now(), eventos: [] };
@@ -299,14 +339,12 @@ for (const [aparelho, cfg] of Object.entries(APARELHOS)) {
         }
       }
       await espera(page, 600);
-      const nome = `${aparelho}__${modulo}`;
       await page.screenshot({ path: `${SAIDA}${nome}.png` }).catch(() => {});
-      const duracao = (Date.now() - t0) / 1000;
-      const video = page.video();
+      const tFim = Date.now();
+      const duracao = (tFim - t0) / 1000;
+      const nQuadros = await terminar(`${SAIDA}${nome}.mp4`, t0, tFim);
       await page.close();
-      await video.saveAs(`${SAIDA}${nome}.webm`);
-      await video.delete().catch(() => {});
-      roteiro.push({ modulo, quem, aparelho, densidade: cfg.deviceScaleFactor, viewport: cfg.viewport, eventos: linha.eventos, rota, arquivo: `${nome}.webm`, foto: `${nome}.png`, inicio: +inicio.toFixed(2), duracao: +duracao.toFixed(2), falha, erros });
+      roteiro.push({ modulo, quem, aparelho, densidade: cfg.deviceScaleFactor, viewport: cfg.viewport, eventos: linha.eventos, rota, arquivo: `${nome}.mp4`, quadros: nQuadros, tamanho: { w: cfg.viewport.width * cfg.deviceScaleFactor, h: cfg.viewport.height * cfg.deviceScaleFactor }, foto: `${nome}.png`, inicio: +inicio.toFixed(2), duracao: +duracao.toFixed(2), falha, erros });
       console.log(`${falha ? "FALHOU" : "ok"} ${nome} · pronta em ${inicio.toFixed(1)}s · ${duracao.toFixed(1)}s${falha ? " · " + falha : ""}`);
     }
     await ctx.close();

@@ -70,7 +70,7 @@ jobs:
 
       - name: Tour (dependências)
         working-directory: scripts/tour-demo
-        run: npm install && npx playwright install --with-deps chromium
+        run: npm install && npx playwright install --with-deps chromium && (command -v ffmpeg || (sudo apt-get update -q && sudo apt-get install -y -q ffmpeg))
 
       - name: Emulador, servidor, semente e gravação
         env:
@@ -102,7 +102,7 @@ jobs:
         with:
           name: tour-demo
           path: |
-            scripts/tour-demo/saida/*.webm
+            scripts/tour-demo/saida/*.mp4
             scripts/tour-demo/saida/*.png
             scripts/tour-demo/saida/*.json
             emulador.log
