@@ -36,6 +36,13 @@ describe("aplicarCombos", () => {
   it("repetição conta: corte + 2 infantis = 140", () => {
     expect(aplicarCombos(["corte", "inf", "inf"], CAT)).toMatchObject({ ids: ["c2i"], valor: 140 });
   });
+  it("sem combo, mantém a ordem que a pessoa escolheu", () => {
+    expect(aplicarCombos(["corte", "pez"], CAT).ids).toEqual(["corte", "pez"]);
+    expect(aplicarCombos(["pez", "barba"], CAT).ids).toEqual(["pez", "barba"]);
+  });
+  it("combo entra na posição da primeira peça", () => {
+    expect(aplicarCombos(["pez", "corte", "barba"], CAT).ids).toEqual(["pez", "cb"]);
+  });
   it("duração vem do combo", () => {
     expect(aplicarCombos(["corte", "barba"], CAT).duracao).toBe(45);
   });

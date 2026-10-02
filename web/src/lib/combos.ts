@@ -89,6 +89,14 @@ export function aplicarCombos(escolhidos: string[], catalogo: ServicoDoCatalogo[
   }
 
   const r = melhor(contar(pecas));
+  /* A busca percorre as peças em ordem alfabética; a reserva mostra na ordem
+   * que a pessoa escolheu. Cada item vai para a posição da sua primeira peça. */
+  const posicao = (id: string) => {
+    const s = porId.get(id);
+    const alvo = s && ehCombo(s) ? s.composicao! : [id];
+    return Math.min(...alvo.map((p) => (pecas.indexOf(p) < 0 ? Infinity : pecas.indexOf(p))));
+  };
+  r.itens = [...r.itens].map((id, i) => ({ id, i, p: posicao(id) })).sort((a, b) => a.p - b.p || a.i - b.i).map((x) => x.id);
   return {
     ids: r.itens,
     valor: centavos(r.valor),
