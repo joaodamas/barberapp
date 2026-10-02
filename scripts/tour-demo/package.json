@@ -1,0 +1,10 @@
+{
+  "name": "tour-demo",
+  "private": true,
+  "type": "module",
+  "description": "Grava o app real (Barbearia Navalha, fictícia) módulo a módulo, no celular e no PC, para o tour de apresentação — roda no GitHub (.github/workflows/tour-demo.yml), nunca na máquina do dono.",
+  "dependencies": {
+    "firebase-admin": "^13.0.0",
+    "playwright": "1.55.0"
+  }
+}
