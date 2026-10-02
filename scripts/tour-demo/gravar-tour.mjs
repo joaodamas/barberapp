@@ -4,7 +4,7 @@
  * (.github/workflows/tour-demo.yml), contra o emulador com a Barbearia Navalha
  * de `semear-demo.mjs`. Nunca na máquina do dono.
  *
- * Um vídeo por módulo por aparelho (`saida/<aparelho>__<modulo>.webm`), uma
+ * Um vídeo por módulo por aparelho (`saida/<aparelho>__<modulo>.mp4`), uma
  * foto nítida do fim de cada um (`.png`) e `saida/roteiro.json` com, para
  * cada vídeo, o segundo em que a tela ficou pronta (`inicio` — o que vem antes
  * é carregamento e a edição corta) e a duração total.
