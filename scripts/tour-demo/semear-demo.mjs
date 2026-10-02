@@ -341,7 +341,7 @@ for (let n = 45; n >= 1; n--) {
   if (diaSemana(date) === 0) continue;
   const sabado = diaSemana(date) === 6;
   for (const b of EQUIPE) {
-    const quantos = Math.floor((sabado ? 7 : 4) + rnd() * 4);
+    const quantos = Math.floor((sabado ? 8 : 5) + rnd() * 4);
     for (let i = 0; i < quantos; i++) {
       const serviceIds = pesado(MISTURA);
       const dur = serviceIds.reduce((s, id) => s + servico[id].durationMin, 0);

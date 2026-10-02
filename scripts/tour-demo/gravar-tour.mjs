@@ -50,10 +50,13 @@ async function comecarGravacao(page, cfg, pasta) {
   const h = cfg.viewport.height * cfg.deviceScaleFactor;
   const cdp = await page.context().newCDPSession(page);
   const quadros = [];
-  cdp.on("Page.screencastFrame", ({ data, metadata, sessionId }) => {
+  cdp.on("Page.screencastFrame", ({ data, sessionId }) => {
     const arq = `${pasta}/q${String(quadros.length).padStart(5, "0")}.jpg`;
     writeFileSync(arq, Buffer.from(data, "base64"));
-    quadros.push({ arq, t: metadata.timestamp });
+    /* A hora de CHEGADA, no mesmo relógio da linha do tempo (`Date.now`): o
+     * `metadata.timestamp` do Chrome é outro relógio, e a conta com o t0 dava
+     * pausas negativas — vídeos de tela parada saíam com 0,1 s. */
+    quadros.push({ arq, t: Date.now() / 1000 });
     cdp.send("Page.screencastFrameAck", { sessionId }).catch(() => {});
   });
   await cdp.send("Page.startScreencast", { format: "jpeg", quality: 90, maxWidth: w, maxHeight: h, everyNthFrame: 1 });
@@ -74,6 +77,9 @@ async function comecarGravacao(page, cfg, pasta) {
       "-vf", `fps=30,scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:white,format=yuv420p`,
       "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-movflags", "+faststart", saida]);
     rmSync(pasta, { recursive: true, force: true });
+    /* Conferência: o arquivo tem de durar o que foi filmado. */
+    const real = Number(execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", saida]).toString());
+    if (Math.abs(real - (tFim - t0) / 1000) > 0.5) throw new Error(`vídeo com ${real.toFixed(2)}s, filmados ${((tFim - t0) / 1000).toFixed(2)}s`);
     return quadros.length;
   };
 }
@@ -356,7 +362,10 @@ for (const [aparelho, cfg] of Object.entries(APARELHOS)) {
         falha = falha ?? (await telaRuim(page));
         await page.screenshot({ path: `${SAIDA}${nome}.png` }).catch(() => {});
         const tFim = Date.now();
-        const nQuadros = await terminar(`${SAIDA}${nome}.mp4`, t0, tFim);
+        const nQuadros = await terminar(`${SAIDA}${nome}.mp4`, t0, tFim).catch((e) => {
+          falha = falha ?? e.message.split("\n")[0].slice(0, 200);
+          return 0;
+        });
         await page.close();
         registro = {
           modulo, quem, aparelho, rota, relogio,
