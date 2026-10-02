@@ -6,6 +6,7 @@ export const metadata: Metadata = {
   title: "Política de Privacidade — Topete",
   description:
     "Como o Topete trata dados pessoais: quem é responsável por quê, onde os dados ficam e como exercer seus direitos.",
+  alternates: { canonical: "/privacidade" },
 };
 
 /**

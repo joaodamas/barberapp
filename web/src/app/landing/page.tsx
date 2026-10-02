@@ -1,11 +1,5 @@
-import type { Metadata } from "next";
 import { PaginaDaPlataforma } from "@/components/landing/pagina";
-
-export const METADATA_DA_PLATAFORMA: Metadata = {
-  title: "Topete · o sistema da barbearia que sabe quanto sobrou",
-  description:
-    "Agenda que o cliente usa sozinho, horário fixo para mensalista, encaixe calculado pelo tempo do serviço e um financeiro que mostra o lucro de verdade.",
-};
+import { METADATA_DA_PLATAFORMA } from "@/lib/seo";
 
 export const metadata = METADATA_DA_PLATAFORMA;
 

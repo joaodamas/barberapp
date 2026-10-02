@@ -6,6 +6,7 @@ export const metadata: Metadata = {
   title: "Termos de Uso — Topete",
   description:
     "Condições de uso do Topete pelas barbearias: planos, responsabilidades, tratamento de dados e encerramento.",
+  alternates: { canonical: "/termos" },
 };
 
 /**
