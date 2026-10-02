@@ -227,13 +227,13 @@ export function PaginaDaPlataforma() {
 
       {/* -------------------------------------------------- Como funciona */}
       <section id="como-funciona" className={`relative z-10 scroll-mt-6 ${CLARO}`}>
-        <div className="mx-auto w-full max-w-6xl px-5 pt-16 md:px-8 md:pt-24">
+        <div className="mx-auto w-full max-w-[68rem] px-5 pt-16 md:px-8 md:pt-20">
           <Reveal>
             <Rotulo claro>Como funciona</Rotulo>
             <Titulo claro>Do link do cliente ao fim do mês</Titulo>
           </Reveal>
         </div>
-        <div className="mx-auto w-full max-w-6xl px-5 pb-12 md:px-8 lg:pb-24">
+        <div className="mx-auto w-full max-w-[68rem] px-5 pb-12 md:px-8 lg:pb-16">
           <ComoFunciona />
         </div>
       </section>
