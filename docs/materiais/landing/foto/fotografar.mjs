@@ -5,7 +5,7 @@ import puppeteer from "puppeteer-core";
 const [, , url, saida] = process.argv;
 const b = await puppeteer.launch({ executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", headless: true });
 const erros = [];
-for (const [nome, w, h, mobile] of [["390", 390, 844, true], ["768", 768, 1024, true], ["1440", 1440, 900, false]]) {
+for (const [nome, w, h, mobile] of [["390", 390, 844, true], ["768", 768, 1024, true], ["1280", 1280, 720, false], ["1440", 1440, 900, false], ["1920", 1920, 1080, false]]) {
   const p = await b.newPage();
   p.on("pageerror", (e) => erros.push(`${nome}: ${e.message}`));
   p.on("console", (m) => m.type() === "error" && erros.push(`${nome}: ${m.text().slice(0, 160)}`));

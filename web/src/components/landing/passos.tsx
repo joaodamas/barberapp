@@ -114,8 +114,10 @@ function Composicao({ passo, segunda, priority = false }: { passo: Passo; segund
     );
   }
   return (
-    <div className="relative mx-auto flex w-[min(100%,26rem)] items-end justify-center">
-      <Celular src={cel.src} alt={cel.alt} className="w-[62%]" priority={priority} />
+    <div className="relative mx-auto flex w-[min(100%,26rem)] items-end justify-center lg:mx-0 lg:w-full lg:justify-start">
+      {/* No computador, o tamanho sai da ALTURA da janela: o aparelho inteiro
+          cabe no palco em 1280 × 720 e não vira um poste em 1920 × 1080. */}
+      <Celular src={cel.src} alt={cel.alt} className="w-[60%] lg:w-[min(18rem,31vh)]" priority={priority} />
     </div>
   );
 }
@@ -150,7 +152,7 @@ export function ComoFunciona() {
   }, [ativo, reduzir]);
 
   return (
-    <div className="grid grid-cols-1 gap-x-16 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+    <div className="grid grid-cols-1 gap-x-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] xl:gap-x-14">
       <ol className="relative">
         {PASSOS.map((p, i) => (
           <li
@@ -159,7 +161,7 @@ export function ComoFunciona() {
               refs.current[i] = el;
             }}
             data-i={i}
-            className="flex flex-col justify-center py-10 lg:min-h-[78vh] lg:py-0"
+            className="flex flex-col justify-center py-10 lg:min-h-[62vh] lg:py-0"
           >
             <div
               className={
@@ -188,7 +190,7 @@ export function ComoFunciona() {
 
       {/* No computador, o palco fica parado e troca de tela. */}
       <div className="hidden lg:block">
-        <div className="sticky top-[11vh] flex h-[78vh] items-center">
+        <div className="sticky top-[13vh] flex h-[74vh] items-center">
           <div className="relative w-full">
             {PASSOS.map((p, i) => (
               <div
