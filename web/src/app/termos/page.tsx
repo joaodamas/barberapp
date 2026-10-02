@@ -36,7 +36,7 @@ export default function TermosPage() {
         <p>
           O Topete é operado por <AConfirmar>[NOME COMPLETO]</AConfirmar>,
           pessoa física, CPF <AConfirmar>[CPF]</AConfirmar>, contato em{" "}
-          <AConfirmar>[E-MAIL DE CONTATO]</AConfirmar>.
+          <a className="text-gold-strong underline underline-offset-2" href="mailto:contato@topete.com.br">contato@topete.com.br</a>.
         </p>
       </Secao>
 
