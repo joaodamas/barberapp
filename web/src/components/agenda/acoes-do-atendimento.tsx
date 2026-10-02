@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { Segmented } from "@/components/ui/segmented";
 import { EstornarValor } from "@/components/estornar-valor";
-import { CorrigirPagamento } from "@/components/corrigir-pagamento";
+import { EditarCobranca } from "@/components/agenda/editar-cobranca";
 import { RemarcarAtendimento } from "@/components/agenda/remarcar-atendimento";
 import { AdicionarServico } from "@/components/agenda/adicionar-servico";
 import { formasAtivas, type FormaDePagamento } from "@/lib/formas-de-pagamento";
@@ -473,18 +473,7 @@ export function useAcoesDoAtendimento() {
           caminho de retry do servidor e a tela diria "pronto" sem nada ter
           acontecido. */}
       {aCorrigir && (
-        <CorrigirPagamento
-          aberto
-          aoFechar={() => setACorrigir(null)}
-          bookingId={aCorrigir.id}
-          descricao={`${aCorrigir.clientName} · ${formatBRL(valorCobrado(aCorrigir))} · ${aCorrigir.time}`}
-          /* O bruto do pagamento é o COBRADO: a correção troca a forma e a
-           * taxa, e o desconto dado no fechamento continua valendo. */
-          valor={valorCobrado(aCorrigir)}
-          metodoAtual={aCorrigir.paymentMethod ?? null}
-          formaAtual={aCorrigir.paymentFormId ?? null}
-          formaAtualLabel={aCorrigir.paymentFormLabel ?? null}
-        />
+        <EditarCobranca aberto aoFechar={() => setACorrigir(null)} booking={aCorrigir} ehDono={ehDono} />
       )}
 
       {/* Uma pergunta e opções que JÁ concluem — nenhuma exige um "Confirmar"

@@ -616,13 +616,16 @@ export default function PainelHojePage() {
                   daquele corte —, e o servidor recusa. Oferecer o
                   botão para depois recusar seria a interface
                   prometendo o que o sistema não faz. */}
+              {booking.status === "completed" && (booking.edicoesDeCobranca?.length ?? 0) > 0 && (
+                <span className="text-xs text-ink-muted">Cobrança editada</span>
+              )}
               {booking.status === "completed" && !liquidacao.coberto && !liquidacao.cortesia && (
                 <button
                   onClick={() => atendimento.abrirCorrecao(booking)}
-                  title="Corrigir a forma de pagamento"
+                  title="Editar serviços, desconto ou forma de pagamento"
                   className={ACAO_DISCRETA}
                 >
-                  <CreditCard size={13} /> Corrigir
+                  <CreditCard size={13} /> Editar cobrança
                 </button>
               )}
               {/* D22 · e este é o "outro caminho" que o comentário

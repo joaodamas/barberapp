@@ -410,6 +410,17 @@ export type BookingDoc = {
   discountBy?: string;
   /** Quando: `serverTimestamp()` na escrita, conferido pela regra. */
   discountAt?: unknown;
+  /**
+   * Edições da cobrança depois de concluído (02/10) — escritas só pelo
+   * servidor (`editarCobrancaDoAtendimento`). A tela mostra quem e quando.
+   */
+  edicoesDeCobranca?: {
+    antes?: { serviceNames?: string[]; cobrado?: number; paymentMethod?: string | null };
+    depois?: { serviceNames?: string[]; cobrado?: number; paymentMethod?: string | null };
+    por: string;
+    papel: "owner" | "staff";
+    emMs: number;
+  }[];
   isFitIn?: boolean;
   /** Quando o encaixe foi pedido — base para o prazo de expiração. */
   requestedAt?: string;

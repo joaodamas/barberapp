@@ -608,13 +608,16 @@ function LinhaDaAgenda({
               <CalendarX size={14} /> Cancelar
             </button>
           )}
-          {b.status === "completed" && !liquidacao.coberto && !liquidacao.cortesia && (
+          {b.status === "completed" && (b.edicoesDeCobranca?.length ?? 0) > 0 && (
+                <span className="text-xs text-ink-muted">Cobrança editada</span>
+              )}
+              {b.status === "completed" && !liquidacao.coberto && !liquidacao.cortesia && (
             <button
               type="button"
               onClick={() => atendimento.abrirCorrecao(b)}
               className={botao + " hover:border-gold hover:text-gold-strong"}
             >
-              <CreditCard size={14} /> Corrigir pagamento
+              <CreditCard size={14} /> Editar cobrança
             </button>
           )}
           {b.status === "completed" && !liquidacao.cortesia && (
