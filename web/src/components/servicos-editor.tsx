@@ -5,6 +5,8 @@ import { Eye, EyeOff, Plus, Trash2 } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { putDoc, removeDoc, subscribeToCollection } from "@/lib/db/repository";
+import { deleteField } from "firebase/firestore";
+import { formatBRL } from "@/lib/format";
 import type { ServiceDoc } from "@/lib/domain";
 import { separarAPartirDe } from "@/lib/a-partir-de";
 
@@ -211,10 +213,8 @@ export function EditorDeServicos({
       {servicos.map((s) => {
         const oculto = s.active === false;
         return (
-          <div
-            key={s.id}
-            className={`grid items-center gap-2 border-b border-border pb-3 last:border-0 last:pb-0 md:border-0 md:pb-0 ${colunas}`}
-          >
+          <div key={s.id} className="flex flex-col gap-1.5 border-b border-border pb-3 last:border-0 last:pb-0 md:border-0 md:pb-0">
+          <div className={`grid items-center gap-2 ${colunas}`}>
             <input
               aria-label="Nome do serviço"
               value={s.name}
@@ -317,6 +317,21 @@ export function EditorDeServicos({
               <Trash2 size={16} />
             </button>
           </div>
+          <ComboDe
+            servico={s}
+            catalogo={servicos}
+            aoMudar={async (composicao) => {
+              setServicos((prev) => prev.map((x) => (x.id === s.id ? { ...x, composicao } : x)));
+              try {
+                setErroDeEscrita(null);
+                await putDoc(barbershopId, "services", s.id, { composicao: composicao.length ? composicao : deleteField() });
+              } catch (e) {
+                console.error("[servicos] falha ao salvar combo", e);
+                setErroDeEscrita(`Não foi possível salvar o combo de "${s.name}".`);
+              }
+            }}
+          />
+          </div>
         );
       })}
 
@@ -355,6 +370,74 @@ export function EditorDeServicos({
           por um tempo, ocultar preserva o histórico e é reversível num clique.
         </p>
       </Modal>
+    </div>
+  );
+}
+
+/**
+ * "Combo de" (01/10): diz do que o combo é feito. Com isso, quem escolhe as
+ * peças separadas (corte + barba) paga o preço do combo — no link do cliente,
+ * no balcão, no horário fixo e no "Adicionar serviço" do fechamento.
+ * Repetir uma peça = mais de uma (ex.: 2 cortes infantis).
+ */
+function ComboDe({
+  servico,
+  catalogo,
+  aoMudar,
+}: {
+  servico: Servico;
+  catalogo: Servico[];
+  aoMudar: (composicao: string[]) => void;
+}) {
+  const composicao = servico.composicao ?? [];
+  const [aberto, setAberto] = useState(false);
+  const pecas = catalogo.filter((c) => c.id !== servico.id && !(c.composicao?.length) && c.name.trim());
+  const nome = (id: string) => catalogo.find((c) => c.id === id)?.name ?? "?";
+  const soma = composicao.reduce((t, id) => t + (Number(catalogo.find((c) => c.id === id)?.price) || 0), 0);
+
+  if (!aberto && composicao.length === 0) {
+    return (
+      <button
+        type="button"
+        onClick={() => setAberto(true)}
+        className="self-start px-1 text-[11px] text-ink-muted underline-offset-2 hover:text-ink hover:underline"
+      >
+        É um combo?
+      </button>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-1.5 rounded-lg bg-surface-raised px-3 py-2 text-xs">
+      <p className="text-ink">
+        <b>Combo de:</b>{" "}
+        {composicao.length ? composicao.map(nome).join(" + ") : <span className="text-ink-muted">toque nas peças abaixo</span>}
+        {composicao.length >= 2 && (
+          <span className="text-ink-muted">
+            {" "}· separados somam {formatBRL(soma)}, o combo sai {formatBRL(Number(servico.price) || 0)}
+          </span>
+        )}
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        {pecas.map((c) => (
+          <button
+            key={c.id}
+            type="button"
+            onClick={() => aoMudar([...composicao, c.id])}
+            className="min-h-8 rounded-full border border-border px-2.5 text-ink hover:border-gold/60"
+          >
+            + {c.name}
+          </button>
+        ))}
+        {composicao.length > 0 && (
+          <button
+            type="button"
+            onClick={() => aoMudar([])}
+            className="min-h-8 rounded-full px-2.5 text-ink-muted underline underline-offset-2"
+          >
+            limpar
+          </button>
+        )}
+      </div>
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { useServices } from "@/lib/db/use-shop-data";
 import { mensagemDoErro } from "@/lib/direitos-do-titular";
 import { formatBRL } from "@/lib/format";
 import { useTenant } from "@/lib/tenant-context";
+import { aplicarCombos } from "@/lib/combos";
 
 /**
  * "+ Adicionar serviço" no fechamento (pedido do dono, 01/10): o cliente
@@ -18,11 +19,17 @@ export function AdicionarServico({
   barbershopId,
   bookingId,
   servicosAtuais,
+  idsAtuais = [],
+  valorAtual = 0,
   aoAdicionar,
 }: {
   barbershopId: string;
   bookingId: string;
   servicosAtuais: string[];
+  /** Ids atuais do atendimento — para mostrar o combo ANTES de somar. */
+  idsAtuais?: string[];
+  /** Valor atual, para dizer quanto muda. */
+  valorAtual?: number;
   aoAdicionar: (novo: { value: number; serviceNames: string[]; serviceIds: string[] }) => void;
 }) {
   useTenant();
@@ -33,7 +40,9 @@ export function AdicionarServico({
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
-  const extra = escolhidos.reduce((t, id) => t + (Number(ativos.find((s) => s.id === id)?.price) || 0), 0);
+  /* Mesma conta do servidor: com combo, Corte + Barba vira "Corte + barba". */
+  const previa = aplicarCombos([...idsAtuais, ...escolhidos], servicos.map((s) => ({ ...s, id: s.id })));
+  const extra = previa.valor - valorAtual;
 
   async function adicionar() {
     setSalvando(true);
@@ -42,7 +51,7 @@ export function AdicionarServico({
       const { callFunction } = await import("@/lib/firebase");
       const r = await callFunction<
         { barbershopId: string; bookingId: string; serviceIds: string[] },
-        { value: number; serviceNames: string[]; serviceIds: string[] }
+        { value: number; serviceNames: string[]; serviceIds: string[]; combos?: string[] }
       >("adicionarServicosAoAtendimento", { barbershopId, bookingId, serviceIds: escolhidos });
       aoAdicionar(r);
       setEscolhidos([]);
@@ -96,7 +105,8 @@ export function AdicionarServico({
       </div>
       {escolhidos.length > 0 && (
         <p className="text-sm text-ink">
-          + {formatBRL(extra)}{" "}
+          Fica {formatBRL(previa.valor)} ({extra >= 0 ? "+" : "−"} {formatBRL(Math.abs(extra))})
+          {previa.combos.length > 0 && <span className="text-ink-muted"> · combo {previa.combos.join(" + ")}</span>}{" "}
           <button
             type="button"
             onClick={() => setEscolhidos([])}

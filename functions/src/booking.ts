@@ -5,6 +5,7 @@ import { ehMensalistaAtivo, limiteDoCliente } from "./janela";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
 import { diaDaSemanaNoFuso, hojeNoFuso, instanteNoFuso, localeDoDocumento } from "./locale";
+import { aplicarCombos, type ServicoDoCatalogo } from "./combos";
 import { horarioDisponivel, janelasOcupadas, podeRemarcar } from "./agenda";
 import { horariosDaJornada, jornadaDoDia } from "./jornada";
 import { resolverCliente, type OrigemDoCliente } from "./clients";
@@ -422,6 +423,8 @@ function alemDoHorizonte(date: string, timeZone: string, dias: number) {
 }
 
 export type PedidoValidado = {
+  /** Os serviços como ficam gravados — já com combos aplicados (`aplicarCombos`). */
+  serviceIds: string[];
   staffId: string;
   staffName: string;
   value: number;
@@ -576,16 +579,14 @@ export async function validarPedido(params: {
     throw new HttpsError("invalid-argument", "Escolha pelo menos um serviço.");
   }
 
-  const servicos = await Promise.all(
-    serviceIds.map((id) => shopRef.collection("services").doc(String(id)).get())
-  );
-
-  let value = 0;
-  let durationMin = 0;
-  const nomes: string[] = [];
+  /* O catálogo inteiro, e não só os escolhidos: os combos (01/10) precisam
+   * saber quais existem para trocar "Corte + Barba" pelo combo. */
+  const catalogoSnap = await shopRef.collection("services").get();
+  const catalogo = new Map(catalogoSnap.docs.map((d) => [d.id, d]));
+  const servicos = serviceIds.map((id) => catalogo.get(String(id)));
 
   for (const snap of servicos) {
-    if (!snap.exists) throw new HttpsError("failed-precondition", "Serviço indisponível.");
+    if (!snap?.exists) throw new HttpsError("failed-precondition", "Serviço indisponível.");
     const s = snap.data() ?? {};
     if (s.active === false) throw new HttpsError("failed-precondition", `"${s.name}" não está disponível.`);
     /* O cadastro semeia quatro serviços ATIVOS a R$ 0,00 e o onboarding exige
@@ -599,10 +600,16 @@ export async function validarPedido(params: {
         `"${s.name}" ainda não tem preço definido. Fale com a barbearia.`
       );
     }
-    value += Number(s.price) || 0;
-    durationMin += Number(s.durationMin) || 0;
-    nomes.push(String(s.name ?? ""));
   }
+
+  /* Preço e duração com os combos do catálogo — a mesma conta da tela. */
+  const comCombos = aplicarCombos(
+    serviceIds.map(String),
+    catalogoSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<ServicoDoCatalogo, "id">) }))
+  );
+  const value = comCombos.valor;
+  const durationMin = comCombos.duracao;
+  const nomes = comCombos.ids.map((id) => String(catalogo.get(id)?.get("name") ?? ""));
 
   /* Serviço cadastrado sem duração ocuparia ZERO minuto e não bloquearia nada —
    * a janela seria vazia e toda reserva seguinte caberia dentro dela. A grade é
@@ -638,6 +645,7 @@ export async function validarPedido(params: {
   }
 
   return {
+    serviceIds: comCombos.ids,
     staffId,
     staffName: String(barbeiro.get("name") ?? ""),
     value,
@@ -877,7 +885,8 @@ export function documentoDaReserva(params: {
     staffName: params.pedido.staffName,
     clientName: params.clientName || "Cliente",
     clientWhatsapp: params.clientWhatsapp,
-    serviceIds: params.serviceIds,
+    /* O pedido validado manda: com combo, "corte" + "barba" vira "Corte + barba". */
+    serviceIds: params.pedido.serviceIds ?? params.serviceIds,
     serviceNames: params.pedido.nomes,
     date: params.date,
     time: params.time,

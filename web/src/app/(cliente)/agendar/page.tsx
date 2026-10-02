@@ -33,6 +33,7 @@ import {
 import type { TimeSlot } from "@/lib/types";
 import { ConfirmeSeuEmail } from "@/components/confirme-seu-email";
 import { ehRecusaPorEmailNaoVerificado } from "@/lib/verificacao-de-email";
+import { aplicarCombos } from "@/lib/combos";
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -306,11 +307,14 @@ export default function AgendarPage() {
   const selectedServices = services.filter((s) =>
     selectedServiceIds.includes(s.id)
   );
-  const totalPrice = selectedServices.reduce((sum, s) => sum + s.price, 0);
-  const totalDuration = selectedServices.reduce(
-    (sum, s) => sum + s.durationMin,
-    0
+  /* Com combos (01/10): Corte + Barba escolhidos separados custam o combo.
+   * A conta é a mesma do servidor (`lib/combos.ts`). */
+  const comCombos = aplicarCombos(
+    selectedServiceIds,
+    servicosDoc.map((s) => ({ ...s, id: s.id }))
   );
+  const totalPrice = comCombos.valor;
+  const totalDuration = comCombos.duracao;
 
   const selectedDay = days[selectedDayIndex];
 
@@ -766,6 +770,9 @@ export default function AgendarPage() {
                 {formatBRL(totalPrice)}
               </span>
             </div>
+            {comCombos.combos.length > 0 && (
+              <p className="text-xs text-ink-muted">Preço de combo: {comCombos.combos.join(" + ")}</p>
+            )}
           </Card>
 
           {/* O contato vem ANTES do pagamento, e é obrigatório: é por ele que a

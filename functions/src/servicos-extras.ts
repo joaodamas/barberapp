@@ -1,6 +1,7 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { exigirEdicao, idSeguro, vinculosDe } from "./acesso";
+import { aplicarCombos, type ServicoDoCatalogo } from "./combos";
 
 /**
  * Serviço a mais na hora de fechar (pedido do dono, 01/10).
@@ -19,22 +20,25 @@ import { exigirEdicao, idSeguro, vinculosDe } from "./acesso";
 const ABERTOS = ["confirmed", "confirmed_by_client", "pending_payment"];
 const MAX_POR_VEZ = 5;
 
-export type Extra = { id: string; nome: string; preco: number; duracao: number };
-
-/** O que muda na reserva. Puro, para teste. */
-export function somarExtras(
-  reserva: { value?: unknown; durationMin?: unknown; serviceIds?: unknown; serviceNames?: unknown },
-  extras: Extra[]
+/**
+ * O atendimento depois de somar os extras — com os COMBOS do catálogo
+ * (01/10): marcou corte, somou barba, vira "Corte + barba" pelo preço do
+ * combo. Recalcula a partir do catálogo, como a marcação faz.
+ */
+export function recalcularComExtras(
+  reserva: { serviceIds?: unknown },
+  extras: string[],
+  catalogo: ServicoDoCatalogo[]
 ) {
-  const ids = Array.isArray(reserva.serviceIds) ? reserva.serviceIds.map(String) : [];
-  const nomes = Array.isArray(reserva.serviceNames) ? reserva.serviceNames.map(String) : [];
-  const valorExtra = extras.reduce((t, e) => t + e.preco, 0);
+  const atuais = Array.isArray(reserva.serviceIds) ? reserva.serviceIds.map(String) : [];
+  const r = aplicarCombos([...atuais, ...extras], catalogo);
+  const nomes = new Map(catalogo.map((s) => [s.id, String(s.name ?? "Serviço")]));
   return {
-    serviceIds: [...ids, ...extras.map((e) => e.id)],
-    serviceNames: [...nomes, ...extras.map((e) => e.nome)],
-    value: Math.round(((Number(reserva.value) || 0) + valorExtra) * 100) / 100,
-    durationMin: (Number(reserva.durationMin) || 0) + extras.reduce((t, e) => t + e.duracao, 0),
-    valorExtra,
+    serviceIds: r.ids,
+    serviceNames: r.ids.map((id) => nomes.get(id) ?? "Serviço"),
+    value: r.valor,
+    durationMin: r.duracao,
+    combos: r.combos,
   };
 }
 
@@ -63,16 +67,11 @@ export const adicionarServicosAoAtendimento = onCall<{
   const shopRef = db.doc(`barbershops/${barbershopId}`);
   const ref = shopRef.collection("bookings").doc(bookingId);
 
-  const extras: Extra[] = [];
+  const catalogoSnap = await shopRef.collection("services").get();
+  const catalogo: ServicoDoCatalogo[] = catalogoSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<ServicoDoCatalogo, "id">) }));
   for (const id of ids) {
-    const s = await shopRef.collection("services").doc(id).get();
-    if (!s.exists || s.get("active") === false) throw new HttpsError("failed-precondition", "Serviço indisponível.");
-    extras.push({
-      id,
-      nome: String(s.get("name") ?? "Serviço"),
-      preco: Number(s.get("price")) || 0,
-      duracao: Number(s.get("durationMin")) || 0,
-    });
+    const s = catalogo.find((c) => c.id === id);
+    if (!s || s.active === false) throw new HttpsError("failed-precondition", "Serviço indisponível.");
   }
 
   return db.runTransaction(async (tx) => {
@@ -85,7 +84,8 @@ export const adicionarServicosAoAtendimento = onCall<{
         "Só dá para adicionar serviço antes de concluir. Atendimento concluído não muda de valor."
       );
     }
-    const novo = somarExtras(reserva, extras);
+    const antes = Number(reserva.value) || 0;
+    const novo = recalcularComExtras(reserva, ids, catalogo);
     tx.update(ref, {
       serviceIds: novo.serviceIds,
       serviceNames: novo.serviceNames,
@@ -93,8 +93,9 @@ export const adicionarServicosAoAtendimento = onCall<{
       durationMin: novo.durationMin,
       servicosAdicionados: FieldValue.arrayUnion({
         ids,
-        nomes: extras.map((e) => e.nome),
-        valor: novo.valorExtra,
+        valorAntes: antes,
+        valorDepois: novo.value,
+        combos: novo.combos,
         por: uid,
         emMs: Date.now(),
       }),
@@ -103,8 +104,8 @@ export const adicionarServicosAoAtendimento = onCall<{
       action: "booking.servicos_adicionados",
       by: uid,
       at: FieldValue.serverTimestamp(),
-      detail: { bookingId, ids, valorExtra: novo.valorExtra, valorFinal: novo.value },
+      detail: { bookingId, ids, valorAntes: antes, valorFinal: novo.value, combos: novo.combos },
     });
-    return { value: novo.value, serviceNames: novo.serviceNames, serviceIds: novo.serviceIds };
+    return { value: novo.value, serviceNames: novo.serviceNames, serviceIds: novo.serviceIds, combos: novo.combos };
   });
 });

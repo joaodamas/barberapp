@@ -521,6 +521,8 @@ export function useAcoesDoAtendimento() {
             barbershopId={tenant.id}
             bookingId={aFechar.id}
             servicosAtuais={((aFechar as { serviceNames?: string[] }).serviceNames ?? []).map(String)}
+            idsAtuais={(aFechar.serviceIds ?? []).map(String)}
+            valorAtual={Number(aFechar.value) || 0}
             aoAdicionar={(novo) => setAFechar((atual) => (atual ? { ...atual, ...novo } : atual))}
           />
         )}
