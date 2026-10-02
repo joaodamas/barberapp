@@ -4,6 +4,7 @@ import {
   descontoDaEdicao,
   descontoEmReais,
   idDaEdicao,
+  motivoDaFormaInvalida,
   motivoDaRecusaDaEdicao,
   servicosDaEdicao,
 } from "../edicao-de-cobranca";
@@ -141,5 +142,48 @@ describe("ids e o invariante do qual a edição depende", () => {
   });
   it("completed → completed não rematerializa por cima da edição", () => {
     expect(decidirEfeito("completed", "completed")).toBe("nada");
+  });
+});
+
+describe("revisão #116 · forma de pagamento validada", () => {
+  const formas = [
+    { id: "pix", base: "pix", active: true },
+    { id: "credito-aprox", base: "credit", active: true },
+    { id: "credito-velho", base: "credit", active: false },
+  ];
+  it("recusa forma inexistente", () => {
+    expect(motivoDaFormaInvalida({ formaId: "nao-existe", metodo: "pix", formas, formaAtual: null })).toBe("forma_inexistente");
+  });
+  it("recusa dinheiro com a forma (taxa e rótulo) do crédito", () => {
+    expect(motivoDaFormaInvalida({ formaId: "credito-aprox", metodo: "cash", formas, formaAtual: null })).toBe("forma_de_outro_meio");
+  });
+  it("recusa forma inativa nova", () => {
+    expect(motivoDaFormaInvalida({ formaId: "credito-velho", metodo: "credit", formas, formaAtual: "pix" })).toBe("forma_inativa");
+  });
+  it("aceita a forma inativa que JÁ está no pagamento", () => {
+    expect(motivoDaFormaInvalida({ formaId: "credito-velho", metodo: "credit", formas, formaAtual: "credito-velho" })).toBeNull();
+  });
+  it("aceita forma ativa do mesmo meio, e ausência de forma", () => {
+    expect(motivoDaFormaInvalida({ formaId: "credito-aprox", metodo: "credit", formas, formaAtual: null })).toBeNull();
+    expect(motivoDaFormaInvalida({ formaId: null, metodo: "pix", formas, formaAtual: null })).toBeNull();
+  });
+});
+
+describe("revisão #116 · combo inativo já no atendimento", () => {
+  const comComboInativo: ServicoDoCatalogo[] = CATALOGO.map((s) => (s.id === "corte-barba" ? { ...s, active: false } : s));
+  const reserva = { serviceIds: ["corte-barba"], serviceNames: ["Corte + barba"], value: 75, durationMin: 60 };
+
+  it("lista igual: nada é re-precificado (edição só de forma ou desconto)", () => {
+    const r = servicosDaEdicao(["corte-barba"], comComboInativo, reserva);
+    expect(r).toMatchObject({ serviceIds: ["corte-barba"], serviceNames: ["Corte + barba"], value: 75, durationMin: 60, inalterados: true });
+  });
+  it("lista igual com preço do catálogo mudado: continua o congelado", () => {
+    const caro = CATALOGO.map((s) => (s.id === "corte-barba" ? { ...s, price: 90 } : s));
+    expect(servicosDaEdicao(["corte-barba"], caro, reserva).value).toBe(75);
+  });
+  it("lista mudou: o combo que já estava continua valendo como combo", () => {
+    const r = servicosDaEdicao(["corte-barba", "sobrancelha"], comComboInativo, reserva);
+    expect(r.value).toBe(90);
+    expect(r.combos).toEqual(["Corte + barba"]);
   });
 });

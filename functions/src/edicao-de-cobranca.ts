@@ -66,6 +66,9 @@ import { politicasDe } from "./politicas-financeiras";
 /* Decisões puras                                                     */
 /* ================================================================== */
 
+const mesmaLista = (a: unknown[], b: unknown[]) =>
+  a.length === b.length && a.every((x, i) => String(x) === String(b[i]));
+
 export type PedidoDeDesconto =
   /** Ausente: mantém o desconto que havia (recalculado se era %). */
   | undefined
@@ -129,9 +132,43 @@ export function descontoDaEdicao(params: {
   };
 }
 
-/** O atendimento com a lista nova de serviços — preço e combos do catálogo. */
-export function servicosDaEdicao(ids: string[], catalogo: ServicoDoCatalogo[]) {
-  const r = aplicarCombos(ids, catalogo);
+/**
+ * O atendimento com a lista de serviços da edição.
+ *
+ * ## Lista igual: NADA é re-precificado (revisão do PR #116)
+ *
+ * Uma edição só de forma de pagamento ou de desconto não pode mexer no bruto.
+ * Se os ids pedidos são os mesmos da reserva, ficam os `serviceIds`,
+ * `serviceNames`, `value` e `durationMin` CONGELADOS na reserva — mesmo que o
+ * preço do catálogo tenha mudado ou que o combo tenha sido desativado depois.
+ *
+ * ## Lista mudou: preço do catálogo, com o que já estava valendo de novo
+ *
+ * `aplicarCombos` só remonta combos ATIVOS. Um combo desativado depois do
+ * atendimento seria desmontado em peças e cobrado avulso ao tirar só a
+ * sobrancelha. Por isso os serviços que JÁ estavam na reserva entram como
+ * ativos nesta conta — é o que o atendimento foi, de fato. Serviço novo
+ * continua tendo de estar ativo (a porta de entrada confere).
+ */
+export function servicosDaEdicao(
+  ids: string[],
+  catalogo: ServicoDoCatalogo[],
+  reserva: { serviceIds?: unknown; serviceNames?: unknown; value?: unknown; durationMin?: unknown } = {}
+) {
+  const atuais = Array.isArray(reserva.serviceIds) ? reserva.serviceIds.map(String) : [];
+  if (atuais.length > 0 && mesmaLista(atuais, ids)) {
+    return {
+      serviceIds: atuais,
+      serviceNames: Array.isArray(reserva.serviceNames) ? reserva.serviceNames.map(String) : atuais,
+      value: Number(reserva.value) || 0,
+      durationMin: Number(reserva.durationMin) || 0,
+      combos: [] as string[],
+      inalterados: true,
+    };
+  }
+  const jaTinha = new Set(atuais);
+  const valendo = catalogo.map((s) => (jaTinha.has(s.id) && s.active === false ? { ...s, active: true } : s));
+  const r = aplicarCombos(ids, valendo);
   const nomes = new Map(catalogo.map((s) => [s.id, String(s.name ?? "Serviço")]));
   return {
     serviceIds: r.ids,
@@ -139,8 +176,41 @@ export function servicosDaEdicao(ids: string[], catalogo: ServicoDoCatalogo[]) {
     value: r.valor,
     durationMin: r.duracao,
     combos: r.combos,
+    inalterados: false,
   };
 }
+
+/**
+ * A forma de pagamento pedida vale? (revisão do PR #116)
+ *
+ * `taxaDoPagamento` aceita qualquer id que exista, sem olhar o meio nem se
+ * está ativa: daria para gravar "dinheiro" com a taxa e o rótulo do crédito.
+ * Aqui a forma precisa existir, ter o MESMO meio informado e estar ATIVA — a
+ * única exceção é a forma que JÁ está no pagamento (desativada depois, ela
+ * continua sendo como o cliente pagou, e uma edição só de serviço não pode
+ * obrigar a trocá-la).
+ */
+export type MotivoDaFormaInvalida = "forma_inexistente" | "forma_de_outro_meio" | "forma_inativa";
+
+export function motivoDaFormaInvalida(params: {
+  formaId: string | null | undefined;
+  metodo: string;
+  formas: { id: string; base: string; active: boolean }[];
+  formaAtual: string | null | undefined;
+}): MotivoDaFormaInvalida | null {
+  if (!params.formaId) return null;
+  const f = params.formas.find((x) => x.id === params.formaId);
+  if (!f) return "forma_inexistente";
+  if (f.base !== params.metodo) return "forma_de_outro_meio";
+  if (!f.active && f.id !== params.formaAtual) return "forma_inativa";
+  return null;
+}
+
+export const FRASE_DA_FORMA_INVALIDA: Record<MotivoDaFormaInvalida, string> = {
+  forma_inexistente: "Essa forma de pagamento não existe mais. Escolha outra.",
+  forma_de_outro_meio: "A forma escolhida não é desse meio de pagamento. Escolha de novo.",
+  forma_inativa: "Essa forma de pagamento está desativada. Escolha uma ativa.",
+};
 
 export type MotivoDaRecusaDaEdicao =
   | "reserva_ausente"
@@ -233,8 +303,6 @@ export function chaveDaEdicao(chave: string): string {
   return `edicao-${chave}`;
 }
 
-const mesmaLista = (a: unknown[], b: unknown[]) =>
-  a.length === b.length && a.every((x, i) => String(x) === String(b[i]));
 
 /* ================================================================== */
 /* A transação                                                        */
@@ -306,7 +374,7 @@ export async function gravarEdicao(params: {
     const comissaoVigenteRef = shopRef.collection("commissions").doc(comissaoVigenteId);
     const comissaoSnap = reservaSnap.exists ? await tx.get(comissaoVigenteRef) : null;
 
-    const novo = servicosDaEdicao(params.serviceIds, params.catalogo);
+    const novo = servicosDaEdicao(params.serviceIds, params.catalogo, reserva);
     const desconto = descontoDaEdicao({
       bruto: novo.value,
       pedido: params.desconto,
@@ -316,6 +384,15 @@ export async function gravarEdicao(params: {
 
     const metodoAtual = (pagamentoSnap.get("paymentMethod") ?? null) as PaymentMethod | null;
     const formaAtual = (pagamentoSnap.get("paymentFormId") ?? null) as string | null;
+    if (pagamentoSnap.exists && params.formas?.length) {
+      const formaInvalida = motivoDaFormaInvalida({
+        formaId: params.formaId,
+        metodo: params.metodo,
+        formas: params.formas,
+        formaAtual,
+      });
+      if (formaInvalida) throw new HttpsError("invalid-argument", FRASE_DA_FORMA_INVALIDA[formaInvalida]);
+    }
     const descontoAtual = Number(reserva.discountAmount) || 0;
     const mudouAlgo =
       !mesmaLista(Array.isArray(reserva.serviceIds) ? reserva.serviceIds : [], novo.serviceIds) ||

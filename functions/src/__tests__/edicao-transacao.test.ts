@@ -94,6 +94,9 @@ function editar(p: {
   papel?: "owner" | "staff";
   staffIdDoAutor?: string | null;
   hoje?: string;
+  formaId?: string | null;
+  formas?: { id: string; label: string; base: PaymentMethod; feePct: number; active: boolean }[];
+  catalogo?: ServicoDoCatalogo[];
 }) {
   return gravarEdicao({
     db,
@@ -102,8 +105,10 @@ function editar(p: {
     papel: p.papel ?? "owner",
     staffIdDoAutor: p.staffIdDoAutor ?? null,
     serviceIds: p.serviceIds,
-    catalogo: CATALOGO,
+    catalogo: p.catalogo ?? CATALOGO,
     desconto: p.desconto,
+    formaId: p.formaId ?? null,
+    formas: p.formas,
     metodo: p.metodo ?? "pix",
     fees: TAXAS,
     padraoPct: 50,
@@ -255,5 +260,33 @@ describe("barbeiro", () => {
     await expect(
       editar({ serviceIds: ["corte"], papel: "staff", staffIdDoAutor: "s1", desconto: { tipo: "valor", valor: 5 } })
     ).rejects.toThrow(/Só o dono/);
+  });
+});
+
+describe("revisão #116", () => {
+  const FORMAS = [
+    { id: "pix", label: "Pix", base: "pix" as const, feePct: 0.99, active: true },
+    { id: "dinheiro", label: "Dinheiro", base: "cash" as const, feePct: 0, active: true },
+    { id: "credito", label: "Crédito", base: "credit" as const, feePct: 3.49, active: true },
+  ];
+  it("recusa dinheiro com a forma do crédito, sem rastro", async () => {
+    await semearConcluido();
+    await expect(
+      editar({ serviceIds: ["corte"], metodo: "cash", formaId: "credito", formas: FORMAS })
+    ).rejects.toThrow(/não é desse meio/);
+    expect((await pagamentoRef().get()).get("grossAmount")).toBe(75);
+    expect((await shopRef().collection("audit_log").get()).size).toBe(0);
+  });
+  it("combo desativado + edição só de forma: valor e serviços iguais", async () => {
+    await semearConcluido();
+    const semCombo = CATALOGO.map((s) => (s.id === "corte-barba" ? { ...s, active: false } : s));
+    const r = await editar({ serviceIds: ["corte-barba"], metodo: "cash", formaId: "dinheiro", formas: FORMAS, catalogo: semCombo });
+    expect(r.depois.value).toBe(75);
+    const b = (await reservaRef().get()).data()!;
+    expect(b.serviceIds).toEqual(["corte-barba"]);
+    expect(b.serviceNames).toEqual(["Corte + barba"]);
+    expect(b.value).toBe(75);
+    expect((await pagamentoRef().get()).get("grossAmount")).toBe(75);
+    expect((await pagamentoRef().get()).get("paymentMethod")).toBe("cash");
   });
 });

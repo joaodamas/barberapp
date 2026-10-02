@@ -74,7 +74,17 @@ export function EditarCobranca({
   const [feito, setFeito] = useState<{ antes: Resumo; depois: Resumo } | null>(null);
 
   /* A mesma conta do servidor: combos do catálogo e o desconto sobre o bruto novo. */
-  const previa = aplicarCombos(ids, catalogo);
+  /* Lista igual à do atendimento: nada é re-precificado (o servidor mantém o
+   * bruto congelado). Lista mudou: os serviços que já estavam valem como
+   * ativos — um combo desativado depois não é desmontado em peças. */
+  const idsAtuais = (booking.serviceIds ?? []).map(String);
+  const inalterados = idsAtuais.length > 0 && idsAtuais.length === ids.length && idsAtuais.every((x, i) => x === ids[i]);
+  const previa = inalterados
+    ? { valor: Number(booking.value) || 0, combos: [] as string[] }
+    : aplicarCombos(
+        ids,
+        catalogo.map((s) => (idsAtuais.includes(s.id) && s.active === false ? { ...s, active: true } : s))
+      );
   const descontoEmReais = (() => {
     if (modo === "sem") return 0;
     if (modo === "novo") return calcularDesconto({ valor: previa.valor, tipo, entrada: lerNumeroDigitado(texto) }).desconto;
