@@ -42,8 +42,8 @@ const shopRef = db.doc(`barbershops/${SHOP}`);
 const FUNCOES = `http://127.0.0.1:5001/${PROJETO}/southamerica-east1`;
 
 /* Credenciais de TESTE, só existem no emulador. */
-export const DONO = { email: "dono@navalha.teste", senha: "navalha12345", nome: "Diego Martins" };
-export const CLIENTE = { email: "cliente@navalha.teste", senha: "cliente12345", nome: "Lucas Ferreira" };
+export const DONO = { email: "dono@navalha.teste", senha: "navalha12345", nome: "Otávio Barros" };
+export const CLIENTE = { email: "cliente@navalha.teste", senha: "cliente12345", nome: "Breno Azevedo" };
 
 /* ---- Relógio de referência ---- */
 const SP = "America/Sao_Paulo";
@@ -136,9 +136,9 @@ await db.doc(`barbershops/${SHOP}/members/${dono.uid}`).set({
 
 /* ---- Equipe: três barbeiros ---- */
 const EQUIPE = [
-  { id: "b-diego", name: "Diego", commissionPct: null, uid: dono.uid, order: 1 },
-  { id: "b-thiago", name: "Thiago", commissionPct: 45, uid: null, order: 2 },
-  { id: "b-caio", name: "Caio", commissionPct: 40, uid: null, order: 3 },
+  { id: "b-otavio", name: "Otávio", commissionPct: null, uid: dono.uid, order: 1 },
+  { id: "b-igor", name: "Igor", commissionPct: 45, uid: null, order: 2 },
+  { id: "b-davi", name: "Davi", commissionPct: 40, uid: null, order: 3 },
 ];
 for (const b of EQUIPE) {
   await db.doc(`barbershops/${SHOP}/staff/${b.id}`).set({
@@ -184,12 +184,12 @@ for (const p of [
 
 /* ---- Carteira: 30 clientes inventados ---- */
 const NOMES = [
-  "Rafael Costa", "Bruno Almeida", "Gustavo Ribeiro", "Matheus Oliveira", "Pedro Henrique Souza",
-  "Felipe Carvalho", "André Lima", "Ricardo Gomes", "Vinícius Rocha", "João Vitor Dias",
-  "Leonardo Martins", "Gabriel Pereira", "Eduardo Barbosa", "Rodrigo Teixeira", "Marcelo Araújo",
-  "Daniel Moreira", "Thiago Nunes", "Henrique Castro", "Caio Fernandes", "Samuel Pinto",
-  "Arthur Mendes", "Igor Cardoso", "Renan Correia", "Fábio Monteiro", "Otávio Freitas",
-  "Murilo Batista", "Davi Ramos", "Enzo Vieira", "Alexandre Duarte", "Paulo Sérgio Melo",
+  "Thiago Moura", "Henrique Bastos", "Murilo Paiva", "Caio Rezende", "Vítor Sampaio",
+  "Samuel Prado", "Rodrigo Quintela", "Marina Toledo", "Bernardo Lacerda", "Heitor Galvão",
+  "Augusto Brandão", "Fabrício Leal", "Gael Nogueira", "Nícolas Arruda", "Benício Vasconcelos",
+  "Ulisses Caldeira", "Joaquim Seabra", "Ravi Pacheco", "Emanuel Coutinho", "Lorenzo Fontes",
+  "Raul Damasceno", "Valter Bittencourt", "Wesley Furtado", "Yuri Albuquerque", "Anderson Peixoto",
+  "Cristiano Rocha Lima", "Douglas Amaral", "Elias Guimarães", "Hugo Medeiros", "Ivan Tavares",
 ];
 const fone = (i) => `1197${String(1000000 + i * 37171).slice(-7)}`;
 const CLIENTES = NOMES.map((name, i) => ({ id: `cli-${String(i + 1).padStart(2, "0")}`, name, whatsapp: fone(i) }));
@@ -204,7 +204,7 @@ await db.doc(`barbershops/${SHOP}/clients/${clienteConta.uid}`).set({
   uid: clienteConta.uid, name: CLIENTE.nome, whatsapp: "11974440000", origin: "app", active: true,
   createdAt: FieldValue.serverTimestamp(),
 });
-const LUCAS = { id: clienteConta.uid, name: CLIENTE.nome, whatsapp: "11974440000" };
+const CLIENTE_APP = { id: clienteConta.uid, name: CLIENTE.nome, whatsapp: "11974440000" };
 
 /* ---- Callables com o token do dono ---- */
 const login = await fetch(
@@ -230,10 +230,10 @@ async function chamar(nome, dados) {
 
 /* ---- Mensalistas: seis, quatro com horário fixo ---- */
 const MENSALISTAS = [
-  { c: 0, plano: "ilimitado", fixo: { dia: 2, hora: "18:00", staffId: "b-diego", serviceIds: ["corte"] } },
-  { c: 1, plano: "barba-mensal", fixo: { dia: 4, hora: "18:00", staffId: "b-thiago", serviceIds: ["corte-barba"] } },
-  { c: 2, plano: "duplo", fixo: { dia: 5, hora: "18:30", staffId: "b-caio", serviceIds: ["corte"] } },
-  { c: 3, plano: "ilimitado", fixo: { dia: 6, hora: "09:00", staffId: "b-diego", serviceIds: ["corte"] } },
+  { c: 0, plano: "ilimitado", fixo: { dia: 2, hora: "18:00", staffId: "b-otavio", serviceIds: ["corte"] } },
+  { c: 1, plano: "barba-mensal", fixo: { dia: 4, hora: "18:00", staffId: "b-igor", serviceIds: ["corte-barba"] } },
+  { c: 2, plano: "duplo", fixo: { dia: 5, hora: "18:30", staffId: "b-davi", serviceIds: ["corte"] } },
+  { c: 3, plano: "ilimitado", fixo: { dia: 6, hora: "09:00", staffId: "b-otavio", serviceIds: ["corte"] } },
   { c: 4, plano: "duplo" },
   { c: 5, plano: "ilimitado" },
 ];
@@ -350,15 +350,15 @@ for (let n = 30; n >= 1; n--) {
 for (const [n, sv] of [[24, ["corte"]], [17, ["corte-barba"]], [10, ["corte"]]]) {
   const date = somaDias(REF_DIA, -n);
   if (diaSemana(date) === 0) continue;
-  const time = HORAS.find((h) => livre("b-diego", date, h, 60)) ?? "18:00";
-  await gravar(reserva({ cliente: LUCAS, staffId: "b-diego", serviceIds: sv, date, time }), { status: "completed", paymentMethod: "pix" });
+  const time = HORAS.find((h) => livre("b-otavio", date, h, 60)) ?? "18:00";
+  await gravar(reserva({ cliente: CLIENTE_APP, staffId: "b-otavio", serviceIds: sv, date, time }), { status: "completed", paymentMethod: "pix" });
 }
 
 /* ---- Hoje (REF): cheia. O que terminou antes das 15h está concluído ---- */
 const HOJE_PLANO = {
-  "b-diego": [["09:00", ["corte"]], ["09:30", ["corte-barba"]], ["10:30", ["corte"]], ["11:00", ["barba"]], ["13:00", ["completo"]], ["14:30", ["corte"]], ["15:00", ["corte-barba"]], ["16:30", ["corte"]], ["17:30", ["corte", "sobrancelha"]]],
-  "b-thiago": [["09:00", ["corte-barba"]], ["10:00", ["corte"]], ["11:00", ["pigmentacao"]], ["13:30", ["corte"]], ["14:00", ["barba"]], ["15:30", ["corte"]], ["16:00", ["completo"]], ["17:30", ["corte-barba"]]],
-  "b-caio": [["09:30", ["infantil"]], ["10:30", ["corte"]], ["11:30", ["corte"]], ["13:00", ["corte-barba"]], ["14:30", ["corte"]], ["15:00", ["corte"]], ["16:00", ["barba"]], ["17:00", ["corte"]]],
+  "b-otavio": [["09:00", ["corte"]], ["09:30", ["corte-barba"]], ["10:30", ["corte"]], ["11:00", ["barba"]], ["13:00", ["completo"]], ["14:30", ["corte"]], ["15:00", ["corte-barba"]], ["16:30", ["corte"]], ["17:30", ["corte", "sobrancelha"]]],
+  "b-igor": [["09:00", ["corte-barba"]], ["10:00", ["corte"]], ["11:00", ["pigmentacao"]], ["13:30", ["corte"]], ["14:00", ["barba"]], ["15:30", ["corte"]], ["16:00", ["completo"]], ["17:30", ["corte-barba"]]],
+  "b-davi": [["09:30", ["infantil"]], ["10:30", ["corte"]], ["11:30", ["corte"]], ["13:00", ["corte-barba"]], ["14:30", ["corte"]], ["15:00", ["corte"]], ["16:00", ["barba"]], ["17:00", ["corte"]]],
 };
 const REF_MIN = minutos(REF_HORA);
 let idx = 6;
@@ -373,7 +373,7 @@ for (const [staffId, lista] of Object.entries(HOJE_PLANO)) {
 }
 /* Um encaixe já aprovado hoje — aparece em azul na grade. */
 {
-  const r = reserva({ cliente: CLIENTES[20], staffId: "b-thiago", serviceIds: ["barba"], date: REF_DIA, time: "16:00", origin: "app", extra: { isFitIn: true } });
+  const r = reserva({ cliente: CLIENTES[20], staffId: "b-igor", serviceIds: ["barba"], date: REF_DIA, time: "16:00", origin: "app", extra: { isFitIn: true } });
   await gravar(r, null);
 }
 
@@ -396,8 +396,8 @@ for (let n = 1; n <= 6; n++) {
 {
   let date = somaDias(REF_DIA, 4);
   if (diaSemana(date) === 0) date = somaDias(date, 1);
-  const time = HORAS.find((h) => livre("b-diego", date, h, 30)) ?? "11:00";
-  await gravar(reserva({ cliente: LUCAS, staffId: "b-diego", serviceIds: ["corte"], date, time }), null);
+  const time = HORAS.find((h) => livre("b-otavio", date, h, 30)) ?? "11:00";
+  await gravar(reserva({ cliente: CLIENTE_APP, staffId: "b-otavio", serviceIds: ["corte"], date, time }), null);
 }
 
 /* ---- O pedido de encaixe esperando aprovação ----
@@ -406,11 +406,11 @@ for (let n = 1; n <= 6; n++) {
 {
   let date = somaDias(REF_DIA, 2);
   if (diaSemana(date) === 0) date = somaDias(date, 1);
-  const base = HORAS.find((h) => !livre("b-thiago", date, h, 30)) ?? "16:00";
-  if (livre("b-thiago", date, base, 30)) await gravar(reserva({ cliente: CLIENTES[22], staffId: "b-thiago", serviceIds: ["corte"], date, time: base }), null);
+  const base = HORAS.find((h) => !livre("b-igor", date, h, 30)) ?? "16:00";
+  if (livre("b-igor", date, base, 30)) await gravar(reserva({ cliente: CLIENTES[22], staffId: "b-igor", serviceIds: ["corte"], date, time: base }), null);
   /* Um pedido por aparelho gravado: o celular aprova um, o computador o outro. */
   for (const c of [23, 24]) {
-    const r = reserva({ cliente: CLIENTES[c], staffId: "b-thiago", serviceIds: ["corte"], date, time: base, origin: "app", extra: { isFitIn: true } });
+    const r = reserva({ cliente: CLIENTES[c], staffId: "b-igor", serviceIds: ["corte"], date, time: base, origin: "app", extra: { isFitIn: true } });
     r.doc.status = "fit_in_requested";
     await gravar(r, null);
   }
@@ -426,9 +426,9 @@ console.log("  histórico:", historico, "· transições:", aConcluir.length);
 
 /* ---- Vendas da loja (hoje, no relógio real do servidor) ---- */
 for (const [itens, paymentMethod, staffId] of [
-  [[{ productId: "pomada", quantity: 1 }], "pix", "b-diego"],
-  [[{ productId: "shampoo", quantity: 1 }, { productId: "cera", quantity: 1 }], "credit", "b-thiago"],
-  [[{ productId: "pomada", quantity: 2 }], "cash", "b-caio"],
+  [[{ productId: "pomada", quantity: 1 }], "pix", "b-otavio"],
+  [[{ productId: "shampoo", quantity: 1 }, { productId: "cera", quantity: 1 }], "credit", "b-igor"],
+  [[{ productId: "pomada", quantity: 2 }], "cash", "b-davi"],
 ]) await chamar("registrarVendaDeProduto", { itens, paymentMethod, staffId, idempotencyKey: `demo-${itens[0].productId}-${staffId}` });
 
 /* ---- Despesas do mês e do anterior ---- */

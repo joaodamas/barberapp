@@ -128,7 +128,7 @@ const CLIENTE = [
     const dias = p.locator("button[aria-pressed]").filter({ hasText: /\d/ });
     await clicar(p, dias.nth(2)).catch(() => {});
     await espera(p, 1200);
-    await clicar(p, p.getByRole("button", { name: "Diego" })).catch(() => {});
+    await clicar(p, p.getByRole("button", { name: "Otávio" })).catch(() => {});
     await espera(p, 2200);
     const horario = p.getByRole("button", { name: /^\d\d:\d\d$/ }).first();
     await mostrar(p, horario);
@@ -194,7 +194,7 @@ const DONO = [
     const dialogo = p.getByRole("dialog");
     await clicar(p, dialogo.getByRole("button", { name: /^Corte\s+R\$/ }).first());
     await espera(p, 900);
-    await clicar(p, dialogo.getByRole("button", { name: "Caio", exact: true }));
+    await clicar(p, dialogo.getByRole("button", { name: "Davi", exact: true }));
     await espera(p, 1000);
     /* "Hoje" do tour é passado para o servidor (relógio real): sábado à frente. */
     await clicar(p, dialogo.getByRole("button", { name: /^s[aá]b\./ }).first());
