@@ -6,12 +6,13 @@
  *
  * Um vídeo por módulo por aparelho (`saida/<aparelho>__<modulo>.mp4`), uma
  * foto nítida do fim de cada um (`.png`) e `saida/roteiro.json` com, para
- * cada vídeo, o segundo em que a tela ficou pronta (`inicio` — o que vem antes
- * é carregamento e a edição corta) e a duração total.
+ * cada vídeo, a linha do tempo das interações (clique, o que aparece, rolagem,
+ * com instante e caixa na tela) e a duração. A filmagem começa com a tela já
+ * pronta: carregamento fica fora do vídeo.
  *
  * O relógio do navegador fica parado no REF do semeador (um dia de movimento
  * às 15h), para "Hoje" mostrar a agenda cheia qualquer que seja a hora em que
- * o job rode.
+ * o job rode; as telas do mês usam `refFinanceiro`, o fim de um mês cheio.
  */
 import { chromium, devices } from "playwright";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -19,7 +20,7 @@ import { execFileSync } from "node:child_process";
 
 const SAIDA = new URL("./saida/", import.meta.url).pathname;
 mkdirSync(SAIDA, { recursive: true });
-const { ref, nome, slug } = JSON.parse(readFileSync(SAIDA + "ref.json", "utf8"));
+const { ref, refFinanceiro, nome, slug } = JSON.parse(readFileSync(SAIDA + "ref.json", "utf8"));
 /* O slug vem do semeador (DEMO_SLUG), para o tour com o nome do prospect. */
 const BASE = process.env.BASE ?? `http://${slug ?? "navalha"}.lvh.me:3000`;
 
@@ -114,7 +115,9 @@ async function pronta(page) {
   /* Mesma regra do passeio: texto na tela e nenhum esqueleto carregando. */
   await page
     .waitForFunction(
-      () => document.body.innerText.trim().length > 30 && !document.querySelector('[aria-busy="true"], .animate-pulse'),
+      () =>
+        document.body.innerText.trim().length > 30 &&
+        !document.querySelector('[aria-busy="true"], .animate-pulse, .animate-spin, [role="progressbar"]'),
       null,
       { timeout: 25000 }
     )
@@ -195,22 +198,6 @@ const CLIENTE = [
   ["planos", "/planos", async (p) => { await espera(p, 1500); await rolar(p, 500); await espera(p, 1200); }],
 ];
 
-/* Começo de mês não tem o que mostrar no mês corrente: DRE e Números vão
- * para o mês anterior, que o semeador encheu. */
-const COMECO_DE_MES = Number(String(ref).slice(8, 10)) <= 15;
-const mesCheio = (px) => async (p) => {
-  await espera(p, 1200);
-  if (COMECO_DE_MES) {
-    const anterior = p.getByRole("button", { name: "Mês anterior" }).first();
-    if (await anterior.isVisible().catch(() => false)) {
-      await clicar(p, anterior);
-      await pronta(p);
-    }
-  }
-  await rolar(p, px, 3200);
-  await espera(p, 1500);
-};
-
 const passear = (px = 900) => async (p) => {
   await espera(p, 1500);
   await rolar(p, px, 3200);
@@ -275,14 +262,19 @@ const DONO = [
   ["equipe", "/painel/equipe", passear(600)],
   ["horarios", "/painel/horarios", passear(600)],
   ["loja", "/painel/loja", passear()],
+  ["avisos", "/painel/avisos", passear(600)],
+  ["meu-link", "/painel/meu-link", passear(600)],
+];
+
+/* As telas do mês, gravadas no relógio `refFinanceiro` (fim do mês cheio —
+ * ver o semeador). */
+const FINANCEIRO = [
   ["financeiro", "/painel/financeiro", passear(1200)],
-  ["dre", "/painel/financeiro/dre", mesCheio(1200)],
+  ["dre", "/painel/financeiro/dre", passear(1200)],
   ["fluxo-de-caixa", "/painel/financeiro/fluxo-caixa", passear()],
   ["projecao", "/painel/financeiro/projecao", passear()],
   ["despesas", "/painel/financeiro/despesas", passear(600)],
-  ["numeros", "/painel/numeros", mesCheio(1200)],
-  ["avisos", "/painel/avisos", passear(600)],
-  ["meu-link", "/painel/meu-link", passear(600)],
+  ["numeros", "/painel/numeros", passear(1200)],
 ];
 
 async function entrar(ctx, email, senha, destino) {
@@ -304,54 +296,89 @@ async function entrar(ctx, email, senha, destino) {
 const roteiro = [];
 const browser = await chromium.launch();
 
+/** A sessão caiu ou a tela ainda gira? (O app no emulador às vezes derruba o
+ *  login com `auth/emulator-config-failed`; filmar isso não serve.) */
+async function telaRuim(page) {
+  if (/\/login/.test(new URL(page.url()).pathname)) return "caiu no login";
+  const gira = await page.locator('[aria-busy="true"], .animate-pulse, .animate-spin, [role="progressbar"]').first().isVisible().catch(() => false);
+  return gira ? "carregando" : null;
+}
+
+const GRUPOS = [
+  ["cliente", "cliente@navalha.teste", "cliente12345", (u) => !u.pathname.startsWith("/login"), CLIENTE, ref],
+  ["dono", "dono@navalha.teste", "navalha12345", /\/painel/, DONO, ref],
+  ["dono", "dono@navalha.teste", "navalha12345", /\/painel/, FINANCEIRO, refFinanceiro ?? ref],
+];
+
 for (const [aparelho, cfg] of Object.entries(APARELHOS)) {
-  for (const [quem, email, senha, destino, modulos] of [
-    ["cliente", "cliente@navalha.teste", "cliente12345", (u) => !u.pathname.startsWith("/login"), CLIENTE],
-    ["dono", "dono@navalha.teste", "navalha12345", /\/painel/, DONO],
-  ]) {
+  for (const [quem, email, senha, destino, modulos, relogio] of GRUPOS) {
     /* `bypassCSP`: a CSP de produção pede HTTPS, e aqui não há. */
     const ctx = await browser.newContext({ ...cfg, locale: "pt-BR", timezoneId: "America/Sao_Paulo", bypassCSP: true });
-    await ctx.clock.setFixedTime(new Date(ref));
+    await ctx.clock.setFixedTime(new Date(relogio));
     await entrar(ctx, email, senha, destino);
 
     for (const [modulo, rota, acao] of modulos) {
-      const page = await ctx.newPage();
       const nome = `${aparelho}__${modulo}`;
-      const terminar = await comecarGravacao(page, cfg, `${SAIDA}quadros-${nome}`);
-      const erros = [];
-      page.on("pageerror", (e) => erros.push(e.message.slice(0, 160)));
-      linha = { t0: Date.now(), eventos: [] };
-      const t0 = linha.t0;
-      let falha = null;
-      try {
-        await page.goto(BASE + rota, { waitUntil: "domcontentloaded", timeout: 60000 });
-        await pronta(page);
+      let registro = null;
+      for (let tentativa = 1; tentativa <= 3; tentativa++) {
+        const page = await ctx.newPage();
+        const erros = [];
+        page.on("pageerror", (e) => erros.push(e.message.slice(0, 160)));
+        let falha = null;
+        /* 1. Abre e espera FORA da filmagem: o vídeo começa com a tela pronta. */
+        const tAbrir = Date.now();
+        try {
+          await page.goto(BASE + rota, { waitUntil: "domcontentloaded", timeout: 60000 });
+          await pronta(page);
+          await espera(page, 400);
+          falha = await telaRuim(page);
+        } catch (e) {
+          falha = "carregar: " + e.message.slice(0, 160);
+        }
+        const carregou = (Date.now() - tAbrir) / 1000;
+        if (falha) {
+          console.log(`  ${nome}: ${falha} (tentativa ${tentativa}) — entra de novo`);
+          await page.close();
+          await entrar(ctx, email, senha, destino).catch(() => {});
+          continue;
+        }
+        /* 2. Filma: da tela pronta até o fim da ação. */
+        const terminar = await comecarGravacao(page, cfg, `${SAIDA}quadros-${nome}`);
+        linha = { t0: Date.now(), eventos: [] };
+        const t0 = linha.t0;
         registrar("aparece", "tela pronta", { x: 0, y: 0, w: cfg.viewport.width, h: cfg.viewport.height });
-      } catch (e) {
-        falha = "carregar: " + e.message.slice(0, 160);
-      }
-      const inicio = (Date.now() - t0) / 1000;
-      if (!falha) {
         try {
           await acao(page);
         } catch (e) {
           falha = e.message.split("\n")[0].slice(0, 200);
         }
+        await espera(page, 600);
+        falha = falha ?? (await telaRuim(page));
+        await page.screenshot({ path: `${SAIDA}${nome}.png` }).catch(() => {});
+        const tFim = Date.now();
+        const nQuadros = await terminar(`${SAIDA}${nome}.mp4`, t0, tFim);
+        await page.close();
+        registro = {
+          modulo, quem, aparelho, rota, relogio,
+          arquivo: `${nome}.mp4`, foto: `${nome}.png`,
+          densidade: cfg.deviceScaleFactor, viewport: cfg.viewport,
+          tamanho: { w: cfg.viewport.width * cfg.deviceScaleFactor, h: cfg.viewport.height * cfg.deviceScaleFactor },
+          quadros: nQuadros, carregouEm: +carregou.toFixed(2), duracao: +((tFim - t0) / 1000).toFixed(2),
+          eventos: linha.eventos, falha, erros, tentativas: tentativa,
+        };
+        if (!falha || !/login|carregando/.test(falha)) break;
+        console.log(`  ${nome}: ${falha} durante a filmagem (tentativa ${tentativa}) — regrava`);
+        await entrar(ctx, email, senha, destino).catch(() => {});
       }
-      await espera(page, 600);
-      await page.screenshot({ path: `${SAIDA}${nome}.png` }).catch(() => {});
-      const tFim = Date.now();
-      const duracao = (tFim - t0) / 1000;
-      const nQuadros = await terminar(`${SAIDA}${nome}.mp4`, t0, tFim);
-      await page.close();
-      roteiro.push({ modulo, quem, aparelho, densidade: cfg.deviceScaleFactor, viewport: cfg.viewport, eventos: linha.eventos, rota, arquivo: `${nome}.mp4`, quadros: nQuadros, tamanho: { w: cfg.viewport.width * cfg.deviceScaleFactor, h: cfg.viewport.height * cfg.deviceScaleFactor }, foto: `${nome}.png`, inicio: +inicio.toFixed(2), duracao: +duracao.toFixed(2), falha, erros });
-      console.log(`${falha ? "FALHOU" : "ok"} ${nome} · pronta em ${inicio.toFixed(1)}s · ${duracao.toFixed(1)}s${falha ? " · " + falha : ""}`);
+      registro ??= { modulo, quem, aparelho, rota, falha: "não abriu em 3 tentativas", eventos: [] };
+      roteiro.push(registro);
+      console.log(`${registro.falha ? "FALHOU" : "ok"} ${nome} · ${registro.duracao ?? "-"}s${registro.falha ? " · " + registro.falha : ""}`);
     }
     await ctx.close();
   }
 }
 await browser.close();
 
-writeFileSync(SAIDA + "roteiro.json", JSON.stringify({ ref, nome, base: BASE, videos: roteiro }, null, 2));
+writeFileSync(SAIDA + "roteiro.json", JSON.stringify({ ref, refFinanceiro, nome, base: BASE, videos: roteiro }, null, 2));
 const falhas = roteiro.filter((r) => r.falha);
 console.log(`TOUR GRAVADO: ${roteiro.length} vídeos, ${falhas.length} com falha`);

@@ -94,7 +94,7 @@ jobs:
           node scripts/tour-demo/gravar-tour.mjs
           {
             echo "### Tour gravado"
-            node -e 'const r=require("./scripts/tour-demo/saida/roteiro.json");console.log("| aparelho | módulo | pronta (s) | duração (s) | falha |\n|---|---|---|---|---|");for(const v of r.videos)console.log(`| ${v.aparelho} | ${v.modulo} | ${v.inicio} | ${v.duracao} | ${v.falha??""} |`)'
+            node -e 'const r=require("./scripts/tour-demo/saida/roteiro.json");console.log("| aparelho | módulo | carregou (s) | duração (s) | tentativas | falha |\n|---|---|---|---|---|---|");for(const v of r.videos)console.log(`| ${v.aparelho} | ${v.modulo} | ${v.carregouEm} | ${v.duracao} | ${v.tentativas} | ${v.falha??""} |`)'
           } >> "$GITHUB_STEP_SUMMARY"
 
       - if: always()

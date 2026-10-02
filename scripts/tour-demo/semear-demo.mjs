@@ -64,7 +64,15 @@ const REF_HORA = "15:00";
 const REF_ISO = `${REF_DIA}T${REF_HORA}:00-03:00`;
 const SAIDA = new URL("./saida/", import.meta.url).pathname;
 mkdirSync(SAIDA, { recursive: true });
-writeFileSync(SAIDA + "ref.json", JSON.stringify({ ref: REF_ISO, dia: REF_DIA, hora: REF_HORA, nome: NOME, slug: SLUG }));
+/* As telas financeiras (Financeiro, DRE, Fluxo, Projeção, Despesas, Números)
+ * leem o mês do relógio do navegador. Num começo de mês esse mês tem um ou
+ * dois dias de receita contra os custos do mês inteiro — prejuízo que não
+ * existe. Elas são gravadas no fim do mês anterior, que está cheio. */
+const diaDoMes = Number(REF_DIA.slice(8));
+const FIN_DIA = diaDoMes <= 15 ? somaDias(`${REF_DIA.slice(0, 7)}-01`, -1) : REF_DIA;
+const FIN_ISO = `${FIN_DIA}T18:30:00-03:00`;
+writeFileSync(SAIDA + "ref.json", JSON.stringify({ ref: REF_ISO, refFinanceiro: FIN_ISO, dia: REF_DIA, hora: REF_HORA, nome: NOME, slug: SLUG }));
+console.log("Telas financeiras no relógio:", FIN_ISO);
 console.log("REF do tour:", REF_ISO, "(hoje real:", hojeReal, horaSP + "h)");
 
 /* Aleatório com semente: duas rodadas gravam o mesmo mês. */
@@ -326,9 +334,9 @@ async function gravar(r, final) {
   if (final) aConcluir.push([r.ref, final]);
 }
 
-/* ---- 30 dias de histórico ---- */
+/* ---- 45 dias de histórico: o mês anterior sempre cheio ---- */
 let historico = 0;
-for (let n = 30; n >= 1; n--) {
+for (let n = 45; n >= 1; n--) {
   const date = somaDias(REF_DIA, -n);
   if (diaSemana(date) === 0) continue;
   const sabado = diaSemana(date) === 6;
@@ -442,10 +450,13 @@ for (const [mes, lista] of [[mesAnt, 1], [mesRef, 0]]) {
     { category: "Internet", description: "Internet fibra", supplier: "Provedor", value: 110, dia: "12", payment: "Cartão", recurring: true },
     { category: "Produtos", description: "Reposição de lâminas e toalhas", supplier: "Distribuidora Barber", value: 380 + lista * 90, dia: "15", payment: "Pix", recurring: false },
     { category: "Marketing", description: "Impulsionamento Instagram", supplier: "Meta", value: 150, dia: "18", payment: "Cartão", recurring: false },
+    { category: "Serviços", description: "Contabilidade", supplier: "Escritório contábil", value: 350, dia: "07", payment: "Pix", recurring: true },
+    { category: "Serviços", description: "Limpeza semanal", supplier: "Diarista", value: 480, dia: "20", payment: "Pix", recurring: true },
+    { category: "Sistema", description: "Mensalidade do sistema de gestão", supplier: "Topete", value: 197, dia: "03", payment: "Cartão", recurring: true },
+    { category: "Manutenção", description: "Afiação e manutenção das máquinas", supplier: "Assistência técnica", value: 260, dia: "22", payment: "Pix", recurring: false },
   ]) {
-    /* No mês do REF, o que venceria depois dele entra no próprio REF: a tela
-     * de despesas do mês corrente não fica vazia num começo de mês. */
-    const date = `${mes}-${e.dia}` > REF_DIA ? REF_DIA : `${mes}-${e.dia}`;
+    const date = `${mes}-${e.dia}`;
+    if (date > REF_DIA) continue;
     const { dia, ...resto } = e;
     await shopRef.collection("expenses").add({ ...resto, date });
   }
