@@ -117,10 +117,10 @@ const CLIENTE = [
   ["vitrine", "/", async (p) => { await espera(p, 1500); await rolar(p, 600); await espera(p, 1200); }],
   ["agendar", "/agendar", async (p) => {
     await espera(p, 1200);
-    const passo1 = p.locator("button[aria-pressed]");
-    await clicar(p, passo1.filter({ hasText: /^Corte\b/ }).first());
+    /* Nome acessível: "Corte 30 min R$ 50,00" — sem confundir com "Corte infantil". */
+    await clicar(p, p.getByRole("button", { name: /^Corte\s+30\s*min/ }).first());
     await espera(p, 900);
-    await clicar(p, passo1.filter({ hasText: /^Barba\b/ }).first());
+    await clicar(p, p.getByRole("button", { name: /^Barba\s+30\s*min/ }).first());
     await espera(p, 1800);
     await clicar(p, p.getByRole("button", { name: "Continuar" }));
     await espera(p, 1500);
@@ -145,6 +145,22 @@ const CLIENTE = [
   ["reservas", "/reservas", async (p) => { await espera(p, 1500); await rolar(p, 500); await espera(p, 1200); }],
   ["planos", "/planos", async (p) => { await espera(p, 1500); await rolar(p, 500); await espera(p, 1200); }],
 ];
+
+/* Começo de mês não tem o que mostrar no mês corrente: DRE e Números vão
+ * para o mês anterior, que o semeador encheu. */
+const COMECO_DE_MES = Number(String(ref).slice(8, 10)) <= 15;
+const mesCheio = (px) => async (p) => {
+  await espera(p, 1200);
+  if (COMECO_DE_MES) {
+    const anterior = p.getByRole("button", { name: "Mês anterior" }).first();
+    if (await anterior.isVisible().catch(() => false)) {
+      await clicar(p, anterior);
+      await pronta(p);
+    }
+  }
+  await rolar(p, px, 3200);
+  await espera(p, 1500);
+};
 
 const passear = (px = 900) => async (p) => {
   await espera(p, 1500);
@@ -176,9 +192,12 @@ const DONO = [
     await clicar(p, p.getByRole("button", { name: "Marcar atendimento" }).first());
     await espera(p, 1300);
     const dialogo = p.getByRole("dialog");
-    await clicar(p, dialogo.getByRole("button", { name: /^Corte\b/ }).first());
+    await clicar(p, dialogo.getByRole("button", { name: /^Corte\s+R\$/ }).first());
     await espera(p, 900);
-    await clicar(p, dialogo.getByRole("button", { name: "Caio" })).catch(() => {});
+    await clicar(p, dialogo.getByRole("button", { name: "Caio", exact: true }));
+    await espera(p, 1000);
+    /* "Hoje" do tour é passado para o servidor (relógio real): sábado à frente. */
+    await clicar(p, dialogo.getByRole("button", { name: /^s[aá]b\./ }).first());
     await espera(p, 2500);
     const horario = dialogo.getByRole("button", { name: /^\d\d:\d\d$/ }).first();
     await mostrar(p, horario);
@@ -208,11 +227,11 @@ const DONO = [
   ["horarios", "/painel/horarios", passear(600)],
   ["loja", "/painel/loja", passear()],
   ["financeiro", "/painel/financeiro", passear(1200)],
-  ["dre", "/painel/financeiro/dre", passear(1200)],
+  ["dre", "/painel/financeiro/dre", mesCheio(1200)],
   ["fluxo-de-caixa", "/painel/financeiro/fluxo-caixa", passear()],
   ["projecao", "/painel/financeiro/projecao", passear()],
   ["despesas", "/painel/financeiro/despesas", passear(600)],
-  ["numeros", "/painel/numeros", passear(1200)],
+  ["numeros", "/painel/numeros", mesCheio(1200)],
   ["avisos", "/painel/avisos", passear(600)],
   ["meu-link", "/painel/meu-link", passear(600)],
 ];

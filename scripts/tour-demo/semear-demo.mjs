@@ -243,7 +243,7 @@ const proximoDia = (diaDaSemana) => {
   return d;
 };
 for (const m of MENSALISTAS) {
-  const r = await chamar("criarMensalista", { clientId: CLIENTES[m.c].id, planId: m.plano, billingDay: 5 + m.c });
+  const r = await chamar("criarMensalista", { clientId: CLIENTES[m.c].id, planId: m.plano, billingDay: 1 });
   if (r?.subscriptionId && m.fixo) {
     await chamar("definirHorarioFixo", {
       subscriptionId: r.subscriptionId,
@@ -408,10 +408,13 @@ for (let n = 1; n <= 6; n++) {
   if (diaSemana(date) === 0) date = somaDias(date, 1);
   const base = HORAS.find((h) => !livre("b-thiago", date, h, 30)) ?? "16:00";
   if (livre("b-thiago", date, base, 30)) await gravar(reserva({ cliente: CLIENTES[22], staffId: "b-thiago", serviceIds: ["corte"], date, time: base }), null);
-  const r = reserva({ cliente: CLIENTES[23], staffId: "b-thiago", serviceIds: ["corte"], date, time: base, origin: "app", extra: { isFitIn: true } });
-  r.doc.status = "fit_in_requested";
-  await gravar(r, null);
-  console.log("  encaixe pendente:", date, base);
+  /* Um pedido por aparelho gravado: o celular aprova um, o computador o outro. */
+  for (const c of [23, 24]) {
+    const r = reserva({ cliente: CLIENTES[c], staffId: "b-thiago", serviceIds: ["corte"], date, time: base, origin: "app", extra: { isFitIn: true } });
+    r.doc.status = "fit_in_requested";
+    await gravar(r, null);
+  }
+  console.log("  encaixes pendentes: 2 ·", date, base);
 }
 
 /* ---- Conclui em lotes: o gatilho do emulador materializa cada uma ---- */
@@ -440,8 +443,9 @@ for (const [mes, lista] of [[mesAnt, 1], [mesRef, 0]]) {
     { category: "Produtos", description: "Reposição de lâminas e toalhas", supplier: "Distribuidora Barber", value: 380 + lista * 90, dia: "15", payment: "Pix", recurring: false },
     { category: "Marketing", description: "Impulsionamento Instagram", supplier: "Meta", value: 150, dia: "18", payment: "Cartão", recurring: false },
   ]) {
-    const date = `${mes}-${e.dia}`;
-    if (date > REF_DIA) continue;
+    /* No mês do REF, o que venceria depois dele entra no próprio REF: a tela
+     * de despesas do mês corrente não fica vazia num começo de mês. */
+    const date = `${mes}-${e.dia}` > REF_DIA ? REF_DIA : `${mes}-${e.dia}`;
     const { dia, ...resto } = e;
     await shopRef.collection("expenses").add({ ...resto, date });
   }
