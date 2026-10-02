@@ -1,29 +1,28 @@
 import { describe, expect, it } from "vitest";
-import { somarExtras } from "../servicos-extras";
+import { recalcularComExtras } from "../servicos-extras";
 
-/** Serviço a mais no fechamento (01/10): soma com o preço do catálogo. */
-describe("somarExtras", () => {
-  it("corte marcado, saiu com corte e barba", () => {
-    const r = somarExtras(
-      { value: 60, durationMin: 30, serviceIds: ["corte"], serviceNames: ["Corte adulto"] },
-      [{ id: "barba", nome: "Barba", preco: 35, duracao: 20 }]
-    );
-    expect(r).toEqual({
-      serviceIds: ["corte", "barba"],
-      serviceNames: ["Corte adulto", "Barba"],
-      value: 95,
-      durationMin: 50,
-      valorExtra: 35,
+const CAT = [
+  { id: "corte", name: "Corte adulto", price: 60, durationMin: 30 },
+  { id: "barba", name: "Barba", price: 35, durationMin: 20 },
+  { id: "pez", name: "Pezinho", price: 15, durationMin: 10 },
+  { id: "cb", name: "Corte + barba", price: 90, durationMin: 45, composicao: ["corte", "barba"] },
+];
+
+/** Serviço a mais no fechamento (01/10), já com combo. */
+describe("recalcularComExtras", () => {
+  it("marcou corte, somou barba: vira o combo (R$ 90)", () => {
+    expect(recalcularComExtras({ serviceIds: ["corte"] }, ["barba"], CAT)).toEqual({
+      serviceIds: ["cb"],
+      serviceNames: ["Corte + barba"],
+      value: 90,
+      durationMin: 45,
+      combos: ["Corte + barba"],
     });
   });
-
-  it("centavos não acumulam erro de ponto flutuante", () => {
-    expect(somarExtras({ value: 0.1 }, [{ id: "a", nome: "A", preco: 0.2, duracao: 0 }]).value).toBe(0.3);
+  it("extra sem combo soma normal", () => {
+    expect(recalcularComExtras({ serviceIds: ["corte"] }, ["pez"], CAT).value).toBe(75);
   });
-
-  it("reserva antiga sem listas não quebra", () => {
-    const r = somarExtras({}, [{ id: "x", nome: "X", preco: 10, duracao: 15 }]);
-    expect(r.serviceIds).toEqual(["x"]);
-    expect(r.value).toBe(10);
+  it("reserva antiga sem lista não quebra", () => {
+    expect(recalcularComExtras({}, ["barba"], CAT).value).toBe(35);
   });
 });

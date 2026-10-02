@@ -15,6 +15,12 @@ export type ServiceDoc = {
   price: number;
   priceFrom?: boolean;
   active: boolean;
+  /**
+   * Combo (01/10): ids dos serviços que ele junta — repetir = mais de um.
+   * Com ele, escolher as peças separadas cobra o preço do combo
+   * (`lib/combos.ts`, igual a `functions/src/combos.ts`).
+   */
+  composicao?: string[];
 };
 
 export type PlanDoc = {

@@ -8,6 +8,7 @@ import { formatBRL, formatDatePtBR, toISODate } from "@/lib/format";
 import { useTenant } from "@/lib/tenant-context";
 import { useClients, useServices, useStaff } from "@/lib/db/use-shop-data";
 import { bookableDays, firstBookableIndex } from "@/lib/slots";
+import { aplicarCombos } from "@/lib/combos";
 import { normalizarWhatsapp, whatsappValido, mascararWhatsapp } from "@/lib/whatsapp-numero";
 import { filtrarClientes } from "@/lib/clientes-busca";
 import { quemFaz } from "@/lib/quem-faz";
@@ -99,8 +100,10 @@ export function MarcarNoBalcao({
     () => catalogo.filter((s) => servicosEscolhidos.includes(s.id)),
     [catalogo, servicosEscolhidos]
   );
-  const valorTotal = escolhidos.reduce((s, x) => s + (x.price ?? 0), 0);
-  const duracaoTotal = escolhidos.reduce((s, x) => s + (x.durationMin ?? 0), 0);
+  /* Combos (01/10): a mesma conta do servidor. */
+  const comCombos = aplicarCombos(servicosEscolhidos, servicos.map((s) => ({ ...s, id: s.id })));
+  const valorTotal = comCombos.valor;
+  const duracaoTotal = comCombos.duracao;
 
   /* Só quem FAZ o serviço escolhido aparece.
    *
@@ -322,6 +325,7 @@ export function MarcarNoBalcao({
           {podeConfirmar && (
             <p className="text-center text-[11px] text-ink-muted">
               {duracaoTotal} min · pagamento no atendimento
+              {comCombos.combos.length > 0 ? ` · combo ${comCombos.combos.join(" + ")}` : ""}
             </p>
           )}
         </div>
