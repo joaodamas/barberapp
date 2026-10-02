@@ -2,41 +2,41 @@ import Image from "next/image";
 import Link from "next/link";
 import { destinoDoCadastro } from "@/lib/platform";
 import { PRECOS_POR_PLANO } from "@/lib/tenant";
-import { ArrowRight, Check } from "lucide-react";
-import fotoEquipe from "@/assets/fotos/barbearia-equipe.webp";
+import { ArrowRight, Check, Plus } from "lucide-react";
 import fotoDono from "@/assets/fotos/dono-no-salao.webp";
-import { Reveal, RevealPalavras } from "@/components/landing/reveal";
+import pcAgenda from "@/assets/landing/pc-agenda.jpg";
+import celAgendarHorario from "@/assets/landing/cel-agendar-horario.jpg";
+import { Reveal } from "@/components/landing/reveal";
 import { AssinaturaTopete, outfit } from "@/components/landing/marca";
-import {
-  AgendaDoDia,
-  EquipeResumo,
-  MapaDeCalor,
-  ProjecaoCurta,
-  ResumoDoMes,
-} from "@/components/landing/telas";
+import { Celular, Notebook } from "@/components/landing/molduras";
+import { TourDoTopete } from "@/components/landing/tour";
+import { ComoFunciona } from "@/components/landing/passos";
+import { SemComTopete } from "@/components/landing/sem-com";
+import { QuantoCusta } from "@/components/landing/conta";
 
 /**
- * A página da plataforma — Topete (29/09/2026; antes, CorteHub).
+ * A página da plataforma — Topete. Terceira versão (02/10/2026).
  *
  * Mora em componente, e não só na rota `/landing`, porque é ela que abre em
- * `topete.com.br/` direto, sem redirecionar (ver `(cliente)/layout.tsx`).
+ * `topete.com.br/` direto (ver `(cliente)/layout.tsx`).
  *
- * O conteúdo é o da versão anterior, que já tinha sido conferido número a
- * número. O que muda é a pele, a pedido do dono: "mais talento, tecnológico e
- * inteligente".
+ * O que muda, a partir do diagnóstico "ainda tem cara de IA" do dono e da
+ * comparação com Squire, Booksy, Fresha, Trinks e BestBarbers:
  *
- * 1. **Escura, preto e latão.** A mesma paleta do mascote e dos materiais de
- *    venda. Os blocos de tela continuam CLAROS — são os componentes reais do
- *    painel, e sobre o fundo escuro eles se leem como o que são: o produto
- *    funcionando, não ilustração.
- * 2. **O mascote abre a página.** É a marca, e é o que o Instagram mostra.
- * 3. **"Inteligente" com prova.** A seção nova lista o que o sistema CALCULA
- *    sozinho — cada item existe no código hoje. Nenhum "com IA" de enfeite.
- * 4. **Nada de promessa inflada.** Sem contagem de clientes, sem barbearia
- *    nomeada sem autorização, e o que não está pronto continua dito.
- * 5. **O convite é conversa, não teste de 7 dias.** O cadastro self-service
- *    está fechado por decisão do dono; o botão leva ao WhatsApp comercial
- *    (`destinoDoCadastro`).
+ * 1. **Telas de verdade.** Nada de maquete desenhada em código: todas as telas
+ *    são quadros do app real, gravado com uma barbearia de exemplo (a
+ *    "Navalha", dados fictícios) — `docs/materiais/landing/extrair.sh`.
+ * 2. **O produto se mostra.** Tour narrado logo abaixo do topo, e um "como
+ *    funciona" em que a tela acompanha o texto.
+ * 3. **Nenhum número sem origem.** Os números da dor viram contas escritas,
+ *    com valores redondos e o selo "conta de exemplo".
+ * 4. **Ritmo claro/escuro.** O escuro é a marca (topo, vídeos, fechamento); o
+ *    claro é onde o produto aparece — tela branca sobre marfim se lê como o
+ *    que é, e quebra a fórmula "página toda escura com título dourado".
+ * 5. **Animação só com função:** revelar ao chegar, trocar a tela no passo
+ *    certo, montar a conta. `prefers-reduced-motion` desliga tudo.
+ * 6. **Honestidade mantida:** o que ainda não existe continua dito, e nenhum
+ *    nome de pessoa real aparece (só nomes inventados).
  */
 
 const FUNDO = "bg-[#0B0A08]";
@@ -44,52 +44,57 @@ const TEXTO = "text-[#F4EFE4]";
 const APAGADO = "text-[#A79F8F]";
 const LATAO = "text-[#E0AE58]";
 const BORDA = "border-[#2A2620]";
+const CLARO = "bg-[#F4EFE4] text-[#16140F]";
 
 function BotaoPrincipal({ children }: { children: React.ReactNode }) {
   return (
     <Link
       href={destinoDoCadastro()}
-      className="group inline-flex min-h-12 items-center gap-2 rounded-lg bg-[#E0AE58] px-6 font-semibold text-[#0B0A08] transition-colors hover:bg-[#EDC47A]"
+      className="group inline-flex min-h-12 items-center gap-2 rounded-lg bg-[#E0AE58] px-6 font-semibold text-[#0B0A08] transition-colors hover:bg-[#EDC47A] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#E0AE58]/40"
     >
       {children}
-      <ArrowRight
-        size={18}
-        className="transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none"
-      />
+      <ArrowRight size={18} className="transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none" />
     </Link>
   );
 }
 
-const INTELIGENTE = [
+function Titulo({ children, claro = false }: { children: React.ReactNode; claro?: boolean }) {
+  return (
+    <h2
+      className={
+        "text-balance font-brand text-[2.1rem] leading-[1.06] tracking-[-0.025em] md:text-5xl " +
+        (claro ? "text-[#16140F]" : "")
+      }
+    >
+      {children}
+    </h2>
+  );
+}
+
+function Rotulo({ children, claro = false }: { children: React.ReactNode; claro?: boolean }) {
+  return (
+    <p className={"mb-4 text-sm font-medium " + (claro ? "text-[#8F6B22]" : "text-[#E0AE58]")}>{children}</p>
+  );
+}
+
+const DETALHES = [
   {
     titulo: "Encaixe que se calcula",
     texto:
-      "Horário ocupado vira pedido de encaixe. O Topete olha o tempo de cada serviço ao redor e diz se dá para encaixar, se fica apertado ou se não vale.",
-    exemplo: "Pedro pediu 15:00, barba de 30 min. Cabe entre o Lucas e o intervalo.",
-  },
-  {
-    titulo: "Mensalista com horário fixo",
-    texto:
-      "Sexta às 17h é dele. O sistema reserva as próximas semanas sozinho e completa toda madrugada. Cancelar uma semana não tira o fixo.",
-    exemplo: "Sexta, 17:00, Felipe. Reservado até o fim de novembro.",
-  },
-  {
-    titulo: "Caixa projetado",
-    texto:
-      "Horários marcados, mensalidades e contas fixas numa linha só. O dia em que o caixa aperta aparece semanas antes.",
-    exemplo: "Dia 23 o caixa fica apertado: três contas vencem antes das mensalidades.",
+      "O Topete olha o tempo de cada serviço ao redor e diz se dá para encaixar, se fica apertado ou se não vale.",
+    exemplo: "Thiago pediu 15:00, barba de 30 min. Cabe entre o corte do Murilo e o intervalo.",
   },
   {
     titulo: "Agenda que não briga",
     texto:
       "Cada barbeiro com jornada, serviços e comissão próprios. O horário livre é calculado no servidor — dois clientes nunca pegam a mesma cadeira.",
-    exemplo: "Diego até as 14h, Léo até as 19h. O cliente só vê o que cabe.",
+    exemplo: "Otávio até as 14h, Igor até as 19h. O cliente só vê o que cabe.",
   },
   {
-    titulo: "Sua marca no celular do cliente",
+    titulo: "Combo com o preço certo",
     texto:
-      "Endereço, logo e cores da sua barbearia. O cliente instala como app, sem loja, e ele se atualiza sozinho.",
-    exemplo: "barbeariadoze.topete.com.br, com o logo e as cores do Zé.",
+      "Corte e barba juntos saem pelo preço do combo — na reserva do cliente, no balcão e quando você adiciona um serviço ao concluir.",
+    exemplo: "Corte R$ 50 + barba R$ 35 viram o combo de R$ 75.",
   },
   {
     titulo: "Dados que são seus",
@@ -99,16 +104,34 @@ const INTELIGENTE = [
   },
 ];
 
+const DUVIDAS = [
+  {
+    p: "Meu cliente precisa baixar um app?",
+    r: "Não. É um link da sua barbearia que abre no navegador, como qualquer site. Quem quiser coloca na tela de início do celular, com o nome e o ícone da barbearia.",
+  },
+  {
+    p: "Meu barbeiro não sabe mexer em sistema.",
+    r: "Ele quase não precisa. Toca em Iniciar no Telegram e passa a receber a agenda dele às 7h e os pedidos de encaixe da cadeira dele, com o botão de aprovar.",
+  },
+  {
+    p: "Tem taxa de implantação?",
+    r: "Não. Você paga só a mensalidade do plano. A marca própria vem inclusa.",
+  },
+  {
+    p: "E o WhatsApp que eu já uso?",
+    r: "Continua sendo onde você conversa com o cliente. O link entra para tirar de você o “tem horário?”. Hoje o Topete monta a mensagem certa e você envia com um toque — o envio automático ainda não está pronto.",
+  },
+];
+
 export function PaginaDaPlataforma() {
   return (
     <div className={`${FUNDO} ${TEXTO} ${outfit.variable} min-h-screen overflow-y-auto overflow-x-hidden`}>
-
       {/* ------------------------------------------------------------ Topo */}
       <header className="relative z-10 mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-6 md:px-8">
         <AssinaturaTopete className={TEXTO} />
         <nav className={`flex items-center gap-6 text-sm ${APAGADO}`}>
-          <a href="#inteligente" className="hidden hover:text-[#F4EFE4] sm:inline">
-            Recursos
+          <a href="#como-funciona" className="hidden hover:text-[#F4EFE4] sm:inline">
+            Como funciona
           </a>
           <a href="#precos" className="hidden hover:text-[#F4EFE4] sm:inline">
             Preços
@@ -123,45 +146,56 @@ export function PaginaDaPlataforma() {
       </header>
 
       {/* ------------------------------------------------------------ Hero */}
-      <section className="relative z-10 mx-auto w-full max-w-6xl px-5 pb-20 pt-6 md:px-8 md:pb-32 md:pt-14">
-        <div className="grid grid-cols-1 items-center gap-14 lg:grid-cols-[1.05fr_1fr]">
+      <section className="relative z-10 mx-auto w-full max-w-6xl px-5 pb-16 pt-4 md:px-8 md:pb-24 md:pt-12">
+        <div className="grid grid-cols-1 items-center gap-12 lg:grid-cols-[0.95fr_1.05fr] lg:gap-10">
           <Reveal>
-            <p className="mb-6 text-sm uppercase tracking-[0.18em] text-[#E0AE58]">
-              Sistema para barbearias
-            </p>
-            <h1
-              className="font-brand text-balance text-[2.6rem] leading-[1.02] tracking-[-0.035em] sm:text-6xl md:text-7xl"
-            >
-              <RevealPalavras texto="Agenda cheia." />
-              <br />
-              {/* Gradiente num span só: `background-clip: text` não atravessa as
-                  palavras animadas de `RevealPalavras`, que viram blocos. */}
-              <span className={`${LATAO} italic`}>Cadeira girando.</span>
+            <p className="mb-5 text-sm uppercase tracking-[0.18em] text-[#E0AE58]">Sistema para barbearias</p>
+            <h1 className="text-balance font-brand text-[2.7rem] leading-[1.02] tracking-[-0.035em] sm:text-6xl md:text-[4.2rem]">
+              Seu cliente marca sozinho. <span className={LATAO}>Você só corta.</span>
             </h1>
-            <p className={`mt-7 max-w-lg text-base leading-relaxed md:text-lg ${APAGADO}`}>
-              O cliente marca sozinho pelo link da sua barbearia. O Topete encaixa,
-              guarda o horário do mensalista e desconta comissão, maquininha e
-              aluguel para mostrar quanto sobrou de verdade.
+            <p className={`mt-6 max-w-lg text-base leading-relaxed md:text-lg ${APAGADO}`}>
+              Agenda online com a cara da sua barbearia, encaixe com aprovação, caixa do dia e o resultado do mês —
+              no celular e no computador.
             </p>
-            <div className="mt-10 flex flex-wrap items-center gap-5">
+            <div className="mt-9 flex flex-wrap items-center gap-x-6 gap-y-4">
               <BotaoPrincipal>Quero conhecer</BotaoPrincipal>
-              <span className={`text-sm ${APAGADO}`}>Demonstração de 20 minutos, pelo WhatsApp.</span>
+              <a
+                href="#tour"
+                className="inline-flex items-center gap-2 text-sm font-medium text-[#F4EFE4] underline decoration-[#E0AE58]/50 underline-offset-4 hover:decoration-[#E0AE58]"
+              >
+                Ver o Topete em 1 minuto
+              </a>
             </div>
+            <ul className={`mt-9 flex flex-wrap gap-x-5 gap-y-2 text-sm ${APAGADO}`}>
+              {["Sem taxa de implantação", "Dados em São Paulo", "Sem baixar app"].map((t) => (
+                <li key={t} className="flex items-center gap-1.5">
+                  <Check size={15} className="text-[#E0AE58]" />
+                  {t}
+                </li>
+              ))}
+            </ul>
           </Reveal>
 
-          <Reveal delay={120} className="relative">
-            <div className="relative mx-auto aspect-square w-full max-w-[30rem]">
-              <Image
-                src="/topete-mascote.svg"
-                alt="O mascote do Topete: um homem de barba com um grande topete dourado."
-                width={512}
-                height={512}
+          {/* O produto de verdade abre a página: a agenda do dono no notebook e
+              o cliente marcando no celular — as duas pontas do mesmo horário. */}
+          <div className="relative pb-[9%] pr-[5%]">
+            <Reveal>
+              <Notebook
+                src={pcAgenda}
+                alt="Agenda do dono no computador: a semana, os barbeiros e os horários marcados e de encaixe."
                 priority
-                unoptimized
-                className="relative z-10 h-full w-full"
+                sizes="(min-width: 1024px) 36rem, 95vw"
               />
-            </div>
-          </Reveal>
+            </Reveal>
+            <Reveal delay={220} className="absolute bottom-0 right-0 w-[29%]">
+              <Celular
+                src={celAgendarHorario}
+                alt="O cliente escolhendo barbeiro, dia e horário pelo link da barbearia."
+                priority
+                sizes="(min-width: 1024px) 11rem, 30vw"
+              />
+            </Reveal>
+          </div>
         </div>
       </section>
 
@@ -171,159 +205,97 @@ export function PaginaDaPlataforma() {
         className="h-3 bg-[repeating-linear-gradient(-45deg,#E0AE58_0_14px,#0B0A08_14px_28px,#F4EFE4_28px_42px,#0B0A08_42px_56px)]"
       />
 
-      {/* --------------------------------------------- O produto de verdade */}
-      <section className={`relative z-10 border-y ${BORDA} bg-[#100E0B]`}>
-        <div className="mx-auto w-full max-w-6xl px-5 py-16 md:px-8 md:py-24">
+      {/* ------------------------------------------------------------ Tour */}
+      <section id="tour" className="relative z-10 scroll-mt-6 bg-[#100E0B]">
+        <div className="mx-auto w-full max-w-5xl px-5 py-16 md:px-8 md:py-24">
           <Reveal>
-            <p className="text-sm text-[#E0AE58]">O painel do dono</p>
-            <h2 className="mt-3 max-w-2xl text-balance font-brand text-3xl leading-tight tracking-[-0.02em] md:text-5xl">
-              O dia inteiro numa tela. O mês inteiro em outra.
-            </h2>
-          </Reveal>
-          <Reveal delay={120}>
-            <div className="relative mt-12 grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-              <div className="min-w-0 overflow-x-auto rounded-2xl shadow-[0_24px_48px_-24px_#000] lg:rotate-[-0.8deg]">
-                <AgendaDoDia />
+            <div className="mb-10 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+              <div>
+                <Rotulo>Veja funcionando</Rotulo>
+                <Titulo>O Topete em 1 minuto</Titulo>
               </div>
-              <div className="min-w-0 self-end rounded-2xl shadow-[0_24px_48px_-24px_#000] lg:rotate-[0.8deg]">
-                <ResumoDoMes />
-              </div>
+              <p className={`max-w-sm leading-relaxed ${APAGADO}`}>
+                O app de verdade, no notebook e no celular: o cliente marcando, o encaixe, o caixa e o mês.
+              </p>
             </div>
           </Reveal>
+          <Reveal delay={100}>
+            <TourDoTopete />
+          </Reveal>
         </div>
       </section>
 
-      {/* ------------------------------------------------- A dor, com número */}
-      <section className="relative z-10 mx-auto w-full max-w-6xl px-5 py-16 md:px-8 md:py-24">
-        <Reveal>
-          <h2 className="max-w-2xl text-balance font-brand text-3xl leading-tight tracking-[-0.02em] md:text-5xl">
-            Você sabe quanto faturou. <span className={LATAO}>Sabe quanto sobrou?</span>
-          </h2>
-        </Reveal>
-        <div className={`mt-12 grid gap-px overflow-hidden rounded-2xl border ${BORDA} bg-[#2A2620] sm:grid-cols-3`}>
-          {[
-            {
-              numero: "R$ 518",
-              titulo: "perdidos por mês",
-              texto: "É o que sete faltas por mês custam numa barbearia de ticket R$ 74. O dono raramente soma.",
-            },
-            {
-              numero: "40%",
-              titulo: "saem em comissão",
-              texto:
-                "Incide sobre o faturamento do serviço, e é a maior despesa da barbearia. Quem soma só o que entrou no caixa nunca desconta isso.",
-            },
-            {
-              numero: "dia 18",
-              titulo: "o mês vira lucro",
-              texto: "Antes disso você trabalhou para pagar aluguel, luz e a cadeira ao lado. Depois, o dinheiro é seu.",
-            },
-          ].map((item, i) => (
-            <Reveal key={item.titulo} delay={i * 90}>
-              <div className="h-full bg-[#0F0D0A] p-7 md:p-9">
-                <p className={`font-brand text-4xl tracking-[-0.03em] md:text-5xl ${LATAO}`}>
-                  {item.numero}
-                </p>
-                <p className="mt-2 text-sm font-medium">{item.titulo}</p>
-                <p className={`mt-3 text-sm leading-relaxed ${APAGADO}`}>{item.texto}</p>
-              </div>
-            </Reveal>
-          ))}
+      {/* -------------------------------------------------- Como funciona */}
+      <section id="como-funciona" className={`relative z-10 scroll-mt-6 ${CLARO}`}>
+        <div className="mx-auto w-full max-w-6xl px-5 pt-16 md:px-8 md:pt-24">
+          <Reveal>
+            <Rotulo claro>Como funciona</Rotulo>
+            <Titulo claro>Do link do cliente ao fim do mês</Titulo>
+          </Reveal>
+        </div>
+        <div className="mx-auto w-full max-w-6xl px-5 pb-12 md:px-8 lg:pb-24">
+          <ComoFunciona />
         </div>
       </section>
 
-      {/* ------------------------------------------------------ Inteligente */}
-      <section id="inteligente" className={`relative z-10 border-y ${BORDA} bg-[#100E0B]`}>
+      {/* ------------------------------------------------ Sem × com Topete */}
+      <section className="relative z-10 overflow-hidden">
         <div className="mx-auto w-full max-w-6xl px-5 py-16 md:px-8 md:py-24">
           <Reveal>
-            <p className="text-sm text-[#E0AE58]">O que o Topete faz sozinho</p>
-            <h2 className="mt-3 max-w-2xl text-balance font-brand text-3xl leading-tight tracking-[-0.02em] md:text-5xl">
-              Menos conta de cabeça. Mais cadeira ocupada.
-            </h2>
+            <div className="mb-10 flex flex-col gap-3 md:mb-14 md:flex-row md:items-end md:justify-between">
+              <div>
+                <Rotulo>Sem Topete × com Topete</Rotulo>
+                <Titulo>A rotina que todo barbeiro conhece</Titulo>
+              </div>
+              <p className={`max-w-sm leading-relaxed ${APAGADO}`}>
+                A série do nosso Instagram, <span className="text-[#F4EFE4]">@usetopete</span>. Toque no som para ouvir.
+              </p>
+            </div>
+          </Reveal>
+          <SemComTopete />
+        </div>
+      </section>
+
+      {/* --------------------------------------------------- Quanto custa */}
+      <section className={`relative z-10 ${CLARO}`}>
+        <div className="mx-auto w-full max-w-6xl px-5 py-16 md:px-8 md:py-24">
+          <Reveal>
+            <div className="mb-10 flex flex-col gap-4 md:mb-12 md:flex-row md:items-end md:justify-between">
+              <div>
+                <Rotulo claro>A conta que ninguém faz</Rotulo>
+                <Titulo claro>Quanto custa ficar como está?</Titulo>
+              </div>
+              <p className="inline-flex w-fit items-center gap-2 rounded-full border border-[#C9A45C] px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-[#8F6B22]">
+                Conta de exemplo · troque pelos seus números
+              </p>
+            </div>
+          </Reveal>
+          <QuantoCusta />
+        </div>
+      </section>
+
+      {/* ------------------------------------------------------- Detalhes */}
+      <section className={`relative z-10 border-b ${BORDA} bg-[#100E0B]`}>
+        <div className="mx-auto w-full max-w-6xl px-5 py-16 md:px-8 md:py-24">
+          <Reveal>
+            <Rotulo>O que o Topete faz sozinho</Rotulo>
+            <Titulo>Menos conta de cabeça. Mais cadeira ocupada.</Titulo>
           </Reveal>
           <dl className={`mt-12 grid grid-cols-1 border-t ${BORDA} md:grid-cols-2 md:gap-x-16`}>
-            {INTELIGENTE.map(({ titulo, texto, exemplo }) => (
-              <div key={titulo} className={`border-b ${BORDA} py-7`}>
-                <dt className="font-brand text-xl md:text-2xl">{titulo}</dt>
-                <dd className={`mt-2 text-sm leading-relaxed ${APAGADO}`}>{texto}</dd>
-                <dd className="mt-3 text-sm italic text-[#E0AE58]">{exemplo}</dd>
-              </div>
+            {DETALHES.map(({ titulo, texto, exemplo }, i) => (
+              <Reveal key={titulo} delay={(i % 2) * 80}>
+                <div className={`border-b ${BORDA} py-7`}>
+                  <dt className="font-brand text-xl md:text-2xl">{titulo}</dt>
+                  <dd className={`mt-2 text-sm leading-relaxed ${APAGADO}`}>{texto}</dd>
+                  <dd className="mt-3 text-sm text-[#E0AE58]">{exemplo}</dd>
+                </div>
+              </Reveal>
             ))}
           </dl>
         </div>
       </section>
 
-      {/* ------------------------------------------------- Projeção de caixa */}
-      <section className="relative z-10 mx-auto w-full max-w-6xl px-5 py-16 md:px-8 md:py-28">
-        <div className="grid grid-cols-1 items-center gap-12 lg:grid-cols-2 lg:gap-20">
-          <Reveal>
-            <p className="text-sm text-[#E0AE58]">Projeção de caixa</p>
-            <h2 className="mt-3 text-balance font-brand text-3xl leading-tight tracking-[-0.02em] md:text-5xl">
-              O dia em que o caixa vira, antes de virar
-            </h2>
-            <p className={`mt-5 max-w-md leading-relaxed ${APAGADO}`}>
-              A projeção junta os horários já marcados, a cobrança dos mensalistas e
-              as contas fixas de cada dia. Onde a linha cruza o zero, é ali que falta
-              dinheiro — com semanas de antecedência para fazer algo a respeito.
-            </p>
-            <ul className="mt-7 flex flex-col gap-3">
-              {[
-                "Horizonte de um mês a um ano",
-                "Diz quanto do número é estimativa — e quanto é horário marcado",
-                "Ponto de equilíbrio calculado do seu custo real",
-              ].map((t) => (
-                <li key={t} className={`flex items-start gap-2.5 text-sm ${APAGADO}`}>
-                  <Check size={16} className="mt-0.5 shrink-0 text-[#E0AE58]" />
-                  {t}
-                </li>
-              ))}
-            </ul>
-          </Reveal>
-          <Reveal delay={120}>
-            <div className="rounded-2xl shadow-[0_24px_48px_-24px_#000]">
-              <ProjecaoCurta />
-            </div>
-          </Reveal>
-        </div>
-      </section>
-
-      {/* -------------------------------------------------------- Equipe */}
-      <section className={`relative z-10 border-y ${BORDA} bg-[#100E0B]`}>
-        <div className="mx-auto grid grid-cols-1 w-full max-w-6xl items-center gap-10 px-5 py-16 md:px-8 md:py-24 lg:grid-cols-2 lg:gap-16">
-          <Reveal>
-            <p className="text-sm text-[#E0AE58]">Equipe e números</p>
-            <h2 className="mt-3 text-balance font-brand text-3xl leading-tight tracking-[-0.02em] md:text-4xl">
-              Três cadeiras não viram conflito. O horário vazio aparece antes de você sentir.
-            </h2>
-            <p className={`mt-5 max-w-md leading-relaxed ${APAGADO}`}>
-              Cada barbeiro com agenda, jornada, serviços e comissão próprios — e o
-              cliente escolhe com quem quer cortar. O mapa de calor mostra os dias e
-              horários mais cheios e a maior brecha da semana.
-            </p>
-            <div className="mt-8 rounded-2xl shadow-[0_24px_48px_-24px_#000]">
-              <MapaDeCalor />
-            </div>
-          </Reveal>
-          <Reveal delay={100}>
-            <div className="relative mx-auto max-w-md lg:max-w-none">
-              <div className={`overflow-hidden rounded-2xl border ${BORDA}`}>
-                <Image
-                  src={fotoEquipe}
-                  alt="Dois barbeiros atendendo em cadeiras vizinhas enquanto o dono acompanha pelo tablet."
-                  sizes="(min-width: 1024px) 32rem, (min-width: 640px) 28rem, 100vw"
-                  className="h-full w-full object-cover"
-                  placeholder="blur"
-                />
-              </div>
-              <div className="relative z-10 -mt-10 mr-auto w-[86%] sm:-mt-14">
-                <EquipeResumo />
-              </div>
-            </div>
-          </Reveal>
-        </div>
-      </section>
-
-      {/* -------------------------------------------------------- Origem */}
+      {/* --------------------------------------------------------- Origem */}
       <section className="relative z-10 mx-auto w-full max-w-6xl px-5 py-16 md:px-8 md:py-24">
         <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-[0.8fr_1fr] lg:gap-16">
           <Reveal>
@@ -338,32 +310,28 @@ export function PaginaDaPlataforma() {
             </div>
           </Reveal>
           <Reveal delay={100}>
-            <p className="text-sm text-[#E0AE58]">De onde veio</p>
-            <p className="mt-5 text-balance font-brand text-2xl leading-snug tracking-[-0.02em] md:text-4xl">
-              O Topete nasceu dentro de <span className={LATAO}>uma barbearia só</span>, para
-              resolver o problema de um barbeiro só.
+            <Rotulo>De onde veio</Rotulo>
+            <p className="text-balance font-brand text-2xl leading-snug tracking-[-0.02em] md:text-4xl">
+              O Topete nasceu dentro de <span className={LATAO}>uma barbearia de verdade</span>, para resolver o
+              problema de um barbeiro só.
             </p>
             <p className={`mt-5 max-w-xl leading-relaxed ${APAGADO}`}>
-              Cada tela aqui existe porque alguém perdeu dinheiro sem ela — a falta que
-              ninguém somou, a comissão calculada sobre o preço errado, o mês que fechou
-              no vermelho sem aviso. Não somos os maiores. Somos os que sabem por que
-              cada número está onde está.
+              Cada tela aqui existe porque alguém perdeu dinheiro sem ela — a falta que ninguém somou, a comissão
+              calculada sobre o preço errado, o mês que fechou no vermelho sem aviso. Não somos os maiores. Somos os
+              que sabem por que cada número está onde está.
             </p>
           </Reveal>
         </div>
       </section>
 
-      {/* ------------------------------------------- O que ainda não existe */}
+      {/* ------------------------------------------ O que ainda não existe */}
       <section className={`relative z-10 border-y ${BORDA} bg-[#100E0B]`}>
         <div className="mx-auto w-full max-w-6xl px-5 py-14 md:px-8 md:py-16">
           <Reveal>
             <div className="flex flex-col gap-3 md:flex-row md:items-baseline md:justify-between">
-              <h2 className="text-balance font-brand text-2xl tracking-[-0.02em] md:text-3xl">
-                O que ainda não está pronto
-              </h2>
+              <h2 className="text-balance font-brand text-2xl tracking-[-0.02em] md:text-3xl">O que ainda não está pronto</h2>
               <p className={`max-w-md text-sm leading-relaxed ${APAGADO}`}>
-                Você recebe sem pagar mais por isso. Está aqui porque preferimos dizer do
-                que você descobrir sozinho.
+                Você recebe sem pagar mais por isso. Está aqui porque preferimos dizer do que você descobrir sozinho.
               </p>
             </div>
           </Reveal>
@@ -374,7 +342,7 @@ export function PaginaDaPlataforma() {
                 "Confirmação e lembrete enviados sozinhos. Hoje o Topete já monta a mensagem certa e você envia com um toque.",
               ],
               ["Pagamento antecipado", "Pix e cartão na reserva, para o horário não ficar em aberto quando o cliente não aparece."],
-              ["Acesso de cada barbeiro", "Hoje o painel é do dono. Cada barbeiro vai ter a própria agenda e o próprio acerto."],
+              ["Painel de cada barbeiro", "Hoje o painel é do dono; cada barbeiro recebe a agenda e os encaixes dele no Telegram."],
             ].map(([titulo, texto], i) => (
               <Reveal key={titulo} delay={i * 80}>
                 <div className="flex flex-col gap-1.5 border-t border-[#E0AE58]/30 pt-3">
@@ -387,77 +355,123 @@ export function PaginaDaPlataforma() {
         </div>
       </section>
 
-      {/* -------------------------------------------------------- Preço */}
-      <section id="precos" className="relative z-10 mx-auto w-full max-w-6xl px-5 py-16 md:px-8 md:py-28">
-        <Reveal>
-          <h2 className="text-balance font-brand text-3xl leading-tight tracking-[-0.02em] md:text-5xl">
-            Preço por barbearia, <span className={LATAO}>não por cadeira</span>
-          </h2>
-          <p className={`mt-4 max-w-xl leading-relaxed ${APAGADO}`}>
-            A mensalidade cobre a equipe até o teto do plano. A marca própria vem
-            inclusa, e não existe taxa de instalação.
-          </p>
-        </Reveal>
-        <div className="mt-12 grid gap-4 md:grid-cols-3">
-          {/* Preço e teto saem de `PRECOS_POR_PLANO`, a mesma tabela que a tela
-              Equipe usa para avisar do barbeiro extra — a página não pode
-              prometer um teto e o painel cobrar outro. */}
-          {[
-            { nome: "Agenda", plano: PRECOS_POR_PLANO.agenda, texto: "Agenda com link e marca próprios, encaixe, clientes e caixa do dia.", destaque: false },
-            { nome: "Crescimento", plano: PRECOS_POR_PLANO.crescimento, texto: "Tudo do Agenda, mais mensalistas com horário fixo, fidelidade e loja.", destaque: true },
-            { nome: "Gestão", plano: PRECOS_POR_PLANO.gestao, texto: "Tudo, mais DRE, projeção de caixa e fechamento mensal.", destaque: false },
-          ].map((p, i) => (
-            <Reveal key={p.nome} delay={i * 90}>
-              <div
-                className={
-                  "relative flex h-full flex-col gap-3 rounded-2xl border p-7 " +
-                  (p.destaque
-                    ? "border-[#E0AE58] bg-[#14120F]"
-                    : `${BORDA} bg-[#14120F]`)
-                }
-              >
-                {p.destaque && (
-                  <span className="absolute -top-3 left-6 bg-[#0B0A08] px-2 text-[11px] uppercase tracking-[0.14em] text-[#E0AE58]">
-                    Mais escolhido
-                  </span>
-                )}
-                <p className="text-sm font-medium">{p.nome}</p>
-                <p className="font-brand text-4xl tracking-[-0.03em]">
-                  R$ {p.plano.mensal}
-                  <span className={`text-base ${APAGADO}`}>/mês</span>
-                </p>
-                <p className={`text-sm font-medium ${LATAO}`}>
-                  Até {p.plano.tetoDeBarbeiros} barbeiros
-                </p>
-                <p className={`text-sm leading-relaxed ${APAGADO}`}>{p.texto}</p>
-              </div>
-            </Reveal>
-          ))}
+      {/* ---------------------------------------------------------- Preço */}
+      <section id="precos" className={`relative z-10 scroll-mt-6 ${CLARO}`}>
+        <div className="mx-auto w-full max-w-6xl px-5 py-16 md:px-8 md:py-24">
+          <Reveal>
+            <Rotulo claro>Preços</Rotulo>
+            <Titulo claro>Preço por barbearia, não por cadeira</Titulo>
+            <p className="mt-4 max-w-xl leading-relaxed text-[#5A554C]">
+              A mensalidade cobre a equipe até o teto do plano. A marca própria vem inclusa, e não existe taxa de
+              implantação.
+            </p>
+          </Reveal>
+          <div className="mt-12 grid gap-4 md:grid-cols-3">
+            {/* Preço e teto saem de `PRECOS_POR_PLANO`, a mesma tabela que a tela
+                Equipe usa — a página não pode prometer um teto e o painel cobrar outro.
+                O que cada plano libera espelha `FEATURES_POR_PLANO`. */}
+            {[
+              {
+                nome: "Agenda",
+                plano: PRECOS_POR_PLANO.agenda,
+                itens: ["Link e marca próprios", "Encaixe com aprovação", "Clientes e caixa do dia", "Avisos no celular e no Telegram"],
+                destaque: false,
+              },
+              {
+                nome: "Crescimento",
+                plano: PRECOS_POR_PLANO.crescimento,
+                itens: ["Tudo do Agenda", "Mensalistas com horário fixo", "Loja e fidelidade", "Projeção de caixa"],
+                destaque: true,
+              },
+              {
+                nome: "Gestão",
+                plano: PRECOS_POR_PLANO.gestao,
+                itens: ["Tudo do Crescimento", "Despesas", "Quanto sobrou (DRE)", "Fechamento do mês"],
+                destaque: false,
+              },
+            ].map((p, i) => (
+              <Reveal key={p.nome} delay={i * 90}>
+                <div
+                  className={
+                    "relative flex h-full flex-col rounded-2xl border bg-white p-7 " +
+                    (p.destaque ? "border-[#C9A45C] shadow-[0_24px_50px_-30px_rgba(143,107,34,.55)]" : "border-[#E6DDCB]")
+                  }
+                >
+                  {p.destaque && (
+                    <span className="absolute -top-3 left-6 rounded-full bg-[#16140F] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#E0AE58]">
+                      Recomendado
+                    </span>
+                  )}
+                  <p className="text-sm font-semibold">{p.nome}</p>
+                  <p className="mt-3 font-brand text-[2.6rem] leading-none tracking-[-0.03em]">
+                    R$ {p.plano.mensal}
+                    <span className="text-base text-[#5A554C]">/mês</span>
+                  </p>
+                  <p className="mt-2 text-sm font-medium text-[#8F6B22]">Até {p.plano.tetoDeBarbeiros} barbeiros</p>
+                  <ul className="mt-6 flex flex-col gap-2.5 border-t border-[#EFE8DA] pt-5">
+                    {p.itens.map((t) => (
+                      <li key={t} className="flex items-start gap-2 text-sm text-[#3A352C]">
+                        <Check size={16} className="mt-0.5 shrink-0 text-[#8F6B22]" />
+                        {t}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+          <div className="mt-8 grid gap-4 md:grid-cols-[1fr_auto] md:items-center">
+            <p className="text-sm text-[#5A554C]">
+              <span className="font-semibold text-[#16140F]">Barbeiro extra:</span> R${" "}
+              {PRECOS_POR_PLANO.agenda.barbeiroExtra}/mês cada, acima do teto do plano.{" "}
+              <span className="font-semibold text-[#16140F]">Sem taxa de implantação.</span>
+            </p>
+            <p className="rounded-xl bg-[#16140F] px-5 py-3 text-sm text-[#F4EFE4]">
+              <span className="font-semibold text-[#E0AE58]">Fundadoras:</span> 30% de desconto no 1º mês para as 20
+              primeiras barbearias. Depois, mensalidade normal.
+            </p>
+          </div>
         </div>
-        <p className={`mt-6 text-sm ${APAGADO}`}>
-          <span className={`font-medium ${TEXTO}`}>Barbeiro extra:</span> R${" "}
-          {PRECOS_POR_PLANO.agenda.barbeiroExtra}/mês cada, acima do teto do plano.
-        </p>
       </section>
 
-      {/* ---------------------------------------------------- Fechamento */}
-      <section className={`relative z-10 overflow-hidden border-t ${BORDA}`}>
+      {/* -------------------------------------------------------- Dúvidas */}
+      <section className={`relative z-10 border-t border-[#E6DDCB] ${CLARO}`}>
+        <div className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-10 px-5 py-16 md:px-8 md:py-24 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16">
+          <Reveal>
+            <Rotulo claro>Dúvidas</Rotulo>
+            <Titulo claro>O que todo dono pergunta</Titulo>
+          </Reveal>
+          <div className="divide-y divide-[#E6DDCB] border-y border-[#E6DDCB]">
+            {DUVIDAS.map((d) => (
+              <details key={d.p} className="group py-5 [&_summary::-webkit-details-marker]:hidden">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-brand text-xl tracking-[-0.01em] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A45C]">
+                  {d.p}
+                  <Plus size={20} className="shrink-0 text-[#8F6B22] transition-transform duration-300 group-open:rotate-45 motion-reduce:transition-none" />
+                </summary>
+                <p className="mt-3 max-w-xl leading-relaxed text-[#5A554C]">{d.r}</p>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ----------------------------------------------------- Fechamento */}
+      <section className="relative z-10 overflow-hidden">
         <div className="relative mx-auto w-full max-w-3xl px-5 py-20 text-center md:px-8 md:py-28">
           <Reveal>
             <Image
-              src="/topete-icone.svg"
+              src="/topete-mascote.svg"
               alt=""
-              width={88}
-              height={88}
+              width={112}
+              height={112}
               unoptimized
-              className="mx-auto mb-8 h-20 w-20 rounded-[22%]"
+              className="mx-auto mb-8 h-24 w-24"
             />
             <h2 className="text-balance font-brand text-4xl leading-tight tracking-[-0.03em] md:text-6xl">
               Vamos encher a sua <span className={LATAO}>agenda?</span>
             </h2>
             <p className={`mx-auto mt-5 max-w-md leading-relaxed ${APAGADO}`}>
-              Em 20 minutos a gente mostra o Topete funcionando com os serviços e os
-              horários da sua barbearia.
+              Em 20 minutos a gente mostra o Topete funcionando com os serviços e os horários da sua barbearia.
             </p>
             <div className="mt-10 flex justify-center">
               <BotaoPrincipal>Falar com a gente</BotaoPrincipal>
@@ -468,7 +482,9 @@ export function PaginaDaPlataforma() {
       </section>
 
       <footer className={`relative z-10 border-t ${BORDA}`}>
-        <div className={`mx-auto flex w-full max-w-6xl flex-col gap-4 px-5 py-8 text-xs md:flex-row md:items-center md:justify-between md:px-8 ${APAGADO}`}>
+        <div
+          className={`mx-auto flex w-full max-w-6xl flex-col gap-4 px-5 py-8 text-xs md:flex-row md:items-center md:justify-between md:px-8 ${APAGADO}`}
+        >
           <AssinaturaTopete className={TEXTO} />
           <span>Feito para quem corta cabelo e precisa saber de dinheiro.</span>
           <span className="flex gap-4">

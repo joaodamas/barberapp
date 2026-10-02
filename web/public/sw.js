@@ -74,6 +74,12 @@ self.addEventListener("fetch", (event) => {
    * origem não é deste cache nem desta política. */
   if (new URL(request.url).origin !== self.location.origin) return;
 
+  /* Vídeo e áudio (landing, 02/10) vão direto ao navegador. O player pede o
+   * arquivo em pedaços (`Range`) e responde 206; repassar isso pelo worker
+   * quebra a reprodução no Safari, e uma resposta parcial nem pode ir para o
+   * CacheStorage. */
+  if (request.headers.has("range") || request.destination === "video" || request.destination === "audio") return;
+
   if (request.mode === "navigate") {
     event.respondWith(
       fetch(request).catch(async () => {
