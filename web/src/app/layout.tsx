@@ -4,7 +4,8 @@ import { ServiceWorkerRegister } from "@/components/service-worker-register";
 import { AuthProvider } from "@/lib/auth-context";
 import { TenantProvider } from "@/lib/tenant-context";
 import { redirect } from "next/navigation";
-import { enderecoOficial, getTenant, resolverTenant } from "@/lib/tenant-server";
+import { enderecoOficial, getTenant, isPlatformRoot, resolverTenant } from "@/lib/tenant-server";
+import { METADATA_DA_PLATAFORMA } from "@/lib/seo";
 import { tenantCssVars } from "@/lib/tenant";
 import { iconesDaMarca } from "@/lib/monograma";
 import "./globals.css";
@@ -55,10 +56,12 @@ const manrope = localFont({
   display: "swap",
 });
 
-/* Título, descrição e nome do app instalado saem da barbearia do subdomínio. */
+/* Título, descrição e nome do app instalado saem da barbearia do subdomínio.
+ * No domínio raiz não há barbearia: ali o Google tem de ler a página do
+ * PRODUTO (título, descrição, canônico e imagem de compartilhamento). */
 export async function generateMetadata(): Promise<Metadata> {
   const { brand } = await getTenant();
-  return {
+  const daBarbearia: Metadata = {
     title: {
       default: brand.name,
       template: `%s · ${brand.shortName}`,
@@ -78,6 +81,7 @@ export async function generateMetadata(): Promise<Metadata> {
       apple: [{ url: iconesDaMarca(brand).apple, sizes: "180x180" }],
     },
   };
+  return (await isPlatformRoot()) ? { ...daBarbearia, ...METADATA_DA_PLATAFORMA } : daBarbearia;
 }
 
 export const viewport: Viewport = {
