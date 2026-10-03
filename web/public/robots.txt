@@ -1,0 +1,18 @@
+# Topete — topete.com.br
+# Arquivo estático (02/10): a hospedagem do Firebase serve /robots.txt direto,
+# sem passar pelo servidor do Next — por isso não é rota dinâmica.
+# Vale para todos os domínios (raiz e barbearias), por isso NÃO cita o sitemap:
+# ele é cadastrado direto no Google Search Console do topete.com.br
+# (https://topete.com.br/sitemap.xml, só no domínio raiz).
+User-agent: *
+Allow: /
+Disallow: /painel
+Disallow: /api
+Disallow: /login
+Disallow: /criar-conta
+Disallow: /trocar-senha
+Disallow: /comecar
+Disallow: /offline
+Disallow: /perfil
+Disallow: /reservas
+
