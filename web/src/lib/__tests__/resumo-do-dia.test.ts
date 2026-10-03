@@ -61,9 +61,10 @@ describe("frases", () => {
     expect(textoDeAtraso(7)).toBe("Atrasado 7 min");
     expect(textoDeAtraso(70)).toBe("Atrasado 1h10");
   });
-  it("zero horário livre é agenda cheia", () => {
-    expect(textoDeLivres(0)).toBe("Agenda cheia");
-    expect(textoDeLivres(1)).toBe("1 horário livre");
-    expect(textoDeLivres(6)).toBe("6 horários livres");
+  it("agenda cheia só com o dia lotado; sem livre pela frente é outra frase", () => {
+    expect(textoDeLivres(0, 100)).toBe("Agenda cheia");
+    expect(textoDeLivres(0, 88)).toBe("Sem horário livre pela frente");
+    expect(textoDeLivres(1, 64)).toBe("1 horário livre");
+    expect(textoDeLivres(6, 64)).toBe("6 horários livres");
   });
 });

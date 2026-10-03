@@ -77,8 +77,8 @@ export function ResumoDoDiaTopo({
         <Metrica
           rotulo="Ocupação"
           valor={agendaIlegivel ? NAO_APURADO : formatPctPtBR(ocupacaoPct, 0)}
-          detalhe={agendaIlegivel ? undefined : textoDeLivres(horariosLivres)}
-          destaqueDetalhe={!agendaIlegivel && horariosLivres <= 0}
+          detalhe={agendaIlegivel ? undefined : textoDeLivres(horariosLivres, ocupacaoPct)}
+          destaqueDetalhe={!agendaIlegivel && horariosLivres <= 0 && ocupacaoPct >= 100}
           barra={agendaIlegivel ? undefined : { pct: Math.min(ocupacaoPct, 100), rotulo: "Ocupação das cadeiras" }}
           className="border-b border-border lg:border-b-0 lg:border-r"
         />

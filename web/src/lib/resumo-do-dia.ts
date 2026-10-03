@@ -121,8 +121,14 @@ export function textoDeAtraso(minutos: number): string {
   return m === 0 ? `Atrasado ${h}h` : `Atrasado ${h}h${String(m).padStart(2, "0")}`;
 }
 
-/** Zero horários livres não é um número a ler: é "agenda cheia". */
-export function textoDeLivres(livres: number): string {
-  if (livres <= 0) return "Agenda cheia";
-  return contar(livres, "horário livre", "horários livres");
+/**
+ * O que dizer sobre os horários livres que SOBRAM no dia.
+ *
+ * "Agenda cheia" só quando o dia lotou de verdade (ocupação 100%). Sem horário
+ * livre pela frente num dia que não lotou (fim do expediente, buracos que já
+ * passaram) é outra coisa: "88%" ao lado de "Agenda cheia" se contradiz.
+ */
+export function textoDeLivres(livres: number, ocupacaoPct: number): string {
+  if (livres > 0) return contar(livres, "horário livre", "horários livres");
+  return ocupacaoPct >= 100 ? "Agenda cheia" : "Sem horário livre pela frente";
 }
