@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Search, Users } from "lucide-react";
 import { Pill } from "@/components/ui/pill";
+import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { FidelidadeNaFicha } from "@/components/fidelidade-na-ficha";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
@@ -11,7 +12,13 @@ import { formatBRL, formatDatePtBR, toISODate } from "@/lib/format";
 import { contar } from "@/lib/plural";
 import { mascararWhatsapp } from "@/lib/whatsapp-numero";
 import { combinaComBusca } from "@/lib/clientes-busca";
-import { listaDeClientes, type FichaDoCliente } from "@/lib/ficha-do-cliente";
+import {
+  listaDeClientes,
+  paresDeMesmoNumero,
+  type FichaDoCliente,
+  type ParDeMesmoNumero,
+} from "@/lib/ficha-do-cliente";
+import { useTenant } from "@/lib/tenant-context";
 import { DireitosDoTitular } from "@/components/direitos-do-titular";
 import {
   useBookings,
@@ -51,8 +58,12 @@ export default function ClientesPage() {
   const { items: movements } = useInventoryMovements();
   const { items: subscribers } = useSubscribers();
 
+  const tenant = useTenant();
   const [busca, setBusca] = useState("");
   const [aberta, setAberta] = useState<FichaDoCliente | null>(null);
+  const [vinculando, setVinculando] = useState<ParDeMesmoNumero | null>(null);
+  const [salvandoVinculo, setSalvandoVinculo] = useState(false);
+  const [erroDoVinculo, setErroDoVinculo] = useState<string | null>(null);
 
   const hoje = new Date();
   const hojeISO = toISODate(hoje);
@@ -68,6 +79,38 @@ export default function ClientesPage() {
     () => fichas.filter((f) => combinaComBusca(f.cliente, busca)),
     [fichas, busca]
   );
+
+  /* Conta do app e balcão com o mesmo número (02/10): os dois aparecem, mas
+   * nunca sem aviso — e o dono junta com um toque. */
+  const pares = useMemo(() => paresDeMesmoNumero(clientes), [clientes]);
+  const parPorCadastro = useMemo(() => {
+    const m = new Map<string, { par: ParDeMesmoNumero; outro: string }>();
+    for (const par of pares) {
+      m.set(par.conta.id, { par, outro: `${par.balcao.name} (cadastro do balcão)` });
+      m.set(par.balcao.id, { par, outro: `${par.conta.name} (conta do app)` });
+    }
+    return m;
+  }, [pares]);
+  const visitasDe = (id: string) => fichas.find((f) => f.cliente.id === id)?.visitas ?? 0;
+
+  async function vincular() {
+    if (!vinculando) return;
+    setSalvandoVinculo(true);
+    setErroDoVinculo(null);
+    try {
+      const { callFunction } = await import("@/lib/firebase");
+      await callFunction("vincularCadastroDeBalcao", {
+        barbershopId: tenant.id,
+        deClientId: vinculando.balcao.id,
+        paraClientId: vinculando.conta.id,
+      });
+      setVinculando(null);
+    } catch (err) {
+      setErroDoVinculo((err as { message?: string })?.message ?? "Não foi possível vincular agora.");
+    } finally {
+      setSalvandoVinculo(false);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-6 pt-1 md:gap-8 md:pt-2">
@@ -103,6 +146,18 @@ export default function ClientesPage() {
             />
           </div>
 
+          {pares.length > 0 && (
+            <div className="rounded-2xl border border-gold/40 bg-gold/5 p-3 text-sm text-ink md:p-4">
+              <p className="font-medium">
+                {contar(pares.length, "cliente está", "clientes estão")} com dois cadastros
+              </p>
+              <p className="mt-0.5 text-xs text-ink-muted">
+                A conta do app e o cadastro do balcão têm o mesmo número. Confira e vincule: o
+                histórico, os carimbos e o plano passam para a conta, e o cliente vê tudo no app.
+              </p>
+            </div>
+          )}
+
           {busca && encontrados.length === 0 && (
             <p className="text-sm text-ink-muted">
               Ninguém com esse nome ou número.
@@ -111,12 +166,12 @@ export default function ClientesPage() {
 
           <div className="flex flex-col gap-1.5">
             {encontrados.map((f) => (
-              /* `Card` é um `div`; o clicável é o `button` dentro dele.
+              <div key={f.cliente.id} className="flex flex-col">
+              {/* `Card` é um `div`; o clicável é o `button` dentro dele.
                  Um `div` com `onClick` não recebe foco pelo teclado e não
                  dispara com Enter — a lista inteira ficaria inacessível para
-                 quem não usa mouse. */
+                 quem não usa mouse. */}
               <button
-                key={f.cliente.id}
                 type="button"
                 onClick={() => setAberta(f)}
                 className="card-elevated card-interactive flex w-full items-center justify-between gap-3 rounded-2xl border border-border bg-surface p-3 text-left transition-colors hover:border-gold/60 md:p-4"
@@ -151,10 +206,73 @@ export default function ClientesPage() {
                   )}
                 </div>
               </button>
+              {parPorCadastro.has(f.cliente.id) && (
+                <div className="mx-3 flex items-center justify-between gap-2 rounded-b-xl border border-t-0 border-gold/40 bg-gold/5 px-3 py-2 text-xs text-ink">
+                  <span className="min-w-0 truncate">
+                    Mesmo número de {parPorCadastro.get(f.cliente.id)!.outro}
+                  </span>
+                  <Button
+                    variant="secondary"
+                    className="min-h-8 shrink-0 px-3 text-xs"
+                    onClick={() => {
+                      setVinculando(parPorCadastro.get(f.cliente.id)!.par);
+                      setErroDoVinculo(null);
+                    }}
+                  >
+                    Vincular
+                  </Button>
+                </div>
+              )}
+              </div>
             ))}
           </div>
         </>
       )}
+
+      {/* ---- Vincular balcão à conta (02/10) ---- */}
+      <Modal
+        open={!!vinculando}
+        onClose={() => setVinculando(null)}
+        title="Vincular os dois cadastros?"
+        description="Confira se é a mesma pessoa"
+        footer={
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={() => setVinculando(null)} className="flex-1">
+              Cancelar
+            </Button>
+            <Button onClick={vincular} disabled={salvandoVinculo} className="flex-1">
+              {salvandoVinculo ? "Vinculando…" : "Vincular"}
+            </Button>
+          </div>
+        }
+      >
+        {vinculando && (
+          <div className="flex flex-col gap-3 text-sm">
+            {[
+              { rotulo: "Conta do app", c: vinculando.conta },
+              { rotulo: "Cadastro do balcão", c: vinculando.balcao },
+            ].map(({ rotulo, c }) => (
+              <div key={c.id} className="rounded-xl border border-border bg-surface-raised p-3">
+                <p className="text-[11px] uppercase tracking-wide text-ink-muted">{rotulo}</p>
+                <p className="text-ink">{c.name}</p>
+                <p className="text-xs text-ink-muted">
+                  {c.whatsapp ? mascararWhatsapp(c.whatsapp) : "sem WhatsApp"} ·{" "}
+                  {contar(visitasDe(c.id), "visita", "visitas")}
+                </p>
+              </div>
+            ))}
+            <p className="text-xs text-ink-muted">
+              Os atendimentos, carimbos, plano de mensalista e pagamentos do balcão passam para a
+              conta. O cadastro do balcão sai da lista. Não dá para desfazer pela tela.
+            </p>
+            {erroDoVinculo && (
+              <p role="alert" className="text-xs text-danger">
+                {erroDoVinculo}
+              </p>
+            )}
+          </div>
+        )}
+      </Modal>
 
       {/* ---- A ficha ---- */}
       <Modal

@@ -51,6 +51,7 @@ export {
   registrarPagamentoDeMensalidade,
   dispensarMensalidade,
 } from "./mensalistas";
+export { vincularCadastroDeBalcao, vincularMinhaContaPeloTelefone } from "./vinculo-de-cadastro";
 export { availableSlots } from "./availability";
 export { apagarSemanaDoFixo, definirHorarioFixo, garantirHorariosFixos } from "./horario-fixo";
 export { meusDestinos } from "./destinos";

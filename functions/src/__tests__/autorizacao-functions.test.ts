@@ -40,6 +40,9 @@ const PUBLICAS_POR_DESENHO = new Set([
   "checkSlugAvailability",
   "signUpBarbershop", // cria a PRÓPRIA barbearia; não recebe id de outra
   "redeemLoyaltyReward", // resgata do próprio saldo, na barbearia informada
+  // O cliente não tem vínculo com a barbearia: só traz para a PRÓPRIA conta os
+  // cadastros de balcão do telefone que o Firebase verificou por SMS (02/10).
+  "vincularMinhaContaPeloTelefone",
   "healthcheck",
 ]);
 

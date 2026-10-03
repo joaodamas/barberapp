@@ -61,6 +61,11 @@ export type ClientDoc = {
   mergedInto?: string | null;
   /** Indício, não decisão: cadastro de balcão com o mesmo WhatsApp. */
   mesmoNumeroQue?: string;
+  /**
+   * O WhatsApp desta CONTA foi provado (SMS) ou confirmado pelo dono no
+   * vínculo (`vinculo-de-cadastro.ts`). Só então o balcão a reusa pelo número.
+   */
+  telefoneConfirmado?: boolean;
 };
 
 /** Só dígitos. "(11) 98888-7777" e "11988887777" são a mesma pessoa. */
@@ -126,8 +131,13 @@ export async function acharClientePorWhatsapp(params: {
   /* `active !== false` e não `active === true`: cadastro anterior ao campo não
    * o tem, e tratá-lo como inativo criaria um segundo cadastro para alguém que
    * já existe — o oposto do que esta função serve para evitar. */
+  /* Conta com `telefoneConfirmado` (vinculada por SMS ou pelo dono, 02/10)
+   * É a pessoa daquele número — o balcão pode reusá-la, e é o que impede o
+   * cliente vinculado de virar dois cadastros de novo na próxima visita. */
   const vivo = encontrados.docs.find(
-    (d) => d.data().active !== false && (!params.soDeBalcao || !d.data().uid)
+    (d) =>
+      d.data().active !== false &&
+      (!params.soDeBalcao || !d.data().uid || d.data().telefoneConfirmado === true)
   );
   return vivo ? { id: vivo.id, dados: vivo.data() as ClientDoc } : null;
 }
@@ -166,6 +176,10 @@ export async function acharClientePorWhatsapp(params: {
  * cadastros convivem; o de conta ganha `mesmoNumeroQue` como indício, e o
  * balcão só reusa cadastro de balcão. `mergedInto` antigo continua sendo
  * lido (histórico e LGPD).
+ *
+ * Desde 02/10 o vínculo existe COM PROVA — conta que entrou por SMS, ou o dono
+ * confirmando na tela Clientes — em `vinculo-de-cadastro.ts`. A conta
+ * vinculada ganha `telefoneConfirmado`, e só ela o balcão reusa pelo número.
  */
 export async function resolverCliente(params: {
   tx: Transaction;
@@ -217,6 +231,9 @@ export async function resolverCliente(params: {
             /* Só grava WhatsApp que sirva de chave. Um número pela metade
              * sobrescreveria o bom que já estava lá. */
             ...(whatsappServeComoChave(whatsapp) ? { whatsapp } : {}),
+            /* Número novo digitado na reserva não é o número provado: a
+             * confirmação cai, e o balcão para de reusar esta conta. */
+            ...(whatsappServeComoChave(whatsapp) && !jaEraEu ? { telefoneConfirmado: false } : {}),
             origin: params.origin,
             active: true,
             ...(mesmoNumeroQue ? { mesmoNumeroQue } : {}),
@@ -244,8 +261,9 @@ export async function resolverCliente(params: {
       gravar: (tx) => {
         tx.update(clientes.doc(existente.id), {
           /* O nome pode ter sido "Cliente" na primeira vez. Atualiza quando
-           * vier um de verdade, e nunca troca um nome bom por um genérico. */
-          ...(name === "Cliente" ? {} : { name }),
+           * vier um de verdade, e nunca troca um nome bom por um genérico.
+           * Conta do app (vinculada) mantém o nome que a pessoa deu. */
+          ...(name === "Cliente" || existente.dados.uid ? {} : { name }),
           active: true,
           updatedAt: FieldValue.serverTimestamp(),
         });

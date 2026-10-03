@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fichaDoCliente, listaDeClientes } from "@/lib/ficha-do-cliente";
+import { fichaDoCliente, listaDeClientes, paresDeMesmoNumero } from "@/lib/ficha-do-cliente";
 import type { Doc } from "@/lib/db/repository";
 import type {
   BookingDoc,
@@ -285,5 +285,25 @@ describe("D26 · a lista", () => {
       bookings: [],
     });
     expect(r).toHaveLength(1);
+  });
+});
+
+describe("02/10 · conta e balcão com o mesmo número", () => {
+  const balcao = cliente({ id: "b1", uid: null, name: "Bruno Teste", whatsapp: "11988887777" });
+  const conta = cliente({ id: "u1", uid: "u1", name: "Bruno", whatsapp: "11988887777", mesmoNumeroQue: "b1" });
+
+  it("acha o par quando a conta aponta para um balcão vivo", () => {
+    const pares = paresDeMesmoNumero([balcao, conta]);
+    expect(pares).toHaveLength(1);
+    expect(pares[0].conta.id).toBe("u1");
+    expect(pares[0].balcao.id).toBe("b1");
+  });
+  it("balcão já vinculado ou inativo não aparece", () => {
+    expect(paresDeMesmoNumero([{ ...balcao, mergedInto: "u1" }, conta])).toHaveLength(0);
+    expect(paresDeMesmoNumero([{ ...balcao, active: false }, conta])).toHaveLength(0);
+  });
+  it("indício apontando para outra conta não é par", () => {
+    const outra = cliente({ id: "u2", uid: "u2", name: "Outro", whatsapp: "11988887777" });
+    expect(paresDeMesmoNumero([outra, { ...conta, mesmoNumeroQue: "u2" }])).toHaveLength(0);
   });
 });
