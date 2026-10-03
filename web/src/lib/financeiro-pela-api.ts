@@ -20,7 +20,13 @@ export async function lerFinanceiroPelaApi(barbershopId: string): Promise<Record
   if (!usuario) throw new Error("sem login para ler o financeiro");
   const token = await usuario.getIdToken();
   const projeto = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
-  const url = `https://firestore.googleapis.com/v1/projects/${projeto}/databases/(default)/documents/barbershops/${encodeURIComponent(barbershopId)}/private/financeiro`;
+  /* Mesma base das outras leituras diretas (tenant-server): emulador em
+   * desenvolvimento, produção fora dele — o token do emulador não vale lá. */
+  const base =
+    process.env.NEXT_PUBLIC_USE_EMULATOR === "true"
+      ? `http://127.0.0.1:8080/v1/projects/${projeto}/databases/(default)/documents`
+      : `https://firestore.googleapis.com/v1/projects/${projeto}/databases/(default)/documents`;
+  const url = `${base}/barbershops/${encodeURIComponent(barbershopId)}/private/financeiro`;
   const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
   if (r.status === 404) return null;
   if (!r.ok) throw new Error(`API do Firestore respondeu ${r.status}`);
