@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
+import { VinculoPeloTelefone } from "@/components/vinculo-pelo-telefone";
 import { AuthProvider } from "@/lib/auth-context";
 import { TenantProvider } from "@/lib/tenant-context";
 import { redirect } from "next/navigation";
@@ -134,7 +135,10 @@ export default async function RootLayout({
           aconteceu com o onboarding, que ficou com o botão inalcançável. */}
       <body className="min-h-full flex flex-col bg-canvas text-ink md:h-full md:overflow-hidden">
         <TenantProvider tenant={tenant} indisponivel={estado === "indisponivel"}>
-          <AuthProvider>{children}</AuthProvider>
+          <AuthProvider>
+            {children}
+            <VinculoPeloTelefone />
+          </AuthProvider>
         </TenantProvider>
         <ServiceWorkerRegister />
       </body>
