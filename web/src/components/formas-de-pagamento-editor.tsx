@@ -79,7 +79,7 @@ export function EditorDeFormasDePagamento({
           return (
             <div
               key={forma.id}
-              className="grid gap-2 rounded-xl border border-border/70 p-3 md:grid-cols-[1fr_110px_auto_auto] md:items-center md:gap-3"
+              className="grid gap-2 rounded-xl border border-border/70 p-3 md:grid-cols-[minmax(0,1fr)_128px_196px_148px] md:items-start md:gap-3"
             >
               <div className="flex flex-col gap-1">
                 <input
@@ -96,7 +96,7 @@ export function EditorDeFormasDePagamento({
                 </span>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex min-h-11 items-center gap-2">
                 <input
                   type="number"
                   aria-label={`Taxa de ${forma.label}`}
@@ -105,17 +105,17 @@ export function EditorDeFormasDePagamento({
                   step="0.01"
                   value={forma.feePct}
                   onChange={(e) => alterar(forma.id, { feePct: paraTaxa(e.target.value) })}
-                  className="min-h-11 w-full rounded-xl border border-border bg-surface-raised px-3 text-sm text-ink"
+                  className="min-h-11 w-full rounded-xl border border-border bg-surface-raised px-3 text-sm tabular-nums text-ink"
                 />
                 <span className="text-sm text-ink-muted">%</span>
               </div>
 
-              <p className="px-2 text-xs text-ink-muted md:text-right">
+              <p className="flex min-h-11 items-center gap-1 px-2 text-xs tabular-nums text-ink-muted md:justify-end md:whitespace-nowrap">
                 {formatBRL(EXEMPLO)} viram{" "}
                 <span className="text-ink">{formatBRL(liquido)}</span>
               </p>
 
-              <div className="flex items-center justify-end gap-3">
+              <div className="flex min-h-11 items-center justify-end gap-3">
                 <label className="flex items-center gap-2 text-xs text-ink-muted">
                   <input
                     type="checkbox"
@@ -125,12 +125,17 @@ export function EditorDeFormasDePagamento({
                   />
                   No balcão
                 </label>
-                {!nativa && (
+                {/* As nativas não se excluem, mas guardam o lugar da lixeira:
+                    sem isso, as linhas das formas criadas pelo dono andavam
+                    para o lado e a coluna ficava torta (02/10). */}
+                {nativa ? (
+                  <span aria-hidden className="inline-block h-8 w-8" />
+                ) : (
                   <button
                     type="button"
                     aria-label={`Excluir ${forma.label}`}
                     onClick={() => onChange(formas.filter((f) => f.id !== forma.id))}
-                    className="alvo-toque rounded-lg p-1.5 text-ink-muted transition-colors hover:text-danger"
+                    className="alvo-toque inline-flex h-8 w-8 items-center justify-center rounded-lg text-ink-muted transition-colors hover:text-danger"
                   >
                     <Trash2 size={16} aria-hidden />
                   </button>
