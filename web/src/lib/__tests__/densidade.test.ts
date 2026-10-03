@@ -48,7 +48,11 @@ function vezesImpresso(fonte: string, expressao: string) {
 }
 
 describe("Hoje — a previsão do dia é um número só", () => {
-  const fonte = TELA("page.tsx");
+  /* O topo saiu para `ResumoDoDiaTopo` (02/10): a página entrega `previsaoHoje`
+   * uma vez e o componente imprime uma vez. */
+  const fonte =
+    TELA("page.tsx") +
+    readFileSync(new URL("../../components/hoje/resumo-do-dia.tsx", import.meta.url), "utf8");
 
   /**
    * O caso do §13, verbatim. `previsaoHoje` era impresso num `KpiTile`
@@ -60,7 +64,9 @@ describe("Hoje — a previsão do dia é um número só", () => {
    * conferiu — e não conferiu nada, porque é a mesma variável.
    */
   it("`previsaoHoje` é impresso uma vez", () => {
-    expect(vezesImpresso(fonte, "formatBRL(previsaoHoje)")).toBe(1);
+    expect(vezesImpresso(fonte, "previsao={previsaoHoje}")).toBe(1);
+    expect(vezesImpresso(fonte, "formatBRL(previsao)")).toBe(1);
+    expect(vezesImpresso(fonte, "formatBRL(previsaoHoje)")).toBe(0);
   });
 
   /**

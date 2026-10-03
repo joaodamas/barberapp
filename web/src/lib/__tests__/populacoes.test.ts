@@ -48,7 +48,11 @@ import { describe, expect, it } from "vitest";
  * separados e legíveis. Isso é §19 — só quem abriu a tela pode dizer.
  */
 
-const HOJE = readFileSync("src/app/painel/(dashboard)/page.tsx", "utf8");
+/* A tela Hoje é a página + o topo (`ResumoDoDiaTopo`, 02/10): os números moram
+ * no componente, as fontes e os gates na página — as garantias valem para os dois. */
+const HOJE =
+  readFileSync("src/app/painel/(dashboard)/page.tsx", "utf8") +
+  readFileSync("src/components/hoje/resumo-do-dia.tsx", "utf8");
 
 describe("Hoje · previsão e recebido não dividem régua", () => {
   it("não existe percentual entre recebido e previsão", () => {
