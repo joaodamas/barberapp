@@ -54,8 +54,11 @@ const AUTH_MESSAGES: Record<string, string> = {
   "auth/invalid-phone-number": "Número inválido. Use DDD + número.",
   "auth/invalid-verification-code": "Código inválido.",
   "auth/code-expired": "O código expirou. Peça um novo.",
+  /* Não é só SMS: com a proteção contra enumeração de e-mail, o Firebase
+   * devolve este código também quando a conta não existe neste ambiente — e
+   * a tela dizia "Login por SMS", com o dono digitando e-mail (02/10). */
   "auth/operation-not-allowed":
-    "Login por SMS ainda não está habilitado no projeto. Use e-mail ou Google.",
+    "Não foi possível entrar com esses dados. Confira o e-mail ou crie uma conta.",
 };
 
 function messageFor(error: unknown, fallback: string) {
