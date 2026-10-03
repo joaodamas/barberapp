@@ -9,6 +9,7 @@ import { enderecoOficial, getTenant, isPlatformRoot, resolverTenant } from "@/li
 import { METADATA_DA_PLATAFORMA } from "@/lib/seo";
 import { tenantCssVars } from "@/lib/tenant";
 import { iconesDaMarca } from "@/lib/monograma";
+import { formatoDoLogo } from "@/lib/logo-da-marca";
 import "./globals.css";
 
 /* Fontes AUTO-HOSPEDADAS, e não `next/font/google`.
@@ -77,7 +78,9 @@ export async function generateMetadata(): Promise<Metadata> {
     icons: {
       icon: [
         { url: iconesDaMarca(brand).favicon, sizes: "32x32", type: "image/png" },
-        { url: brand.logo, type: "image/svg+xml" },
+        /* O tipo sai do arquivo: o logo enviado em "Sua marca" é PNG, e
+         * anunciar `image/svg+xml` sobre ele faria o navegador descartá-lo. */
+        { url: brand.logo, type: formatoDoLogo(brand.logo) ?? undefined },
       ],
       apple: [{ url: iconesDaMarca(brand).apple, sizes: "180x180" }],
     },

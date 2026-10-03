@@ -1,4 +1,5 @@
 import { MARCA_GERADA } from "@/lib/monograma";
+import { ehLogoDaBarbearia, USANDO_EMULADOR } from "@/lib/logo-da-marca";
 import {
   DEFAULT_LOCALE,
   DEFAULT_PAYMENT_FEES,
@@ -55,7 +56,7 @@ export function toTenant(id: string, data: Record<string, unknown>): Tenant {
     ...(typeof data.dominio === "string" && /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(data.dominio.trim())
       ? { dominio: data.dominio.trim().toLowerCase() }
       : {}),
-    brand: normalizarMarca(brand),
+    brand: normalizarMarca(id, brand),
     contact: { ...DEFAULT_TENANT.contact, ...contact },
     /* Barbearia sem `locale` gravado herda o padrão da plataforma. Nunca
      * `undefined`: `Intl` com fuso indefinido cai no fuso do SERVIDOR, que é
@@ -192,9 +193,26 @@ function normalizarFidelidade(
  */
 const LOGOS_HERDADOS = new Set(["/logo.svg", "/logo-horizontal.svg"]);
 
-function normalizarMarca(raw: Partial<Tenant["brand"]>): Tenant["brand"] {
+/**
+ * Logo do Storage só vale se for um envio da tela "Sua marca" DESTA barbearia
+ * (`ehLogoDaBarbearia`). `brand.logo` é texto que o dono grava do navegador e
+ * vai parar no favicon, no manifest e no topo do app do cliente: endereço de
+ * outra barbearia, de outro site ou fora do formato é lido como "sem logo" —
+ * e aparece o monograma, nunca uma imagem que ninguém conferiu.
+ *
+ * Caminho local (`/tenants/osiqueira/…`) continua valendo: só a plataforma o
+ * grava, e é como o piloto tem a marca dele desde antes desta tela.
+ */
+function logoAceito(id: string, v: unknown): v is string {
+  if (typeof v !== "string" || !v.trim() || LOGOS_HERDADOS.has(v)) return false;
+  /* `//host` e `/\host` o navegador lê como outro site. */
+  if (v.startsWith("/")) return !v.startsWith("//") && !v.includes("\\");
+  return ehLogoDaBarbearia(v, id, USANDO_EMULADOR);
+}
+
+function normalizarMarca(id: string, raw: Partial<Tenant["brand"]>): Tenant["brand"] {
   const marca = { ...DEFAULT_TENANT.brand, ...raw };
-  const semLogo = (v: unknown) => typeof v !== "string" || !v.trim() || LOGOS_HERDADOS.has(v);
+  const semLogo = (v: unknown) => !logoAceito(id, v);
   /* A plataforma (domínio raiz) mantém a marca CorteHub; barbearia sem logo
    * próprio ganha o monograma dela, nunca a marca de outra. */
   if (semLogo(raw.logo)) marca.logo = MARCA_GERADA;

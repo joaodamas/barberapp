@@ -1,3 +1,5 @@
+import { iconesDoLogo } from "@/lib/logo-da-marca";
+
 /**
  * A marca de quem ainda não subiu logo: as iniciais da barbearia sobre a cor
  * de destaque que o dono escolheu no onboarding.
@@ -76,8 +78,19 @@ export function svgDoMonograma(nome: string, cor: unknown): string {
 /** Caminho do monograma servido por `app/marca.svg/route.ts`. */
 export const MARCA_GERADA = "/marca.svg";
 
-/** Os ícones do PWA: próprios da barbearia quando existem, senão gerados. */
-export function iconesDaMarca(brand: { icones?: string }) {
+/**
+ * Os ícones do PWA, nesta ordem de preferência:
+ *
+ * 1. os gerados do logo que o dono subiu em "Sua marca" (Storage);
+ * 2. a pasta de ícones próprios gravada pela plataforma (`brand.icones`);
+ * 3. o monograma, desenhado em `/icone/*`.
+ *
+ * O logo enviado vence a pasta: é a escolha mais recente do dono, e logo novo
+ * com ícone velho na tela inicial seria a marca dividida em duas.
+ */
+export function iconesDaMarca(brand: { logo?: string; icones?: string }) {
+  const doLogo = brand.logo ? iconesDoLogo(brand.logo) : null;
+  if (doLogo) return doLogo;
   if (brand.icones) {
     const b = brand.icones.replace(/\/$/, "");
     return {

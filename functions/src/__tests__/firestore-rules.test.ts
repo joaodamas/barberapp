@@ -17,7 +17,7 @@ import {
   serverTimestamp,
   updateDoc,
 } from "firebase/firestore";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 /**
  * Prova o isolamento entre barbearias contra o emulador do Firestore.
@@ -385,6 +385,106 @@ describe("contrato com a plataforma", () => {
       updateDoc(doc(as(DONO_ALFA), `barbershops/${ALFA}/audit_log`, "log-1"), { action: "editado" })
     );
     await assertFails(deleteDoc(doc(as(DONO_ALFA), `barbershops/${ALFA}/audit_log`, "log-1")));
+  });
+});
+
+describe("a marca que o dono edita em \"Sua marca\" (02/10)", () => {
+  const storage = (caminho: string) =>
+    `https://firebasestorage.googleapis.com/v0/b/axon-barber.firebasestorage.app/o/${encodeURIComponent(
+      caminho
+    )}?alt=media`;
+  const LOGO_ALFA = storage(`barbershops/${ALFA}/brand/1727000000000/logo.png`);
+  const ficha = () => doc(as(DONO_ALFA), "barbershops", ALFA);
+
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), "barbershops", ALFA), {
+        brand: {
+          name: "Barbearia Alfa",
+          shortName: "Alfa",
+          accentColor: "#b8863a",
+          themeColor: "#ffffff",
+          panelLabel: "Painel do dono",
+          logo: "/tenants/alfa/logo.svg",
+          logoHorizontal: "/tenants/alfa/logo-horizontal.svg",
+          icones: "/tenants/alfa/icons",
+        },
+      });
+    });
+  });
+
+  /* Os outros blocos gravam `brand` inteiro sobre uma ficha sem marca;
+   * deixar esta marca semeada mudaria o que eles testam. */
+  afterEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), "barbershops", ALFA), { brand: deleteField() });
+    });
+  });
+
+  it("o dono troca nome, nome curto, cor e logo do próprio envio", async () => {
+    await assertSucceeds(
+      updateDoc(ficha(), {
+        "brand.name": "Barbearia Alfa & Cia",
+        "brand.shortName": "Alfa & Cia",
+        "brand.accentColor": "#5b8cc4",
+        "brand.logo": LOGO_ALFA,
+      })
+    );
+  });
+
+  it("o dono remove o logo, a pasta de ícones e o horizontal — volta o monograma", async () => {
+    await assertSucceeds(
+      updateDoc(ficha(), {
+        "brand.logo": deleteField(),
+        "brand.logoHorizontal": deleteField(),
+        "brand.icones": deleteField(),
+      })
+    );
+  });
+
+  it.each([
+    ["site de fora", "https://evil.example/logo.png"],
+    ["logo de outra barbearia", storage(`barbershops/${BETA}/brand/1727000000000/logo.png`)],
+    ["ícone no lugar do logo", storage(`barbershops/${ALFA}/brand/1727000000000/icon-512.png`)],
+    ["fora de uma pasta de envio", storage(`barbershops/${ALFA}/brand/logo.png`)],
+    ["caminho local", "/tenants/beta/logo.svg"],
+    ["data URL", "data:image/svg+xml,<svg onload=alert(1)>"],
+    ["com sufixo depois do alt=media", `${LOGO_ALFA}&x=1`],
+  ])("🔒 logo que não é um envio desta barbearia: %s", async (_, logo) => {
+    await assertFails(updateDoc(ficha(), { "brand.logo": logo }));
+  });
+
+  it("🔒 o dono não aponta ícones nem logo horizontal para outro lugar — só remove", async () => {
+    await assertFails(updateDoc(ficha(), { "brand.icones": "https://evil.example/icons" }));
+    await assertFails(updateDoc(ficha(), { "brand.logoHorizontal": "https://evil.example/h.png" }));
+  });
+
+  it("🔒 cor fora de #rrggbb não entra — ela vira variável de CSS no primeiro HTML", async () => {
+    await assertFails(updateDoc(ficha(), { "brand.accentColor": "red;background:url(x)" }));
+    await assertFails(updateDoc(ficha(), { "brand.accentColor": "#abc" }));
+  });
+
+  it("🔒 nome vazio ou comprido demais não entra", async () => {
+    await assertFails(updateDoc(ficha(), { "brand.name": " " }));
+    await assertFails(updateDoc(ficha(), { "brand.name": "x".repeat(61) }));
+    await assertFails(updateDoc(ficha(), { "brand.shortName": "x".repeat(15) }));
+    await assertFails(updateDoc(ficha(), { "brand.name": deleteField() }));
+  });
+
+  it("🔒 os campos da plataforma ficam com a plataforma", async () => {
+    await assertFails(updateDoc(ficha(), { "brand.themeColor": "#000000" }));
+    await assertFails(updateDoc(ficha(), { "brand.panelLabel": "Painel" }));
+    await assertFails(updateDoc(ficha(), { "brand.qualquer": "coisa" }));
+  });
+
+  it("🔒 o barbeiro não mexe na marca", async () => {
+    await assertFails(
+      updateDoc(doc(as(BARBEIRO_ALFA), "barbershops", ALFA), { "brand.accentColor": "#5b8cc4" })
+    );
+  });
+
+  it("editar outra coisa da ficha não esbarra na marca já gravada pela plataforma", async () => {
+    await assertSucceeds(updateDoc(ficha(), { "contact.address": "Rua Nova, 10" }));
   });
 });
 

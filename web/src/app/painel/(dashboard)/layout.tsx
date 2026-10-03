@@ -7,6 +7,7 @@ import { resolverTenant } from "@/lib/tenant-server";
 import { TenantLive } from "@/lib/tenant-live";
 import { PainelBottomNav } from "@/components/painel-bottom-nav";
 import { PainelSidebarNav } from "@/components/painel-sidebar-nav";
+import { logoSemOtimizar } from "@/lib/logo-da-marca";
 
 export default async function PainelDashboardLayout({
   children,
@@ -55,7 +56,7 @@ export default async function PainelDashboardLayout({
         <div className="flex min-h-full w-full flex-1 flex-col md:h-full md:overflow-hidden">
           <header className="safe-top flex items-center gap-2.5 px-4 pb-3 pt-4 md:hidden">
             <Link href="/painel" className="flex items-center gap-2.5">
-              <Image src={brand.logo} alt="" width={32} height={32} priority />
+              <Image src={brand.logo} unoptimized={logoSemOtimizar(brand.logo)} alt="" width={32} height={32} priority />
               <div className="leading-tight">
                 <p className="font-display text-sm uppercase tracking-wider text-ink">
                   {brand.shortName}

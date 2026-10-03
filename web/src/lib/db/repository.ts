@@ -4,6 +4,7 @@ import {
   addDoc,
   collection,
   deleteDoc,
+  deleteField,
   doc,
   onSnapshot,
   orderBy,
@@ -212,6 +213,41 @@ export async function patchTenant(barbershopId: string, data: DocumentData) {
   conferirEscrita();
   const db = await getDb();
   await updateDoc(doc(db, shopPath(barbershopId)), stripUndefined(data));
+}
+
+/**
+ * A marca da barbearia — tela "Sua marca".
+ *
+ * Caminho pontilhado, campo a campo: `brand` inteiro levaria junto
+ * `panelLabel`, `clientTagline` e `themeColor`, que o dono não edita e a
+ * regra não deixa ele tocar (`marcaDoDonoValida`).
+ *
+ * `logo`:
+ * - `string` — URL do `logo.png` que acabou de subir; os ícones saem dela;
+ * - `null` — remover: volta o monograma. Leva junto `icones` e
+ *   `logoHorizontal`, senão uma barbearia com ícones próprios gravados pela
+ *   plataforma ficaria com o monograma no app e o ícone antigo no celular;
+ * - `undefined` — não mexe.
+ */
+export async function salvarMarca(
+  barbershopId: string,
+  marca: { name?: string; shortName?: string; accentColor?: string; logo?: string | null }
+) {
+  conferirEscrita();
+  const db = await getDb();
+  const data: DocumentData = {};
+  if (marca.name !== undefined) data["brand.name"] = marca.name;
+  if (marca.shortName !== undefined) data["brand.shortName"] = marca.shortName;
+  if (marca.accentColor !== undefined) data["brand.accentColor"] = marca.accentColor;
+  if (marca.logo === null) {
+    data["brand.logo"] = deleteField();
+    data["brand.logoHorizontal"] = deleteField();
+    data["brand.icones"] = deleteField();
+  } else if (marca.logo !== undefined) {
+    data["brand.logo"] = marca.logo;
+  }
+  if (Object.keys(data).length === 0) return;
+  await updateDoc(doc(db, shopPath(barbershopId)), data);
 }
 
 /**
