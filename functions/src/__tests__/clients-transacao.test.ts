@@ -3,6 +3,7 @@ import { initializeApp, deleteApp, type App } from "firebase-admin/app";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { gravarComTravaDeHorario } from "../booking";
 import type { OrigemDoCliente } from "../clients";
+import { vincularCadastros } from "../vinculo-de-cadastro";
 
 /**
  * G3 — o cadastro do cliente, dentro da transação que grava a reserva.
@@ -93,7 +94,7 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  for (const col of ["bookings", "clients"]) {
+  for (const col of ["bookings", "clients", "loyalty_transactions", "subscriptions", "payments"]) {
     const snap = await db.collection(`barbershops/${SHOP}/${col}`).get();
     await Promise.all(snap.docs.map((d) => d.ref.delete()));
   }
@@ -332,5 +333,80 @@ describe("G3 · o teto de reservas ativas segue a pessoa", () => {
     await expect(
       gravarComTravaDeHorario(pedido({ time: "18:00", whatsapp: "11922221111" }))
     ).rejects.toThrow(/horário\(s\) marcado\(s\)/);
+  });
+});
+
+/* ================================================================== */
+/* Vínculo com prova (02/10): SMS ou dono                             */
+/* ================================================================== */
+
+describe("vínculo do balcão à conta — com prova", () => {
+  async function balcaoComHistorico() {
+    await gravarComTravaDeHorario(pedido({ time: "15:00", name: "Seu Tadeu", whatsapp: "11977776666" }));
+    const [balcao] = await clientes();
+    const shop = db.doc(`barbershops/${SHOP}`);
+    await shop.collection("loyalty_transactions").add({ clientId: balcao.id, stamps: 1, kind: "carimbo" });
+    await shop.collection("subscriptions").add({ clientId: balcao.id, status: "ativa" });
+    await shop.collection("payments").add({ clientId: balcao.id, grossAmount: 50 });
+    return balcao;
+  }
+
+  it("leva reservas, carimbos, plano e pagamentos para a conta e cria o cadastro dela", async () => {
+    const balcao = await balcaoComHistorico();
+    const r = await vincularCadastros({
+      db,
+      barbershopId: SHOP,
+      deId: balcao.id,
+      paraUid: "uid-tadeu",
+      via: "sms",
+      por: "uid-tadeu",
+      telefoneProvado: "11977776666",
+    });
+    expect(r.vinculado).toBe(true);
+    expect(r.movidos).toMatchObject({ bookings: 1, loyalty_transactions: 1, subscriptions: 1, payments: 1 });
+
+    const shop = db.doc(`barbershops/${SHOP}`);
+    for (const col of ["bookings", "loyalty_transactions", "subscriptions", "payments"]) {
+      const snap = await shop.collection(col).get();
+      expect(snap.docs.map((d) => d.get("clientId"))).toEqual(["uid-tadeu"]);
+    }
+    const cs = await clientes();
+    const antigo = cs.find((c) => c.id === balcao.id)!;
+    const conta = cs.find((c) => c.id === "uid-tadeu")!;
+    expect(antigo).toMatchObject({ active: false, mergedInto: "uid-tadeu", via: "sms" });
+    expect(conta).toMatchObject({ uid: "uid-tadeu", name: "Seu Tadeu", whatsapp: "11977776666", telefoneConfirmado: true });
+  });
+
+  it("rodar de novo não faz nada", async () => {
+    const balcao = await balcaoComHistorico();
+    const args = { db, barbershopId: SHOP, deId: balcao.id, paraUid: "uid-tadeu", via: "dono" as const, por: "dono-1" };
+    await vincularCadastros(args);
+    const segunda = await vincularCadastros(args);
+    expect(segunda).toMatchObject({ vinculado: false, jaVinculado: true });
+  });
+
+  it("depois do vínculo, o balcão marca na CONTA — não nasce um terceiro cadastro", async () => {
+    const balcao = await balcaoComHistorico();
+    await vincularCadastros({ db, barbershopId: SHOP, deId: balcao.id, paraUid: "uid-tadeu", via: "dono", por: "dono-1" });
+
+    await gravarComTravaDeHorario(pedido({ time: "17:00", name: "Tadeu", whatsapp: "(11) 97777-6666" }));
+    const nova = (await reservas()).find((r) => r.time === "17:00")!;
+    expect(nova.clientId).toBe("uid-tadeu");
+    expect((await clientes()).filter((c) => c.active !== false)).toHaveLength(1);
+  });
+
+  it("🔒 conta que troca o WhatsApp perde a confirmação, e o balcão para de reusá-la", async () => {
+    const balcao = await balcaoComHistorico();
+    await vincularCadastros({ db, barbershopId: SHOP, deId: balcao.id, paraUid: "uid-tadeu", via: "dono", por: "dono-1" });
+
+    await gravarComTravaDeHorario(
+      pedido({ time: "16:00", uid: "uid-tadeu", origin: "app", whatsapp: "11955554444" })
+    );
+    const conta = (await clientes()).find((c) => c.id === "uid-tadeu")!;
+    expect(conta.telefoneConfirmado).toBe(false);
+
+    await gravarComTravaDeHorario(pedido({ time: "17:00", name: "Outra pessoa", whatsapp: "11955554444" }));
+    const nova = (await reservas()).find((r) => r.time === "17:00")!;
+    expect(nova.clientId).not.toBe("uid-tadeu");
   });
 });

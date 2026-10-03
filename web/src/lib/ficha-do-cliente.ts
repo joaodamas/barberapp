@@ -126,3 +126,22 @@ export function listaDeClientes(params: {
       ORDEM_DE_NOME.compare((a.cliente.name ?? "").trim(), (b.cliente.name ?? "").trim())
     );
 }
+
+export type ParDeMesmoNumero = { conta: Doc<ClientDoc>; balcao: Doc<ClientDoc> };
+
+/**
+ * Conta do app e cadastro de balcão com o mesmo número, ainda separados
+ * (02/10). O número digitado não é prova — quem decide é o dono, na tela
+ * Clientes. Só pares vivos: balcão já vinculado ou inativo sai da lista.
+ */
+export function paresDeMesmoNumero(clientes: Doc<ClientDoc>[]): ParDeMesmoNumero[] {
+  const porId = new Map(clientes.map((c) => [c.id, c]));
+  const pares: ParDeMesmoNumero[] = [];
+  for (const conta of clientes) {
+    if (!conta.uid || conta.active === false || !conta.mesmoNumeroQue) continue;
+    const balcao = porId.get(conta.mesmoNumeroQue);
+    if (!balcao || balcao.uid || balcao.active === false || balcao.mergedInto) continue;
+    pares.push({ conta, balcao });
+  }
+  return pares;
+}

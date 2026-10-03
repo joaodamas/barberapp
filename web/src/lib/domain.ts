@@ -318,11 +318,15 @@ export type ClientDoc = {
   origin: "app" | "balcao" | "importacao";
   active: boolean;
   /**
-   * Para onde este cadastro foi fundido, quando a mesma pessoa voltou com conta
-   * no app. As reservas antigas continuam apontando para o cadastro antigo — o
-   * fato não se reescreve para arrumar o cadastro.
+   * Para onde este cadastro foi vinculado, quando a mesma pessoa voltou com
+   * conta no app. Desde 02/10 o vínculo (por SMS ou confirmado pelo dono) leva
+   * as reservas, os carimbos e o plano para a conta.
    */
   mergedInto?: string | null;
+  /** Indício na CONTA: há um cadastro de balcão com o mesmo número. */
+  mesmoNumeroQue?: string;
+  /** O WhatsApp da conta foi provado (SMS) ou confirmado pelo dono. */
+  telefoneConfirmado?: boolean;
 };
 
 /** Como o dono digitou o desconto: em reais ou em percentual do valor. */
