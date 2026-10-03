@@ -178,3 +178,60 @@ export function textoDeLivres(livres: number, ocupacaoPct: number): string {
   if (livres > 0) return contar(livres, "horário livre", "horários livres");
   return ocupacaoPct >= 100 ? "Agenda cheia" : "Sem horário livre pela frente";
 }
+
+const CONTAM: BookingStatus[] = ["pending_payment", "confirmed", "confirmed_by_client", "completed", "no_show"];
+
+export type LinhaDoBarbeiro = { staffId: string | null; feitos: number; pelaFrente: number };
+
+/**
+ * Feitos e pela frente de cada barbeiro, hoje — o bloco "Por barbeiro" do
+ * cartão Agora (02/10). Mesma população do resumo; falta não entra em nenhuma
+ * das duas colunas. Quem tem mais atendimentos no dia vem primeiro; empate
+ * pela ordem na agenda, para a lista não trocar de lugar a cada tique.
+ */
+export function porBarbeiro(reservas: ReservaDoDia[]): LinhaDoBarbeiro[] {
+  const linhas = new Map<string | null, LinhaDoBarbeiro & { total: number; ordem: number }>();
+  const ordenadas = reservas
+    .filter((b) => Boolean(b.time) && CONTAM.includes(b.status))
+    .slice()
+    .sort((a, b) => a.time.localeCompare(b.time));
+  for (const b of ordenadas) {
+    const id = b.staffId ?? null;
+    const l = linhas.get(id) ?? { staffId: id, feitos: 0, pelaFrente: 0, total: 0, ordem: linhas.size };
+    l.total++;
+    if (b.status === "completed") l.feitos++;
+    else if (SEM_DESFECHO.includes(b.status)) l.pelaFrente++;
+    linhas.set(id, l);
+  }
+  return [...linhas.values()]
+    .sort((a, b) => b.total - a.total || a.ordem - b.ordem)
+    .map(({ staffId, feitos, pelaFrente }) => ({ staffId, feitos, pelaFrente }));
+}
+
+export type HorarioDeAmanha = { id: string; hora: string; cliente: string; servico: string };
+export type ResumoDeAmanha = { total: number; primeiros: HorarioDeAmanha[] };
+
+/**
+ * O que já está marcado amanhã (02/10): quantos — só quem ainda vai
+ * acontecer, pendente ou confirmado — e os três primeiros horários. É o que o
+ * barbeiro quer saber quando o dia de hoje acabou.
+ */
+export function resumoDeAmanha(params: {
+  /** Só as de amanhã. */
+  reservas: ReservaDoDia[];
+  nomeDoServico: (ids: string[]) => string;
+}): ResumoDeAmanha {
+  const marcadas = params.reservas
+    .filter((b) => Boolean(b.time) && SEM_DESFECHO.includes(b.status))
+    .slice()
+    .sort((a, b) => a.time.localeCompare(b.time));
+  return {
+    total: marcadas.length,
+    primeiros: marcadas.slice(0, 3).map((b) => ({
+      id: b.id,
+      hora: b.time,
+      cliente: (b.clientName ?? "").trim() || "Cliente",
+      servico: params.nomeDoServico(b.serviceIds ?? []),
+    })),
+  };
+}

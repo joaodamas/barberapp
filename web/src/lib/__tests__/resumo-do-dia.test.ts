@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { recebidoPorForma, resumoDoDia, textoDeAtraso, textoDeContagem, textoDeLivres } from "@/lib/resumo-do-dia";
+import { porBarbeiro, recebidoPorForma, resumoDeAmanha, resumoDoDia, textoDeAtraso, textoDeContagem, textoDeLivres } from "@/lib/resumo-do-dia";
 import { caixaDoDia } from "@/lib/analytics";
 
 const D = "2026-10-02";
@@ -120,5 +120,50 @@ describe("recebido por forma bate com o Recebido hoje", () => {
     const f = recebidoPorForma(caixa);
     expect(f.at(-1)).toEqual({ forma: "Não informado", valor: 40 });
     expect(f.reduce((s, x) => s + x.valor, 0)).toBe(caixa.total);
+  });
+});
+
+describe("por barbeiro (cartão Agora)", () => {
+  const comBarbeiro = (id: string, time: string, status: string, staffId: string) =>
+    ({ ...(r(id, time, status) as object), staffId }) as never;
+
+  it("feitos e pela frente de cada um; falta e cancelado não entram nas colunas", () => {
+    const linhas = porBarbeiro([
+      comBarbeiro("1", "09:00", "completed", "b1"),
+      comBarbeiro("2", "09:00", "completed", "b2"),
+      comBarbeiro("3", "10:00", "confirmed", "b2"),
+      comBarbeiro("4", "11:00", "no_show", "b2"),
+      comBarbeiro("5", "12:00", "cancelled_by_client", "b1"),
+    ]);
+    expect(linhas).toEqual([
+      { staffId: "b2", feitos: 1, pelaFrente: 1 },
+      { staffId: "b1", feitos: 1, pelaFrente: 0 },
+    ]);
+  });
+
+  it("empate fica na ordem da agenda", () => {
+    const linhas = porBarbeiro([comBarbeiro("1", "10:00", "completed", "b1"), comBarbeiro("2", "09:00", "confirmed", "b2")]);
+    expect(linhas.map((l) => l.staffId)).toEqual(["b2", "b1"]);
+  });
+});
+
+describe("resumo de amanhã", () => {
+  it("conta só quem ainda vai acontecer e lista os três primeiros em ordem", () => {
+    const x = resumoDeAmanha({
+      reservas: [
+        r("1", "15:00", "confirmed", "Otávio"),
+        r("2", "09:00", "pending_payment", "Ícaro"),
+        r("3", "08:00", "cancelled_by_client", "Nelson"),
+        r("4", "10:00", "confirmed_by_client", "Tiago"),
+        r("5", "11:00", "confirmed", "Wesley"),
+      ],
+      nomeDoServico,
+    });
+    expect(x.total).toBe(4);
+    expect(x.primeiros.map((p) => `${p.hora} ${p.cliente}`)).toEqual(["09:00 Ícaro", "10:00 Tiago", "11:00 Wesley"]);
+  });
+
+  it("nada marcado", () => {
+    expect(resumoDeAmanha({ reservas: [], nomeDoServico })).toEqual({ total: 0, primeiros: [] });
   });
 });

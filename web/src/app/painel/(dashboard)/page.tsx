@@ -45,7 +45,7 @@ import { useTenant } from "@/lib/tenant-context";
 import { useBookings, useServices, useStaff } from "@/lib/db/use-shop-data";
 import { MarcarNoBalcao } from "@/components/marcar-no-balcao";
 import { ResumoDoDiaTopo } from "@/components/hoje/resumo-do-dia";
-import { recebidoPorForma, resumoDoDia } from "@/lib/resumo-do-dia";
+import { porBarbeiro, recebidoPorForma, resumoDeAmanha, resumoDoDia } from "@/lib/resumo-do-dia";
 import { useAcoesDoAtendimento } from "@/components/agenda/acoes-do-atendimento";
 import { caixaDoDia, mesPeriodo, previsaoDoDia } from "@/lib/analytics";
 import { capacidadeDaData, horariosLivresRestantes } from "@/lib/jornada";
@@ -274,6 +274,17 @@ export default function PainelHojePage() {
         pagamentosIlegiveis={pagamentosIlegiveis}
         temRelogio={agora !== null}
         nomeDoBarbeiro={(id) => equipe.find((b) => b.id === id)?.name ?? null}
+        linhasPorBarbeiro={porBarbeiro(bookings)}
+        amanha={resumoDeAmanha({
+          reservas: todas.filter((b) => b.date === somarDias(hoje, 1)),
+          nomeDoServico: (ids) => getServicesByIds(ids).map((s) => s.name).join(" + ") || "Atendimento",
+        })}
+        /* Mesma troca de dia das setas da agenda, e rola até ela. */
+        aoVerAmanha={() => {
+          setSentidoDoDia("depois");
+          setDiaEscolhido(somarDias(hoje, 1));
+          document.getElementById("agenda-do-dia")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }}
         /* Os MESMOS fluxos da linha da agenda: o modal de pagamento e o de
            falta — nenhuma regra nova aqui. */
         aoConcluir={(id) => {
