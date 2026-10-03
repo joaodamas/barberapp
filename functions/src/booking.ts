@@ -331,6 +331,9 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
        * ausência é ambígua entre "não pagou" e "campo antigo". */
       paymentMethod: null,
       status,
+      /* Faltava (02/10): o relatório de origens contava as reservas do
+       * próprio cliente como "sem registro", e o balcão e o fixo gravavam. */
+      origin: "app",
       requestedAt: FieldValue.serverTimestamp(),
       createdAt: FieldValue.serverTimestamp(),
     },
