@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { abertasDeMesesAnteriores, estagioDaFatura, estagioDaRegua, mesVizinho, resumoDasFaturas } from "@/lib/mensalidade";
+import { abertasDeMesesAnteriores, estagioDaFatura, estagioDaRegua, mesVizinho, resumoDasFaturas, situacaoDaFatura } from "@/lib/mensalidade";
 
 /**
  * G2 · a régua de cobrança no web.
@@ -135,5 +135,24 @@ describe("mesVizinho", () => {
     expect(mesVizinho("2026-12", 1)).toBe("2027-01");
     expect(mesVizinho("2026-01", -1)).toBe("2025-12");
     expect(mesVizinho("2026-10", 0)).toBe("2026-10");
+  });
+});
+
+describe("02/10 · situação da mensalidade em português", () => {
+  const hoje = "2026-10-02";
+  const aberta = (dueDate: string) => ({ dueDate, status: "aberta" as const });
+  it("diz os dias reais de atraso, não D+5", () => {
+    expect(situacaoDaFatura(aberta("2026-09-05"), hoje)).toEqual({ texto: "Atrasada · 27 dias", tom: "danger" });
+    expect(situacaoDaFatura(aberta("2026-10-01"), hoje)).toEqual({ texto: "Atrasada · 1 dia", tom: "danger" });
+  });
+  it("vencimento hoje, amanhã e adiante", () => {
+    expect(situacaoDaFatura(aberta("2026-10-02"), hoje).texto).toBe("Vence hoje");
+    expect(situacaoDaFatura(aberta("2026-10-03"), hoje).texto).toBe("Vence amanhã");
+    expect(situacaoDaFatura(aberta("2026-10-05"), hoje)).toEqual({ texto: "Vence em 3 dias", tom: "gold" });
+    expect(situacaoDaFatura(aberta("2026-10-20"), hoje).tom).toBe("neutral");
+  });
+  it("paga e não cobrada", () => {
+    expect(situacaoDaFatura({ dueDate: "2026-09-05", status: "paga" }, hoje).texto).toBe("Paga");
+    expect(situacaoDaFatura({ dueDate: "2026-09-05", status: "cancelada" }, hoje).texto).toBe("Não cobrada");
   });
 });

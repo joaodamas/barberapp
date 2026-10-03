@@ -122,3 +122,26 @@ export function mesVizinho(competencia: string, delta: number): string {
   const mes = (total % 12) + 1;
   return `${ano}-${String(mes).padStart(2, "0")}`;
 }
+
+/**
+ * A situação da mensalidade em português de balcão (02/10).
+ *
+ * A régua (D-5 … D+5) é do motor de lembretes; na tela ela dizia "D+5" para
+ * uma mensalidade vencida havia 27 dias — o dono não sabia ler, e o número
+ * escondia o tamanho do atraso. Aqui a frase diz os dias de verdade.
+ */
+export function situacaoDaFatura(
+  fatura: Pick<SubscriptionInvoiceDoc, "dueDate" | "status">,
+  hoje: string
+): { texto: string; tom: "success" | "neutral" | "gold" | "danger" } {
+  if (fatura.status === "paga") return { texto: "Paga", tom: "success" };
+  if (fatura.status === "cancelada") return { texto: "Não cobrada", tom: "neutral" };
+  const dias = Math.round(
+    (Date.parse(`${fatura.dueDate}T00:00:00Z`) - Date.parse(`${hoje}T00:00:00Z`)) / 86_400_000
+  );
+  if (dias === 0) return { texto: "Vence hoje", tom: "gold" };
+  if (dias === 1) return { texto: "Vence amanhã", tom: "gold" };
+  if (dias > 1) return { texto: `Vence em ${dias} dias`, tom: dias <= 5 ? "gold" : "neutral" };
+  if (dias === -1) return { texto: "Atrasada · 1 dia", tom: "danger" };
+  return { texto: `Atrasada · ${-dias} dias`, tom: "danger" };
+}

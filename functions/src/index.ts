@@ -49,6 +49,7 @@ export {
   ajustarValorDoMensal,
   gerarFaturasDoMes,
   registrarPagamentoDeMensalidade,
+  dispensarMensalidade,
 } from "./mensalistas";
 export { availableSlots } from "./availability";
 export { apagarSemanaDoFixo, definirHorarioFixo, garantirHorariosFixos } from "./horario-fixo";
