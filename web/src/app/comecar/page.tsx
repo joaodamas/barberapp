@@ -14,6 +14,7 @@ import { PassoServicos } from "@/components/comecar/passo-servicos";
 import { PassoHorarios } from "@/components/comecar/passo-horarios";
 import { PassoCompartilhar } from "@/components/comecar/passo-compartilhar";
 import { ONBOARDING_STEPS, nextOnboardingStep, type OnboardingStep } from "@/lib/tenant";
+import { logoSemOtimizar } from "@/lib/logo-da-marca";
 
 /**
  * Onboarding guiado.
@@ -114,7 +115,7 @@ export default function ComecarPage() {
     <div className="flex min-h-screen flex-col items-center overflow-y-auto bg-canvas px-4 py-8 md:h-full md:py-14">
       <div className="flex w-full max-w-2xl flex-col gap-6">
         <header className="flex flex-col items-center gap-2 text-center">
-          <Image src={tenant.brand.logo} alt="" width={44} height={44} priority />
+          <Image src={tenant.brand.logo} unoptimized={logoSemOtimizar(tenant.brand.logo)} alt="" width={44} height={44} priority />
           <p className="text-xs uppercase tracking-wider text-ink-muted">
             Passo {indice + 1} de {ONBOARDING_STEPS.length}
           </p>

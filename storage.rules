@@ -100,10 +100,37 @@ service firebase.storage {
        * barbearia no Firestore. */
       allow read: if tipo in ['brand', 'photos', 'products'];
 
-      // Só o dono publica a cara da própria barbearia.
-      allow write: if tipo in ['brand', 'photos', 'products']
+      /* Só o dono publica a cara da própria barbearia. `brand` saiu desta
+       * lista de escrita (02/10): tem bloco próprio, mais estreito, logo
+       * abaixo. Ficar aqui também o deixaria valer — regra não é
+       * first-match, e o bloco mais frouxo venceria. */
+      allow write: if tipo in ['photos', 'products']
                    && isOwnerOf(barbershopId)
                    && isImageUnder(5);
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* Marca — o logo e os ícones da tela "Sua marca"                       */
+    /*                                                                      */
+    /* Cada envio é uma pasta com carimbo de tempo e um conjunto FIXO de    */
+    /* arquivos, todos PNG gerados no navegador (`lib/logo-da-marca.ts`).   */
+    /* Só PNG de propósito: SVG hospedado é documento e pode levar script,  */
+    /* e a tela converte qualquer formato para PNG antes de subir. 2 MB     */
+    /* sobram para um PNG de 512 px.                                        */
+    /*                                                                      */
+    /* Sem apagar: `request.resource` não existe na exclusão, então ela     */
+    /* cai negada. Envio antigo fica órfão, e nada o referencia.            */
+    /* ------------------------------------------------------------------ */
+
+    match /barbershops/{barbershopId}/brand/{envio}/{arquivo} {
+      allow read: if true;
+      allow write: if isOwnerOf(barbershopId)
+                   && envio.matches('^[0-9]{10,16}$')
+                   && arquivo in ['logo.png', 'icon-512.png', 'icon-192.png',
+                                  'maskable-512.png', 'maskable-192.png',
+                                  'apple-touch-icon.png', 'favicon-32.png']
+                   && request.resource.contentType == 'image/png'
+                   && request.resource.size < 2 * 1024 * 1024;
     }
 
     /* ------------------------------------------------------------------ */

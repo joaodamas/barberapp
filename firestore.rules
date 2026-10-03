@@ -226,7 +226,53 @@ service cloud.firestore {
                                                       * (`meusDestinos`): gravável,
                                                       * virava redirecionamento para
                                                       * qualquer site (29/09). */
-                                                     'isento', 'dominio']));
+                                                     'isento', 'dominio'])
+                        && marcaDoDonoValida(barbershopId));
+
+      /* A MARCA que o dono edita em "Sua marca" (02/10).
+       *
+       * `brand` inteiro era gravável pelo dono, e `brand.logo` vai para o
+       * favicon, o manifest e o topo do app do cliente: sem conferência, ele
+       * apontava o app para qualquer endereço. Agora só mudam estes campos, e
+       * cada um com forma:
+       *
+       * - `name` (2–60) e `shortName` (1–14) — os limites de
+       *   `lib/marca-editavel.ts`;
+       * - `accentColor` — `#rrggbb`;
+       * - `logo` — sai (volta o monograma) ou aponta para o `logo.png` de um
+       *   envio DESTA barbearia no Storage (`lib/logo-da-marca.ts`);
+       * - `logoHorizontal` e `icones` — o dono só os REMOVE: quem grava é a
+       *   plataforma (o piloto tem pasta de ícones própria).
+       *
+       * `themeColor`, `panelLabel` e `clientTagline` ficam com a plataforma.
+       * O cadastro grava a marca pela função (Admin SDK), que não passa aqui. */
+      function marcaDoDonoValida(barbershopId) {
+        let antes = resource.data.get('brand', {});
+        let depois = request.resource.data.get('brand', {});
+        let mudou = depois.diff(antes).affectedKeys();
+        return mudou.hasOnly(['name', 'shortName', 'accentColor', 'logo', 'logoHorizontal', 'icones'])
+          && (!('name' in mudou) || textoEntre(depois.get('name', null), 2, 60))
+          && (!('shortName' in mudou) || textoEntre(depois.get('shortName', null), 1, 14))
+          && (!('accentColor' in mudou)
+              || (depois.get('accentColor', null) is string
+                  && depois.accentColor.matches('^#[0-9a-fA-F]{6}$')))
+          && (!('logo' in mudou) || !('logo' in depois) || logoDaBarbearia(depois.logo, barbershopId))
+          && (!('logoHorizontal' in mudou) || !('logoHorizontal' in depois))
+          && (!('icones' in mudou) || !('icones' in depois));
+      }
+
+      function textoEntre(v, minimo, maximo) {
+        return v is string && v.trim().size() >= minimo && v.size() <= maximo;
+      }
+
+      /* O `logo.png` de um envio desta barbearia, no Storage oficial (ou no
+       * emulador). Mesmo formato que `ehLogoDaBarbearia` confere no app. O id
+       * da barbearia é alfanumérico, e por isso entra direto na expressão. */
+      function logoDaBarbearia(url, barbershopId) {
+        return url is string
+          && url.matches('^(https://firebasestorage[.]googleapis[.]com|http://(127[.]0[.]0[.]1|localhost):9199)/v0/b/[a-z0-9._-]+/o/barbershops%2F'
+                         + barbershopId + '%2Fbrand%2F[0-9]{10,16}%2Flogo[.]png[?]alt=media$');
+      }
 
       /* -------- contrato com a plataforma: nunca público -------- */
 

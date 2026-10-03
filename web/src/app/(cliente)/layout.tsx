@@ -5,6 +5,7 @@ import { PaginaDaPlataforma } from "@/components/landing/pagina";
 import { getTenant, isPlatformRoot } from "@/lib/tenant-server";
 import { ClienteBottomNav } from "@/components/cliente-bottom-nav";
 import { ClienteSidebarNav } from "@/components/cliente-sidebar-nav";
+import { logoSemOtimizar } from "@/lib/logo-da-marca";
 
 export default async function ClienteLayout({
   children,
@@ -34,7 +35,7 @@ export default async function ClienteLayout({
         <div className="flex min-h-full w-full flex-1 flex-col md:h-full md:overflow-hidden">
           <header className="safe-top flex items-center gap-2.5 px-4 pb-3 pt-4 md:hidden">
             <Link href="/" className="flex items-center gap-2.5">
-              <Image src={brand.logo} alt="" width={32} height={32} priority />
+              <Image src={brand.logo} unoptimized={logoSemOtimizar(brand.logo)} alt="" width={32} height={32} priority />
               <span className="font-display text-sm uppercase tracking-wider text-ink">
                 {brand.shortName}
               </span>

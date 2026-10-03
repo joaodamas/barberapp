@@ -54,7 +54,7 @@ beforeAll(async () => {
   await testEnv.withSecurityRulesDisabled(async (ctx) => {
     const s = ctx.storage();
     for (const bid of [ALFA, BETA]) {
-      await uploadBytes(ref(s, `barbershops/${bid}/brand/logo.png`), PNG, imagem);
+      await uploadBytes(ref(s, `barbershops/${bid}/brand/1727000000000/logo.png`), PNG, imagem);
       await uploadBytes(ref(s, `barbershops/${bid}/reports/fechamento-julho.pdf`), PNG);
     }
     await uploadBytes(ref(s, `users/${CLIENTE.sub}/avatar/foto.png`), PNG, imagem);
@@ -88,13 +88,13 @@ describe("isolamento entre barbearias no Storage", () => {
 
   it("🔒 o dono da Alfa NÃO publica na marca da Beta", async () => {
     await assertFails(
-      uploadBytes(ref(as(DONO_ALFA), `barbershops/${BETA}/brand/logo.png`), PNG, imagem)
+      uploadBytes(ref(as(DONO_ALFA), `barbershops/${BETA}/brand/1727000000000/logo.png`), PNG, imagem)
     );
   });
 
   it("o dono publica a própria marca e as próprias fotos", async () => {
     await assertSucceeds(
-      uploadBytes(ref(as(DONO_ALFA), `barbershops/${ALFA}/brand/logo.png`), PNG, imagem)
+      uploadBytes(ref(as(DONO_ALFA), `barbershops/${ALFA}/brand/1727000000000/logo.png`), PNG, imagem)
     );
     await assertSucceeds(
       uploadBytes(ref(as(DONO_ALFA), `barbershops/${ALFA}/photos/salao.png`), PNG, imagem)
@@ -107,20 +107,82 @@ describe("isolamento entre barbearias no Storage", () => {
       getBytes(ref(as(DONO_LEGADO), `barbershops/${ALFA}/reports/fechamento-julho.pdf`))
     );
     await assertFails(
-      uploadBytes(ref(as(DONO_LEGADO), `barbershops/${ALFA}/brand/logo.png`), PNG, imagem)
+      uploadBytes(ref(as(DONO_LEGADO), `barbershops/${ALFA}/brand/1727000000000/logo.png`), PNG, imagem)
     );
   });
 
   it("🔒 cliente não publica nada na barbearia", async () => {
     await assertFails(
-      uploadBytes(ref(as(CLIENTE), `barbershops/${ALFA}/brand/logo.png`), PNG, imagem)
+      uploadBytes(ref(as(CLIENTE), `barbershops/${ALFA}/brand/1727000000000/logo.png`), PNG, imagem)
     );
+  });
+});
+
+describe("marca — a tela \"Sua marca\" (02/10)", () => {
+  const ENVIO = `barbershops/${ALFA}/brand/1727000000000`;
+
+  it("o dono sobe o logo e cada um dos ícones gerados", async () => {
+    for (const arquivo of [
+      "logo.png",
+      "icon-512.png",
+      "icon-192.png",
+      "maskable-512.png",
+      "maskable-192.png",
+      "apple-touch-icon.png",
+      "favicon-32.png",
+    ]) {
+      await assertSucceeds(uploadBytes(ref(as(DONO_ALFA), `${ENVIO}/${arquivo}`), PNG, imagem));
+    }
+  });
+
+  it("🔒 SVG não sobe — é documento e pode levar script", async () => {
+    await assertFails(
+      uploadBytes(ref(as(DONO_ALFA), `${ENVIO}/logo.png`), PNG, { contentType: "image/svg+xml" })
+    );
+  });
+
+  it("🔒 só PNG: nem JPEG passa, mesmo com o nome certo", async () => {
+    await assertFails(
+      uploadBytes(ref(as(DONO_ALFA), `${ENVIO}/logo.png`), PNG, { contentType: "image/jpeg" })
+    );
+  });
+
+  it("🔒 nome fora da lista não sobe", async () => {
+    await assertFails(uploadBytes(ref(as(DONO_ALFA), `${ENVIO}/qualquer.png`), PNG, imagem));
+    await assertFails(uploadBytes(ref(as(DONO_ALFA), `${ENVIO}/index.html`), PNG, imagem));
+  });
+
+  it("🔒 fora de uma pasta de envio com carimbo não sobe", async () => {
+    await assertFails(uploadBytes(ref(as(DONO_ALFA), `barbershops/${ALFA}/brand/logo.png`), PNG, imagem));
+    await assertFails(
+      uploadBytes(ref(as(DONO_ALFA), `barbershops/${ALFA}/brand/abc/logo.png`), PNG, imagem)
+    );
+    await assertFails(
+      uploadBytes(ref(as(DONO_ALFA), `barbershops/${ALFA}/brand/1727000000000/x/logo.png`), PNG, imagem)
+    );
+  });
+
+  it("🔒 acima de 2 MB não sobe", async () => {
+    const grande = new Uint8Array(2 * 1024 * 1024);
+    await assertFails(uploadBytes(ref(as(DONO_ALFA), `${ENVIO}/logo.png`), grande, imagem));
+  });
+
+  it("🔒 o barbeiro não troca a marca — só o dono", async () => {
+    await assertFails(uploadBytes(ref(as(BARBEIRO_ALFA), `${ENVIO}/logo.png`), PNG, imagem));
+  });
+
+  it("🔒 o dono da Beta não sobe na pasta da Alfa", async () => {
+    await assertFails(uploadBytes(ref(as(DONO_BETA), `${ENVIO}/logo.png`), PNG, imagem));
+  });
+
+  it("qualquer um lê — o ícone e o logo aparecem antes do login", async () => {
+    await assertSucceeds(getBytes(ref(anon(), `barbershops/${ALFA}/brand/1727000000000/logo.png`)));
   });
 });
 
 describe("vitrine é pública, financeiro não", () => {
   it("a logo é legível sem login — ela aparece na tela de entrada", async () => {
-    await assertSucceeds(getBytes(ref(anon(), `barbershops/${ALFA}/brand/logo.png`)));
+    await assertSucceeds(getBytes(ref(anon(), `barbershops/${ALFA}/brand/1727000000000/logo.png`)));
   });
 
   it("🔒 o fechamento NÃO é legível sem login", async () => {

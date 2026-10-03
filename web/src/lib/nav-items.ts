@@ -6,6 +6,7 @@ import {
   CreditCard,
   LineChart,
   Link2,
+  Palette,
   Percent,
   PiggyBank,
   Receipt,
@@ -221,6 +222,10 @@ export const painelNavItems: NavItem[] = [
       { href: "/painel/configuracoes", label: "Taxas e regras", icon: Percent },
       { href: "/painel/horarios", label: "Horários", icon: Clock },
       { href: "/painel/meu-link", label: "Meu link", icon: Link2 },
+      /* Logo, cor e nome: o que o cliente vê no app e no ícone do celular.
+       * Ao lado de "Meu link" porque as duas respondem "como minha barbearia
+       * aparece para o cliente". */
+      { href: "/painel/marca", label: "Sua marca", icon: Palette },
       { href: "/painel/servicos", label: "Serviços", icon: Scissors },
       { href: "/painel/equipe", label: "Equipe", icon: UsersRound },
       { href: "/painel/avisos", label: "Avisos", icon: Bell },
