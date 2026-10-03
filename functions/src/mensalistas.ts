@@ -589,12 +589,32 @@ export const gerarFaturasDoMes = onCall<{
  * `paymentMethod` é obrigatório e congelado, mesmo desenho de G1: inferir meio
  * de pagamento depois é o que a premissa N12 recusa.
  */
+/**
+ * A data em que o cliente PAGOU — que não é, necessariamente, hoje (02/10).
+ *
+ * A barbearia que começa a usar no fim do mês cadastra mensalistas que já
+ * pagaram aquele mês na mão. Registrar com a data de hoje jogava o dinheiro de
+ * setembro no caixa de outubro. Aceita até 120 dias para trás e nunca o
+ * futuro: pagamento que ainda não aconteceu não é fato financeiro.
+ */
+export function dataDoPagamentoValida(data: unknown, hoje: string): string | null {
+  if (data === undefined || data === null || data === "") return hoje;
+  if (typeof data !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(data)) return null;
+  const t = Date.parse(`${data}T00:00:00Z`);
+  if (Number.isNaN(t) || new Date(t).toISOString().slice(0, 10) !== data) return null;
+  if (data > hoje) return null;
+  const dias = (Date.parse(`${hoje}T00:00:00Z`) - t) / 86_400_000;
+  return dias <= 120 ? data : null;
+}
+
 export const registrarPagamentoDeMensalidade = onCall<{
   barbershopId: string;
   invoiceId: string;
   paymentMethod: PaymentMethod;
   /** A forma exata, quando a barbearia cadastrou as dela. */
   paymentFormId?: string | null;
+  /** `AAAA-MM-DD` em que o cliente pagou; vazio é hoje. */
+  paidAt?: string | null;
 }>(async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Entre na sua conta.");
@@ -616,6 +636,10 @@ export const registrarPagamentoDeMensalidade = onCall<{
   if (!shopSnap.exists) throw new HttpsError("not-found", "Barbearia não encontrada.");
 
   const hoje = hojeNoFuso(localeDoDocumento(shopSnap.data()).timeZone);
+  const pagoEm = dataDoPagamentoValida(request.data?.paidAt, hoje);
+  if (!pagoEm) {
+    throw new HttpsError("invalid-argument", "Data do pagamento inválida: hoje ou até 120 dias atrás.");
+  }
   const ref = shopRef.collection("subscription_invoices").doc(String(invoiceId));
 
   /* Taxas lidas fora da transação — política, não estado disputado. */
@@ -648,7 +672,7 @@ export const registrarPagamentoDeMensalidade = onCall<{
 
     tx.update(ref, {
       status: "paga",
-      paidAt: hoje,
+      paidAt: pagoEm,
       paymentMethod,
       registradoPor: uid,
     });
@@ -669,7 +693,7 @@ export const registrarPagamentoDeMensalidade = onCall<{
       documentoDePagamento({
         ref: { origem: "mensalidade", invoiceId: String(invoiceId) },
         clientId: (snap.get("clientId") as string | null) ?? null,
-        date: hoje,
+        date: pagoEm,
         bruto: Number(snap.get("amount")) || 0,
         metodo: paymentMethod,
         fees,
@@ -681,7 +705,7 @@ export const registrarPagamentoDeMensalidade = onCall<{
     return {
       invoiceId: String(invoiceId),
       amount: Number(snap.get("amount")) || 0,
-      paidAt: hoje,
+      paidAt: pagoEm,
       paymentMethod,
       repetida: false,
     };
@@ -700,6 +724,56 @@ export const registrarPagamentoDeMensalidade = onCall<{
  * (`aplicarNaFaturaAberta`) E ela ainda estiver `aberta` — fatura paga é
  * dinheiro que entrou e nunca muda de valor.
  */
+/**
+ * "Não cobrar" uma mensalidade aberta (02/10).
+ *
+ * O caso que trouxe: barbearia que começou em 28/09 e emitiu setembro inteiro
+ * para mensalistas que não deviam aquele mês ao sistema. Sem esta porta, a
+ * dívida falsa ficava para sempre em "Em aberto de meses anteriores".
+ *
+ * Só fatura ABERTA: a paga já é dinheiro (o caminho dela é Devolver). Não
+ * apaga — vira `cancelada` com quem, quando e por quê, e sai do faturado.
+ */
+export const dispensarMensalidade = onCall<{
+  barbershopId: string;
+  invoiceId: string;
+  motivo?: string | null;
+}>(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Entre na sua conta.");
+  const { barbershopId, invoiceId } = request.data ?? {};
+  if (!barbershopId || !invoiceId) {
+    throw new HttpsError("invalid-argument", "Fatura não informada.");
+  }
+  exigirVinculo(request, barbershopId);
+  await exigirEdicao(barbershopId);
+  const motivo = String(request.data?.motivo ?? "").trim().slice(0, 140) || null;
+
+  const db = getFirestore();
+  const shopRef = db.doc(`barbershops/${barbershopId}`);
+  const shopSnap = await shopRef.get();
+  if (!shopSnap.exists) throw new HttpsError("not-found", "Barbearia não encontrada.");
+  const hoje = hojeNoFuso(localeDoDocumento(shopSnap.data()).timeZone);
+  const ref = shopRef.collection("subscription_invoices").doc(String(invoiceId));
+
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) throw new HttpsError("not-found", "Fatura não encontrada.");
+    const status = snap.get("status");
+    if (status === "cancelada") return { invoiceId: String(invoiceId), repetida: true };
+    if (status !== "aberta") {
+      throw new HttpsError("failed-precondition", "Essa mensalidade já foi paga. Para desfazer, use Devolver.");
+    }
+    tx.update(ref, {
+      status: "cancelada",
+      canceladaEm: hoje,
+      canceladaPor: uid,
+      motivoDoCancelamento: motivo,
+    });
+    return { invoiceId: String(invoiceId), repetida: false };
+  });
+});
+
 export function valorDoMensalValido(valor: unknown): number | null {
   const n = typeof valor === "number" ? valor : Number(valor);
   if (!Number.isFinite(n) || n <= 0 || n > 100_000) return null;
