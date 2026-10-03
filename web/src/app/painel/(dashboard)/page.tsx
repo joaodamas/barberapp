@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { EtiquetaEncaixe } from "@/components/agenda/etiqueta-encaixe";
+import { EtiquetaMensalista, useMensalistasAtivos } from "@/components/agenda/etiqueta-mensalista";
 import { cn } from "@/lib/cn";
 import { Pill } from "@/components/ui/pill";
 import { Button } from "@/components/ui/button";
@@ -176,6 +177,9 @@ export default function PainelHojePage() {
 
   const [balcaoAberto, setBalcaoAberto] = useState(false);
   const atendimento = useAcoesDoAtendimento();
+  /* Quem é mensalista (plano ativo): etiqueta ao lado do nome e no
+   * pagamento dos horários em aberto — no fechamento é que o plano decide. */
+  const mensalistas = useMensalistasAtivos();
 
   /* D2 · o caixa do dia nasce do PAGAMENTO, não da reserva concluída.
    *
@@ -434,7 +438,13 @@ export default function PainelHojePage() {
            * pagamento tem gravado. O corte coberto pelo plano não tem
            * pagamento — e exibia "A pagar no salão" depois de concluído, que
            * é o produto mandando cobrar de novo o que a mensalidade pagou. */
-          const pagamento = ({ liquidacao }: Linha) => (
+          const pagamento = ({ liquidacao, booking, emAberto }: Linha) =>
+            emAberto && !liquidacao.coberto && mensalistas.has(booking.clientId) ? (
+              <>
+                <span className="text-ink">Mensalista</span>
+                <span className="block text-[11px]">coberto pelo plano, se estiver na cota</span>
+              </>
+            ) : (
             <>
               {liquidacao.coberto ? (
                 <span className="text-ink">{liquidacao.label}</span>
@@ -445,7 +455,7 @@ export default function PainelHojePage() {
                 <span className="block text-[11px]">{liquidacao.detalhe}</span>
               )}
             </>
-          );
+            );
           const acoes = ({ booking, statusMeta, liquidacao, emAberto, podeConcluir, atrasado }: Linha) => (
             <div className="flex flex-wrap items-center gap-x-1 gap-y-2 md:flex-nowrap">
               {/* Concluído é o estado BOM do dia, e era um cinza igual ao de
@@ -591,7 +601,18 @@ export default function PainelHojePage() {
               </div>
 
               <Card className="table-scroll hidden overflow-x-auto p-0 md:block">
-                <table className="w-full min-w-[720px] text-sm">
+                <table className="w-full min-w-[1010px] table-fixed text-sm">
+                  {/* Larguras FIXAS (02/10): a tabela se ajustava ao conteúdo
+                      de cada dia e as colunas pulavam ao trocar de data. */}
+                  <colgroup>
+                    <col className="w-[88px]" />
+                    <col className="w-[22%]" />
+                    <col className="w-[150px]" />
+                    <col className="w-[18%]" />
+                    <col className="w-[17%]" />
+                    <col className="w-[110px]" />
+                    <col className="w-[350px]" />
+                  </colgroup>
                   <thead>
                     <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ink-muted">
                       <th className="px-4 py-3 font-medium md:px-6">Hora</th>
@@ -621,8 +642,15 @@ export default function PainelHojePage() {
                           )}
                         </td>
                         <td className="px-4 py-3 text-ink">
-                          {l.booking.clientName}
-                          {l.booking.isFitIn && <EtiquetaEncaixe className="ml-2 align-middle" />}
+                          {/* Etiquetas SEMPRE ao lado do nome (02/10): antes
+                              quebravam para baixo quando o nome era longo. */}
+                          <div className="flex min-w-0 items-center gap-2">
+                            <span className="min-w-0 truncate" title={l.booking.clientName}>
+                              {l.booking.clientName}
+                            </span>
+                            {l.booking.isFitIn && <EtiquetaEncaixe className="shrink-0" />}
+                            {mensalistas.has(l.booking.clientId) && <EtiquetaMensalista className="shrink-0" />}
+                          </div>
                         </td>
                         <td className="whitespace-nowrap px-4 py-3">{telefone(l)}</td>
                         <td className="px-4 py-3 text-ink-muted">
