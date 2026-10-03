@@ -176,7 +176,6 @@ export default function PainelHojePage() {
   const { visiveis: acoesVisiveis, ocultos: acoesOcultas } =
     repartirParaExibicao(itensSoDaColuna);
 
-  const semColunaLateral = itensSoDaColuna.length === 0;
   const [balcaoAberto, setBalcaoAberto] = useState(false);
   const atendimento = useAcoesDoAtendimento();
 
@@ -247,12 +246,12 @@ export default function PainelHojePage() {
   }
 
   return (
-    /* A coluna lateral só abre em tela LARGA (2xl). Era `md:`, com `1fr`: num
-     * notebook de 1366px a tabela da agenda (mín. 720px) não cabia ao lado dos
-     * 360px da coluna, e a tela inteira vazava pela direita — "Recebido hoje"
-     * e "Precisa de você" cortados (medido em 24/09). Abaixo disso, empilha. */
-    <div className="grid grid-cols-1 gap-5 pt-1 md:gap-8 md:pt-2 2xl:grid-cols-[minmax(0,1fr)_360px] 2xl:items-start 2xl:gap-x-10">
-      <div className="2xl:col-span-2">
+    /* Uma coluna só, em todo tamanho (02/10). A coluna lateral de 360px do
+     * "Precisa de você" espremia a agenda mesmo em tela larga e cortava a
+     * coluna "Editar cobrança" (pedido do dono). Os avisos viram uma faixa de
+     * cartões ACIMA da agenda, e a tabela fica com a largura inteira. */
+    <div className="grid grid-cols-1 gap-5 pt-1 md:gap-8 md:pt-2">
+      <div>
         <p className="text-sm text-ink-muted md:text-base">Hoje</p>
         <h1 className="text-xl text-ink md:text-4xl md:tracking-tight">
           {new Date().toLocaleDateString("pt-BR", {
@@ -281,7 +280,7 @@ export default function PainelHojePage() {
        * §10.6, a identidade se reforça, não se inventa. */}
       {/* Três no celular, lado a lado: em duas colunas o terceiro ficava
           sozinho numa linha, e a agenda descia meia tela (passeio de 24/09). */}
-      <div className="grid grid-cols-3 gap-2 md:grid-cols-4 md:gap-4 2xl:col-span-2">
+      <div className="grid grid-cols-3 gap-2 md:grid-cols-4 md:gap-4">
         <Card className="flex flex-col items-center gap-1 p-3 text-center md:flex-row md:justify-start md:gap-3 md:p-5">
           <Scissors size={16} className="mx-auto text-gold-strong md:mx-0 md:h-9 md:w-9 md:shrink-0 md:rounded-xl md:bg-gold/10 md:p-2" />
           <div className="md:text-left">
@@ -346,7 +345,7 @@ export default function PainelHojePage() {
           Cada cartão também some pela SUA fonte, e não mais pela da agenda: a
           previsão morre com `bookings` ilegível, o recebido com `payments`. Era
           o mesmo gate para os dois porque os dois vinham de `bookings`. */}
-      <div className="grid gap-3 md:grid-cols-2 md:gap-4 2xl:col-span-2">
+      <div className="grid gap-3 md:grid-cols-2 md:gap-4">
         {!agendaIlegivel && (
           <Card className="flex flex-col gap-1 md:p-6">
             <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
@@ -381,12 +380,12 @@ export default function PainelHojePage() {
 
 
       {(acoesVisiveis.length > 0 || atendimento.temAviso) && (
-        <section className="2xl:col-start-2 2xl:row-start-4">
+        <section >
         {atendimento.avisos}
           <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
             Precisa de você
           </h2>
-          <div className="flex flex-col gap-2 md:grid md:grid-cols-2 md:gap-3 2xl:flex">
+          <div className="flex flex-col gap-2 md:grid md:grid-cols-2 md:gap-3 xl:grid-cols-3">
             {acoesVisiveis.map((item) => (
               <ItemDeAcao key={item.id} item={item} onExecutar={executarIntencao} />
             ))}
@@ -408,13 +407,7 @@ export default function PainelHojePage() {
           com um vão à direita, enquanto os blocos de cima iam até a borda. Sem
           nada ao lado, a agenda ocupa a largura inteira: é a tabela com mais
           colunas do painel, e é onde a largura faz diferença. */}
-      <section
-        className={
-          semColunaLateral
-            ? "2xl:col-span-2"
-            : "2xl:col-start-1 2xl:row-start-4 2xl:row-span-2"
-        }
-      >
+      <section>
         {/* D13 · o botão de marcar mora AQUI, na agenda do dia.
          *
          * É onde o dono está quando alguém chega no balcão ou liga — e era
@@ -749,7 +742,7 @@ export default function PainelHojePage() {
       </section>
 
       {!agendaIlegivel && (
-      <section className="2xl:col-span-2">
+      <section>
         <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
           Caixa de hoje
         </h2>

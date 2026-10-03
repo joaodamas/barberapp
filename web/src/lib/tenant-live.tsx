@@ -138,9 +138,13 @@ export function TenantLive({
               setFicha({ id: snap.id, data });
               return;
             }
-            /* Sem dados e vindo do CACHE: o cache local pode estar errado
-             * (02/10). Pergunta ao servidor uma vez, sem apagar nada. */
-            if (snap.metadata.fromCache && !conferiu) {
+            /* Sem dados: pergunta ao servidor uma vez, venha o "não existe" do
+             * cache OU da escuta (02/10). Com o cache local corrompido, a escuta
+             * retoma pelo token de retomada, o servidor responde "nada mudou" e
+             * o snapshot chega SEM `fromCache`, afirmando que a barbearia não
+             * existe. `getDocFromServer` ignora o cache, traz a verdade e a
+             * grava no cache — o que também cura a escuta. */
+            if (!conferiu) {
               conferiu = true;
               getDocFromServer(ref)
                 .then((s) => {
@@ -186,13 +190,10 @@ export function TenantLive({
               if (!snap.metadata.fromCache) setEstadoDoFinanceiro("confirmado");
               return;
             }
-            if (!snap.metadata.fromCache) {
-              /* O servidor disse que não existe: aí sim, padrões. */
-              setFinanceiro({});
-              setEstadoDoFinanceiro("confirmado");
-              return;
-            }
-            /* "Não existe" vindo do cache não é resposta (02/10). */
+            /* "Não existe" nunca é aceito de primeira (02/10): nem do cache,
+             * nem da escuta — com o cache local corrompido, a escuta retomada
+             * chega SEM `fromCache` e ainda assim mente. Quem afirma "não
+             * existe" é só `getDocFromServer`, que ignora o cache. */
             if (!conferiu) {
               conferiu = true;
               getDocFromServer(ref)

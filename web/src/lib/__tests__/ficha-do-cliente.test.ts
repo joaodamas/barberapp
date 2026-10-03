@@ -244,23 +244,8 @@ describe("D26 · mensalista", () => {
 });
 
 describe("D26 · a lista", () => {
-  it("ordena por quem esteve aqui mais recentemente", () => {
-    /* O dono procura quem passou pela loja, não a ordem alfabética do cadastro. */
-    const r = listaDeClientes({
-      ...base,
-      clientes: [
-        cliente({ id: "c1", name: "Ana" }),
-        cliente({ id: "c2", name: "Bruno" }),
-      ],
-      bookings: [
-        bk({ id: "1", clientId: "c1", date: "2026-09-01" }),
-        bk({ id: "2", clientId: "c2", date: "2026-09-18" }),
-      ],
-    });
-    expect(r.map((f) => f.cliente.name)).toEqual(["Bruno", "Ana"]);
-  });
-
-  it("quem nunca veio fica no fim, em ordem de nome", () => {
+  it("ordena em ordem alfabética, sem importar a última visita", () => {
+    /* Pedido do dono (02/10): ele procura o cliente pelo nome. */
     const r = listaDeClientes({
       ...base,
       clientes: [
@@ -268,9 +253,27 @@ describe("D26 · a lista", () => {
         cliente({ id: "c2", name: "Bruno" }),
         cliente({ id: "c1", name: "Ana" }),
       ],
-      bookings: [bk({ id: "1", clientId: "c1", date: "2026-09-01" })],
+      bookings: [
+        bk({ id: "1", clientId: "c3", date: "2026-09-18" }),
+        bk({ id: "2", clientId: "c1", date: "2026-09-01" }),
+      ],
     });
     expect(r.map((f) => f.cliente.name)).toEqual(["Ana", "Bruno", "Zeca"]);
+  });
+
+  it("ignora acento e maiúscula, como no Brasil", () => {
+    const r = listaDeClientes({
+      ...base,
+      clientes: [
+        cliente({ id: "c1", name: "joão" }),
+        cliente({ id: "c2", name: "Álvaro" }),
+        cliente({ id: "c3", name: "Alberto" }),
+        cliente({ id: "c4", name: "Ícaro" }),
+        cliente({ id: "c5", name: "Igor" }),
+      ],
+      bookings: [],
+    });
+    expect(r.map((f) => f.cliente.name)).toEqual(["Alberto", "Álvaro", "Ícaro", "Igor", "joão"]);
   });
 
   it("cadastro fundido não aparece", () => {

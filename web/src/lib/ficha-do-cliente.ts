@@ -104,10 +104,13 @@ export function fichaDoCliente(params: {
 /**
  * A lista da tela, já com o que ela precisa mostrar.
  *
- * Ordena por última visita, do mais recente para o mais antigo, com quem nunca
- * veio no fim: o dono procura quem esteve aqui, não quem está cadastrado em
- * ordem alfabética.
+ * Ordem ALFABÉTICA do nome (pedido do dono, 02/10): é como ele procura um
+ * cliente na lista. Comparação brasileira — sem diferenciar acento nem
+ * maiúscula ("Álvaro" junto de "Alberto", "joão" junto de "João") e com
+ * números em ordem natural. Quem sumiu continua visível em "há N dias".
  */
+const ORDEM_DE_NOME = new Intl.Collator("pt-BR", { sensitivity: "base", numeric: true });
+
 export function listaDeClientes(params: {
   clientes: Doc<ClientDoc>[];
   bookings: Doc<BookingDoc>[];
@@ -119,10 +122,7 @@ export function listaDeClientes(params: {
   return params.clientes
     .filter((c) => c.active !== false)
     .map((cliente) => fichaDoCliente({ ...params, cliente }))
-    .sort((a, b) => {
-      if (a.ultimaVisita && b.ultimaVisita) return b.ultimaVisita.localeCompare(a.ultimaVisita);
-      if (a.ultimaVisita) return -1;
-      if (b.ultimaVisita) return 1;
-      return a.cliente.name.localeCompare(b.cliente.name);
-    });
+    .sort((a, b) =>
+      ORDEM_DE_NOME.compare((a.cliente.name ?? "").trim(), (b.cliente.name ?? "").trim())
+    );
 }
