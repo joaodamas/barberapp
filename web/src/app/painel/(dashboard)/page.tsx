@@ -15,9 +15,7 @@ import {
   CreditCard,
   HelpCircle,
   Landmark,
-  Percent,
   RotateCcw,
-  Scissors,
   UserX,
   Wallet,
 } from "lucide-react";
@@ -40,12 +38,13 @@ import {
 } from "@/lib/action-center";
 import { usePayments } from "@/lib/db/use-shop-data";
 import { formasAtivas } from "@/lib/formas-de-pagamento";
-import { formatBRL, formatPctPtBR, formatPhonePtBR, safePct } from "@/lib/format";
-import { NAO_APURADO } from "@/lib/apuracao";
+import { formatBRL, formatPhonePtBR, safePct } from "@/lib/format";
 import { contar } from "@/lib/plural";
 import { useTenant } from "@/lib/tenant-context";
 import { useBookings, useServices, useStaff } from "@/lib/db/use-shop-data";
 import { MarcarNoBalcao } from "@/components/marcar-no-balcao";
+import { ResumoDoDiaTopo } from "@/components/hoje/resumo-do-dia";
+import { resumoDoDia } from "@/lib/resumo-do-dia";
 import { useAcoesDoAtendimento } from "@/components/agenda/acoes-do-atendimento";
 import { caixaDoDia, mesPeriodo, previsaoDoDia } from "@/lib/analytics";
 import { capacidadeDaData, horariosLivresRestantes } from "@/lib/jornada";
@@ -121,7 +120,6 @@ export default function PainelHojePage() {
     .sort((a, b) => (a.time ?? "").localeCompare(b.time ?? ""));
   const agendados = bookings.filter((b) => OCCUPIES_SLOT.includes(b.status));
 
-  const confirmedCount = agendados.length;
   /* De agora em diante, por cadeira, pela duração real — ver
    * `horariosLivresRestantes`. Era "capacidade do dia − número de reservas". */
   const idsAtivos = equipe.filter((b) => b.active !== false).map((b) => b.id);
@@ -251,133 +249,25 @@ export default function PainelHojePage() {
      * coluna "Editar cobrança" (pedido do dono). Os avisos viram uma faixa de
      * cartões ACIMA da agenda, e a tabela fica com a largura inteira. */
     <div className="grid grid-cols-1 gap-5 pt-1 md:gap-8 md:pt-2">
-      <div>
-        <p className="text-sm text-ink-muted md:text-base">Hoje</p>
-        <h1 className="text-xl text-ink md:text-4xl md:tracking-tight">
-          {new Date().toLocaleDateString("pt-BR", {
-            weekday: "long",
-            day: "2-digit",
-            month: "long",
-          })}
-        </h1>
-      </div>
-
-      {/* O KPI "previsto hoje" saiu daqui.
-       *
-       * Ele imprimia `previsaoHoje` — a MESMA variável que o cartão "Previsão ×
-       * recebido" imprime 40px abaixo, com o rótulo "Previsão do dia". Um
-       * número, dois nomes, uma tela: é o defeito que `UI-UX-GUIDELINES.md`
-       * §13 lista nominalmente como exemplo proibido, e ele estava aqui.
-       *
-       * O número NÃO saiu da tela — saiu da repetição. Onde ele ficou é onde
-       * ele vira decisão: ao lado do recebido, com a barra que responde "estou
-       * no ritmo do que a agenda prometia?". Sozinho aqui em cima ele não
-       * permitia nenhuma decisão que o cartão de baixo já não permitisse.
-       *
-       * A grade continua `md:grid-cols-4` de propósito: três cartões ocupam
-       * três colunas e o quarto vão fica livre. Apertar para `grid-cols-3` no
-       * desktop mudaria a largura dos três, e largura de cartão é identidade —
-       * §10.6, a identidade se reforça, não se inventa. */}
-      {/* Três no celular, lado a lado: em duas colunas o terceiro ficava
-          sozinho numa linha, e a agenda descia meia tela (passeio de 24/09). */}
-      <div className="grid grid-cols-3 gap-2 md:grid-cols-4 md:gap-4">
-        <Card className="flex flex-col items-center gap-1 p-3 text-center md:flex-row md:justify-start md:gap-3 md:p-5">
-          <Scissors size={16} className="mx-auto text-gold-strong md:mx-0 md:h-9 md:w-9 md:shrink-0 md:rounded-xl md:bg-gold/10 md:p-2" />
-          <div className="md:text-left">
-            <p className="font-display text-sm font-semibold text-ink md:text-2xl">
-              {agendaIlegivel ? NAO_APURADO : confirmedCount}
-            </p>
-            <p className="text-[11px] text-ink-muted md:text-xs md:uppercase md:tracking-wide">
-              atendimentos
-            </p>
-          </div>
-        </Card>
-        <Card className="flex flex-col items-center gap-1 p-3 text-center md:flex-row md:justify-start md:gap-3 md:p-5">
-          <Percent size={16} className="mx-auto text-gold-strong md:mx-0 md:h-9 md:w-9 md:shrink-0 md:rounded-xl md:bg-gold/10 md:p-2" />
-          <div className="md:text-left">
-            <p className="font-display text-sm font-semibold text-ink md:text-2xl">
-              {agendaIlegivel ? NAO_APURADO : formatPctPtBR(ocupacaoPct, 0)}
-            </p>
-            <p className="text-[11px] text-ink-muted md:text-xs md:uppercase md:tracking-wide">
-              ocupação
-            </p>
-          </div>
-        </Card>
-        <Card className="flex flex-col items-center gap-1 p-3 text-center md:flex-row md:justify-start md:gap-3 md:p-5">
-          <CalendarCheck size={16} className="mx-auto text-gold-strong md:mx-0 md:h-9 md:w-9 md:shrink-0 md:rounded-xl md:bg-gold/10 md:p-2" />
-          <div className="md:text-left">
-            <p className="font-display text-sm font-semibold text-ink md:text-2xl">
-              {agendaIlegivel ? NAO_APURADO : horariosLivres}
-            </p>
-            <p className="text-[11px] text-ink-muted md:text-xs md:uppercase md:tracking-wide">
-              horários livres
-            </p>
-          </div>
-        </Card>
-      </div>
-
-      {/* F5/F6 · duas perguntas, dois cartões — e nenhuma régua entre elas.
-          =================================================================
-          Isto era um cartão só, com uma barra de progresso: `previsaoHoje` em
-          cima, `recebidoReal` embaixo, e `safePct(recebido, previsão)` no meio.
-          A barra afirmava "quanto do previsto já entrou".
-
-          Ela deixou de poder afirmar isso no D2. "Previsão do dia" sai da
-          AGENDA e é serviço; "Recebido" passou a sair de `payments` e é caixa de
-          TODAS as origens. Medido na tela em 18/08, com dois atendimentos, uma
-          venda e uma mensalidade:
-
-              Previsão do dia    R$ 100,00   (2 cortes agendados)
-              Recebido até agora R$ 244,00   (50 serviço + 45 venda + 149 mensalidade)
-
-          A barra ficava cheia e sugeria 244% de um dia "realizado". Os R$ 149 da
-          mensalidade e os R$ 45 da venda não pertencem à população da previsão:
-          venda não ocupa horário e mensalidade não é atendimento. O percentual
-          não estava errado por arredondamento — estava comparando coisas que
-          não se comparam.
-
-          A saída NÃO é voltar o recebido para serviço só. O D2 estabeleceu que
-          recebido é caixa, e desfazer isso para a barra funcionar seria escolher
-          a régua em vez do fato. A saída é separar as perguntas: "o que estava
-          previsto para hoje?" e "quanto dinheiro entrou hoje?" são duas, e a
-          tela passa a fazer as duas.
-
-          Cada cartão também some pela SUA fonte, e não mais pela da agenda: a
-          previsão morre com `bookings` ilegível, o recebido com `payments`. Era
-          o mesmo gate para os dois porque os dois vinham de `bookings`. */}
-      <div className="grid gap-3 md:grid-cols-2 md:gap-4">
-        {!agendaIlegivel && (
-          <Card className="flex flex-col gap-1 md:p-6">
-            <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
-              Previsão do dia
-            </p>
-            <p className="font-display text-xl font-semibold text-ink md:text-2xl">
-              {formatBRL(previsaoHoje)}
-            </p>
-            <p className="text-xs text-ink-muted">
-              serviços agendados para hoje, já sem faltas e cancelamentos
-            </p>
-          </Card>
-        )}
-
-        {!pagamentosIlegiveis && (
-          <Card className="flex flex-col gap-1 md:p-6">
-            <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
-              Recebido hoje
-            </p>
-            <p className="font-display text-xl font-semibold text-success md:text-2xl">
-              {formatBRL(recebidoReal)}
-            </p>
-            {/* Dizer as origens é o que impede o dono de ler este número como
-                "o quanto da agenda já entrou". São coisas diferentes, e a
-                legenda é onde isso fica explícito. */}
-            <p className="text-xs text-ink-muted">
-              tudo que entrou no caixa — atendimento, venda e mensalidade
-            </p>
-          </Card>
-        )}
-      </div>
-
+      {/* Topo da tela (02/10): data + agora/próximo + uma régua de números.
+          Mesmos números de antes (agendados, ocupação, horários livres,
+          previsão e recebido), cada um com a sua fonte — e a previsão segue
+          sem barra contra o recebido (F5/F6, ver ResumoDoDiaTopo). */}
+      <ResumoDoDiaTopo
+        dataLonga={new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })}
+        resumo={resumoDoDia({
+          reservas: bookings,
+          agora,
+          toleranciaMin: toleranciaAtrasoMin,
+          nomeDoServico: (ids) => getServicesByIds(ids).map((s) => s.name).join(" + ") || "Atendimento",
+        })}
+        ocupacaoPct={ocupacaoPct}
+        horariosLivres={horariosLivres}
+        previsao={previsaoHoje}
+        recebido={recebidoReal}
+        agendaIlegivel={agendaIlegivel}
+        pagamentosIlegiveis={pagamentosIlegiveis}
+      />
 
       {(acoesVisiveis.length > 0 || atendimento.temAviso) && (
         <section >
