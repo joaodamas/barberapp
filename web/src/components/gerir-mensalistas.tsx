@@ -14,7 +14,7 @@ import { useTenant } from "@/lib/tenant-context";
 import { useClients, usePlans, useSubscriptionInvoices } from "@/lib/db/use-shop-data";
 import { filtrarClientes } from "@/lib/clientes-busca";
 import { mascararWhatsapp } from "@/lib/whatsapp-numero";
-import { abertasDeMesesAnteriores, estagioDaFatura, mesVizinho, resumoDasFaturas } from "@/lib/mensalidade";
+import { abertasDeMesesAnteriores, mesVizinho, resumoDasFaturas, situacaoDaFatura } from "@/lib/mensalidade";
 import { EstornarValor } from "@/components/estornar-valor";
 import { paymentMethodLabel } from "@/lib/payment-method";
 import { formasAtivas, type FormaDePagamento } from "@/lib/formas-de-pagamento";
@@ -68,6 +68,10 @@ export function GerirMensalistas({ competencia: mesCorrente }: { competencia: st
   const [recebendo, setRecebendo] = useState(false);
   const [erroDoRecebimento, setErroDoRecebimento] = useState<string | null>(null);
   const [aEstornar, setAEstornar] = useState<Doc<SubscriptionInvoiceDoc> | null>(null);
+  const [dataDoPagamento, setDataDoPagamento] = useState("");
+  const [aDispensar, setADispensar] = useState<Doc<SubscriptionInvoiceDoc> | null>(null);
+  const [dispensando, setDispensando] = useState(false);
+  const [erroDaDispensa, setErroDaDispensa] = useState<string | null>(null);
 
   const planosAtivos = useMemo(() => planos.filter((p) => p.active !== false), [planos]);
   const encontrados = useMemo(() => filtrarClientes(clientes, busca, 6), [clientes, busca]);
@@ -134,6 +138,7 @@ export function GerirMensalistas({ competencia: mesCorrente }: { competencia: st
         invoiceId: aReceber.id,
         paymentMethod: metodo,
         paymentFormId: forma.id,
+        paidAt: dataDoPagamento || hoje,
       });
       setAReceber(null);
     } catch (err) {
@@ -146,68 +151,125 @@ export function GerirMensalistas({ competencia: mesCorrente }: { competencia: st
   }
 
   function linhaDaFatura(f: Doc<SubscriptionInvoiceDoc>, mostrarMes: boolean) {
-                  const estagio = estagioDaFatura(f, hoje);
-                  const nome =
-                    clientes.find((c) => c.id === f.clientId)?.name ?? "Cliente";
-                  return (
-                    <tr key={f.id} className="border-b border-border/60 last:border-0">
-                      <td className="px-4 py-3 text-ink md:px-6">{nome}</td>
-                      <td className="px-4 py-3 text-ink-muted">
-                        {f.planName}
-                        {mostrarMes && (
-                          <span className="block text-[11px] text-ink-muted">ref. {rotuloDoMes(f.competencia)}</span>
-                        )}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-ink-muted">
-                        {formatDatePtBR(f.dueDate)}
-                      </td>
-                      <td className="px-4 py-3">
-                        {f.status === "paga" ? (
-                          <Pill tone="success">
-                            Paga
-                            {f.paymentMethod ? ` · ${paymentMethodLabel[f.paymentMethod]}` : ""}
-                          </Pill>
-                        ) : f.status === "cancelada" ? (
-                          <Pill tone="neutral">Cancelada</Pill>
-                        ) : estagio ? (
-                          <Pill tone={estagio.startsWith("D+") ? "danger" : "gold"}>
-                            {estagio}
-                          </Pill>
-                        ) : (
-                          <Pill tone="neutral">Em aberto</Pill>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-right text-ink md:px-6">
-                        {formatBRL(f.amount)}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {f.status === "aberta" && (
-                          <Button
-                            variant="secondary"
-                            className="min-h-9 px-3 text-xs"
-                            onClick={() => {
-                              setAReceber(f);
-                              setErroDoRecebimento(null);
-                            }}
-                          >
-                            Registrar pagamento
-                          </Button>
-                        )}
-                        {/* D22 · mensalidade paga por engano, ou cliente que
-                            cancelou no meio do mês. Antes o único caminho era
-                            editar o banco à mão. */}
-                        {f.status === "paga" && (
-                          <Button
-                            variant="ghost"
-                            className="min-h-9 px-3 text-xs"
-                            onClick={() => setAEstornar(f)}
-                          >
-                            Devolver
-                          </Button>
-                        )}
-                      </td>
-                    </tr>
-                  );
+    const situacao = situacaoDaFatura(f, hoje);
+    const nome = clientes.find((c) => c.id === f.clientId)?.name ?? "Cliente";
+    return (
+      <tr key={f.id} className="border-b border-border/60 align-middle last:border-0">
+        <td className="px-4 py-3 md:pl-6">
+          <p className="truncate font-medium text-ink" title={nome}>{nome}</p>
+        </td>
+        <td className="px-4 py-3">
+          <p className="truncate text-ink-muted" title={f.planName}>{f.planName}</p>
+          {mostrarMes && (
+            <p className="text-[11px] capitalize text-ink-muted">ref. {rotuloDoMes(f.competencia)}</p>
+          )}
+        </td>
+        <td className="whitespace-nowrap px-4 py-3 tabular-nums text-ink-muted">
+          {dataCurta(f.dueDate)}
+        </td>
+        <td className="px-4 py-3">
+          <Pill tone={situacao.tom}>{situacao.texto}</Pill>
+          {f.status === "paga" && (
+            <p className="mt-1 text-[11px] text-ink-muted">
+              {f.paymentMethod ? paymentMethodLabel[f.paymentMethod] : "—"}
+              {f.paidAt ? ` · ${dataCurta(f.paidAt)}` : ""}
+            </p>
+          )}
+        </td>
+        <td className="whitespace-nowrap px-4 py-3 text-right font-medium tabular-nums text-ink">
+          {formatBRL(f.amount)}
+        </td>
+        <td className="px-4 py-3 md:pr-6">
+          <div className="flex items-center justify-end gap-1">
+            {f.status === "aberta" && (
+              <>
+                <Button
+                  variant="ghost"
+                  className="min-h-9 px-3 text-xs text-ink-muted"
+                  onClick={() => {
+                    setADispensar(f);
+                    setErroDaDispensa(null);
+                  }}
+                >
+                  Não cobrar
+                </Button>
+                <Button
+                  variant="secondary"
+                  className="min-h-9 px-3 text-xs"
+                  onClick={() => {
+                    setAReceber(f);
+                    setDataDoPagamento(hoje);
+                    setErroDoRecebimento(null);
+                  }}
+                >
+                  Registrar pagamento
+                </Button>
+              </>
+            )}
+            {/* D22 · mensalidade paga por engano, ou cliente que
+                cancelou no meio do mês. Antes o único caminho era
+                editar o banco à mão. */}
+            {f.status === "paga" && (
+              <Button variant="ghost" className="min-h-9 px-3 text-xs" onClick={() => setAEstornar(f)}>
+                Devolver
+              </Button>
+            )}
+          </div>
+        </td>
+      </tr>
+    );
+  }
+
+  /* As DUAS tabelas (meses anteriores e o mês) usam as mesmas colunas, de
+   * largura fixa: antes cada uma media o próprio conteúdo, e as colunas
+   * pulavam de lugar de uma para a outra e de um mês para o outro (02/10). */
+  function tabela(linhas: Doc<SubscriptionInvoiceDoc>[], mostrarMes: boolean) {
+    return (
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[880px] table-fixed text-sm">
+          <colgroup>
+            <col className="w-[22%]" />
+            <col />
+            <col className="w-[88px]" />
+            <col className="w-[170px]" />
+            <col className="w-[112px]" />
+            <col className="w-[270px]" />
+          </colgroup>
+          <thead className="bg-surface-raised text-[11px] uppercase tracking-wide text-ink-muted">
+            <tr>
+              <th className="px-4 py-2 text-left font-medium md:pl-6">Cliente</th>
+              <th className="px-4 py-2 text-left font-medium">Plano</th>
+              <th className="px-4 py-2 text-left font-medium">Vence</th>
+              <th className="px-4 py-2 text-left font-medium">Situação</th>
+              <th className="px-4 py-2 text-right font-medium">Valor</th>
+              <th className="px-4 py-2 md:pr-6">
+                <span className="sr-only">Ações</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>{linhas.map((f) => linhaDaFatura(f, mostrarMes))}</tbody>
+        </table>
+      </div>
+    );
+  }
+
+  async function dispensar() {
+    if (!aDispensar) return;
+    setDispensando(true);
+    setErroDaDispensa(null);
+    try {
+      const { callFunction } = await import("@/lib/firebase");
+      await callFunction("dispensarMensalidade", {
+        barbershopId: tenant.id,
+        invoiceId: aDispensar.id,
+        motivo: "Não cobrar",
+      });
+      setADispensar(null);
+    } catch (err) {
+      setErroDaDispensa((err as { message?: string })?.message ?? "Não foi possível agora.");
+    } finally {
+      setDispensando(false);
+    }
   }
 
   return (
@@ -283,14 +345,14 @@ export function GerirMensalistas({ competencia: mesCorrente }: { competencia: st
           <div className="border-b border-border/60 px-4 py-3 md:px-6">
             <p className="text-sm font-medium text-ink">Em aberto de meses anteriores</p>
             <p className="text-xs text-ink-muted">
-              {contar(anteriores.length, "mensalidade", "mensalidades")} antes de {rotuloDoMes(competencia)} ainda a receber
+              {contar(anteriores.length, "mensalidade", "mensalidades")} antes de {rotuloDoMes(competencia)} ·{" "}
+              <b className="font-semibold text-ink">{formatBRL(anteriores.reduce((t, f) => t + f.amount, 0))}</b>
+            </p>
+            <p className="mt-1 text-[11px] text-ink-muted">
+              Já recebeu antes de usar o Topete? Registre com a data em que pagou. Não era devida? Use Não cobrar.
             </p>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <tbody>{anteriores.map((f) => linhaDaFatura(f, true))}</tbody>
-            </table>
-          </div>
+          {tabela(anteriores, true)}
         </Card>
       )}
 
@@ -320,23 +382,7 @@ export function GerirMensalistas({ competencia: mesCorrente }: { competencia: st
             </Button>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-surface-raised text-[11px] uppercase tracking-wide text-ink-muted">
-                <tr>
-                  <th className="px-4 py-2 text-left md:px-6">Cliente</th>
-                  <th className="px-4 py-2 text-left">Plano</th>
-                  <th className="px-4 py-2 text-left">Vence</th>
-                  <th className="px-4 py-2 text-left">Situação</th>
-                  <th className="px-4 py-2 text-right md:px-6">Valor</th>
-                  <th className="px-4 py-2" />
-                </tr>
-              </thead>
-              <tbody>
-                {doMes.map((f) => linhaDaFatura(f, false))}
-              </tbody>
-            </table>
-          </div>
+          tabela(doMes, false)
         )}
       </Card>
 
@@ -480,6 +526,22 @@ export function GerirMensalistas({ competencia: mesCorrente }: { competencia: st
         }
       >
         <div className="flex flex-col gap-2">
+          <label className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface px-3 py-2">
+            <span className="text-sm text-ink">Pago em</span>
+            <input
+              type="date"
+              value={dataDoPagamento}
+              max={hoje}
+              min={diasAntes(hoje, 120)}
+              onChange={(e) => setDataDoPagamento(e.target.value)}
+              className="min-h-9 rounded-lg bg-transparent text-right text-sm tabular-nums text-ink"
+            />
+          </label>
+          {dataDoPagamento && dataDoPagamento < hoje && (
+            <p className="text-[11px] text-ink-muted">
+              Entra no caixa de {dataCurta(dataDoPagamento)}, não no de hoje.
+            </p>
+          )}
           <div className={formasDeCobranca.length > 4 ? "grid grid-cols-3 gap-2" : "grid grid-cols-2 gap-2"}>
             {formasDeCobranca.map((f) => (
               <Button
@@ -504,6 +566,40 @@ export function GerirMensalistas({ competencia: mesCorrente }: { competencia: st
         </div>
       </Modal>
 
+      {/* ---- Não cobrar (02/10) ---- */}
+      <Modal
+        open={!!aDispensar}
+        onClose={() => setADispensar(null)}
+        title="Não cobrar esta mensalidade?"
+        description={
+          aDispensar
+            ? `${clientes.find((c) => c.id === aDispensar.clientId)?.name ?? "Cliente"} · ${aDispensar.planName} · ref. ${rotuloDoMes(aDispensar.competencia)} · ${formatBRL(aDispensar.amount)}`
+            : undefined
+        }
+        footer={
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={() => setADispensar(null)} className="flex-1">
+              Voltar
+            </Button>
+            <Button onClick={dispensar} disabled={dispensando} className="flex-1">
+              {dispensando ? "Salvando…" : "Não cobrar"}
+            </Button>
+          </div>
+        }
+      >
+        <div className="flex flex-col gap-2 text-sm text-ink-muted">
+          <p>Ela sai do em aberto e do faturado do mês. Nenhum dinheiro é lançado.</p>
+          <p className="text-[11px]">
+            Se o cliente pagou (mesmo antes de usar o Topete), use Registrar pagamento com a data em que pagou — assim o caixa daquele dia fica certo.
+          </p>
+          {erroDaDispensa && (
+            <p role="alert" className="text-xs text-danger">
+              {erroDaDispensa}
+            </p>
+          )}
+        </div>
+      </Modal>
+
       {/* ---- Devolver — D22 ---- */}
       {aEstornar && (
         <EstornarValor
@@ -519,4 +615,14 @@ export function GerirMensalistas({ competencia: mesCorrente }: { competencia: st
       )}
     </div>
   );
+}
+
+/** `AAAA-MM-DD` → "05/09". */
+function dataCurta(iso: string): string {
+  return `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+}
+
+function diasAntes(iso: string, dias: number): string {
+  const t = Date.parse(`${iso}T00:00:00Z`) - dias * 86_400_000;
+  return new Date(t).toISOString().slice(0, 10);
 }

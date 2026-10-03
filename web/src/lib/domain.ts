@@ -623,6 +623,9 @@ export type SubscriptionInvoiceDoc = {
   status: "aberta" | "paga" | "cancelada";
   paidAt: string | null;
   paymentMethod: PaymentMethod | null;
+  /** "Não cobrar" (02/10): quando e por quê saiu do faturado. */
+  canceladaEm?: string | null;
+  motivoDoCancelamento?: string | null;
 };
 
 export type ExpenseDoc = {

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   billingDayValido,
   competenciaDe,
+  dataDoPagamentoValida,
   estagioDaFatura,
   estagioDaRegua,
   faturaDaCompetencia,
@@ -194,5 +195,29 @@ describe("G2 · a assinatura vale nesta competência?", () => {
 describe("G2 · competência", () => {
   it("extrai o mês da data", () => {
     expect(competenciaDe("2026-09-14")).toBe("2026-09");
+  });
+});
+
+describe("02/10 · data do pagamento da mensalidade", () => {
+  const hoje = "2026-10-02";
+  it("vazio é hoje", () => {
+    expect(dataDoPagamentoValida(undefined, hoje)).toBe(hoje);
+    expect(dataDoPagamentoValida(null, hoje)).toBe(hoje);
+    expect(dataDoPagamentoValida("", hoje)).toBe(hoje);
+  });
+  it("aceita uma data passada — setembro pago na mão antes do sistema", () => {
+    expect(dataDoPagamentoValida("2026-09-05", hoje)).toBe("2026-09-05");
+  });
+  it("recusa o futuro", () => {
+    expect(dataDoPagamentoValida("2026-10-03", hoje)).toBeNull();
+  });
+  it("recusa mais de 120 dias para trás", () => {
+    expect(dataDoPagamentoValida("2026-06-01", hoje)).toBeNull();
+    expect(dataDoPagamentoValida("2026-06-04", hoje)).toBe("2026-06-04");
+  });
+  it("recusa formato e data que não existem", () => {
+    expect(dataDoPagamentoValida("05/09/2026", hoje)).toBeNull();
+    expect(dataDoPagamentoValida("2026-02-30", hoje)).toBeNull();
+    expect(dataDoPagamentoValida(20260905, hoje)).toBeNull();
   });
 });
