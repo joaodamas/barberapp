@@ -2,13 +2,15 @@ import { AlertCircle, Check, Clock, Scissors } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { formatBRL, formatPctPtBR } from "@/lib/format";
 import { NAO_APURADO } from "@/lib/apuracao";
-import { contar } from "@/lib/plural";
+import { contar, plural } from "@/lib/plural";
 import {
   textoDeAtraso,
   textoDeContagem,
   textoDeLivres,
   type AtendimentoEmFoco,
   type FatiaDoRecebido,
+  type LinhaDoBarbeiro,
+  type ResumoDeAmanha,
   type ResumoDoDia,
 } from "@/lib/resumo-do-dia";
 
@@ -37,6 +39,9 @@ export function ResumoDoDiaTopo({
   aoConcluir,
   aoMarcarFalta,
   temRelogio,
+  linhasPorBarbeiro,
+  amanha,
+  aoVerAmanha,
 }: {
   dataLonga: string;
   resumo: ResumoDoDia;
@@ -52,6 +57,9 @@ export function ResumoDoDiaTopo({
   aoMarcarFalta: (bookingId: string) => void;
   /** No servidor não há relógio: o cartão "Agora" espera o primeiro tique. */
   temRelogio: boolean;
+  linhasPorBarbeiro: LinhaDoBarbeiro[];
+  amanha: ResumoDeAmanha;
+  aoVerAmanha: () => void;
 }) {
   return (
     <div className="flex flex-col gap-3 md:gap-4">
@@ -62,13 +70,16 @@ export function ResumoDoDiaTopo({
         </h1>
       </div>
 
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.4fr)] lg:items-start">
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.4fr)] lg:items-stretch">
         {!agendaIlegivel && temRelogio && (
           <CartaoAgora
             resumo={resumo}
             nomeDoBarbeiro={nomeDoBarbeiro}
             aoConcluir={aoConcluir}
             aoMarcarFalta={aoMarcarFalta}
+            linhasPorBarbeiro={linhasPorBarbeiro}
+            amanha={amanha}
+            aoVerAmanha={aoVerAmanha}
           />
         )}
 
@@ -143,11 +154,17 @@ function CartaoAgora({
   nomeDoBarbeiro,
   aoConcluir,
   aoMarcarFalta,
+  linhasPorBarbeiro,
+  amanha,
+  aoVerAmanha,
 }: {
   resumo: ResumoDoDia;
   nomeDoBarbeiro: (staffId: string | null) => string | null;
   aoConcluir: (bookingId: string) => void;
   aoMarcarFalta: (bookingId: string) => void;
+  linhasPorBarbeiro: LinhaDoBarbeiro[];
+  amanha: ResumoDeAmanha;
+  aoVerAmanha: () => void;
 }) {
   const { atrasado, naCadeira, proximo, proximos } = resumo;
   const naCadeiraAgora = naCadeira[0] ?? null;
@@ -161,6 +178,11 @@ function CartaoAgora({
 
   let cabeca: React.ReactNode;
   let acoes: React.ReactNode = null;
+  /* O dia acabou (nada na cadeira, atrasado ou pela frente) ou não há
+   * "Depois" para mostrar: o espaço vai para o que vem amanhã (02/10). */
+  const encerrado = !atrasado && !naCadeiraAgora && !proximo;
+  const mostrarAmanha = encerrado || depois.length === 0;
+  const mostrarPorBarbeiro = linhasPorBarbeiro.length > 1;
 
   if (atrasado) {
     cabeca = (
@@ -266,8 +288,9 @@ function CartaoAgora({
   return (
     <section
       aria-label="Agora"
-      /* Altura do CONTEÚDO (lg:items-start na grade): sem vão dentro do
-       * cartão quando há pouco a mostrar (02/10). */
+      /* Estica até a altura dos números ao lado (lg:items-stretch): o vão
+       * que sobrava embaixo do cartão virou "Por barbeiro" e "Amanhã", e a
+       * ação desce para o pé (mt-auto). */
       className={cn(
         "flex flex-col gap-4 rounded-2xl border p-4 md:p-5",
         atrasado ? "border-danger/40 bg-danger/5" : "border-border bg-surface"
@@ -276,7 +299,7 @@ function CartaoAgora({
       <div className="flex flex-col gap-3">{cabeca}</div>
       {depois.length > 0 && (
         <div>
-          <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">Depois</p>
+          <TituloDoBloco>Depois</TituloDoBloco>
           <ul className="divide-y divide-border/70">
             {depois.map((p) => (
               <li key={p.id} className="flex items-baseline gap-2 py-1.5 text-sm">
@@ -290,7 +313,63 @@ function CartaoAgora({
           </ul>
         </div>
       )}
-      {acoes && <div className="flex">{acoes}</div>}
+      {mostrarPorBarbeiro && (
+        <div>
+          <TituloDoBloco>Por barbeiro</TituloDoBloco>
+          <ul className="divide-y divide-border/70">
+            {linhasPorBarbeiro.map((l) => (
+              <li
+                key={l.staffId ?? "sem-barbeiro"}
+                className="grid grid-cols-[minmax(0,1fr)_5.5rem_6.5rem] items-baseline gap-2 py-1.5 text-sm"
+              >
+                <span className="min-w-0 truncate text-ink">{nomeDoBarbeiro(l.staffId) ?? "Sem barbeiro"}</span>
+                <span className="text-right text-xs tabular-nums text-ink-muted">
+                  <b className="font-semibold text-ink">{l.feitos}</b> {plural(l.feitos, "feito", "feitos")}
+                </span>
+                <span className="text-right text-xs tabular-nums text-ink-muted">
+                  <b className="font-semibold text-ink">{l.pelaFrente}</b> pela frente
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {mostrarAmanha && (
+        <div>
+          <div className="flex items-baseline justify-between gap-2">
+            <TituloDoBloco>
+              Amanhã{amanha.total > 0 ? ` · ${contar(amanha.total, "marcado", "marcados")}` : ""}
+            </TituloDoBloco>
+            <button
+              type="button"
+              onClick={aoVerAmanha}
+              className="text-xs font-semibold text-gold-strong hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+            >
+              Ver amanhã
+            </button>
+          </div>
+          {amanha.total === 0 ? (
+            <p className="py-1.5 text-sm text-ink-muted">Nada marcado amanhã ainda.</p>
+          ) : (
+            <ul className="divide-y divide-border/70">
+              {amanha.primeiros.map((p) => (
+                <li key={p.id} className="flex items-baseline gap-2 py-1.5 text-sm">
+                  <b className="w-12 shrink-0 font-semibold tabular-nums text-ink">{p.hora}</b>
+                  <span className="min-w-0 flex-1 truncate text-ink">
+                    {p.cliente} <span className="text-ink-muted">· {p.servico}</span>
+                  </span>
+                </li>
+              ))}
+              {amanha.total > amanha.primeiros.length && (
+                <li className="py-1.5 pl-14 text-xs text-ink-muted">
+                  e mais {contar(amanha.total - amanha.primeiros.length, "horário", "horários")}
+                </li>
+              )}
+            </ul>
+          )}
+        </div>
+      )}
+      {acoes && <div className="mt-auto flex pt-1">{acoes}</div>}
     </section>
   );
 }
@@ -323,6 +402,10 @@ function Foco({
       <p className="truncate text-sm text-ink-muted">{linha}</p>
     </div>
   );
+}
+
+function TituloDoBloco({ children }: { children: React.ReactNode }) {
+  return <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">{children}</p>;
 }
 
 function Bloco({ children, className }: { children: React.ReactNode; className?: string }) {
