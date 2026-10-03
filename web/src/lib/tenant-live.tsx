@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { doc, getDocFromServer, onSnapshot } from "firebase/firestore";
 import { getDb } from "@/lib/firebase";
+import { lerFinanceiroPelaApi } from "@/lib/financeiro-pela-api";
 import { TenantProvider } from "@/lib/tenant-context";
 import { toTenant } from "@/lib/tenant-shape";
 import { acessoDaBarbearia, type Tenant } from "@/lib/tenant";
@@ -197,9 +198,13 @@ export function TenantLive({
             if (!conferiu) {
               conferiu = true;
               getDocFromServer(ref)
-                .then((s) => {
+                .then(async (s) => {
                   if (cancelado) return;
-                  setFinanceiro(s.data() ?? {});
+                  /* O SDK ainda diz "não existe"? Pergunta pela API REST, sem o
+                   * cache dele — é a resposta que vale (ver financeiro-pela-api). */
+                  const dados = s.data() ?? (await lerFinanceiroPelaApi(inicial.id));
+                  if (cancelado) return;
+                  setFinanceiro(dados ?? {});
                   setEstadoDoFinanceiro("confirmado");
                 })
                 .catch((erro) => {
