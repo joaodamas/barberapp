@@ -44,7 +44,7 @@ import { useTenant } from "@/lib/tenant-context";
 import { useBookings, useServices, useStaff } from "@/lib/db/use-shop-data";
 import { MarcarNoBalcao } from "@/components/marcar-no-balcao";
 import { ResumoDoDiaTopo } from "@/components/hoje/resumo-do-dia";
-import { resumoDoDia } from "@/lib/resumo-do-dia";
+import { recebidoPorForma, resumoDoDia } from "@/lib/resumo-do-dia";
 import { useAcoesDoAtendimento } from "@/components/agenda/acoes-do-atendimento";
 import { caixaDoDia, mesPeriodo, previsaoDoDia } from "@/lib/analytics";
 import { capacidadeDaData, horariosLivresRestantes } from "@/lib/jornada";
@@ -265,8 +265,21 @@ export default function PainelHojePage() {
         horariosLivres={horariosLivres}
         previsao={previsaoHoje}
         recebido={recebidoReal}
+        fatiasDoRecebido={recebidoPorForma(caixaHoje)}
         agendaIlegivel={agendaIlegivel}
         pagamentosIlegiveis={pagamentosIlegiveis}
+        temRelogio={agora !== null}
+        nomeDoBarbeiro={(id) => equipe.find((b) => b.id === id)?.name ?? null}
+        /* Os MESMOS fluxos da linha da agenda: o modal de pagamento e o de
+           falta — nenhuma regra nova aqui. */
+        aoConcluir={(id) => {
+          const b = todas.find((x) => x.id === id);
+          if (b) atendimento.abrirConcluir(b);
+        }}
+        aoMarcarFalta={(id) => {
+          const b = todas.find((x) => x.id === id);
+          if (b) atendimento.abrirFalta(b);
+        }}
       />
 
       {(acoesVisiveis.length > 0 || atendimento.temAviso) && (
@@ -297,7 +310,7 @@ export default function PainelHojePage() {
           com um vão à direita, enquanto os blocos de cima iam até a borda. Sem
           nada ao lado, a agenda ocupa a largura inteira: é a tabela com mais
           colunas do painel, e é onde a largura faz diferença. */}
-      <section>
+      <section id="agenda-do-dia" className="scroll-mt-4">
         {/* D13 · o botão de marcar mora AQUI, na agenda do dia.
          *
          * É onde o dono está quando alguém chega no balcão ou liga — e era
@@ -632,7 +645,7 @@ export default function PainelHojePage() {
       </section>
 
       {!agendaIlegivel && (
-      <section>
+      <section id="caixa-de-hoje" className="scroll-mt-4">
         <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
           Caixa de hoje
         </h2>

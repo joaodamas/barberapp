@@ -15,7 +15,7 @@ import { contar } from "@/lib/plural";
  * `estaAtrasado` — a mesma régua da linha da agenda e do "Precisa de você".
  */
 
-type ReservaDoDia = { id: string } & Pick<BookingDoc, "status" | "date" | "time" | "clientName" | "serviceIds" | "durationMin">;
+type ReservaDoDia = { id: string } & Pick<BookingDoc, "status" | "date" | "time" | "clientName" | "serviceIds" | "durationMin"> & { staffId?: string };
 
 /** Ainda vai acontecer (ou devia estar acontecendo): sem desfecho. */
 const SEM_DESFECHO: BookingStatus[] = ["pending_payment", "confirmed", "confirmed_by_client"];
@@ -26,19 +26,28 @@ export type AtendimentoEmFoco = {
   hora: string;
   cliente: string;
   servico: string;
-  /** Minutos até começar (próximo) ou de atraso (atrasado). */
+  staffId: string | null;
+  duracaoMin: number;
+  /** Minutos até começar (próximo), de atraso (atrasado) ou decorridos (na cadeira). */
   minutos: number;
 };
+
+/** Um horário do dia na régua de atendimentos: feito, falta ou ainda pela frente. */
+export type SegmentoDoDia = { id: string; hora: string; estado: "feito" | "falta" | "pela-frente" };
 
 export type ResumoDoDia = {
   total: number;
   feitos: number;
+  faltas: number;
   pelaFrente: number;
   /** 0–100, feitos ÷ total. Nulo sem atendimentos. */
   progressoPct: number | null;
   naCadeira: AtendimentoEmFoco[];
   atrasado: AtendimentoEmFoco | null;
   proximo: AtendimentoEmFoco | null;
+  /** Os próximos horários do dia (até 3), para o cartão "Agora" não sobrar vazio. */
+  proximos: AtendimentoEmFoco[];
+  segmentos: SegmentoDoDia[];
 };
 
 function inicio(b: Pick<BookingDoc, "date" | "time">): Date {
@@ -69,12 +78,15 @@ export function resumoDoDia(params: {
     hora: b.time,
     cliente: (b.clientName ?? "").trim() || "Cliente",
     servico: nomeDoServico(b.serviceIds ?? []),
+    staffId: b.staffId ?? null,
+    duracaoMin: b.durationMin ?? DURACAO_PADRAO_MIN,
     minutos,
   });
 
   let naCadeira: AtendimentoEmFoco[] = [];
   let atrasado: AtendimentoEmFoco | null = null;
   let proximo: AtendimentoEmFoco | null = null;
+  let proximos: AtendimentoEmFoco[] = [];
 
   if (agora) {
     const t = agora.getTime();
@@ -84,24 +96,58 @@ export function resumoDoDia(params: {
         const fim = ini + (b.durationMin ?? DURACAO_PADRAO_MIN) * 60_000;
         return ini <= t && t < fim && !estaAtrasado({ booking: b, agora, toleranciaMin });
       })
-      .map((b) => foco(b, 0));
+      .map((b) => foco(b, Math.floor((t - inicio(b).getTime()) / 60_000)));
 
     const primeiroAtrasado = abertas.find((b) => estaAtrasado({ booking: b, agora, toleranciaMin }));
     if (primeiroAtrasado) atrasado = foco(primeiroAtrasado, minutosDeAtraso(primeiroAtrasado, agora));
 
     const seguinte = abertas.find((b) => inicio(b).getTime() > t);
     if (seguinte) proximo = foco(seguinte, Math.ceil((inicio(seguinte).getTime() - t) / 60_000));
+    proximos = abertas
+      .filter((b) => inicio(b).getTime() > t)
+      .slice(0, 3)
+      .map((b) => foco(b, Math.ceil((inicio(b).getTime() - t) / 60_000)));
   }
 
   return {
     total: contam.length,
     feitos,
+    faltas: contam.filter((b) => b.status === "no_show").length,
     pelaFrente: abertas.length,
     progressoPct: contam.length > 0 ? Math.round((feitos / contam.length) * 100) : null,
     naCadeira,
     atrasado,
     proximo,
+    proximos,
+    segmentos: contam.map((b) => ({
+      id: b.id,
+      hora: b.time,
+      estado: b.status === "completed" ? "feito" : b.status === "no_show" ? "falta" : "pela-frente",
+    })),
   };
+}
+
+export type FatiaDoRecebido = { forma: string; valor: number };
+
+/**
+ * O recebido de hoje repartido por forma — a MESMA fonte do "Recebido hoje"
+ * (`caixaDoDia`): atendimento, venda e mensalidade entram na forma em que
+ * foram pagos. Cartão = débito + crédito. "Não informado" só aparece quando
+ * existe, para a soma das fatias bater sempre com o total.
+ */
+export function recebidoPorForma(caixa: {
+  pix: number;
+  cartao: number;
+  dinheiro: number;
+  naoInformado: number;
+}): FatiaDoRecebido[] {
+  const fatias: FatiaDoRecebido[] = [
+    { forma: "Pix", valor: caixa.pix },
+    { forma: "Cartão", valor: caixa.cartao },
+    { forma: "Dinheiro", valor: caixa.dinheiro },
+  ];
+  if (Math.abs(caixa.naoInformado) > 0.004) fatias.push({ forma: "Não informado", valor: caixa.naoInformado });
+  return fatias;
 }
 
 /** "em 12 min", "em 1h05", "em 2h". */
