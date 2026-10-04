@@ -112,6 +112,8 @@ export type LiquidacaoDoAtendimento = {
   label: string;
   /** A linha que explica: o plano e a cota, ou por que o plano não cobriu. */
   detalhe: string | null;
+  /** A cota em poucas palavras ("1 de 4 no mês"), para a tabela da agenda (03/10). */
+  detalheCurto?: string | null;
   coberto: boolean;
   /**
    * Desconto de 100% no fechamento (28/09). Como no coberto, não existe
@@ -170,6 +172,10 @@ export function liquidacaoDoAtendimento(
     return {
       label: "Coberto pelo plano",
       detalhe: `${cobertura.planName} · ${uso}`,
+      detalheCurto:
+        cobertura.cota === null
+          ? `${cobertura.usoNaCompetencia} no mês`
+          : `${cobertura.usoNaCompetencia} de ${cobertura.cota} no mês`,
       coberto: true,
       cortesia: false,
     };

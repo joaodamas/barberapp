@@ -14,6 +14,7 @@ import {
   ChevronRight,
   CreditCard,
   HelpCircle,
+  PencilLine,
   Landmark,
   RotateCcw,
   UserX,
@@ -453,7 +454,7 @@ export default function PainelHojePage() {
             emAberto && !liquidacao.coberto && mensalistas.has(booking.clientId) ? (
               <>
                 <span className="text-ink">Mensalista</span>
-                <span className="block text-[11px]">coberto pelo plano, se estiver na cota</span>
+                <span className="block text-[11px]">entra no plano, se tiver cota</span>
               </>
             ) : (
             <>
@@ -462,8 +463,13 @@ export default function PainelHojePage() {
               ) : (
                 liquidacao.label
               )}
+              {/* Na tabela, só a cota ("1 de 4 no mês"): o nome do plano
+                  inteiro quebrava em quatro linhas (03/10). Ele fica no
+                  título, ao passar o mouse. */}
               {liquidacao.detalhe && (
-                <span className="block text-[11px]">{liquidacao.detalhe}</span>
+                <span className="block truncate text-[11px]" title={liquidacao.detalhe}>
+                  {liquidacao.detalheCurto ?? liquidacao.detalhe}
+                </span>
               )}
             </>
             );
@@ -541,7 +547,13 @@ export default function PainelHojePage() {
                   botão para depois recusar seria a interface
                   prometendo o que o sistema não faz. */}
               {booking.status === "completed" && (booking.edicoesDeCobranca?.length ?? 0) > 0 && (
-                <span className="text-xs text-ink-muted">Cobrança editada</span>
+                <span
+                  title="Cobrança editada"
+                  aria-label="Cobrança editada"
+                  className="flex h-6 shrink-0 items-center gap-1 rounded-md bg-surface-raised px-1.5 text-[11px] text-ink-muted"
+                >
+                  <PencilLine size={12} /> editada
+                </span>
               )}
               {booking.status === "completed" && !liquidacao.coberto && !liquidacao.cortesia && (
                 <button
@@ -549,7 +561,7 @@ export default function PainelHojePage() {
                   title="Editar serviços, desconto ou forma de pagamento"
                   className={ACAO_DISCRETA}
                 >
-                  <CreditCard size={13} /> Editar cobrança
+                  <CreditCard size={13} /> Editar
                 </button>
               )}
               {/* D22 · e este é o "outro caminho" que o comentário
@@ -612,27 +624,27 @@ export default function PainelHojePage() {
               </div>
 
               <Card className="table-scroll hidden overflow-x-auto p-0 md:block">
-                <table className="w-full min-w-[1010px] table-fixed text-sm">
+                <table className="w-full min-w-[920px] table-fixed text-[13px]">
                   {/* Larguras FIXAS (02/10): a tabela se ajustava ao conteúdo
                       de cada dia e as colunas pulavam ao trocar de data. */}
                   <colgroup>
-                    <col className="w-[88px]" />
-                    <col className="w-[22%]" />
-                    <col className="w-[150px]" />
-                    <col className="w-[18%]" />
-                    <col className="w-[17%]" />
-                    <col className="w-[110px]" />
-                    <col className="w-[350px]" />
+                    <col className="w-[72px]" />
+                    <col className="w-[21%]" />
+                    <col className="w-[128px]" />
+                    <col className="w-[19%]" />
+                    <col className="w-[16%]" />
+                    <col className="w-[96px]" />
+                    <col className="w-[300px]" />
                   </colgroup>
                   <thead>
-                    <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ink-muted">
-                      <th className="px-4 py-3 font-medium md:px-6">Hora</th>
-                      <th className="px-4 py-3 font-medium">Cliente</th>
-                      <th className="px-4 py-3 font-medium">Telefone</th>
-                      <th className="px-4 py-3 font-medium">Serviço</th>
-                      <th className="px-4 py-3 font-medium">Pagamento</th>
-                      <th className="px-4 py-3 text-right font-medium">Valor</th>
-                      <th className="px-4 py-3 font-medium md:px-6">Situação</th>
+                    <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-ink-muted">
+                      <th className="px-3 py-2.5 font-medium md:pl-5">Hora</th>
+                      <th className="px-3 py-2.5 font-medium">Cliente</th>
+                      <th className="px-3 py-2.5 font-medium">Telefone</th>
+                      <th className="px-3 py-2.5 font-medium">Serviço</th>
+                      <th className="px-3 py-2.5 font-medium">Pagamento</th>
+                      <th className="px-3 py-2.5 text-right font-medium">Valor</th>
+                      <th className="px-3 py-2.5 font-medium md:pr-5">Situação</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -644,7 +656,7 @@ export default function PainelHojePage() {
                           l.atrasado ? "bg-danger/5 hover:bg-danger/10" : "hover:bg-surface-raised/60"
                         )}
                       >
-                        <td className="whitespace-nowrap px-4 py-3 font-display text-gold-strong md:px-6">
+                        <td className="whitespace-nowrap px-3 py-2.5 font-display tabular-nums text-gold-strong md:pl-5">
                           {l.booking.time}
                           {l.atrasado && (
                             <span className="block font-sans text-[11px] text-danger">
@@ -652,7 +664,7 @@ export default function PainelHojePage() {
                             </span>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-ink">
+                        <td className="px-3 py-2.5 text-ink">
                           {/* Etiquetas SEMPRE ao lado do nome (02/10): antes
                               quebravam para baixo quando o nome era longo. */}
                           <div className="flex min-w-0 items-center gap-2">
@@ -663,15 +675,15 @@ export default function PainelHojePage() {
                             {mensalistas.has(l.booking.clientId) && <EtiquetaMensalista className="shrink-0" />}
                           </div>
                         </td>
-                        <td className="whitespace-nowrap px-4 py-3">{telefone(l)}</td>
-                        <td className="px-4 py-3 text-ink-muted">
+                        <td className="whitespace-nowrap px-3 py-2.5">{telefone(l)}</td>
+                        <td className="px-3 py-2.5 text-ink-muted">
                           {l.bookingServices.map((x) => x.name).join(" + ")}
                         </td>
-                        <td className="px-4 py-3 text-ink-muted">{pagamento(l)}</td>
-                        <td className="whitespace-nowrap px-4 py-3 text-right text-ink">
+                        <td className="px-3 py-2.5 text-ink-muted">{pagamento(l)}</td>
+                        <td className="whitespace-nowrap px-3 py-2.5 text-right text-ink">
                           {formatBRL(l.booking.value)}
                         </td>
-                        <td className="px-4 py-3 md:px-6">{acoes(l)}</td>
+                        <td className="px-3 py-2.5 md:pr-5">{acoes(l)}</td>
                       </tr>
                     ))}
                   </tbody>
