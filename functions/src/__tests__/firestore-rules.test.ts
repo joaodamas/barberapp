@@ -12,10 +12,12 @@ import {
   doc,
   getDoc,
   getDocs,
+  query,
   setDoc,
   deleteDoc,
   serverTimestamp,
   updateDoc,
+  where,
 } from "firebase/firestore";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
@@ -33,7 +35,9 @@ const BETA = "barbearia-beta";
 
 const DONO_ALFA = { sub: "dono-alfa", barbershops: { [ALFA]: "owner" } };
 const DONO_BETA = { sub: "dono-beta", barbershops: { [BETA]: "owner" } };
-const BARBEIRO_ALFA = { sub: "barbeiro-alfa", barbershops: { [ALFA]: "staff" } };
+const BARBEIRO_ALFA = { sub: "barbeiro-alfa", barbershops: { [ALFA]: "staff" }, equipe: { [ALFA]: "s-alfa" } };
+/* Barbeiro com o papel mas sem o claim da cadeira (ligado antes do convite). */
+const BARBEIRO_SEM_CADEIRA = { sub: "barbeiro-antigo", barbershops: { [ALFA]: "staff" } };
 const CLIENTE = { sub: "cliente-1" };
 const OUTRO_CLIENTE = { sub: "cliente-2" };
 const SUPORTE = { sub: "suporte", platformAdmin: true };
@@ -78,6 +82,14 @@ beforeEach(async () => {
       });
       await setDoc(doc(db, `barbershops/${bid}/bookings`, "bk-1"), {
         clientId: CLIENTE.sub,
+        staffId: "s-alfa",
+        status: "confirmed",
+        value: 90,
+      });
+      /* A reserva de um COLEGA (05/10): o barbeiro não vê a agenda dos outros. */
+      await setDoc(doc(db, `barbershops/${bid}/bookings`, "bk-colega"), {
+        clientId: CLIENTE.sub,
+        staffId: "s-colega",
         status: "confirmed",
         value: 90,
       });
@@ -122,8 +134,42 @@ describe("isolamento entre barbearias", () => {
 });
 
 describe("papéis dentro da barbearia", () => {
-  it("o barbeiro lê a agenda", async () => {
+  it("o barbeiro lê a agenda DELE", async () => {
     await assertSucceeds(getDoc(doc(as(BARBEIRO_ALFA), `barbershops/${ALFA}/bookings`, "bk-1")));
+    await assertSucceeds(
+      getDocs(query(collection(as(BARBEIRO_ALFA), `barbershops/${ALFA}/bookings`), where("staffId", "==", "s-alfa")))
+    );
+  });
+
+  /* Decisão do dono (05/10): o barbeiro vê só a própria agenda e a própria
+   * comissão — nada dos colegas nem do caixa da casa. */
+  it("🔒 o barbeiro NÃO lê a agenda de um colega", async () => {
+    await assertFails(getDoc(doc(as(BARBEIRO_ALFA), `barbershops/${ALFA}/bookings`, "bk-colega")));
+    await assertFails(getDocs(collection(as(BARBEIRO_ALFA), `barbershops/${ALFA}/bookings`)));
+    await assertFails(
+      getDocs(query(collection(as(BARBEIRO_ALFA), `barbershops/${ALFA}/bookings`), where("staffId", "==", "s-colega")))
+    );
+  });
+
+  it("🔒 o barbeiro NÃO conclui nem marca falta na agenda de um colega", async () => {
+    const colega = doc(as(BARBEIRO_ALFA), `barbershops/${ALFA}/bookings`, "bk-colega");
+    await assertFails(updateDoc(colega, { status: "completed", paymentMethod: "pix" }));
+    await assertFails(updateDoc(colega, { status: "no_show" }));
+  });
+
+  it("🔒 o barbeiro NÃO lê pagamentos nem ocorrências da casa", async () => {
+    await assertFails(getDoc(doc(as(BARBEIRO_ALFA), `barbershops/${ALFA}/payments`, "pg-1")));
+    await assertFails(getDocs(collection(as(BARBEIRO_ALFA), `barbershops/${ALFA}/payments`)));
+    await assertFails(getDocs(collection(as(BARBEIRO_ALFA), `barbershops/${ALFA}/client_occurrences`)));
+  });
+
+  it("🔒 barbeiro sem o claim da cadeira não lê agenda nenhuma", async () => {
+    await assertFails(getDoc(doc(as(BARBEIRO_SEM_CADEIRA), `barbershops/${ALFA}/bookings`, "bk-1")));
+  });
+
+  it("🔒 convite de barbeiro é inalcançável pelo cliente", async () => {
+    await assertFails(getDoc(doc(as(DONO_ALFA), "convites_equipe", "qualquer")));
+    await assertFails(setDoc(doc(as(BARBEIRO_ALFA), "convites_equipe", "qualquer"), { barbershopId: ALFA }));
   });
 
   it("🔒 o barbeiro NÃO lê as despesas do dono", async () => {

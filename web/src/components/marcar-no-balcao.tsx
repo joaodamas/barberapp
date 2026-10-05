@@ -54,6 +54,7 @@ export function MarcarNoBalcao({
   aoMarcar,
   aoVerNaAgenda,
   diaInicial,
+  soBarbeiro,
 }: {
   open: boolean;
   onClose: () => void;
@@ -62,6 +63,8 @@ export function MarcarNoBalcao({
   aoVerNaAgenda?: () => void;
   /** Dia que já vem escolhido — a Agenda abre no dia que o dono está olhando. */
   diaInicial?: string;
+  /** Painel do barbeiro (05/10): ele marca só na própria agenda. */
+  soBarbeiro?: string;
 }) {
   const tenant = useTenant();
   const { items: servicos } = useServices();
@@ -93,7 +96,10 @@ export function MarcarNoBalcao({
   const [pronto, setPronto] = useState(false);
 
   const dia = dias[diaIndex];
-  const ativos = useMemo(() => equipe.filter((b) => b.active !== false), [equipe]);
+  const ativos = useMemo(
+    () => equipe.filter((b) => b.active !== false && (!soBarbeiro || b.id === soBarbeiro)),
+    [equipe, soBarbeiro]
+  );
   const catalogo = useMemo(() => servicos.filter((s) => s.active !== false), [servicos]);
 
   const escolhidos = useMemo(

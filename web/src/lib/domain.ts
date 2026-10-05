@@ -673,6 +673,11 @@ export type StaffDoc = {
   /** Para distinguir na agenda em colunas. */
   color?: string;
   order?: number;
+  /**
+   * Convite de acesso em aberto (05/10) — só o ESTADO, gravado pelo servidor.
+   * O token e o e-mail nunca ficam aqui: esta ficha é pública.
+   */
+  convitePendente?: { expiraEmMs: number; porEmail: boolean } | null;
 };
 
 /** A parte da jornada que o barbeiro pode sobrescrever. */

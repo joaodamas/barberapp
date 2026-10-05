@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { staffIdDeQuemChamou } from "./convite-equipe";
 import { exigirEdicao, idSeguro, vinculosDe } from "./acesso";
 import { ehMensalistaAtivo, limiteDoCliente } from "./janela";
 import { onSchedule } from "firebase-functions/v2/scheduler";
@@ -744,6 +745,18 @@ export const createBookingAtCounter = onCall<ReservaNoBalcaoInput>(async (reques
   }
   await exigirEdicao(barbershopId);
 
+  /* O barbeiro marca SÓ na própria agenda (05/10): o painel dele não enxerga
+   * a dos colegas, e marcar nela seria escrever onde ele não lê. */
+  let staffIdPedido = request.data?.staffId;
+  if (papel === "staff") {
+    const meu = await staffIdDeQuemChamou(request, barbershopId);
+    if (!meu) throw new HttpsError("permission-denied", "Sua conta não está ligada a um barbeiro desta barbearia.");
+    if (staffIdPedido && staffIdPedido !== meu) {
+      throw new HttpsError("permission-denied", "Você só marca na sua própria agenda.");
+    }
+    staffIdPedido = meu;
+  }
+
   const db = getFirestore();
   const shopRef = db.doc(`barbershops/${barbershopId}`);
   const shopSnap = await shopRef.get();
@@ -760,7 +773,7 @@ export const createBookingAtCounter = onCall<ReservaNoBalcaoInput>(async (reques
     serviceIds,
     date,
     time,
-    staffId: request.data?.staffId,
+    staffId: staffIdPedido,
     /* A única validação dispensada, e o porquê está no cabeçalho. O passado
      * continua barrado: `validarPedido` recusa data anterior a hoje. */
     exigirAntecedencia: false,
@@ -1534,6 +1547,13 @@ export const responderEncaixe = onCall<{
     throw new HttpsError("permission-denied", "Só quem trabalha na barbearia responde encaixe.");
   }
   await exigirEdicao(barbershopId);
+  if (papel === "staff") {
+    const meu = await staffIdDeQuemChamou(request, barbershopId);
+    const reserva = await getFirestore().doc(`barbershops/${idSeguro(barbershopId, "Barbearia")}/bookings/${idSeguro(bookingId, "Atendimento")}`).get();
+    if (!meu || reserva.get("staffId") !== meu) {
+      throw new HttpsError("permission-denied", "Este encaixe é da agenda de outro barbeiro.");
+    }
+  }
 
   return aplicarRespostaDoEncaixe({ barbershopId, bookingId, aprovar, por: uid });
 });

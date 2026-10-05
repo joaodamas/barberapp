@@ -20,6 +20,14 @@ setGlobalOptions({ region: "southamerica-east1", maxInstances: 10 });
 
 export { provisionBarbershop, grantShopRole } from "./provisioning";
 export {
+  criarConviteDeBarbeiro,
+  cancelarConviteDeBarbeiro,
+  lerConviteDeBarbeiro,
+  aceitarConviteDeBarbeiro,
+  revogarAcessoDoBarbeiro,
+  sincronizarMeuAcessoDeBarbeiro,
+} from "./convite-equipe";
+export {
   signUpBarbershop,
   checkSlugAvailability,
   completeOnboardingStep,
