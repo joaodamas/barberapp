@@ -12,6 +12,7 @@ import { formatBRL } from "@/lib/format";
 import { EditorDeFormasDePagamento } from "@/components/formas-de-pagamento-editor";
 import { ComecarDoZero } from "@/components/comecar-do-zero";
 import { AjustesFidelidade } from "@/components/ajustes-fidelidade";
+import { AjustesDistribuicao } from "@/components/ajustes-distribuicao";
 import { EncerrarConta } from "@/components/encerrar-conta";
 import {
   formasDoTenant,
@@ -358,6 +359,8 @@ export default function ConfiguracoesPage() {
       </div>
 
       <AjustesFidelidade />
+
+      <AjustesDistribuicao />
 
       {/* Por último, e separada por desenho.
           Fica depois do botão de salvar, com moldura própria e cor de perigo,
