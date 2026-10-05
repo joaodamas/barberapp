@@ -5,6 +5,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { diaDaSemanaNoFuso, hojeNoFuso, instanteNoFuso, localeDoDocumento } from "./locale";
 import { janelaLivre, janelasOcupadas, paraHora, paraMinutos } from "./agenda";
 import { jornadaDoDia, type ExcecaoDeAgenda, type JornadaDoDia } from "./jornada";
+import { QUALQUER_BARBEIRO, fazTodosOsServicos } from "./distribuicao";
 
 /**
  * Horários livres de um dia.
@@ -47,6 +48,7 @@ type Jornada = {
 export const availableSlots = onCall<{
   barbershopId: string;
   date: string;
+  /** Um barbeiro, ou `"qualquer"` para a união dos horários da equipe (05/10). */
   staffId?: string;
   durationMin?: number;
   /**
@@ -69,6 +71,11 @@ export const availableSlots = onCall<{
    * aparecia como opção — a reserva bloqueava a si mesma.
    */
   ignorarReservaId?: string;
+  /**
+   * Serviços escolhidos — só o modo "qualquer barbeiro" usa: entra na união
+   * quem faz TODOS eles (05/10).
+   */
+  serviceIds?: string[];
 }>(async (request) => {
   const { date } = request.data ?? {};
   if (!request.data?.barbershopId) throw new HttpsError("invalid-argument", "Barbearia não informada.");
@@ -87,54 +94,14 @@ export const availableSlots = onCall<{
   const equipe = await shopRef.collection("staff").where("active", "==", true).get();
   if (equipe.empty) return { slots: [], staffId: null };
 
-  const barbeiro = request.data?.staffId
-    ? equipe.docs.find((d) => d.id === request.data!.staffId)
-    : equipe.docs[0];
-  if (!barbeiro) throw new HttpsError("failed-precondition", "Esse barbeiro não está disponível.");
+  const qualquer = request.data?.staffId === QUALQUER_BARBEIRO;
+  const barbeiro = qualquer
+    ? null
+    : request.data?.staffId
+      ? equipe.docs.find((d) => d.id === request.data!.staffId)
+      : equipe.docs[0];
+  if (!qualquer && !barbeiro) throw new HttpsError("failed-precondition", "Esse barbeiro não está disponível.");
 
-  /* Jornada do barbeiro quando ele tem uma; senão a da loja.
-   *
-   * A composição continua sendo campo a campo — um barbeiro que só declara
-   * `weekdays` herda o horário da casa —, mas quem aplica a precedência entre
-   * exceção, dia da semana e padrão é `jornadaDoDia`, e só ela. Enquanto esta
-   * conta era escrita aqui, em `createBooking` e em `rescheduleBooking`, as
-   * três tinham fallbacks diferentes para o mesmo campo ausente. */
-  const daLoja: Jornada = shop.schedule ?? {};
-  const dele: Jornada = barbeiro.get("schedule") ?? {};
-  /* Grade abaixo de 5 min (ou negativa, gravada por engano) fazia o laço de
-   * horários não andar — e a callable é pública (auditoria de 28/09, B9). */
-  const gradeGravada = Number(dele.slotMinutes ?? daLoja.slotMinutes);
-  const slotMinutes: number = Number.isFinite(gradeGravada) && gradeGravada >= 5 ? gradeGravada : 30;
-
-  const doDia = jornadaDoDia({
-    schedule: {
-      weekdays: dele.weekdays ?? policies.openWeekdays ?? daLoja.weekdays,
-      opensAt: dele.opensAt ?? daLoja.opensAt,
-      closesAt: dele.closesAt ?? daLoja.closesAt,
-      breaks: dele.breaks ?? daLoja.breaks,
-      perDay: dele.perDay ?? daLoja.perDay,
-      exceptions: dele.exceptions ?? daLoja.exceptions,
-    },
-    weekday: diaDaSemanaNoFuso(date, locale.timeZone),
-    date,
-  });
-
-  if (!doDia.aberto) {
-    /* `motivo` viaja junto para a tela do cliente poder dizer "fechado neste
-     * dia — feriado" em vez do genérico "a barbearia não abre neste dia", que
-     * num sábado de exceção soaria como se ela tivesse fechado as portas. */
-    return {
-      slots: [],
-      staffId: barbeiro.id,
-      fechado: true,
-      motivo: doDia.origem,
-      nota: doDia.nota ?? null,
-    };
-  }
-
-  const jornada = { ...doDia, slotMinutes };
-
-  const duracao = Math.max(Number(request.data?.durationMin) || jornada.slotMinutes, 5);
   /* A antecedência mínima protege o CLIENTE de marcar um horário que o barbeiro
    * não veria a tempo. Quem está no balcão é justamente quem vai atender, então
    * ela não se aplica — e a guarda é o vínculo no claim, nunca o parâmetro. */
@@ -155,61 +122,142 @@ export const availableSlots = onCall<{
       horizontePadrao: policies.booking?.maxAdvanceDays,
     });
     if (date! > limite) {
-      return { slots: [], encaixes: [], staffId: barbeiro.id, foraDaJanela: true, abertaAte: limite };
+      return { slots: [], encaixes: [], staffId: barbeiro?.id ?? null, foraDaJanela: true, abertaAte: limite };
     }
   }
   const minutosMinimos: number =
     request.data?.paraOBalcao && ehDaCasa ? 0 : (policies.booking?.minAdvanceMinutes ?? 60);
 
-  /* Ocupação DESTE barbeiro. A query traz o dia inteiro e o filtro por barbeiro
-   * é em memória — três igualdades exigiriam índice composto, e índice faltando
-   * derruba a tela em produção.
-   *
-   * A ocupação é por JANELA, não por instante. Enquanto era um `Set` de
-   * horários de início, um atendimento das 15:00 às 16:00 marcava só "15:00" e
-   * as 15:30 continuavam sendo oferecidas — dois clientes na mesma cadeira,
-   * pelo caminho normal do produto. Ver `agenda.ts`. */
+  /* O dia inteiro numa leitura só — no modo "qualquer" ela serve a todos os
+   * barbeiros. A query traz o dia inteiro e o filtro por barbeiro é em
+   * memória: três igualdades exigiriam índice composto, e índice faltando
+   * derruba a tela em produção. */
   const reservas = await shopRef.collection("bookings").where("date", "==", date).get();
-  const ocupadas = janelasOcupadas(
-    reservas.docs
-      .filter(
-        (d) =>
-          d.id !== request.data?.ignorarReservaId &&
-          d.get("staffId") === barbeiro.id &&
-          OCUPAM_SLOT.includes(d.get("status"))
-      )
-      .map((d) => ({ time: String(d.get("time")), durationMin: d.get("durationMin") })),
-    jornada.slotMinutes
-  );
 
-  const abre = paraMinutos(jornada.opensAt);
-  const fecha = paraMinutos(jornada.closesAt);
-  const intervalos = jornada.breaks.map((b) => [paraMinutos(b.from), paraMinutos(b.to)]);
+  const daLoja: Jornada = shop.schedule ?? {};
 
-  const livres: string[] = [];
-  /* Encaixe: horário DENTRO do expediente que só não está livre porque outra
-   * reserva o ocupa. O cliente pode pedir; quem decide se dá é o barbeiro
-   * (`responderEncaixe`). Fora do expediente, no almoço ou em cima da hora
-   * não entra — ali não há o que o barbeiro aprovar. */
-  const encaixes: string[] = [];
-  for (let t = abre; t + duracao <= fecha; t += jornada.slotMinutes) {
-    const hora = paraHora(t);
+  /** Horários de UM barbeiro: livres, encaixes, ou o dia fechado para ele. */
+  function horariosDe(b: FirebaseFirestore.QueryDocumentSnapshot) {
+    /* Jornada do barbeiro quando ele tem uma; senão a da loja.
+     *
+     * A composição continua sendo campo a campo — um barbeiro que só declara
+     * `weekdays` herda o horário da casa —, mas quem aplica a precedência entre
+     * exceção, dia da semana e padrão é `jornadaDoDia`, e só ela. Enquanto esta
+     * conta era escrita aqui, em `createBooking` e em `rescheduleBooking`, as
+     * três tinham fallbacks diferentes para o mesmo campo ausente. */
+    const dele: Jornada = b.get("schedule") ?? {};
+    /* Grade abaixo de 5 min (ou negativa, gravada por engano) fazia o laço de
+     * horários não andar — e a callable é pública (auditoria de 28/09, B9). */
+    const gradeGravada = Number(dele.slotMinutes ?? daLoja.slotMinutes);
+    const slotMinutes: number = Number.isFinite(gradeGravada) && gradeGravada >= 5 ? gradeGravada : 30;
 
-    /* O atendimento inteiro precisa caber: um combo de 60 min não pode começar
-     * 30 min antes do almoço nem 30 min antes de fechar. */
-    const invadeIntervalo = intervalos.some(([de, ate]) => t < ate && t + duracao > de);
-    if (invadeIntervalo) continue;
+    const doDia = jornadaDoDia({
+      schedule: {
+        weekdays: dele.weekdays ?? policies.openWeekdays ?? daLoja.weekdays,
+        opensAt: dele.opensAt ?? daLoja.opensAt,
+        closesAt: dele.closesAt ?? daLoja.closesAt,
+        breaks: dele.breaks ?? daLoja.breaks,
+        perDay: dele.perDay ?? daLoja.perDay,
+        exceptions: dele.exceptions ?? daLoja.exceptions,
+      },
+      weekday: diaDaSemanaNoFuso(date!, locale.timeZone),
+      date: date!,
+    });
+    if (!doDia.aberto) return { fechado: true as const, doDia, livres: [], encaixes: [] };
 
-    if (instanteNoFuso(date, hora, locale.timeZone).getTime() - Date.now() < minutosMinimos * 60_000) {
-      continue;
+    const jornada = { ...doDia, slotMinutes };
+    const duracao = Math.max(Number(request.data?.durationMin) || jornada.slotMinutes, 5);
+
+    /* A ocupação é por JANELA, não por instante. Enquanto era um `Set` de
+     * horários de início, um atendimento das 15:00 às 16:00 marcava só "15:00" e
+     * as 15:30 continuavam sendo oferecidas — dois clientes na mesma cadeira,
+     * pelo caminho normal do produto. Ver `agenda.ts`. */
+    const ocupadas = janelasOcupadas(
+      reservas.docs
+        .filter(
+          (d) =>
+            d.id !== request.data?.ignorarReservaId &&
+            d.get("staffId") === b.id &&
+            OCUPAM_SLOT.includes(d.get("status"))
+        )
+        .map((d) => ({ time: String(d.get("time")), durationMin: d.get("durationMin") })),
+      jornada.slotMinutes
+    );
+
+    const abre = paraMinutos(jornada.opensAt);
+    const fecha = paraMinutos(jornada.closesAt);
+    const intervalos = jornada.breaks.map((i) => [paraMinutos(i.from), paraMinutos(i.to)]);
+
+    const livres: string[] = [];
+    /* Encaixe: horário DENTRO do expediente que só não está livre porque outra
+     * reserva o ocupa. O cliente pode pedir; quem decide se dá é o barbeiro
+     * (`responderEncaixe`). Fora do expediente, no almoço ou em cima da hora
+     * não entra — ali não há o que o barbeiro aprovar. */
+    const encaixes: string[] = [];
+    for (let t = abre; t + duracao <= fecha; t += jornada.slotMinutes) {
+      const hora = paraHora(t);
+
+      /* O atendimento inteiro precisa caber: um combo de 60 min não pode começar
+       * 30 min antes do almoço nem 30 min antes de fechar. */
+      const invadeIntervalo = intervalos.some(([de, ate]) => t < ate && t + duracao > de);
+      if (invadeIntervalo) continue;
+
+      if (instanteNoFuso(date!, hora, locale.timeZone).getTime() - Date.now() < minutosMinimos * 60_000) {
+        continue;
+      }
+
+      /* O atendimento INTEIRO precisa estar livre, e não só o minuto em que ele
+       * começa: um corte de 30 min às 15:30 não cabe se o combo das 15:00 vai
+       * até as 16:00. */
+      if (janelaLivre({ inicio: t, fim: t + duracao }, ocupadas)) livres.push(hora);
+      else encaixes.push(hora);
     }
-
-    /* O atendimento INTEIRO precisa estar livre, e não só o minuto em que ele
-     * começa: um corte de 30 min às 15:30 não cabe se o combo das 15:00 vai
-     * até as 16:00. */
-    if (janelaLivre({ inicio: t, fim: t + duracao }, ocupadas)) livres.push(hora);
-    else encaixes.push(hora);
+    return { fechado: false as const, doDia, livres, encaixes };
   }
 
-  return { slots: livres, encaixes, staffId: barbeiro.id };
+  /* ---- "Qualquer barbeiro" (05/10) ----
+   *
+   * A união dos horários livres de quem faz TODOS os serviços e trabalha no
+   * dia. Sem encaixe: o pedido de encaixe é para UM barbeiro aprovar, e no
+   * modo "qualquer" não há a quem pedir — quem quer encaixe escolhe o barbeiro.
+   * Quem atende só é decidido ao gravar (`createBooking`), com a agenda daquele
+   * instante. */
+  if (qualquer) {
+    /* Teto igual ao do `createBooking`: a callable é pública. */
+    const servicos = Array.isArray(request.data?.serviceIds)
+      ? request.data!.serviceIds.slice(0, 8).map(String)
+      : [];
+    const aptos = equipe.docs.filter((d) => fazTodosOsServicos(d.get("serviceIds"), servicos));
+    const porBarbeiro = aptos.map(horariosDe);
+    const abertos = porBarbeiro.filter((h) => !h.fechado);
+    if (abertos.length === 0) {
+      const primeiro = porBarbeiro[0];
+      return {
+        slots: [],
+        encaixes: [],
+        staffId: QUALQUER_BARBEIRO,
+        fechado: true,
+        motivo: primeiro?.doDia.origem ?? null,
+        nota: primeiro?.doDia.nota ?? null,
+      };
+    }
+    const uniao = [...new Set(abertos.flatMap((h) => h.livres))].sort();
+    return { slots: uniao, encaixes: [], staffId: QUALQUER_BARBEIRO };
+  }
+
+  const dele = horariosDe(barbeiro!);
+  if (dele.fechado) {
+    /* `motivo` viaja junto para a tela do cliente poder dizer "fechado neste
+     * dia — feriado" em vez do genérico "a barbearia não abre neste dia", que
+     * num sábado de exceção soaria como se ela tivesse fechado as portas. */
+    return {
+      slots: [],
+      staffId: barbeiro!.id,
+      fechado: true,
+      motivo: dele.doDia.origem,
+      nota: dele.doDia.nota ?? null,
+    };
+  }
+
+  return { slots: dele.livres, encaixes: dele.encaixes, staffId: barbeiro!.id };
 });

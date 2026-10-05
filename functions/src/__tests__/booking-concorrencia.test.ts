@@ -412,3 +412,42 @@ describe("teto diário por conta (28/09, M2)", () => {
     expect((await db.collection("limites_de_reserva").get()).empty).toBe(true);
   });
 });
+
+describe("05/10 · qualquer barbeiro, no mesmo segundo", () => {
+  /** Duas cadeiras; a regra escolhe DENTRO da transação. */
+  function qualquer(
+    clientId: string,
+    time = "15:00",
+    regra: "equilibrio" | "rodizio" | "prioridade" = "equilibrio"
+  ) {
+    return {
+      ...pedido({ clientId, time, staffId: "" }),
+      escolha: {
+        regra,
+        candidatos: [
+          { staffId: "barbeiro-1", staffName: "Um", ordem: 1, slotMinutes: GRADE, duracaoDaReserva: 60 },
+          { staffId: "barbeiro-2", staffName: "Dois", ordem: 2, slotMinutes: GRADE, duracaoDaReserva: 60 },
+        ],
+        ponteiroRef: db.doc(`barbershops/${SHOP}/private/distribuicao`),
+      },
+    };
+  }
+
+  it("três pedidos para duas cadeiras: dois gravam, em cadeiras diferentes", async () => {
+    const { gravadas, recusadas, erros } = await correr([qualquer("a"), qualquer("b"), qualquer("c")]);
+    expect(gravadas).toBe(2);
+    expect(recusadas).toBe(1);
+    expect(erros[0]).toMatch(/acabou de ser reservado/i);
+    const cadeiras = (await reservasNoBanco()).map((r) => r.staffId).sort();
+    expect(cadeiras).toEqual(["barbeiro-1", "barbeiro-2"]);
+  });
+
+  it("rodízio grava o ponteiro, e o próximo vai para o outro barbeiro", async () => {
+    await db.doc(`barbershops/${SHOP}/private/distribuicao`).delete();
+    await gravarComTravaDeHorario(qualquer("a", "09:00", "rodizio"));
+    await gravarComTravaDeHorario(qualquer("b", "11:00", "rodizio"));
+    const porHora = Object.fromEntries((await reservasNoBanco()).map((r) => [r.time, r.staffId]));
+    expect(porHora["09:00"]).toBe("barbeiro-1");
+    expect(porHora["11:00"]).toBe("barbeiro-2");
+  });
+});
