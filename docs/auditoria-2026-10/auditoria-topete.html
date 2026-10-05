@@ -1,0 +1,285 @@
+<title>Auditoria Topete · out/2026</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;700&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: relatório de uma coluna (máx. 980px), com tabelas comparativas que rolam por dentro no celular. Paleta da marca Topete. */
+:root{
+  --bg:#F7F4EE; --surface:#FFFFFF; --ink:#16140F; --muted:#5E574A; --line:#E4DCCB;
+  --brass:#9A7430; --brass-soft:#F1E6CC; --good:#2F7A4F; --good-soft:#E3F1E8; --warn:#9A6A0B; --warn-soft:#FBEFD4; --bad:#B23A2E; --bad-soft:#F8E1DD;
+  --display:"Outfit",system-ui,sans-serif; --body:"Manrope",system-ui,sans-serif; --mono:"JetBrains Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12110E; --surface:#1B1915; --ink:#F2EDE2; --muted:#AFA690; --line:#332F27;
+  --brass:#E0AE58; --brass-soft:#2E2617; --good:#6CC08E; --good-soft:#18291F; --warn:#E5B55A; --warn-soft:#2D2412; --bad:#F08A7D; --bad-soft:#331A17; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12110E; --surface:#1B1915; --ink:#F2EDE2; --muted:#AFA690; --line:#332F27;
+  --brass:#E0AE58; --brass-soft:#2E2617; --good:#6CC08E; --good-soft:#18291F; --warn:#E5B55A; --warn-soft:#2D2412; --bad:#F08A7D; --bad-soft:#331A17; color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font:15px/1.6 var(--body)}
+.wrap{max-width:980px;margin:0 auto;padding-inline:20px;padding-block:40px 64px;display:flex;flex-direction:column;gap:48px}
+h1,h2,h3{font-family:var(--display);line-height:1.15;text-wrap:balance;margin:0}
+h1{font-size:clamp(30px,5vw,44px);letter-spacing:-.02em}
+h2{font-size:26px;letter-spacing:-.01em}
+h3{font-size:17px}
+p{margin:0;max-width:68ch}
+.eyebrow{font:600 12px var(--body);letter-spacing:.14em;text-transform:uppercase;color:var(--brass)}
+.sec{display:flex;flex-direction:column;gap:16px}
+.sec>header{display:flex;flex-direction:column;gap:6px}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+.hero{display:flex;flex-direction:column;gap:14px;border-bottom:1px solid var(--line);padding-bottom:28px}
+.verdict{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.vcard{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.vcard b{font:700 28px var(--display)}
+.scroll{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:600 11px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);background:var(--bg);white-space:nowrap}
+tr:last-child td{border-bottom:0}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+tr.us td{background:var(--brass-soft);font-weight:600}
+.bar{display:flex;align-items:center;gap:10px}
+.bar i{display:block;height:8px;border-radius:4px;background:var(--line);flex:1;min-width:80px;position:relative;overflow:hidden}
+.bar i span{position:absolute;inset:0 auto 0 0;border-radius:4px}
+.bar b{font:600 14px var(--mono);width:34px;text-align:right}
+.lo span{background:var(--bad)} .mid span{background:var(--warn)} .hi span{background:var(--good)}
+.pill{display:inline-block;padding:1px 8px;border-radius:999px;font:600 11.5px var(--body);white-space:nowrap}
+.s{background:var(--good-soft);color:var(--good)} .n{background:var(--bad-soft);color:var(--bad)} .p{background:var(--warn-soft);color:var(--warn)} .d{background:var(--brass-soft);color:var(--brass)} .q{color:var(--muted)}
+.finding{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--line);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:6px}
+.finding.p0{border-left-color:var(--bad)} .finding.p1{border-left-color:var(--warn)} .finding.ok{border-left-color:var(--good)}
+.finding h3{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.tag{font:600 11px var(--mono);padding:1px 6px;border-radius:4px}
+.t0{background:var(--bad-soft);color:var(--bad)} .t1{background:var(--warn-soft);color:var(--warn)} .t2{background:var(--brass-soft);color:var(--brass)} .tok{background:var(--good-soft);color:var(--good)}
+code{font:12.5px var(--mono);background:var(--bg);padding:1px 5px;border-radius:4px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.box{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.box ul,.box ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
+.box h3 small{display:block;font:500 13px var(--body);color:var(--muted);margin-top:2px}
+.callout{background:var(--brass-soft);border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:8px}
+details{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 16px}
+summary{cursor:pointer;font-weight:600}
+summary:focus-visible,a:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+a{color:var(--brass)}
+.src{columns:2 260px;font-size:12.5px;margin:12px 0 0;padding-left:18px}
+.src li{break-inside:avoid;margin-bottom:4px;word-break:break-all}
+nav.toc{display:flex;flex-wrap:wrap;gap:8px}
+nav.toc a{font-size:13px;padding:4px 10px;border:1px solid var(--line);border-radius:999px;text-decoration:none;color:var(--ink);background:var(--surface)}
+</style>
+
+<div class="wrap">
+
+<section class="hero">
+  <span class="eyebrow">Topete · auditoria de produto e mercado · 05/10/2026</span>
+  <h1>Engenharia sólida, produto ainda incompleto para o mercado</h1>
+  <p class="muted">O núcleo de gestão (financeiro, mensalistas, encaixe, marca da barbearia) está acima da média do segmento. O que falta é o que o mercado já trata como básico: avisar o cliente sozinho, deixar o barbeiro operar e cobrar o mensalista automaticamente. A auditoria leu o código em <code>main</code>, conferiu backup no console e pesquisou 11 concorrentes com preços públicos.</p>
+  <div class="verdict">
+    <div class="vcard"><span class="eyebrow">Nota geral</span><b>5,5 / 10</b><span class="small muted">Pronto para piloto acompanhado; ainda não para vender em escala sem o fundador perto.</span></div>
+    <div class="vcard"><span class="eyebrow">Preço até 3 barbeiros</span><b>R$ 97</b><span class="small muted">Entre os mais baratos com gestão completa (AppBarber R$ 109,90, Booksy R$ 139,99).</span></div>
+    <div class="vcard"><span class="eyebrow">Preço 6–10 barbeiros</span><b>Caro</b><span class="small muted">R$ 197/247 contra R$ 139,90–164,50 dos rivais, e sem plano anual.</span></div>
+    <div class="vcard"><span class="eyebrow">Maior diferencial</span><b>Marca própria</b><span class="small muted">Quem vende app com a marca cobra R$ 299+ ou adicional. No Topete está incluído.</span></div>
+  </div>
+  <nav class="toc" aria-label="Seções">
+    <a href="#notas">Notas por área</a><a href="#criticos">Problemas críticos</a><a href="#achados">Outros achados</a><a href="#precos">Comparativo de preços</a><a href="#recursos">Recursos × mercado</a><a href="#planos">Proposta de planos</a><a href="#roteiro">Roteiro 30/60/90</a><a href="#rapidos">Melhorias rápidas</a><a href="#fontes">Fontes</a>
+  </nav>
+</section>
+
+<section class="sec" id="notas">
+  <header><span class="eyebrow">1 · Plataforma</span><h2>Notas por área</h2></header>
+  <div class="scroll"><table>
+    <thead><tr><th>Área</th><th style="min-width:180px">Nota</th><th>Por quê</th></tr></thead>
+    <tbody>
+      <tr><td>Recursos para o dono</td><td><div class="bar hi"><i><span style="width:75%"></span></i><b>7,5</b></div></td><td>Agenda, balcão, encaixe, mensalistas, horário fixo, loja, fidelidade, DRE, projeção, caixa, marca.</td></tr>
+      <tr><td>Experiência do dono</td><td><div class="bar mid"><i><span style="width:65%"></span></i><b>6,5</b></div></td><td>Fechar atendimento em 2 toques. Perde por erro técnico cru em ~25 telas e tabelas largas no celular.</td></tr>
+      <tr><td>Confiabilidade dos dados</td><td><div class="bar mid"><i><span style="width:65%"></span></i><b>6,5</b></div></td><td>Transações e proteção contra duplicidade exemplares. O gatilho que gera pagamento e comissão não tenta de novo se falhar.</td></tr>
+      <tr><td>Segurança</td><td><div class="bar mid"><i><span style="width:60%"></span></i><b>6</b></div></td><td>Isolamento entre barbearias muito bom. Pendências de 28/09 seguem abertas (permissões amplas, App Check, ficha pública).</td></tr>
+      <tr><td>Desempenho e custo</td><td><div class="bar mid"><i><span style="width:60%"></span></i><b>6</b></div></td><td>App leve. O painel carrega o histórico inteiro de 8+ coleções; custo cresce com o tempo.</td></tr>
+      <tr><td>Experiência do cliente final</td><td><div class="bar mid"><i><span style="width:50%"></span></i><b>5</b></div></td><td>Agendar é bom (3 passos). Mas o cliente não recebe nenhum aviso automático.</td></tr>
+      <tr><td>Operação (deploy, alertas, backup)</td><td><div class="bar mid"><i><span style="width:55%"></span></i><b>5,5</b></div></td><td>Esteira com teste de fumaça e volta automática; backup diário existe. Faltam alertas de erro.</td></tr>
+      <tr><td>LGPD</td><td><div class="bar lo"><i><span style="width:45%"></span></i><b>4,5</b></div></td><td>Política, exportação e anonimização existem; a exclusão automática prometida nunca apagou nada.</td></tr>
+      <tr><td>Aderência ao mercado</td><td><div class="bar lo"><i><span style="width:45%"></span></i><b>4,5</b></div></td><td>Faltam lembrete automático, cobrança recorrente, sinal por Pix, avaliações e nota fiscal.</td></tr>
+      <tr><td>Experiência do barbeiro (equipe)</td><td><div class="bar lo"><i><span style="width:20%"></span></i><b>2</b></div></td><td>Não existe painel do barbeiro; ele só recebe avisos no Telegram.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="sec" id="criticos">
+  <header><span class="eyebrow">2 · Prioridade máxima</span><h2>Problemas críticos</h2><p class="muted">Resolver antes da segunda barbearia pagante.</p></header>
+  <div class="finding p0"><h3><span class="tag t0">P0</span>O cliente não recebe nenhum aviso automático</h3>
+    <p>Sem confirmação, sem lembrete na véspera, sem aviso quando a barbearia cancela e sem resposta do encaixe. É a principal arma contra falta e todo concorrente entrega. <b>Caminho:</b> notificação no celular do cliente (push do app instalado) já, sem depender da Meta; WhatsApp entra depois como segundo canal.</p></div>
+  <div class="finding p0"><h3><span class="tag t0">P0</span>Pagamento e comissão podem não ser gerados, sem ninguém saber</h3>
+    <p>Ao concluir um atendimento, uma função gera o pagamento e a comissão. Se ela falhar uma vez (instabilidade passageira), não tenta de novo e não avisa. O atendimento fica concluído e o caixa/DRE ficam menores. <b>Caminho:</b> ligar a nova tentativa automática, uma conferência noturna que acha atendimento concluído sem pagamento e alerta de erro no Telegram.</p></div>
+  <div class="finding p0"><h3><span class="tag t0">P0</span>Não existe painel do barbeiro</h3>
+    <p>O barbeiro da equipe cai no app do cliente. Com mais de um barbeiro, o dono fecha todos os atendimentos. Os planos de 6 e 10 barbeiros pressupõem a equipe usando. <b>Caminho:</b> tela "Minha agenda" com concluir, forma de pagamento e extrato de comissão do próprio barbeiro.</p></div>
+  <div class="finding ok"><h3><span class="tag tok">conferido</span>Backup do banco existe</h3>
+    <p>A auditoria pelo código não achou backup; no console há <b>backup diário desde agosto, com 7 dias de retenção</b> (o último é de hoje). O que falta: recuperação minuto a minuto (PITR), proteção contra exclusão do banco e um teste de restauração. Rebaixado para P1.</p></div>
+  <div class="finding ok"><h3><span class="tag tok">conferido</span>Regras de envio de arquivo publicadas</h3>
+    <p>Publicadas em produção em 03/10, junto com o "Sua marca". Continua valendo: a esteira automática não publica essas regras; hoje é um passo manual do dono.</p></div>
+</section>
+
+<section class="sec" id="achados">
+  <header><span class="eyebrow">3 · Importantes</span><h2>Outros achados</h2></header>
+  <div class="scroll"><table>
+    <thead><tr><th>Nível</th><th>Achado</th><th>Impacto</th></tr></thead>
+    <tbody>
+      <tr><td><span class="tag t1">P1</span></td><td>App Check desligado no servidor e limite de capacidade único para todas as funções</td><td>Abuso barato (contas falsas lotando agenda) pode derrubar o agendamento de todas as barbearias.</td></tr>
+      <tr><td><span class="tag t1">P1</span></td><td>Conta do servidor com permissão de editor do projeto e deploy com chave fixa</td><td>Um vazamento vira controle total do projeto. Falta segunda conta de administrador.</td></tr>
+      <tr><td><span class="tag t1">P1</span></td><td>Ficha pública da barbearia mostra situação comercial</td><td>Qualquer pessoa consegue ler se a barbearia está inadimplente ou encerrada e o motivo.</td></tr>
+      <tr><td><span class="tag t1">P1</span></td><td>Exclusão automática de dados (LGPD) em modo de teste</td><td>A política promete prazos que o sistema não cumpre.</td></tr>
+      <tr><td><span class="tag t1">P1</span></td><td>Login com Google quebra em barbearia criada pelo cadastro próprio</td><td>A forma de entrar mais fácil falha na primeira tela.</td></tr>
+      <tr><td><span class="tag t1">P1</span></td><td>Cliente remarca e a equipe não é avisada</td><td>Barbeiro espera às 10h e o cliente vem às 16h.</td></tr>
+      <tr><td><span class="tag t1">P1</span></td><td>Mensagem de erro técnica ("internal") em ~25 telas; excluir despesa falha em silêncio</td><td>Dono não entende o erro ou acha que excluiu e o lucro fica errado.</td></tr>
+      <tr><td><span class="tag t1">P1</span></td><td>Painel carrega todo o histórico em tempo real</td><td>Abertura mais lenta e custo crescente a cada mês de uso.</td></tr>
+      <tr><td><span class="tag t1">P1</span></td><td>Teste grátis nunca vence e o plano não cobra sozinho</td><td>O modelo comercial não tem consequência automática.</td></tr>
+      <tr><td><span class="tag t1">P1</span></td><td>Tabelas largas no celular (mensalistas, despesas, fluxo)</td><td>O dono opera em pé, no celular.</td></tr>
+      <tr><td><span class="tag t2">P2</span></td><td>Perfil do cliente promete WhatsApp que ainda não existe</td><td>O sistema afirma o que não acontece.</td></tr>
+      <tr><td><span class="tag t2">P2</span></td><td>Cliente consegue cancelar depois do horário</td><td>Falta vira "cliente cancelou".</td></tr>
+      <tr><td><span class="tag t2">P2</span></td><td>Mensalista não vê quantos cortes ainda tem no mês</td><td>Dúvida no balcão.</td></tr>
+      <tr><td><span class="tag t2">P2</span></td><td>"Sua marca" demora a chegar no app já instalado</td><td>O logo novo só aparece depois do próximo deploy.</td></tr>
+      <tr><td><span class="tag t2">P2</span></td><td>Tocar em "Livre · marcar" não preenche o horário</td><td>Passo a mais no balcão.</td></tr>
+    </tbody>
+  </table></div>
+  <p class="small muted">O relatório técnico completo tem 14 itens P1 e 24 itens P2, com arquivo e linha de cada evidência.</p>
+</section>
+
+<section class="sec" id="precos">
+  <header><span class="eyebrow">4 · Mercado</span><h2>Comparativo de preços</h2><p class="muted">R$ por mês, plano mensal. Entre parênteses, o equivalente mensal do plano anual. "s/c" = sob consulta. Fontes consultadas em 05/10/2026.</p></header>
+  <div class="scroll"><table>
+    <thead><tr><th>Produto</th><th class="num">1 barbeiro</th><th class="num">3</th><th class="num">6</th><th class="num">10</th><th>Teste grátis</th><th>Observação</th></tr></thead>
+    <tbody>
+      <tr class="us"><td>Topete</td><td class="num">97</td><td class="num">97</td><td class="num">197</td><td class="num">247</td><td>a definir</td><td>Tudo incluído; sem implantação, contrato ou multa; sem plano anual</td></tr>
+      <tr><td>AppBarber</td><td class="num">79,90 (55,90)</td><td class="num">109,90 (76,90)</td><td class="num">164,50 (115,15)</td><td class="num">164,50 (115,15)</td><td>30 dias</td><td>Maior do nicho. WhatsApp por créditos, app com marca e NF à parte</td></tr>
+      <tr><td>Simples Agenda</td><td class="num">59,90 (39,90)</td><td class="num">89,90 (69,90)</td><td class="num">139,90 (119,90)</td><td class="num">139,90 (119,90)</td><td>35 dias</td><td>WhatsApp grátis por QR Code (não oficial). Sem cobrança recorrente</td></tr>
+      <tr><td>Booksy</td><td class="num">99,99</td><td class="num">139,99</td><td class="num">199,99</td><td class="num">279,99</td><td>7 dias</td><td>Marketplace e Google; financeiro raso</td></tr>
+      <tr><td>Fresha</td><td class="num">39,95</td><td class="num">80,85</td><td class="num">161,70</td><td class="num">269,50</td><td>7 dias</td><td>Mensagens e fidelidade (R$ 345) cobradas à parte</td></tr>
+      <tr><td>Gendo</td><td class="num">99,86 (69,90)</td><td class="num">178,43 (124,90)</td><td class="num">178,43 (124,90)</td><td class="num">s/c</td><td>7 dias</td><td>Clube com taxa de 1,2%; franquia pequena de WhatsApp</td></tr>
+      <tr><td>Trinks (Stone)</td><td class="num">110 (76)</td><td class="num">s/c</td><td class="num">s/c</td><td class="num">s/c</td><td>5 dias</td><td>Quase tudo de barbearia é adicional; anual com multa de 50%</td></tr>
+      <tr><td>Avec</td><td class="num">99,90 (88,90)</td><td class="num">s/c</td><td class="num">s/c</td><td class="num">s/c</td><td>?</td><td>Pior reputação (apps com nota 1,6–2,2)</td></tr>
+      <tr><td>Belasis</td><td class="num">99 Lite / 189 Pro</td><td class="num">?</td><td class="num">?</td><td class="num">?</td><td>sim</td><td>WhatsApp oficial; "Não Recomendada" no Reclame Aqui</td></tr>
+      <tr><td>BestBarbers</td><td class="num">grátis / 299+</td><td class="num">299+</td><td class="num">299+</td><td class="num">299+</td><td>plano grátis</td><td>App com marca nas lojas + clube; contrato</td></tr>
+      <tr><td>Cash Barber</td><td class="num">300+</td><td class="num">s/c</td><td class="num">s/c</td><td class="num">s/c</td><td>?</td><td>App com marca + clube + mentoria</td></tr>
+    </tbody>
+  </table></div>
+  <div class="grid2">
+    <div class="box"><h3>Onde o preço do Topete ganha</h3><ul>
+      <li><b>2–3 barbeiros:</b> R$ 97 com gestão completa, abaixo de AppBarber, Booksy e Gendo. É a faixa da maioria das barbearias pequenas.</li>
+      <li><b>Tudo incluído:</b> fidelidade, loja, comissão e DRE em todos os planos, enquanto Trinks, Avec e AppBarber cobram adicionais.</li>
+      <li><b>Sem contrato e sem multa:</b> as reclamações dos grandes giram justamente em cancelamento e cobrança.</li></ul></div>
+    <div class="box"><h3>Onde perde</h3><ul>
+      <li><b>6 e 10 barbeiros:</b> R$ 197/247 contra R$ 139,90–164,50.</li>
+      <li><b>Sem plano anual:</b> quase todos dão 20–33% de desconto. No anual, o AppBarber sai por R$ 115 com 10 barbeiros.</li>
+      <li><b>Sem teste grátis publicado:</b> o mercado dá de 7 a 35 dias.</li></ul></div>
+  </div>
+</section>
+
+<section class="sec" id="recursos">
+  <header><span class="eyebrow">5 · Mercado</span><h2>Recursos × concorrentes</h2></header>
+  <div class="scroll"><table>
+    <thead><tr><th>Recurso</th><th>Topete</th><th>AppBarber</th><th>Trinks</th><th>Booksy</th><th>Simples Ag.</th><th>Gendo</th><th>BestBarbers</th></tr></thead>
+    <tbody>
+      <tr><td>Agendamento por link</td><td><span class="pill s">sim</span></td><td><span class="pill s">sim</span></td><td><span class="pill s">sim</span></td><td><span class="pill s">sim</span></td><td><span class="pill s">sim</span></td><td><span class="pill s">sim</span></td><td><span class="pill s">sim</span></td></tr>
+      <tr><td>Marca da barbearia no app</td><td><span class="pill s">incluído</span></td><td><span class="pill d">pago à parte</span></td><td><span class="pill d">pago à parte</span></td><td><span class="pill n">não</span></td><td><span class="pill n">não</span></td><td><span class="pill d">pago à parte</span></td><td><span class="pill p">R$ 299+</span></td></tr>
+      <tr><td>Lembrete automático (WhatsApp)</td><td><span class="pill n">não</span></td><td><span class="pill d">créditos</span></td><td><span class="pill d">adicional</span></td><td><span class="pill q">?</span></td><td><span class="pill p">QR Code</span></td><td><span class="pill p">franquia</span></td><td><span class="pill n">não</span></td></tr>
+      <tr><td>Clube com cobrança automática</td><td><span class="pill n">manual</span></td><td><span class="pill s">sim</span></td><td><span class="pill d">adicional</span></td><td><span class="pill q">?</span></td><td><span class="pill n">não</span></td><td><span class="pill s">1,2%</span></td><td><span class="pill s">sim</span></td></tr>
+      <tr><td>Sinal / pagamento online</td><td><span class="pill n">não</span></td><td><span class="pill s">sim</span></td><td><span class="pill s">sim</span></td><td><span class="pill s">sim</span></td><td><span class="pill s">Pix</span></td><td><span class="pill s">sim</span></td><td><span class="pill s">sim</span></td></tr>
+      <tr><td>Financeiro com DRE e taxa de maquininha</td><td><span class="pill s">sim</span></td><td><span class="pill p">parcial</span></td><td><span class="pill p">parcial</span></td><td><span class="pill p">raso</span></td><td><span class="pill p">parcial</span></td><td><span class="pill p">parcial</span></td><td><span class="pill p">parcial</span></td></tr>
+      <tr><td>Fidelidade</td><td><span class="pill s">sim</span></td><td><span class="pill s">sim</span></td><td><span class="pill d">adicional</span></td><td><span class="pill q">?</span></td><td><span class="pill n">não</span></td><td><span class="pill s">sim</span></td><td><span class="pill q">?</span></td></tr>
+      <tr><td>Encaixe aprovado pelo barbeiro</td><td><span class="pill s">sim</span></td><td><span class="pill p">lista de espera</span></td><td><span class="pill p">fila</span></td><td><span class="pill p">lista de espera</span></td><td><span class="pill q">?</span></td><td><span class="pill p">fila</span></td><td><span class="pill q">?</span></td></tr>
+      <tr><td>App / acesso do barbeiro</td><td><span class="pill p">só Telegram</span></td><td><span class="pill s">app PRO</span></td><td><span class="pill s">app</span></td><td><span class="pill s">app Biz</span></td><td><span class="pill s">sim</span></td><td><span class="pill s">app</span></td><td><span class="pill s">sim</span></td></tr>
+      <tr><td>Avaliações</td><td><span class="pill n">não</span></td><td><span class="pill s">sim</span></td><td><span class="pill s">sim</span></td><td><span class="pill s">sim</span></td><td><span class="pill n">não</span></td><td><span class="pill q">?</span></td><td><span class="pill q">?</span></td></tr>
+      <tr><td>Nota fiscal (NFS-e)</td><td><span class="pill n">não</span></td><td><span class="pill d">à parte</span></td><td><span class="pill d">à parte</span></td><td><span class="pill n">não</span></td><td><span class="pill d">à parte</span></td><td><span class="pill d">à parte</span></td><td><span class="pill s">plano pago</span></td></tr>
+      <tr><td>Marketplace / Reserve com o Google</td><td><span class="pill n">não</span></td><td><span class="pill p">parcial</span></td><td><span class="pill s">forte</span></td><td><span class="pill s">forte</span></td><td><span class="pill n">não</span></td><td><span class="pill s">Google</span></td><td><span class="pill p">parcial</span></td></tr>
+    </tbody>
+  </table></div>
+  <p class="small muted">Matriz completa com 12 concorrentes e notas das lojas/Reclame Aqui no anexo de pesquisa. "?" = não encontrado em fonte pública.</p>
+</section>
+
+<section class="sec" id="planos">
+  <header><span class="eyebrow">6 · Recomendação comercial</span><h2>Proposta de ajuste nos planos</h2><p class="muted">Sugestão para discutir, não decisão. Valores ilustrativos.</p></header>
+  <div class="grid3">
+    <div class="box"><h3>Agenda<small>até 3 barbeiros</small></h3><p><b>R$ 97/mês</b> · anual R$ 77/mês</p><p class="small muted">Mantém o preço: é onde o Topete mais ganha.</p></div>
+    <div class="box"><h3>Crescimento<small>até 6 barbeiros</small></h3><p><b>R$ 157/mês</b> (hoje 197) · anual R$ 127/mês</p><p class="small muted">Encosta no AppBarber (164,50) com mais recursos incluídos.</p></div>
+    <div class="box"><h3>Gestão<small>até 10 barbeiros</small></h3><p><b>R$ 197/mês</b> (hoje 247) · anual R$ 157/mês</p><p class="small muted">Só se justifica depois do painel do barbeiro existir.</p></div>
+  </div>
+  <div class="callout">
+    <h3>Junto com o preço</h3>
+    <ul style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px">
+      <li><b>Teste grátis de 14 dias</b>, publicado no site. Barato de fazer, padrão do mercado.</li>
+      <li><b>Plano anual com cerca de 20% de desconto</b> e sem multa de cancelamento. É argumento contra Trinks e os contratos de BestBarbers/OneBeleza.</li>
+      <li><b>Mensagem de venda:</b> "sua marca, não a nossa" + "tudo incluído, sem adicional" + "sem contrato e sem multa".</li>
+      <li><b>Não subir preço</b> dos planos maiores antes do painel do barbeiro, do lembrete automático e da cobrança recorrente.</li>
+    </ul>
+  </div>
+</section>
+
+<section class="sec" id="roteiro">
+  <header><span class="eyebrow">7 · Plano</span><h2>Roteiro 30 / 60 / 90 dias</h2></header>
+  <div class="grid3">
+    <div class="box"><h3>30 dias<small>não perder dado, não mentir, não ser abusado</small></h3><ul>
+      <li>Nova tentativa + conferência noturna do financeiro + alerta de erro no Telegram</li>
+      <li>Notificação no celular do cliente: cancelamento, resposta do encaixe, lembrete na véspera</li>
+      <li>PITR e proteção contra exclusão do banco; ensaio de restauração no DEV</li>
+      <li>App Check, limites por função, teto para conta não confirmada</li>
+      <li>Ficha pública sem dados comerciais; exclusão LGPD ligada</li>
+      <li>Melhorias rápidas da lista abaixo</li></ul></div>
+    <div class="box"><h3>60 dias<small>produto de equipe e de receita</small></h3><ul>
+      <li>Painel do barbeiro: minha agenda, concluir, forma de pagamento, comissão</li>
+      <li>Permissões mínimas no servidor e segunda conta de administrador</li>
+      <li>Painel carregando só o período visível</li>
+      <li>Telas de mensalistas, despesas e fluxo em cartões no celular</li>
+      <li>Teste grátis com prazo e cobrança do plano ligada ao Hub</li>
+      <li>WhatsApp com número único, se a Meta liberar</li></ul></div>
+    <div class="box"><h3>90 dias<small>fechar a lacuna com o mercado</small></h3><ul>
+      <li>Pix: sinal na reserva e cobrança recorrente do mensalista (escolher gateway)</li>
+      <li>Lista de espera ligada a horário que vagou</li>
+      <li>Reconquista de clientes sumidos e aniversário</li>
+      <li>Avaliação pós-atendimento com alerta de nota baixa</li>
+      <li>Nota fiscal por integrador (decidir parceiro)</li></ul></div>
+  </div>
+</section>
+
+<section class="sec" id="rapidos">
+  <header><span class="eyebrow">8 · Até um dia cada</span><h2>Melhorias rápidas</h2></header>
+  <div class="box"><ol>
+    <li>Nova tentativa automática nos gatilhos de pagamento, comissão e fidelidade + alerta de erro.</li>
+    <li>Ligar PITR e proteção contra exclusão do banco de produção.</li>
+    <li>Mensagens de erro em português em vez de "internal" (~25 telas).</li>
+    <li>Excluir despesa avisar quando falha.</li>
+    <li>Trocar o texto do Perfil que promete WhatsApp.</li>
+    <li>Avisar a equipe quando o cliente remarca (push e Telegram).</li>
+    <li>Login com Google em barbearia criada pelo cadastro próprio.</li>
+    <li>Bloquear cancelamento pelo cliente depois do horário.</li>
+    <li>Limites próprios nas funções públicas e instância sempre pronta no agendamento.</li>
+    <li>Botão "chamar de volta" nos clientes sumidos (tela Números), com mensagem pronta.</li>
+    <li>"Livre · marcar" já preenchendo horário e barbeiro.</li>
+    <li>Mostrar ao mensalista quantos cortes restam no mês.</li>
+    <li>Remover função antiga de papel de dono e mascarar telefones nos logs.</li>
+    <li>Ativar o Dependabot (alerta de dependências vulneráveis).</li>
+  </ol></div>
+</section>
+
+<section class="sec" id="fontes">
+  <header><span class="eyebrow">9 · Método</span><h2>Fontes e limites</h2></header>
+  <p class="muted">Plataforma: leitura do código em <code>main</code> (05/10), sem dados de clientes. Backup conferido no console do Google Cloud. Mercado: páginas oficiais de preço, lojas de apps (Brasil) e Reclame Aqui, consultados em 05/10/2026. Em aberto: preços de Trinks e Avec para 3+ profissionais, valor dos créditos de WhatsApp e taxas de pagamento online, que só aparecem com conta de teste ou contato com vendas.</p>
+  <details><summary>Ver as fontes de mercado</summary>
+    <ul class="src">
+      <li>negocios.trinks.com/planos</li>
+      <li>reclameaqui.com.br/empresa/trinks</li>
+      <li>appbarber.com.br/funcionalidades</li>
+      <li>appbarber-appbeleza.zendesk.com (planos, créditos de WhatsApp, clube, fiscal)</li>
+      <li>reclameaqui.com.br/empresa/app-barber</li>
+      <li>biz.booksy.com/pt-br/precos</li>
+      <li>negocios.avec.app/avec-planos</li>
+      <li>reclameaqui.com.br/empresa/avec-by-hyperlocal</li>
+      <li>bestbarbers.app (sistema, clube, app próprio, termos)</li>
+      <li>sistemacashbarber.com.br</li>
+      <li>simplesagenda.com.br/site/precos.php</li>
+      <li>fresha.com/pt/pricing</li>
+      <li>belasis.com.br/precos</li>
+      <li>gendo.app/br/planos</li>
+      <li>onebeleza.com.br/onelite</li>
+      <li>App Store e Google Play (páginas de cada app, loja BR)</li>
+    </ul>
+  </details>
+</section>
+
+</div>
