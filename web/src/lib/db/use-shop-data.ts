@@ -211,3 +211,30 @@ export function combineStatus(
   if (estados.some((e) => e.status === "carregando")) return "carregando" as const;
   return "pronto" as const;
 }
+
+/**
+ * A agenda de UM barbeiro, só nos dias pedidos (05/10, painel do barbeiro).
+ *
+ * As regras deixam o barbeiro ler apenas reservas com o `staffId` dele, e o
+ * Firestore só aceita a consulta se ela PROVAR isso — por isso o filtro vai na
+ * consulta, não em memória. De quebra, não assina a coleção inteira.
+ */
+export function useAgendaDoBarbeiro(staffId: string | null, de: string, ate: string) {
+  const r = useShopCollection<BookingDoc>("bookings", {
+    equals: { staffId: staffId ?? "" },
+    range: { field: "date", from: de, to: ate },
+    orderByField: "date",
+    enabled: !!staffId,
+  });
+  const items = useMemo(() => r.items.filter((b) => b.status !== "removido"), [r.items]);
+  return { ...r, items };
+}
+
+/** A comissão de UM barbeiro no período — as regras só deixam ler a dele. */
+export const useComissaoDoBarbeiro = (staffId: string | null, de: string, ate: string) =>
+  useShopCollection<CommissionDoc>("commissions", {
+    equals: { staffId: staffId ?? "" },
+    range: { field: "date", from: de, to: ate },
+    orderByField: "date",
+    enabled: !!staffId,
+  });

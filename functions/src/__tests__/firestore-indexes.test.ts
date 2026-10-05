@@ -50,6 +50,16 @@ const CONSULTAS_COMPOSTAS = [
     collectionGroup: "subscriptions",
     campos: ["status", "nextCharge"],
   },
+  {
+    onde: "painel do barbeiro — a agenda DELE por período (05/10)",
+    collectionGroup: "bookings",
+    campos: ["staffId", "date"],
+  },
+  {
+    onde: "painel do barbeiro — a comissão DELE no mês (05/10)",
+    collectionGroup: "commissions",
+    campos: ["staffId", "date"],
+  },
 ];
 
 describe("índices do Firestore", () => {

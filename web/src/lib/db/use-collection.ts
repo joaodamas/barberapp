@@ -49,6 +49,7 @@ export function useShopCollection<T extends DocumentData>(
     orderByField: options?.orderByField,
     direction: options?.direction,
     equals: options?.equals,
+    range: options?.range,
   });
 
   useEffect(() => {
