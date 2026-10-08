@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { diasAntes, situacaoDaConclusao } from "../conferencia-financeira";
+import { chatDaPlataforma, diasAntes, situacaoDaConclusao } from "../conferencia-financeira";
 import { contarCobertosNaCompetencia, jaReverteuNesteEvento } from "../financial-events";
 
 describe("05/10 · conferência noturna do financeiro", () => {
@@ -60,5 +60,14 @@ describe("08/10 · revisão do #135 — reprocessamento", () => {
     expect(jaReverteuNesteEvento({ revertidoEm: "ev1" }, "ev2")).toBe(false);
     expect(jaReverteuNesteEvento({ comissaoVigenteId: "c" }, "ev1")).toBe(false);
     expect(jaReverteuNesteEvento(undefined, "ev1")).toBe(false);
+  });
+});
+
+describe("08/10 · chat do Telegram da plataforma", () => {
+  it("só um id numérico liga o aviso; o padrão 'desligado' não", () => {
+    expect(chatDaPlataforma("desligado")).toBeNull();
+    expect(chatDaPlataforma("")).toBeNull();
+    expect(chatDaPlataforma(" 123456789 ")).toBe("123456789");
+    expect(chatDaPlataforma("-1001234567890")).toBe("-1001234567890");
   });
 });

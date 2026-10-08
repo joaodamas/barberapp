@@ -22,8 +22,21 @@ import { enviar, TELEGRAM_BOT_TOKEN } from "./telegram/api";
  * configurado, mensagem no Telegram da plataforma (`PLATAFORMA_TELEGRAM_CHAT_ID`).
  */
 
-/** Chat do Telegram de quem opera a plataforma. Vazio = só registro e log. */
-const PLATAFORMA_TELEGRAM_CHAT_ID = defineString("PLATAFORMA_TELEGRAM_CHAT_ID", { default: "" });
+/**
+ * Chat do Telegram de quem opera a plataforma. Sem um id numérico, só registro
+ * e log.
+ *
+ * O padrão é "desligado", e não "": o Firebase CLI trata padrão vazio como
+ * "sem valor" e, no deploy não interativo da esteira, para pedindo o
+ * parâmetro — foi o que travou o DEV em 08/10.
+ */
+const PLATAFORMA_TELEGRAM_CHAT_ID = defineString("PLATAFORMA_TELEGRAM_CHAT_ID", { default: "desligado" });
+
+/** Id de chat do Telegram: número, negativo nos grupos. */
+export function chatDaPlataforma(valor: string): string | null {
+  const v = valor.trim();
+  return /^-?\d+$/.test(v) ? v : null;
+}
 
 const JANELA_DIAS = 7;
 
@@ -117,7 +130,7 @@ export const conferirFinanceiroDaNoite = onSchedule(
       criadoEm: FieldValue.serverTimestamp(),
     });
 
-    const chat = PLATAFORMA_TELEGRAM_CHAT_ID.value().trim();
+    const chat = chatDaPlataforma(PLATAFORMA_TELEGRAM_CHAT_ID.value());
     if (chat) {
       const linhas = [
         "<b>Conferência do financeiro</b>",
