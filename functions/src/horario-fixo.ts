@@ -1,11 +1,13 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
-import { exigirEdicao, idSeguro, vinculosDe } from "./acesso";
+import { exigirEdicao, idSeguro, motivoDeLeitura, vinculosDe } from "./acesso";
 import { createHash } from "node:crypto";
 import { OCUPAM_SLOT, documentoDaReserva, gravarComTravaDeHorario, validarPedido } from "./booking";
 import { horarioDisponivel, janelasOcupadas } from "./agenda";
-import { hojeNoFuso, localeDoDocumento } from "./locale";
+import { hojeNoFuso, instanteNoFuso, localeDoDocumento } from "./locale";
+import { staffIdDeQuemChamou } from "./convite-equipe";
+import { isentoDeCobranca } from "./hub/contrato";
 
 /**
  * Horário fixo do mensalista (29/09/2026).
@@ -25,7 +27,8 @@ import { hojeNoFuso, localeDoDocumento } from "./locale";
  *   Se o dono ou o cliente cancelar UMA semana, o documento continua existindo
  *   como cancelado, e a rotina não o recria. A VERSÃO muda quando o horário
  *   muda (outra hora, outro barbeiro, outro serviço): aí as semanas antigas em
- *   aberto são liberadas e as novas nascem com o horário novo.
+ *   aberto são liberadas (`liberadaPeloFixo`) e as novas nascem com o horário
+ *   novo — a liberação não conta como semana desmarcada.
  * - **Dia fechado ou horário ocupado não viram reserva por cima.** Viram um
  *   conflito registrado, para o dono resolver.
  * - **Se o cliente já tem horário naquele dia**, a rotina não cria outro: o
@@ -116,15 +119,60 @@ export function versaoDoHorario(h: HorarioFixo): string {
 export const idDaOcorrencia = (subscriptionId: string, versao: string, data: string) =>
   `fixo_${subscriptionId}_${versao}_${data}`;
 
+/**
+ * O que acontece com cada data:
+ *   - `criada`: reserva nova;
+ *   - `reativada`: a ocorrência existia, LIBERADA pelo próprio fixo (horário
+ *     mudou, fixo tirado, plano encerrado), e volta a valer — é o "tirei e
+ *     coloquei de novo" (07/10);
+ *   - `ja-existe`: já está reservada, nada a fazer;
+ *   - `desmarcada`: a ocorrência existe e foi cancelada ou apagada por uma
+ *     decisão de alguém — não volta sozinha;
+ *   - `cliente-ja-marcado`: o cliente já resolveu a data por outro caminho.
+ */
 export type ResultadoDaOcorrencia =
-  | { data: string; resultado: "criada" | "ja-existe" | "cliente-ja-marcado" }
+  | { data: string; resultado: "criada" | "reativada" | "ja-existe" | "desmarcada" | "cliente-ja-marcado" }
   | { data: string; resultado: "conflito"; motivo: string };
+
+/**
+ * Motivos que a liberação do fixo gravou antes de existir o marcador
+ * `liberadaPeloFixo` (07/10). Ficam aqui para os documentos já gravados em
+ * produção continuarem reconhecidos; os novos levam o marcador.
+ * "Plano encerrado" não foi gravado por este código, mas é o nome que o dono
+ * usa e custa nada reconhecer.
+ */
+export const MOTIVOS_DA_LIBERACAO = [
+  "Horário fixo alterado",
+  "Horário fixo removido",
+  "Plano de mensalista encerrado",
+  "Plano encerrado",
+];
+
+/**
+ * A ocorrência foi cancelada pela LIBERAÇÃO do fixo, e não por decisão de
+ * alguém sobre aquela semana.
+ *
+ * A diferença importa: cancelamento do cliente ou da barbearia é decisão que a
+ * rotina respeita; a liberação é só o sistema abrindo espaço para o horário
+ * novo. Tratar as duas igual foi o defeito de 07/10 — mudar o fixo liberava as
+ * semanas antigas, e a rotina via esses cancelamentos como "semana resolvida"
+ * e não reservava NENHUMA semana do horário novo.
+ */
+export function liberadaPeloFixo(r: { status?: unknown; cancelReason?: unknown; liberadaPeloFixo?: unknown }): boolean {
+  if (!String(r.status ?? "").startsWith("cancelled")) return false;
+  return r.liberadaPeloFixo === true || MOTIVOS_DA_LIBERACAO.includes(String(r.cancelReason ?? ""));
+}
+
+/** Status de ocorrência que segue valendo: reservada, feita ou em curso. */
+const AINDA_VALE = ["confirmed", "confirmed_by_client", "pending_payment", "fit_in_requested", "completed", "no_show"];
 
 /**
  * Garante as reservas de UMA assinatura. Com `simular`, só diz o que faria.
  *
  * Nada aqui apaga: ocorrência cancelada continua cancelada, e conflito vira
- * registro para o dono, não reserva por cima de ninguém.
+ * registro para o dono, não reserva por cima de ninguém. A exceção é a
+ * ocorrência que a liberação do próprio fixo cancelou: essa volta a valer
+ * quando o mesmo horário é recolocado (`reativada`).
  */
 /**
  * O cliente já resolveu ESTA data por outro caminho — então a rotina não a
@@ -138,12 +186,22 @@ export type ResultadoDaOcorrencia =
  *     a quarta "livre" e recriou o fixo: dois horários na mesma semana;
  *   - o horário desse dia foi CANCELADO: a semana foi desmarcada, e a rotina
  *     não pode desfazer a decisão de quem cancelou.
+ *
+ * O cancelamento feito pela LIBERAÇÃO do fixo (`liberadaPeloFixo`) não é
+ * decisão de ninguém sobre a semana e não conta (07/10).
  */
 export function semanaJaResolvida(
   data: string,
-  reservas: Array<{ date?: unknown; status?: unknown; rescheduledFrom?: { date?: unknown } | null }>
+  reservas: Array<{
+    date?: unknown;
+    status?: unknown;
+    cancelReason?: unknown;
+    liberadaPeloFixo?: unknown;
+    rescheduledFrom?: { date?: unknown } | null;
+  }>
 ): boolean {
   return reservas.some((r) => {
+    if (liberadaPeloFixo(r)) return false;
     if (r.rescheduledFrom && r.rescheduledFrom.date === data) return true;
     if (r.date !== data) return false;
     const status = String(r.status ?? "");
@@ -182,8 +240,14 @@ export async function garantirReservasDoFixo(params: {
   for (const data of datas) {
     const id = idDaOcorrencia(subscriptionId, versao, data);
     const ref = shopRef.collection("bookings").doc(id);
-    if ((await ref.get()).exists) {
-      resultados.push({ data, resultado: "ja-existe" });
+    const existente = await ref.get();
+    /* O id é determinístico: tirar e recolocar o MESMO fixo cai no mesmo
+     * documento, cancelado pela liberação. Antes ele contava como "já existe"
+     * e a prévia dizia "já reservado" de uma semana que estava vazia. */
+    const reativar = existente.exists && liberadaPeloFixo(existente.data() ?? {});
+    if (existente.exists && !reativar) {
+      const vale = AINDA_VALE.includes(String(existente.get("status")));
+      resultados.push({ data, resultado: vale ? "ja-existe" : "desmarcada" });
       continue;
     }
     const jaMarcado = semanaJaResolvida(
@@ -191,6 +255,8 @@ export async function garantirReservasDoFixo(params: {
       (doCliente?.docs ?? []).map((d) => ({
         date: d.get("date"),
         status: d.get("status"),
+        cancelReason: d.get("cancelReason"),
+        liberadaPeloFixo: d.get("liberadaPeloFixo"),
         rescheduledFrom: d.get("rescheduledFrom"),
       }))
     );
@@ -226,8 +292,37 @@ export async function garantirReservasDoFixo(params: {
         if (!horarioDisponivel({ time: horario.hora, durationMin: pedido.duracaoDaReserva, ocupadas })) {
           resultados.push({ data, resultado: "conflito", motivo: "Horário ocupado por outro atendimento." });
         } else {
-          resultados.push({ data, resultado: "criada" });
+          resultados.push({ data, resultado: reativar ? "reativada" : "criada" });
         }
+        continue;
+      }
+      const documento = {
+        ...documentoDaReserva({
+          clientId,
+          clientName: String(clienteSnap?.get("name") ?? assinatura.clientName ?? "Cliente"),
+          clientWhatsapp: String(clienteSnap?.get("whatsapp") ?? ""),
+          pedido,
+          date: data,
+          time: horario.hora,
+          serviceIds: horario.serviceIds,
+          origem: "fixo" as const,
+        }),
+        horarioFixoId: subscriptionId,
+      };
+      if (reativar) {
+        const r = await reativarOcorrencia({
+          db,
+          shopRef,
+          ref,
+          staffId: pedido.staffId,
+          date: data,
+          time: horario.hora,
+          duracaoDaReserva: pedido.duracaoDaReserva,
+          slotMinutes: pedido.slotMinutes,
+          documento,
+        });
+        resultados.push({ data, resultado: r });
+        if (r === "reativada") await conflitos.doc(id).delete().catch(() => undefined);
         continue;
       }
       await gravarComTravaDeHorario({
@@ -244,19 +339,7 @@ export async function garantirReservasDoFixo(params: {
         maxAtivas: Number.MAX_SAFE_INTEGER,
         hojeNaBarbearia: hoje,
         idDaReserva: id,
-        documento: {
-          ...documentoDaReserva({
-            clientId,
-            clientName: String(clienteSnap?.get("name") ?? assinatura.clientName ?? "Cliente"),
-            clientWhatsapp: String(clienteSnap?.get("whatsapp") ?? ""),
-            pedido,
-            date: data,
-            time: horario.hora,
-            serviceIds: horario.serviceIds,
-            origem: "fixo",
-          }),
-          horarioFixoId: subscriptionId,
-        },
+        documento,
       });
       resultados.push({ data, resultado: "criada" });
       await conflitos.doc(id).delete().catch(() => undefined);
@@ -285,6 +368,51 @@ export async function garantirReservasDoFixo(params: {
     }
   }
   return resultados;
+}
+
+/**
+ * Volta a valer uma ocorrência que a liberação do fixo tinha cancelado.
+ *
+ * Não passa por `gravarComTravaDeHorario` porque lá o documento existente é
+ * "repetição da mesma tentativa" e nada é gravado. A trava, porém, é a mesma:
+ * dentro da transação, a ocorrência ainda tem de estar liberada e a cadeira
+ * livre na janela — nesse meio-tempo a vaga pode ter ido para um avulso, e
+ * aí é conflito, não reserva por cima.
+ *
+ * O documento é regravado inteiro (sem `merge`): os campos do cancelamento
+ * não podem sobrar numa reserva confirmada.
+ */
+async function reativarOcorrencia(params: {
+  db: FirebaseFirestore.Firestore;
+  shopRef: FirebaseFirestore.DocumentReference;
+  ref: FirebaseFirestore.DocumentReference;
+  staffId: string;
+  date: string;
+  time: string;
+  duracaoDaReserva: number;
+  slotMinutes: number;
+  documento: Record<string, unknown>;
+}): Promise<"reativada" | "ja-existe" | "desmarcada"> {
+  const { db, shopRef, ref } = params;
+  return db.runTransaction(async (tx) => {
+    const atual = await tx.get(ref);
+    /* Outra execução chegou antes (reativou, ou alguém mexeu na semana). */
+    if (!atual.exists || !liberadaPeloFixo(atual.data() ?? {})) {
+      return AINDA_VALE.includes(String(atual.get("status"))) ? "ja-existe" : "desmarcada";
+    }
+    const doDia = await tx.get(shopRef.collection("bookings").where("date", "==", params.date));
+    const ocupadas = janelasOcupadas(
+      doDia.docs
+        .filter((d) => d.get("staffId") === params.staffId && OCUPAM_SLOT.includes(d.get("status")))
+        .map((d) => ({ time: String(d.get("time")), durationMin: d.get("durationMin") })),
+      params.slotMinutes
+    );
+    if (!horarioDisponivel({ time: params.time, durationMin: params.duracaoDaReserva, ocupadas })) {
+      throw new HttpsError("already-exists", "Esse horário acabou de ser reservado. Escolha outro, por favor.");
+    }
+    tx.set(ref, { ...params.documento, reativadaEm: FieldValue.serverTimestamp() });
+    return "reativada";
+  });
 }
 
 /**
@@ -324,6 +452,19 @@ export const definirHorarioFixo = onCall<{
   if (horario !== null && !horarioFixoValido(horario)) {
     throw new HttpsError("invalid-argument", "Horário fixo inválido.");
   }
+  const anterior = subSnap.get("horarioFixo") as HorarioFixo | undefined;
+
+  /* O barbeiro mexe SÓ no fixo da própria cadeira (07/10), como no balcão
+   * (`createBookingAtCounter`): sem isto, um barbeiro punha o mensalista na
+   * agenda de um colega, ou tirava o fixo de lá — escrevendo onde ele não lê.
+   * Vale para o horário novo e para o que já estava, e também na prévia. */
+  if (papel === "staff") {
+    const meu = await staffIdDeQuemChamou(request, barbershopId);
+    if (!meu) throw new HttpsError("permission-denied", "Sua conta não está ligada a um barbeiro desta barbearia.");
+    if ((horario && horario.staffId !== meu) || (horarioFixoValido(anterior) && anterior.staffId !== meu)) {
+      throw new HttpsError("permission-denied", "Você só mexe no horário fixo da sua própria agenda.");
+    }
+  }
 
   const assinatura = { ...subSnap.data(), horarioFixo: horario ?? undefined };
   if (request.data?.simular) {
@@ -342,20 +483,21 @@ export const definirHorarioFixo = onCall<{
 
   /* Horário MUDOU: libera as semanas antigas em aberto antes de reservar as
    * novas. Sem isto, a versão antiga seguia valendo nas reservas já criadas. */
-  const anterior = subSnap.get("horarioFixo") as HorarioFixo | undefined;
   const mudou =
     !!horario && horarioFixoValido(anterior) && versaoDoHorario(anterior) !== versaoDoHorario(horario);
   await subSnap.ref.update({
     horarioFixo: horario ?? FieldValue.delete(),
     horarioFixoAtualizadoEm: FieldValue.serverTimestamp(),
   });
-  const hojeDaLoja = hojeNoFuso(localeDoDocumento(shopSnap.data()).timeZone);
+  const fusoDaLoja = localeDoDocumento(shopSnap.data()).timeZone;
+  const hojeDaLoja = hojeNoFuso(fusoDaLoja);
   const liberadasNaMudanca = mudou
     ? await liberarOcorrenciasFuturas({
         db,
         shopRef,
         subscriptionId,
         hoje: hojeDaLoja,
+        timeZone: fusoDaLoja,
         motivo: "Horário fixo alterado",
       })
     : 0;
@@ -366,6 +508,7 @@ export const definirHorarioFixo = onCall<{
       shopRef,
       subscriptionId,
       hoje: hojeDaLoja,
+      timeZone: fusoDaLoja,
       motivo: "Horário fixo removido",
     });
     return { ocorrencias: [], liberadas };
@@ -381,27 +524,56 @@ export const definirHorarioFixo = onCall<{
 });
 
 /**
+ * A ocorrência ainda pode ser liberada: está em aberto e o INSTANTE dela (data
+ * e hora no fuso da barbearia) ainda não chegou.
+ *
+ * Comparar só a data (`date >= hoje`) cancelava o atendimento de hoje que já
+ * aconteceu e só não tinha sido fechado no caixa: mudar o fixo às 18h apagava
+ * o corte das 10h da agenda do dia (07/10).
+ */
+export function ocorrenciaLiberavel(
+  b: { date?: unknown; time?: unknown; status?: unknown },
+  timeZone: string,
+  agora: Date = new Date()
+): boolean {
+  if (!["confirmed", "confirmed_by_client"].includes(String(b.status ?? ""))) return false;
+  if (typeof b.date !== "string" || typeof b.time !== "string") return false;
+  return instanteNoFuso(b.date, b.time, timeZone).getTime() > agora.getTime();
+}
+
+/**
  * Cancela as ocorrências FUTURAS e ainda em aberto de um horário fixo — quando
- * o plano acaba ou o fixo é removido. O passado e o que já foi concluído ficam.
+ * o plano acaba ou o fixo é removido. O passado, o que já começou e o que já
+ * foi concluído ficam.
+ *
+ * Grava `liberadaPeloFixo: true`: é por ele que a rotina distingue esta
+ * liberação de um cancelamento de verdade (ver `liberadaPeloFixo`).
  */
 export async function liberarOcorrenciasFuturas(params: {
   db: FirebaseFirestore.Firestore;
   shopRef: FirebaseFirestore.DocumentReference;
   subscriptionId: string;
+  /** Hoje no fuso da loja: só um pré-filtro barato; quem decide é o instante. */
   hoje: string;
+  /** Fuso da loja. Ausente, é lido do documento da barbearia. */
+  timeZone?: string;
   motivo: string;
+  agora?: Date;
 }): Promise<number> {
+  const timeZone = params.timeZone ?? localeDoDocumento((await params.shopRef.get()).data()).timeZone;
+  const agora = params.agora ?? new Date();
   const snap = await params.shopRef
     .collection("bookings")
     .where("horarioFixoId", "==", params.subscriptionId)
     .get();
   const abertas = snap.docs.filter(
-    (d) => String(d.get("date")) >= params.hoje && ["confirmed", "confirmed_by_client"].includes(String(d.get("status")))
+    (d) => String(d.get("date")) >= params.hoje && ocorrenciaLiberavel(d.data(), timeZone, agora)
   );
   for (const d of abertas) {
     await d.ref.update({
       status: "cancelled_by_shop",
       cancelReason: params.motivo,
+      liberadaPeloFixo: true,
       cancelledAt: FieldValue.serverTimestamp(),
     });
   }
@@ -414,6 +586,20 @@ export async function liberarOcorrenciasFuturas(params: {
 }
 
 /**
+ * A rotina segue reservando nesta barbearia?
+ *
+ * Encerrada, nunca. Em modo leitura (suspensa por falta de pagamento, teste
+ * vencido), também não: o cliente veria reserva nova de uma loja que não está
+ * operando, e a agenda dela é justamente o que está congelado. A isenta
+ * (`isentoDeCobranca`) não é suspensa pelo Hub e segue normal (07/10).
+ */
+export function lojaRecebeReservaDoFixo(shop: FirebaseFirestore.DocumentData | undefined): boolean {
+  if (shop?.status === "encerrada") return false;
+  if (motivoDeLeitura(shop) && !isentoDeCobranca(shop ?? {})) return false;
+  return true;
+}
+
+/**
  * Todo dia de madrugada, completa as próximas semanas de todos os fixos.
  * Idempotente: roda de novo e só cria o que falta.
  */
@@ -423,6 +609,7 @@ export const garantirHorariosFixos = onSchedule(
     const db = getFirestore();
     const lojas = await db.collection("barbershops").get();
     for (const loja of lojas.docs) {
+      if (!lojaRecebeReservaDoFixo(loja.data())) continue;
       const assinaturas = await loja.ref.collection("subscriptions").where("status", "==", "ativo").get();
       for (const a of assinaturas.docs) {
         if (!a.get("horarioFixo")) continue;
@@ -472,6 +659,11 @@ export const apagarSemanaDoFixo = onCall<{ barbershopId: string; bookingId: stri
     throw new HttpsError("permission-denied", "Só a barbearia apaga horário da agenda.");
   }
   await exigirEdicao(String(barbershopId));
+  /* Barbeiro apaga só semana da própria cadeira (07/10), como no balcão. */
+  const meuStaffId = papel === "staff" ? await staffIdDeQuemChamou(request, String(barbershopId)) : null;
+  if (papel === "staff" && !meuStaffId) {
+    throw new HttpsError("permission-denied", "Sua conta não está ligada a um barbeiro desta barbearia.");
+  }
 
   const db = getFirestore();
   const shopRef = db.doc(`barbershops/${barbershopId}`);
@@ -483,6 +675,9 @@ export const apagarSemanaDoFixo = onCall<{ barbershopId: string; bookingId: stri
   return db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     if (!snap.exists) throw new HttpsError("not-found", "Horário não encontrado.");
+    if (meuStaffId && snap.get("staffId") !== meuStaffId) {
+      throw new HttpsError("permission-denied", "Você só apaga horário da sua própria agenda.");
+    }
     if (!snap.get("horarioFixoId")) {
       throw new HttpsError("failed-precondition", "Só horário do fixo do mensalista pode ser apagado. Os outros se cancelam.");
     }
