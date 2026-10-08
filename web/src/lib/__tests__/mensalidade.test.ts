@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { abertasDeMesesAnteriores, estagioDaFatura, estagioDaRegua, mesVizinho, resumoDasFaturas, situacaoDaFatura } from "@/lib/mensalidade";
+import { abertasDeMesesAnteriores, devolvidoPorFatura, estagioDaFatura, estagioDaRegua, mesVizinho, resumoDasFaturas, situacaoDaFatura } from "@/lib/mensalidade";
 
 /**
  * G2 · a régua de cobrança no web.
@@ -154,5 +154,32 @@ describe("02/10 · situação da mensalidade em português", () => {
   it("paga e não cobrada", () => {
     expect(situacaoDaFatura({ dueDate: "2026-09-05", status: "paga" }, hoje).texto).toBe("Paga");
     expect(situacaoDaFatura({ dueDate: "2026-09-05", status: "cancelada" }, hoje).texto).toBe("Não cobrada");
+  });
+});
+
+/** Revisão financeira de 08/10: fatura devolvida não é "Recebido". */
+describe("devolução de mensalidade", () => {
+  const faturas = [
+    { id: "f1", competencia: "2026-10", status: "paga" as const, amount: 100, dueDate: "2026-10-05" },
+    { id: "f2", competencia: "2026-10", status: "paga" as const, amount: 80, dueDate: "2026-10-06" },
+  ];
+  const refunds = [
+    { origin: "mensalidade" as const, invoiceId: "f1", grossAmount: 100 },
+    { origin: "servico" as const, invoiceId: undefined, grossAmount: 30 },
+  ];
+  it("recebido abate o que voltou ao cliente", () => {
+    const r = resumoDasFaturas(faturas, "2026-10", "2026-10-08", refunds);
+    expect(r.recebido).toBe(80);
+    expect(r.devolvido).toBe(100);
+    expect(r.faturado).toBe(180);
+  });
+  it("sem devoluções, nada muda", () => {
+    expect(resumoDasFaturas(faturas, "2026-10", "2026-10-08").recebido).toBe(180);
+  });
+  it("a linha diz 'Devolvida', não 'Paga'", () => {
+    const porFatura = devolvidoPorFatura(refunds);
+    expect(situacaoDaFatura(faturas[0], "2026-10-08", porFatura.get("f1")).texto).toBe("Devolvida");
+    expect(situacaoDaFatura(faturas[0], "2026-10-08", 40).texto).toBe("Paga · parte devolvida");
+    expect(situacaoDaFatura(faturas[1], "2026-10-08", porFatura.get("f2")).texto).toBe("Paga");
   });
 });
