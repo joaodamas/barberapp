@@ -49,7 +49,8 @@ export type LoyaltyKind = "credito" | "resgate" | "estorno";
  * duas vezes. Idempotência por construção, não por checagem.
  */
 export const creditLoyaltyOnCompletion = onDocumentUpdated(
-  "barbershops/{barbershopId}/bookings/{bookingId}",
+  /* `retry` ligado (05/10): idempotente por `credito_<bookingId>`. */
+  { document: "barbershops/{barbershopId}/bookings/{bookingId}", retry: true },
   async (event) => {
     const antes = event.data?.before.data();
     const depois = event.data?.after.data();
