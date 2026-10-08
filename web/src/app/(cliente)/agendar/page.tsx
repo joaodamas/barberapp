@@ -23,6 +23,7 @@ import { bookableDays, firstBookableIndex } from "@/lib/slots";
 import { useAuth } from "@/lib/auth-context";
 import { limiteDoCliente } from "@/lib/janela";
 import { alguemFaz, quemFaz } from "@/lib/quem-faz";
+import { QUALQUER_BARBEIRO } from "@/lib/distribuicao";
 import {
   lerPerfil,
   mascararWhatsapp,
@@ -121,6 +122,9 @@ export default function AgendarPage() {
    * final diz o que ACONTECEU, não o que o cliente escolheu — um horário que
    * vagou entre a tela e o pedido vira reserva normal (ver `createBooking`). */
   const [gravado, setGravado] = useState<"confirmed" | "fit_in_requested">("confirmed");
+  /* "Qualquer barbeiro" (05/10): quem atende só se sabe depois de gravar — o
+   * servidor escolhe pela regra do dono. A tela final mostra este nome. */
+  const [atribuido, setAtribuido] = useState<string | null>(null);
   /* Incrementar refaz a consulta de horários — o "Tentar de novo". */
   const [tentativa, setTentativa] = useState(0);
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>(retomada?.serviceIds ?? []);
@@ -246,12 +250,12 @@ export default function AgendarPage() {
     try {
       const { callFunction } = await import("@/lib/firebase");
       chaveDaTentativa.current ??= crypto.randomUUID();
-      const r = await callFunction<Record<string, unknown>, { status?: string }>("createBooking", {
+      const r = await callFunction<Record<string, unknown>, { status?: string; staffName?: string }>("createBooking", {
         isFitIn: selectedSlot.available === false,
         chave: chaveDaTentativa.current,
         barbershopId: tenant.id,
         serviceIds: selectedServiceIds,
-        staffId: barbeiroEscolhido?.id,
+        staffId: modoQualquer ? QUALQUER_BARBEIRO : barbeiroEscolhido?.id,
         date: selectedDay.iso,
         time: selectedSlot.time,
         paymentOrigin: "in_person",
@@ -267,6 +271,7 @@ export default function AgendarPage() {
       }
 
       chaveDaTentativa.current = null;
+      setAtribuido(modoQualquer ? (r?.staffName ?? null) : null);
       setGravado(r?.status === "fit_in_requested" ? "fit_in_requested" : "confirmed");
       setStep(4);
     } catch (err) {
@@ -330,6 +335,10 @@ export default function AgendarPage() {
   const aptos = quemFaz(barbeirosAtivos, selectedServiceIds);
   const barbeiroEscolhido =
     aptos.find((b) => b.id === staffId) ?? (aptos.length === 1 ? aptos[0] : null);
+  /* "Qualquer barbeiro" (05/10): só existe com escolha de verdade — dois ou
+   * mais que façam todos os serviços. Os horários são a união dos livres de
+   * todos; quem atende o servidor decide ao gravar, pela regra do dono. */
+  const modoQualquer = aptos.length > 1 && staffId === QUALQUER_BARBEIRO;
 
   /* Os horários vêm do SERVIDOR.
    *
@@ -345,8 +354,10 @@ export default function AgendarPage() {
    * recriados a cada render, e declará-los como dependência refaria a consulta
    * sem parar. */
   const diaIso = selectedDay?.iso;
-  const idDoBarbeiro = barbeiroEscolhido?.id;
-  const chaveDaConsulta = `${diaIso ?? ""}|${idDoBarbeiro ?? ""}|${totalDuration}`;
+  const idDoBarbeiro = modoQualquer ? QUALQUER_BARBEIRO : barbeiroEscolhido?.id;
+  /* No modo "qualquer", quem entra na união depende dos serviços. */
+  const servicosDaConsulta = modoQualquer ? selectedServiceIds.join(",") : "";
+  const chaveDaConsulta = `${diaIso ?? ""}|${idDoBarbeiro ?? ""}|${totalDuration}|${servicosDaConsulta}`;
 
   useEffect(() => {
     if (step !== 2 || !diaIso || !idDoBarbeiro) return;
@@ -355,13 +366,14 @@ export default function AgendarPage() {
       try {
         const { callFunction } = await import("@/lib/firebase");
         const r = await callFunction<
-          { barbershopId: string; date: string; staffId: string; durationMin: number },
+          { barbershopId: string; date: string; staffId: string; durationMin: number; serviceIds?: string[] },
           { slots: string[]; encaixes?: string[] }
         >("availableSlots", {
           barbershopId: tenant.id,
           date: diaIso,
           staffId: idDoBarbeiro,
           durationMin: totalDuration,
+          ...(servicosDaConsulta ? { serviceIds: servicosDaConsulta.split(",") } : {}),
         });
         if (!cancelado) {
           setResposta({ chave: chaveDaConsulta, slots: r.slots ?? [], encaixes: r.encaixes ?? [] });
@@ -374,7 +386,7 @@ export default function AgendarPage() {
     return () => {
       cancelado = true;
     };
-  }, [step, diaIso, idDoBarbeiro, totalDuration, tenant.id, chaveDaConsulta, tentativa]);
+  }, [step, diaIso, idDoBarbeiro, totalDuration, servicosDaConsulta, tenant.id, chaveDaConsulta, tentativa]);
 
   /* Só vale a resposta desta combinação de dia, barbeiro e duração. Trocar
    * qualquer uma volta a lista para "carregando" sem precisar limpá-la. */
@@ -398,7 +410,7 @@ export default function AgendarPage() {
    * segundo. Ver o cabeçalho daquele arquivo. */
   const estadoDaLista = estadoDosHorarios({
     diaFechado: !!selectedDay?.disabled,
-    temProfissional: !!barbeiroEscolhido,
+    temProfissional: !!barbeiroEscolhido || modoQualquer,
     /* Dia sem horário livre mas com encaixe possível NÃO é "sem horário": há o
      * que oferecer. */
     horariosLivres: horariosLivres === null ? null : slots.map((x) => x.time),
@@ -560,6 +572,22 @@ export default function AgendarPage() {
                 Com quem você quer cortar
               </p>
               <div className="flex gap-2 overflow-x-auto pb-1">
+                <button
+                  type="button"
+                  aria-pressed={modoQualquer}
+                  onClick={() => {
+                    setStaffId(QUALQUER_BARBEIRO);
+                    setSelectedSlot(null);
+                  }}
+                  className={
+                    "min-h-11 shrink-0 cursor-pointer rounded-xl border px-4 text-sm transition-colors " +
+                    (modoQualquer
+                      ? "border-gold bg-gold text-ink"
+                      : "border-border text-ink-muted hover:border-gold/50 hover:text-ink")
+                  }
+                >
+                  Qualquer barbeiro
+                </button>
                 {aptos
                   .map((b) => {
                     const ativo = barbeiroEscolhido?.id === b.id;
@@ -678,7 +706,7 @@ export default function AgendarPage() {
           ) : estadoDaLista === "sem-horario" ? (
             <Card className="flex flex-col gap-2 py-6 text-center text-sm text-ink-muted">
               <span>
-                {barbeiroEscolhido?.name} não tem horário livre de{" "}
+                {modoQualquer ? "Ninguém da equipe tem" : `${barbeiroEscolhido?.name} não tem`} horário livre de{" "}
                 {totalDuration} min neste dia.
               </span>
               {/* "Tente outro profissional" numa barbearia de um barbeiro só
@@ -946,9 +974,9 @@ export default function AgendarPage() {
               })}{" "}
               às {selectedSlot?.time}
             </p>
-            {barbeirosAtivos.length > 1 && barbeiroEscolhido && (
+            {barbeirosAtivos.length > 1 && (atribuido ?? barbeiroEscolhido?.name) && (
               <p className="mt-0.5 text-xs text-ink-muted">
-                com {barbeiroEscolhido.name}
+                com {atribuido ?? barbeiroEscolhido?.name}
               </p>
             )}
           </Card>
@@ -1078,10 +1106,16 @@ export default function AgendarPage() {
               escolha que o cliente fez a mais nesta barbearia. Com um
               profissional só não há escolha a confirmar, e a linha seria
               ruído. */}
-          {step >= 2 && barbeirosAtivos.length > 1 && barbeiroEscolhido && (
+          {step >= 2 && barbeirosAtivos.length > 1 && (barbeiroEscolhido || modoQualquer) && (
             <div className="flex items-center justify-between border-b border-border pb-4 text-sm">
               <span className="text-ink-muted">Profissional</span>
-              <span className="text-ink">{barbeiroEscolhido.name}</span>
+              <span className="text-ink">
+                {step === 4 && atribuido
+                  ? atribuido
+                  : modoQualquer
+                    ? "Qualquer barbeiro"
+                    : barbeiroEscolhido?.name}
+              </span>
             </div>
           )}
 

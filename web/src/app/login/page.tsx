@@ -69,6 +69,13 @@ function messageFor(error: unknown, fallback: string) {
 }
 
 
+/** Para onde cada papel vai depois de entrar: o barbeiro tem painel próprio (05/10). */
+function destinoDoPapel(papel: string | undefined): string {
+  if (papel === "owner") return "/painel";
+  if (papel === "staff") return "/barbeiro";
+  return "/";
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const { user, claims, loading } = useAuth();
@@ -141,7 +148,7 @@ export default function LoginPage() {
             const d = r.destinos[0];
             // Destino é OUTRO domínio (o da barbearia), não uma rota deste app.
             // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-            window.location.assign(`${d.url}${d.papel === "owner" ? "/painel" : "/"}`);
+            window.location.assign(`${d.url}${destinoDoPapel(d.papel)}`);
             return;
           }
           setDestinos(r.destinos);
@@ -154,7 +161,7 @@ export default function LoginPage() {
       };
     }
     const papel = claims.barbershops?.[tenant.id] ?? claims.role;
-    router.replace(papel === "owner" ? "/painel" : "/");
+    router.replace(destinoDoPapel(papel));
   }, [loading, user, claims, tenant.id, router, plataforma]);
 
   /**
@@ -344,7 +351,7 @@ export default function LoginPage() {
               {destinos.map((d) => (
                 <a
                   key={d.barbershopId}
-                  href={`${d.url}${d.papel === "owner" ? "/painel" : "/"}`}
+                  href={`${d.url}${destinoDoPapel(d.papel)}`}
                   className="flex items-center justify-between rounded-xl border border-border px-4 py-3 text-sm text-ink transition-colors hover:border-gold"
                 >
                   <span>{d.nome}</span>

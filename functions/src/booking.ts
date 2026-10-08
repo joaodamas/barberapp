@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { staffIdDeQuemChamou } from "./convite-equipe";
 import { exigirEdicao, idSeguro, vinculosDe } from "./acesso";
 import { ehMensalistaAtivo, limiteDoCliente } from "./janela";
 import { onSchedule } from "firebase-functions/v2/scheduler";
@@ -9,6 +10,14 @@ import { aplicarCombos, type ServicoDoCatalogo } from "./combos";
 import { horarioDisponivel, janelasOcupadas, podeRemarcar } from "./agenda";
 import { horariosDaJornada, jornadaDoDia } from "./jornada";
 import { resolverCliente, type OrigemDoCliente } from "./clients";
+import {
+  QUALQUER_BARBEIRO,
+  elegiveis,
+  escolherBarbeiro,
+  ordemDoBarbeiro,
+  regraDaBarbearia,
+  type RegraDeDistribuicao,
+} from "./distribuicao";
 
 /**
  * Criação de reserva.
@@ -249,19 +258,31 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
     horizontePadrao: policies.booking?.maxAdvanceDays,
   });
 
-  const pedido = await validarPedido({
-    shopRef,
-    shop,
-    locale,
-    serviceIds,
-    date,
-    time,
-    staffId: request.data?.staffId,
-    exigirAntecedencia: true,
-    limiteData,
-  });
+  /* "Qualquer barbeiro" (05/10): o pedido é validado para cada um da equipe
+   * que faz os serviços; quem passar (trabalha no dia, horário no expediente
+   * dele) disputa o horário, e a regra do dono escolhe DENTRO da transação.
+   * Sem encaixe neste modo — o encaixe é um pedido a UM barbeiro. */
+  const qualquer = request.data?.staffId === QUALQUER_BARBEIRO;
+  const { pedido, escolha } = qualquer
+    ? await pedidoParaQualquerBarbeiro({ shopRef, shop, locale, serviceIds, date, time, limiteData })
+    : {
+        pedido: await validarPedido({
+          shopRef,
+          shop,
+          locale,
+          serviceIds,
+          date,
+          time,
+          staffId: request.data?.staffId,
+          exigirAntecedencia: true,
+          limiteData,
+        }),
+        escolha: undefined,
+      };
 
-  const { staffId, value, durationMin, nomes, slotMinutes, duracaoDaReserva } = pedido;
+  const { value, durationMin, nomes, slotMinutes, duracaoDaReserva } = pedido;
+  let staffId = pedido.staffId;
+  let staffName = pedido.staffName;
   /* O status devolvido é o GRAVADO — definido a cada tentativa da transação,
    * então vale o da tentativa que efetivou (revisão do PR #60): uma primeira
    * tentativa que viu o horário ocupado não pode deixar "aguardando aprovação"
@@ -270,7 +291,12 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
 
   /* ---- Grava checando conflito na mesma transação ---- */
   const bookingId = await gravarComTravaDeHorario({
-    seOcupado: pedeEncaixe ? "pedirEncaixe" : "recusar",
+    seOcupado: pedeEncaixe && !qualquer ? "pedirEncaixe" : "recusar",
+    escolha,
+    aoEscolherBarbeiro: (e) => {
+      staffId = e.staffId;
+      staffName = e.staffName;
+    },
     aoDefinirStatus: (gravado) => {
       status = gravado;
     },
@@ -317,7 +343,7 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
     documento: {
       clientId: uid,
       staffId,
-      staffName: pedido.staffName,
+      staffName,
       clientName: nomeLimpo(request.data?.clientName ?? request.auth?.token.name) || "Cliente",
       clientWhatsapp: String(request.data?.clientWhatsapp ?? "").replace(/\D/g, ""),
       serviceIds,
@@ -350,8 +376,80 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
     );
   }
 
-  return { bookingId, value, status, durationMin, staffId };
+  return { bookingId, value, status, durationMin, staffId, staffName };
 });
+
+/**
+ * O pedido no modo "qualquer barbeiro" (05/10): valida para cada barbeiro que
+ * faz os serviços e devolve os que podem atender naquele horário, com a regra
+ * do dono. A escolha em si é na transação (`gravarComTravaDeHorario`).
+ *
+ * Preço e duração vêm do catálogo e não mudam de barbeiro para barbeiro; o que
+ * muda é a jornada e a grade, e por isso cada candidato leva as suas.
+ */
+async function pedidoParaQualquerBarbeiro(params: {
+  shopRef: FirebaseFirestore.DocumentReference;
+  shop: FirebaseFirestore.DocumentData;
+  locale: { timeZone: string };
+  serviceIds: string[];
+  date: string;
+  time: string;
+  limiteData: string;
+}) {
+  const [equipe, catalogo] = await Promise.all([
+    params.shopRef.collection("staff").where("active", "==", true).get(),
+    params.shopRef.collection("services").get(),
+  ]);
+  const aptos = elegiveis(
+    equipe.docs.map((d) => ({
+      staffId: d.id,
+      ordem: ordemDoBarbeiro(d.get("order")),
+      servicos: d.get("serviceIds"),
+      /* A folga é conferida por `validarPedido`, com a mensagem certa. */
+      trabalhaNoDia: true,
+    })),
+    params.serviceIds.map(String)
+  );
+  if (aptos.length === 0) {
+    throw new HttpsError("failed-precondition", "Ninguém da equipe faz esses serviços juntos.");
+  }
+
+  const validos: Array<{ pedido: PedidoValidado; ordem: number }> = [];
+  let primeiroErro: unknown = null;
+  for (const b of aptos) {
+    try {
+      const pedido = await validarPedido({
+        ...params,
+        staffId: b.staffId,
+        exigirAntecedencia: true,
+        equipe,
+        catalogo,
+      });
+      validos.push({ pedido, ordem: b.ordem });
+    } catch (err) {
+      /* Folga, horário fora do expediente dele: esse barbeiro só não entra.
+       * Erro do PEDIDO (serviço sem preço, data fora da janela) vale para
+       * todos — e é a mensagem que o cliente precisa ler se ninguém sobrar. */
+      primeiroErro ??= err;
+    }
+  }
+  if (validos.length === 0) throw primeiroErro;
+
+  return {
+    pedido: validos[0].pedido,
+    escolha: {
+      regra: regraDaBarbearia(params.shop.policies),
+      candidatos: validos.map(({ pedido, ordem }) => ({
+        staffId: pedido.staffId,
+        staffName: pedido.staffName,
+        ordem,
+        slotMinutes: pedido.slotMinutes,
+        duracaoDaReserva: pedido.duracaoDaReserva,
+      })),
+      ponteiroRef: params.shopRef.collection("private").doc("distribuicao"),
+    },
+  };
+}
 
 /* ================================================================== */
 /* Validação compartilhada pelos dois caminhos de criação             */
@@ -473,6 +571,13 @@ export async function validarPedido(params: {
    * aconteceu fora do expediente") não se aplica a ele.
    */
   exigirExpediente?: boolean;
+  /**
+   * Equipe e catálogo já lidos — o modo "qualquer barbeiro" (05/10) valida o
+   * pedido para cada um da equipe, e reler as duas coleções por barbeiro seria
+   * leitura dobrada de graça.
+   */
+  equipe?: FirebaseFirestore.QuerySnapshot;
+  catalogo?: FirebaseFirestore.QuerySnapshot;
 }): Promise<PedidoValidado> {
   const { shopRef, shop, locale, serviceIds, date, time } = params;
   const policies = shop.policies ?? {};
@@ -509,7 +614,7 @@ export async function validarPedido(params: {
    *
    * Com dois ou mais, escolher deixa de ser opcional — reserva sem dono some do
    * cálculo de comissão e não bate com capacidade nenhuma. */
-  const equipe = await shopRef.collection("staff").where("active", "==", true).get();
+  const equipe = params.equipe ?? (await shopRef.collection("staff").where("active", "==", true).get());
   if (equipe.empty) {
     throw new HttpsError(
       "failed-precondition",
@@ -584,7 +689,7 @@ export async function validarPedido(params: {
 
   /* O catálogo inteiro, e não só os escolhidos: os combos (01/10) precisam
    * saber quais existem para trocar "Corte + Barba" pelo combo. */
-  const catalogoSnap = await shopRef.collection("services").get();
+  const catalogoSnap = params.catalogo ?? (await shopRef.collection("services").get());
   const catalogo = new Map(catalogoSnap.docs.map((d) => [d.id, d]));
   const servicos = serviceIds.map((id) => catalogo.get(String(id)));
 
@@ -744,6 +849,18 @@ export const createBookingAtCounter = onCall<ReservaNoBalcaoInput>(async (reques
   }
   await exigirEdicao(barbershopId);
 
+  /* O barbeiro marca SÓ na própria agenda (05/10): o painel dele não enxerga
+   * a dos colegas, e marcar nela seria escrever onde ele não lê. */
+  let staffIdPedido = request.data?.staffId;
+  if (papel === "staff") {
+    const meu = await staffIdDeQuemChamou(request, barbershopId);
+    if (!meu) throw new HttpsError("permission-denied", "Sua conta não está ligada a um barbeiro desta barbearia.");
+    if (staffIdPedido && staffIdPedido !== meu) {
+      throw new HttpsError("permission-denied", "Você só marca na sua própria agenda.");
+    }
+    staffIdPedido = meu;
+  }
+
   const db = getFirestore();
   const shopRef = db.doc(`barbershops/${barbershopId}`);
   const shopSnap = await shopRef.get();
@@ -760,7 +877,7 @@ export const createBookingAtCounter = onCall<ReservaNoBalcaoInput>(async (reques
     serviceIds,
     date,
     time,
-    staffId: request.data?.staffId,
+    staffId: staffIdPedido,
     /* A única validação dispensada, e o porquê está no cabeçalho. O passado
      * continua barrado: `validarPedido` recusa data anterior a hoje. */
     exigirAntecedencia: false,
@@ -985,8 +1102,30 @@ export async function gravarComTravaDeHorario(params: {
    * simultâneos leriam o mesmo "9" e passariam todos.
    */
   limiteDiario?: { ref: FirebaseFirestore.DocumentReference; maximo: number };
+  /**
+   * "Qualquer barbeiro" (05/10): quem atende é escolhido AQUI, dentro da
+   * transação, com a agenda do dia lida no mesmo instante em que o horário é
+   * travado. Escolher antes, fora dela, deixaria dois clientes simultâneos
+   * caírem no mesmo barbeiro "livre". Presente, `staffId` é ignorado.
+   *
+   * Cada candidato leva a própria grade e duração — a jornada é por barbeiro.
+   */
+  escolha?: {
+    regra: RegraDeDistribuicao;
+    candidatos: Array<{
+      staffId: string;
+      staffName: string;
+      ordem: number;
+      slotMinutes: number;
+      duracaoDaReserva: number;
+    }>;
+    /** Onde o rodízio guarda o último escolhido (`private/distribuicao`). */
+    ponteiroRef: FirebaseFirestore.DocumentReference;
+  };
+  /** Recebe quem a `escolha` definiu, a cada tentativa — vale a última. */
+  aoEscolherBarbeiro?: (escolhido: { staffId: string; staffName: string }) => void;
 }): Promise<string> {
-  const { db, shopRef, date, time, staffId } = params;
+  const { db, shopRef, date, time } = params;
   const bookingRef = params.idDaReserva
     ? shopRef.collection("bookings").doc(params.idDaReserva)
     : shopRef.collection("bookings").doc();
@@ -995,6 +1134,8 @@ export async function gravarComTravaDeHorario(params: {
     /* Reiniciado a cada tentativa: a transação pode rodar mais de uma vez. */
     let virouEncaixe = false;
     let encaixadoNoBalcao = false;
+    let escolhido: { staffId: string; staffName: string; slotMinutes: number; duracaoDaReserva: number } | null =
+      null;
     /* Repetição da MESMA tentativa: a reserva já existe, e o pedido já foi
      * atendido. Devolver o id em vez de disputar o horário de novo — senão a
      * segunda chamada perdia para a primeira e respondia "esse horário acabou
@@ -1005,6 +1146,14 @@ export async function gravarComTravaDeHorario(params: {
         /* A resposta da repetição tem de dizer o que foi GRAVADO: se a
          * primeira virou pedido de encaixe, "confirmado" seria mentira. */
         params.aoDefinirStatus?.(String(existente.get("status")));
+        /* No modo "qualquer", a repetição devolve quem FICOU, não o primeiro
+         * da lista. */
+        if (params.escolha) {
+          params.aoEscolherBarbeiro?.({
+            staffId: String(existente.get("staffId") ?? ""),
+            staffName: String(existente.get("staffName") ?? ""),
+          });
+        }
         return;
       }
     }
@@ -1089,20 +1238,42 @@ export async function gravarComTravaDeHorario(params: {
        * discordar. */
       const doDia = await tx.get(shopRef.collection("bookings").where("date", "==", date));
 
-      const ocupadas = janelasOcupadas(
-        doDia.docs
-          .filter((d) => d.data().staffId === staffId && OCUPAM_SLOT.includes(d.data().status))
-          .map((d) => ({ time: String(d.data().time), durationMin: d.data().durationMin })),
-        params.slotMinutes
-      );
-
-      if (
-        !horarioDisponivel({
+      const daCadeira = (id: string) =>
+        doDia.docs.filter((d) => d.data().staffId === id && OCUPAM_SLOT.includes(d.data().status));
+      const cabe = (id: string, slotMinutes: number, duracao: number) =>
+        horarioDisponivel({
           time,
-          durationMin: params.duracaoDaReserva,
-          ocupadas,
-        })
-      ) {
+          durationMin: duracao,
+          ocupadas: janelasOcupadas(
+            daCadeira(id).map((d) => ({ time: String(d.data().time), durationMin: d.data().durationMin })),
+            slotMinutes
+          ),
+        });
+
+      if (params.escolha) {
+        /* Leitura, ainda na fase de leitura: o ponteiro do rodízio. */
+        const ponteiro =
+          params.escolha.regra === "rodizio" ? await tx.get(params.escolha.ponteiroRef) : null;
+        const escolhidoId = escolherBarbeiro({
+          regra: params.escolha.regra,
+          ultimoDoRodizio: (ponteiro?.get("ultimoStaffId") as string | undefined) ?? null,
+          candidatos: params.escolha.candidatos.map((c) => ({
+            staffId: c.staffId,
+            ordem: c.ordem,
+            atendimentosNoDia: daCadeira(c.staffId).length,
+            livre: cabe(c.staffId, c.slotMinutes, c.duracaoDaReserva),
+          })),
+        });
+        if (!escolhidoId) {
+          throw new HttpsError(
+            "already-exists",
+            "Esse horário acabou de ser reservado. Escolha outro, por favor."
+          );
+        }
+        const c = params.escolha.candidatos.find((x) => x.staffId === escolhidoId)!;
+        escolhido = c;
+        params.aoEscolherBarbeiro?.({ staffId: c.staffId, staffName: c.staffName });
+      } else if (!cabe(params.staffId, params.slotMinutes, params.duracaoDaReserva)) {
         if (params.seOcupado === "encaixar") {
           encaixadoNoBalcao = true;
         } else if (params.seOcupado !== "pedirEncaixe") {
@@ -1131,8 +1302,22 @@ export async function gravarComTravaDeHorario(params: {
         { merge: true }
       );
     }
+    if (escolhido && params.escolha?.regra === "rodizio") {
+      tx.set(
+        params.escolha.ponteiroRef,
+        { ultimoStaffId: escolhido.staffId, atualizadoEm: FieldValue.serverTimestamp() },
+        { merge: true }
+      );
+    }
     tx.set(bookingRef, {
       ...params.documento,
+      ...(escolhido
+        ? {
+            staffId: escolhido.staffId,
+            staffName: escolhido.staffName,
+            distribuidoPor: params.escolha?.regra,
+          }
+        : {}),
       ...(virouEncaixe ? { status: "fit_in_requested", isFitIn: true } : {}),
       ...(encaixadoNoBalcao ? { isFitIn: true } : {}),
       clientId: cadastro?.id ?? params.clientId,
@@ -1534,6 +1719,13 @@ export const responderEncaixe = onCall<{
     throw new HttpsError("permission-denied", "Só quem trabalha na barbearia responde encaixe.");
   }
   await exigirEdicao(barbershopId);
+  if (papel === "staff") {
+    const meu = await staffIdDeQuemChamou(request, barbershopId);
+    const reserva = await getFirestore().doc(`barbershops/${idSeguro(barbershopId, "Barbearia")}/bookings/${idSeguro(bookingId, "Atendimento")}`).get();
+    if (!meu || reserva.get("staffId") !== meu) {
+      throw new HttpsError("permission-denied", "Este encaixe é da agenda de outro barbeiro.");
+    }
+  }
 
   return aplicarRespostaDoEncaixe({ barbershopId, bookingId, aprovar, por: uid });
 });

@@ -43,6 +43,11 @@ const PUBLICAS_POR_DESENHO = new Set([
   // O cliente não tem vínculo com a barbearia: só traz para a PRÓPRIA conta os
   // cadastros de balcão do telefone que o Firebase verificou por SMS (02/10).
   "vincularMinhaContaPeloTelefone",
+  // Convite de barbeiro (05/10): o segredo é o token de uso único, não um
+  // vínculo — quem aceita ainda não é da casa. A barbearia vem do convite
+  // gravado pelo dono, nunca do que o chamador envia.
+  "lerConviteDeBarbeiro",
+  "aceitarConviteDeBarbeiro",
   "healthcheck",
 ]);
 

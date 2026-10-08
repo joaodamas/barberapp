@@ -7,6 +7,8 @@ import { auth } from "@/lib/firebase";
 type Claims = {
   /** Vínculo por barbearia: `{ "<barbershopId>": "owner" | "staff" }`. */
   barbershops?: Record<string, string>;
+  /** A cadeira do barbeiro por barbearia: `{ "<barbershopId>": "<staffId>" }` (05/10). */
+  equipe?: Record<string, string>;
   /** Operador da plataforma (suporte). */
   platformAdmin?: boolean;
   /** Conta criada por nós com senha provisória: prende na tela de troca. */
@@ -76,6 +78,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         claims: {
           barbershops: token.claims.barbershops as Record<string, string> | undefined,
+          equipe: token.claims.equipe as Record<string, string> | undefined,
           platformAdmin: token.claims.platformAdmin === true,
           mustChangePassword: token.claims.mustChangePassword === true,
           role: token.claims.role as string | undefined,

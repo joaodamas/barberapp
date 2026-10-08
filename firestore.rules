@@ -54,6 +54,22 @@ service cloud.firestore {
       return roleIn(barbershopId) in ['owner', 'staff'];
     }
 
+    /* A cadeira do barbeiro nesta barbearia (05/10), do claim `equipe` que o
+     * convite grava. Só vale para quem é `staff` — o dono enxerga tudo por
+     * `isOwnerOf`. */
+    function meuStaffId(barbershopId) {
+      return roleIn(barbershopId) == 'staff'
+        ? request.auth.token.get('equipe', {}).get(barbershopId, null)
+        : null;
+    }
+
+    /* O barbeiro vê SÓ a própria agenda (decisão do dono, 05/10): nada dos
+     * colegas nem do caixa da casa. */
+    function ehDaMinhaCadeira(barbershopId, dados) {
+      return meuStaffId(barbershopId) != null
+        && dados.get('staffId', null) == meuStaffId(barbershopId);
+    }
+
     function isSelf(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
@@ -147,6 +163,10 @@ service cloud.firestore {
     /* Avisos no Telegram (01/10): convite de uso único e o índice
      * conversa → barbearia. Só o servidor: gravável, alguém amarraria o
      * próprio Telegram à barbearia de outro e aprovaria encaixe lá. */
+    /* Convites de barbeiro (05/10): o token é o segredo. Só o servidor. */
+    match /convites_equipe/{token} {
+      allow read, write: if false;
+    }
     match /telegram_convites/{codigo} {
       allow read, write: if false;
     }
@@ -428,7 +448,8 @@ service cloud.firestore {
       }
 
       match /bookings/{bookingId} {
-        allow read: if isStaffOf(barbershopId)
+        allow read: if isOwnerOf(barbershopId)
+                    || ehDaMinhaCadeira(barbershopId, resource.data)
                     || (isSignedIn() && resource.data.clientId == request.auth.uid);
 
         /* Criar reserva é SÓ pela Cloud Function `createBooking`.
@@ -464,7 +485,7 @@ service cloud.firestore {
          *
          * Transição só a partir de reserva em aberto: reabrir um atendimento
          * concluído mexe em dinheiro congelado e é do servidor. */
-        allow update: if isStaffOf(barbershopId)
+        allow update: if (isOwnerOf(barbershopId) || ehDaMinhaCadeira(barbershopId, resource.data))
           && request.resource.data.diff(resource.data).affectedKeys()
                .hasOnly(['status', 'paymentMethod', 'paymentFormId', 'paymentFormLabel',
                          'discountAmount', 'discountInput', 'discountReason',
@@ -520,7 +541,8 @@ service cloud.firestore {
        * O vínculo é por `uid` gravado no documento pelo servidor. */
       match /commissions/{commissionId} {
         allow read: if isOwnerOf(barbershopId)
-                    || (isStaffOf(barbershopId) && resource.data.uid == request.auth.uid);
+                    || (isStaffOf(barbershopId) && resource.data.uid == request.auth.uid)
+                    || ehDaMinhaCadeira(barbershopId, resource.data);
         allow write: if false;
       }
       /* Estoque: LÊ quem toca a loja, ESCREVE só o servidor — G1.
@@ -539,7 +561,7 @@ service cloud.firestore {
        * Mesmo desenho de `bookings` e `payments`: o fato econômico nasce no
        * servidor ou não nasce. */
       match /inventory_movements/{moveId} {
-        allow read: if isStaffOf(barbershopId);
+        allow read: if isOwnerOf(barbershopId);
         allow write: if false;
       }
 
@@ -553,13 +575,16 @@ service cloud.firestore {
       }
 
       match /payments/{paymentId} {
-        allow read: if isStaffOf(barbershopId) || ownsResource();
+        allow read: if isOwnerOf(barbershopId) || ownsResource();
         allow write: if false;
       }
       match /refunds/{refundId} {
-        allow read: if isStaffOf(barbershopId) || ownsResource();
+        allow read: if isOwnerOf(barbershopId) || ownsResource();
         allow write: if false;
       }
+      /* O barbeiro também lê (05/10): é o que diz, no fechamento, que aquele
+       * cliente é mensalista e o corte pode ser coberto pelo plano. É contrato
+       * de cliente, não caixa da casa. */
       match /subscriptions/{subscriptionId} {
         allow read: if isStaffOf(barbershopId) || ownsResource();
         allow write: if false;
@@ -568,7 +593,7 @@ service cloud.firestore {
        * fechado, horário ocupado). Só o servidor escreve; a equipe lê para
        * resolver. */
       match /conflitos_horario_fixo/{conflitoId} {
-        allow read: if isStaffOf(barbershopId);
+        allow read: if isOwnerOf(barbershopId);
         allow write: if false;
       }
 
@@ -592,15 +617,15 @@ service cloud.firestore {
         allow read, write: if false;
       }
       match /subscription_invoices/{invoiceId} {
-        allow read: if isStaffOf(barbershopId) || ownsResource();
+        allow read: if isOwnerOf(barbershopId) || ownsResource();
         allow write: if false;
       }
       match /loyalty_transactions/{txId} {
-        allow read: if isStaffOf(barbershopId) || ownsResource();
+        allow read: if isOwnerOf(barbershopId) || ownsResource();
         allow write: if false;
       }
       match /client_occurrences/{occurrenceId} {
-        allow read: if isStaffOf(barbershopId);
+        allow read: if isOwnerOf(barbershopId);
         allow write: if false;
       }
       match /whatsapp_messages/{messageId} {

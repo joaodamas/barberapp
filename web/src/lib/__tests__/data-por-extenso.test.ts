@@ -115,6 +115,7 @@ describe("a confirmação diz qual horário foi garantido", () => {
 
   it("o passo 4 nomeia o profissional quando houve escolha", () => {
     const passo4 = pagina.slice(pagina.indexOf("Reserva confirmada!"));
-    expect(passo4).toContain("barbeiroEscolhido.name");
+    /* Com "Qualquer barbeiro" (05/10), o nome é o que o servidor atribuiu. */
+    expect(passo4).toContain("atribuido ?? barbeiroEscolhido?.name");
   });
 });

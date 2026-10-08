@@ -1,3 +1,4 @@
+import { staffIdDeQuemChamou } from "./convite-equipe";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { exigirEdicao, idSeguro, vinculosDe } from "./acesso";
@@ -55,6 +56,7 @@ export const adicionarServicosAoAtendimento = onCall<{
     throw new HttpsError("permission-denied", "Só quem trabalha na barbearia adiciona serviço.");
   }
   await exigirEdicao(barbershopId);
+  const meuStaffId = papel === "staff" ? await staffIdDeQuemChamou(request, barbershopId) : null;
 
   const bookingId = idSeguro(request.data?.bookingId, "Atendimento");
   const pedidos = Array.isArray(request.data?.serviceIds) ? request.data.serviceIds : [];
@@ -78,6 +80,9 @@ export const adicionarServicosAoAtendimento = onCall<{
     const snap = await tx.get(ref);
     if (!snap.exists) throw new HttpsError("not-found", "Atendimento não encontrado.");
     const reserva = snap.data() ?? {};
+    if (papel === "staff" && (!meuStaffId || reserva.staffId !== meuStaffId)) {
+      throw new HttpsError("permission-denied", "Este atendimento é da agenda de outro barbeiro.");
+    }
     if (!ABERTOS.includes(String(reserva.status))) {
       throw new HttpsError(
         "failed-precondition",

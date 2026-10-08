@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Plus, Trash2, UserPlus, Users } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { Pill } from "@/components/ui/pill";
+import { AcessoDoBarbeiro } from "@/components/equipe/acesso-do-barbeiro";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
 import { useServices, useStaffComRemuneracao } from "@/lib/db/use-shop-data";
@@ -296,13 +296,7 @@ export default function EquipePage() {
               </div>
             </div>
 
-            {b.uid ? (
-              <Pill tone="success">Tem acesso ao sistema</Pill>
-            ) : (
-              <p className="text-xs text-ink-muted">
-                Sem acesso ao sistema — ele aparece na agenda, mas não entra no app.
-              </p>
-            )}
+            <AcessoDoBarbeiro barbeiro={b} />
           </Card>
         );
       })}

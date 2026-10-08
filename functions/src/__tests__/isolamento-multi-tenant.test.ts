@@ -44,7 +44,7 @@ const ALFA = "barbearia-alfa";
 const BETA = "barbearia-beta";
 
 const DONO_ALFA = { sub: "dono-alfa", barbershops: { [ALFA]: "owner" } };
-const BARBEIRO_ALFA = { sub: "barbeiro-alfa", barbershops: { [ALFA]: "staff" } };
+const BARBEIRO_ALFA = { sub: "barbeiro-alfa", barbershops: { [ALFA]: "staff" }, equipe: { [ALFA]: "staff-1" } };
 const CLIENTE_ALFA = { sub: "cliente-alfa" };
 const CLIENTE_BETA = { sub: "cliente-beta" };
 
@@ -121,6 +121,7 @@ beforeEach(async () => {
       await setDoc(doc(db, `barbershops/${bid}/products`, "pomada"), { name: "Pomada", cost: 18 });
       await setDoc(doc(db, `barbershops/${bid}/bookings`, "bk-1"), {
         clientId: cliente,
+        staffId: "staff-1",
         status: "completed",
         value: 90,
       });
@@ -528,9 +529,12 @@ describe("8 · a Alfa opera normalmente a própria casa", () => {
     await assertSucceeds(getDoc(doc(db, `barbershops/${ALFA}/private`, "billing")));
   });
 
-  it("o barbeiro da Alfa lê a agenda da Alfa", async () => {
+  it("o barbeiro da Alfa lê a PRÓPRIA agenda na Alfa (e só ela, 05/10)", async () => {
     const db = as(BARBEIRO_ALFA);
-    await assertSucceeds(getDocs(collection(db, `barbershops/${ALFA}/bookings`)));
+    await assertSucceeds(
+      getDocs(query(collection(db, `barbershops/${ALFA}/bookings`), where("staffId", "==", "staff-1")))
+    );
+    await assertFails(getDocs(collection(db, `barbershops/${ALFA}/bookings`)));
   });
 
   it("o dono lê a carteira de clientes DELE — inclusive os de balcão", async () => {

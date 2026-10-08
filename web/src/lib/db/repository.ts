@@ -42,6 +42,11 @@ export type ListOptions = {
   direction?: "asc" | "desc";
   /** Filtros simples de igualdade. */
   equals?: Record<string, unknown>;
+  /**
+   * Recorte por intervalo num campo (inclusive nas duas pontas) — 05/10, painel
+   * do barbeiro: a agenda dele assina só os dias vistos, não a coleção inteira.
+   */
+  range?: { field: string; from?: string; to?: string };
 };
 
 function constraintsFrom(options: ListOptions = {}): QueryConstraint[] {
@@ -49,6 +54,8 @@ function constraintsFrom(options: ListOptions = {}): QueryConstraint[] {
   for (const [field, value] of Object.entries(options.equals ?? {})) {
     if (value !== undefined) constraints.push(where(field, "==", value));
   }
+  if (options.range?.from !== undefined) constraints.push(where(options.range.field, ">=", options.range.from));
+  if (options.range?.to !== undefined) constraints.push(where(options.range.field, "<=", options.range.to));
   if (options.orderByField) {
     constraints.push(orderBy(options.orderByField, options.direction ?? "asc"));
   }

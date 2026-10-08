@@ -143,6 +143,12 @@ export type TenantPolicies = {
    * `functions/src/janela.ts`).
    */
   janela?: { abertaAte?: string | null; diasMensalista?: number | null };
+  /**
+   * Quem atende quando o cliente escolhe "Qualquer barbeiro" (05/10). Ausente
+   * = equilíbrio do dia. Quem decide é o servidor (`functions/src/distribuicao.ts`);
+   * aqui só a tela de Ajustes lê e grava.
+   */
+  distribuicao?: import("./distribuicao").RegraDeDistribuicao;
   cancellation: typeof defaultCancellationPolicy;
   reschedule: typeof defaultReschedulePolicy;
   booking: TenantBookingPolicy;
