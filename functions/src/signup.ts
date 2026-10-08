@@ -1,6 +1,6 @@
 import { CAMINHO_FINANCEIRO } from "./politicas-financeiras";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
-import { vinculosDe } from "./acesso";
+import { exigirEdicao, vinculosDe } from "./acesso";
 import { getAuth } from "firebase-admin/auth";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { featuresFor, type PlanId } from "./plans";
@@ -321,6 +321,93 @@ export const ONBOARDING_WRITABLE_FIELDS = new Set([
   "schedule.perDay",
 ]);
 
+/** Os passos que a tela `/comecar` conhece (`ONBOARDING_STEPS` no web). */
+export const PASSOS_DO_ONBOARDING = new Set(["barbearia", "servicos", "horarios", "compartilhar"]);
+
+const HORA = /^([01]\d|2[0-3]):[0-5]\d$/;
+const ehHora = (v: unknown) => typeof v === "string" && HORA.test(v);
+const textoEntre = (v: unknown, min: number, max: number) =>
+  typeof v === "string" && v.trim().length >= min && v.length <= max;
+const objetoSimples = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
+
+function pausasValidas(v: unknown): boolean {
+  return (
+    Array.isArray(v) &&
+    v.length <= 6 &&
+    v.every(
+      (p) =>
+        objetoSimples(p) &&
+        Object.keys(p).every((k) => k === "from" || k === "to") &&
+        ehHora(p.from) &&
+        ehHora(p.to)
+    )
+  );
+}
+
+/**
+ * O valor que o onboarding quer gravar tem a forma certa? `null` = vale; a
+ * string é o motivo da recusa. Puro, para teste.
+ *
+ * A allowlist dizia QUAIS chaves, mas não COMO: pelo Admin SDK, que ignora
+ * as regras, `brand.name` com 10 mil caracteres, `brand.accentColor` com
+ * CSS arbitrário ou `schedule.slotMinutes: 0` (que trava o laço da grade)
+ * entravam direto. Os limites da marca são os de `marcaDoDonoValida` em
+ * `firestore.rules`; os da jornada, os que a tela de horários produz.
+ */
+export function validarCampoDoOnboarding(campo: string, valor: unknown): string | null {
+  switch (campo) {
+    case "brand.name":
+      return textoEntre(valor, 2, 60) ? null : "o nome precisa ter de 2 a 60 caracteres";
+    case "brand.shortName":
+      return textoEntre(valor, 1, 14) ? null : "o nome curto precisa ter de 1 a 14 caracteres";
+    case "brand.accentColor":
+      return typeof valor === "string" && /^#[0-9a-fA-F]{6}$/.test(valor) ? null : "a cor precisa ser #RRGGBB";
+    case "contact.address":
+      return typeof valor === "string" && valor.length <= 200 ? null : "o endereço passa de 200 caracteres";
+    case "contact.whatsapp":
+      return typeof valor === "string" && /^\d{0,15}$/.test(valor) ? null : "o WhatsApp precisa ser só dígitos";
+    case "contact.instagram":
+      return valor === null || (typeof valor === "string" && valor.length <= 60)
+        ? null
+        : "o Instagram passa de 60 caracteres";
+    case "schedule.weekdays":
+      return Array.isArray(valor) &&
+        valor.length <= 7 &&
+        new Set(valor).size === valor.length &&
+        valor.every((d) => Number.isInteger(d) && d >= 0 && d <= 6)
+        ? null
+        : "dias da semana inválidos";
+    case "schedule.opensAt":
+    case "schedule.closesAt":
+      return ehHora(valor) ? null : "horário precisa ser HH:MM";
+    case "schedule.slotMinutes":
+      return Number.isInteger(valor) && (valor as number) >= 5 && (valor as number) <= 240
+        ? null
+        : "o intervalo da agenda precisa ser de 5 a 240 minutos";
+    case "schedule.breaks":
+      return pausasValidas(valor) ? null : "intervalos inválidos";
+    case "schedule.perDay": {
+      if (valor === null) return null;
+      if (!objetoSimples(valor)) return "horário por dia inválido";
+      for (const [dia, j] of Object.entries(valor)) {
+        if (!/^[0-6]$/.test(dia)) return "horário por dia inválido";
+        if (j === null) continue;
+        if (!objetoSimples(j)) return "horário por dia inválido";
+        if (!Object.keys(j).every((k) => k === "opensAt" || k === "closesAt" || k === "breaks")) {
+          return "horário por dia inválido";
+        }
+        if (j.opensAt !== undefined && !ehHora(j.opensAt)) return "horário por dia inválido";
+        if (j.closesAt !== undefined && !ehHora(j.closesAt)) return "horário por dia inválido";
+        if (j.breaks !== undefined && !pausasValidas(j.breaks)) return "horário por dia inválido";
+      }
+      return null;
+    }
+    default:
+      return `o onboarding não grava "${campo}"`;
+  }
+}
+
 /** Marca um passo do onboarding como concluído. */
 export const completeOnboardingStep = onCall<{
   barbershopId: string;
@@ -334,6 +421,12 @@ export const completeOnboardingStep = onCall<{
   if (role !== "owner") {
     throw new HttpsError("permission-denied", "Só o dono conclui o onboarding.");
   }
+  if (typeof step !== "string" || !PASSOS_DO_ONBOARDING.has(step)) {
+    throw new HttpsError("invalid-argument", "Passo do onboarding desconhecido.");
+  }
+  /* Grava marca e jornada: é edição, e em modo leitura (teste vencido,
+   * suspensa) não vale — como em toda outra callable que edita a operação. */
+  await exigirEdicao(barbershopId);
 
   const db = getFirestore();
   const shopRef = db.doc(`barbershops/${barbershopId}`);
@@ -349,6 +442,8 @@ export const completeOnboardingStep = onCall<{
     if (!ONBOARDING_WRITABLE_FIELDS.has(campo)) {
       throw new HttpsError("invalid-argument", `O onboarding não grava "${campo}".`);
     }
+    const recusa = validarCampoDoOnboarding(campo, valor);
+    if (recusa) throw new HttpsError("invalid-argument", `Não deu para salvar: ${recusa}.`);
     update[campo] = valor;
   }
 
