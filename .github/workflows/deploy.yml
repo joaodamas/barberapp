@@ -276,7 +276,12 @@ jobs:
 
       - name: Cloud Functions
         if: inputs.escopo == 'tudo' || inputs.escopo == 'somente functions'
-        run: firebase deploy --only "$ALVOS_FUNCTIONS" --project "$PROJETO" --non-interactive
+        # --force: os gatilhos do financeiro têm nova tentativa (`retry: true`,
+        # #135), e o firebase-tools não publica função com política de falha
+        # no modo não interativo sem ele (a esteira do DEV parou nisso em
+        # 08/10). Com `--only` e a lista explícita, ele não apaga função que
+        # ficou fora da lista — remoção continua sendo à mão.
+        run: firebase deploy --only "$ALVOS_FUNCTIONS" --project "$PROJETO" --non-interactive --force
 
       # ── Hosting ─────────────────────────────────────────────────────────
       # Por último: é a chave que liga o que foi publicado para o cliente.
