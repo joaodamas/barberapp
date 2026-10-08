@@ -114,7 +114,23 @@ export function subscribeToCollection<T extends DocumentData>(
     assinaturas.set(chave, nova);
     assinatura = nova;
 
+    /* Escuta que falhou está morta: o Firestore encerra o listener depois do
+     * erro e não volta sozinho. Se a entrada ficasse no mapa, quem chegasse
+     * nos 30 s seguintes entraria de carona numa escuta que nunca mais vai
+     * entregar nada — a tela ficaria "carregando" para sempre (o erro só
+     * chegou a quem estava ouvindo na hora). Então: avisa quem está ouvindo e
+     * tira a chave, para o próximo assinante abrir uma escuta nova. */
+    const morreu = (error: Error) => {
+      if (assinaturas.get(chave) === nova) assinaturas.delete(chave);
+      nova.unsubscribe();
+      nova.erros.forEach((fn) => fn(error));
+    };
+
     let cancelado = false;
+    /* Cancelado antes de o SDK carregar: o `then` abaixo não abre a escuta. */
+    nova.unsubscribe = () => {
+      cancelado = true;
+    };
     getDb()
       .then((db) => {
         if (cancelado) return;
@@ -126,38 +142,39 @@ export function subscribeToCollection<T extends DocumentData>(
             nova.ultimo = items;
             nova.ouvintes.forEach((fn) => fn(items));
           },
-          (error) => nova.erros.forEach((fn) => fn(error))
+          (error) => morreu(error)
         );
         nova.unsubscribe = () => {
           cancelado = true;
           parar();
         };
       })
-      .catch((error) => nova.erros.forEach((fn) => fn(error as Error)));
+      .catch((error) => morreu(error as Error));
   }
 
-  assinatura.ouvintes.add(onData);
-  assinatura.erros.add(onError);
+  /* A limpeza mira a entrada em que ESTE assinante entrou, não a que estiver
+   * no mapa agora: depois de uma escuta morrer, a chave pode já apontar para
+   * a escuta nova de outra tela — e cancelar aquela derrubaria quem não tem
+   * nada a ver com isto. */
+  const minha = assinatura;
+  minha.ouvintes.add(onData);
+  minha.erros.add(onError);
 
   // Quem chega depois não espera a rede: recebe o que já se sabe.
-  if (assinatura.ultimo) onData(assinatura.ultimo);
+  if (minha.ultimo) onData(minha.ultimo);
 
   return () => {
-    const atual = assinaturas.get(chave);
-    if (!atual) return;
-    atual.ouvintes.delete(onData);
-    atual.erros.delete(onError);
+    minha.ouvintes.delete(onData);
+    minha.erros.delete(onError);
 
     /* Não cancela na hora: navegar para outra tela e voltar recriaria o
      * listener e refaria a busca. Uma folga curta cobre a troca de tela sem
      * segurar assinatura de tela que ninguém está vendo. */
-    if (atual.ouvintes.size === 0) {
+    if (minha.ouvintes.size === 0) {
       setTimeout(() => {
-        const ainda = assinaturas.get(chave);
-        if (ainda && ainda.ouvintes.size === 0) {
-          ainda.unsubscribe();
-          assinaturas.delete(chave);
-        }
+        if (minha.ouvintes.size !== 0) return;
+        minha.unsubscribe();
+        if (assinaturas.get(chave) === minha) assinaturas.delete(chave);
       }, 30_000);
     }
   };
@@ -176,6 +193,40 @@ export async function createDoc<T extends DocumentData>(
     stripUndefined(data)
   );
   return ref.id;
+}
+
+/** Um id novo para a coleção, gerado no aparelho, sem ir à rede. */
+export async function novoIdDe(barbershopId: string, collectionName: ShopCollection) {
+  const db = await getDb();
+  return doc(collection(db, shopCollectionPath(barbershopId, collectionName))).id;
+}
+
+/**
+ * Grava um documento novo com id escolhido ANTES — e não espera o servidor.
+ *
+ * `createDoc` usa `addDoc`, que sorteia o id a cada chamada e só resolve
+ * quando o servidor confirma. Offline, isso deixava o formulário preso em
+ * "Salvando…" e convidava a salvar de novo: cada tentativa virava um
+ * documento a mais quando a conexão voltasse. Com o id fixado por quem chama
+ * (`novoIdDe`), repetir sobrescreve o mesmo documento em vez de duplicar.
+ *
+ * Devolve assim que o SDK aceitou a gravação local; `noServidor` é a
+ * confirmação do servidor, para a tela dizer "salvo" ou "vai sincronizar"
+ * (ver `esperarServidorOuSeguir`).
+ */
+export async function gravarNovo<T extends DocumentData>(
+  barbershopId: string,
+  collectionName: ShopCollection,
+  docId: string,
+  data: T
+): Promise<{ id: string; noServidor: Promise<void> }> {
+  conferirEscrita();
+  const db = await getDb();
+  const noServidor = setDoc(
+    doc(db, shopDocPath(barbershopId, collectionName, docId)),
+    stripUndefined(data)
+  );
+  return { id: docId, noServidor };
 }
 
 /** Cria ou substitui um documento com id conhecido. */
