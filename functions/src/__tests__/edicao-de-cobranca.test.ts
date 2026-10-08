@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  barbeiroMexeuNoDesconto,
   chaveDaEdicao,
+  comTaxaCongelada,
   descontoDaEdicao,
   descontoEmReais,
   idDaEdicao,
@@ -32,7 +34,7 @@ const base = {
   ehDoBarbeiro: false,
   dataDoPagamento: "2026-10-02",
   hoje: "2026-10-02",
-  pediuDescontoNovo: false,
+  mexeuNoDesconto: false,
   viraCortesia: false,
   mudouAlgo: true,
 };
@@ -103,7 +105,7 @@ describe("motivoDaRecusaDaEdicao — quem pode e quando", () => {
   });
   it("barbeiro não dá desconto novo", () => {
     expect(
-      motivoDaRecusaDaEdicao({ ...base, papel: "staff", ehDoBarbeiro: true, pediuDescontoNovo: true })
+      motivoDaRecusaDaEdicao({ ...base, papel: "staff", ehDoBarbeiro: true, mexeuNoDesconto: true })
     ).toBe("desconto_so_dono");
   });
   it("recusas do fato vêm antes de tudo", () => {
@@ -185,5 +187,54 @@ describe("revisão #116 · combo inativo já no atendimento", () => {
     const r = servicosDaEdicao(["corte-barba", "sobrancelha"], comComboInativo, reserva);
     expect(r.value).toBe(90);
     expect(r.combos).toEqual(["Corte + barba"]);
+  });
+});
+
+/** Revisão financeira de 08/10. */
+describe("barbeiroMexeuNoDesconto — o desconto é do dono", () => {
+  it("ausente mantém: pode", () => {
+    expect(barbeiroMexeuNoDesconto(undefined, 10)).toBe(false);
+  });
+  it("null com desconto do dono: TIRA — recusado", () => {
+    expect(barbeiroMexeuNoDesconto(null, 10)).toBe(true);
+  });
+  it("null sem desconto nenhum não muda nada: pode", () => {
+    expect(barbeiroMexeuNoDesconto(null, 0)).toBe(false);
+  });
+  it("objeto é desconto novo, mesmo repetindo o valor", () => {
+    expect(barbeiroMexeuNoDesconto({ tipo: "valor", valor: 10 }, 10)).toBe(true);
+  });
+});
+
+describe("comTaxaCongelada — a taxa é a do dia em que o cliente pagou", () => {
+  /* Pago a 3,49% em setembro; a tabela de hoje diz 4,99%. */
+  const deHoje = {
+    paymentMethod: "credit" as const,
+    paymentFormId: "credito",
+    paymentFormLabel: "Crédito",
+    grossAmount: 50,
+    feePct: 4.99,
+    feeAmount: 2.5,
+    netAmount: 47.5,
+  };
+  const atual = { paymentMethod: "credit" as const, paymentFormId: "credito", paymentFormLabel: "Crédito", feePct: 3.49 };
+
+  it("forma igual: reaproveita o feePct congelado sobre o bruto novo", () => {
+    const p = comTaxaCongelada(deHoje, atual, { metodo: "credit", formaId: "credito" });
+    expect(p.feePct).toBe(3.49);
+    expect(p.feeAmount).toBe(1.75);
+    expect(p.netAmount).toBe(48.25);
+  });
+  it("forma não informada e mesmo meio: continua a forma e a taxa do pagamento", () => {
+    const p = comTaxaCongelada(deHoje, atual, { metodo: "credit", formaId: null });
+    expect(p.feePct).toBe(3.49);
+    expect(p.paymentFormId).toBe("credito");
+  });
+  it("forma trocada: vale a taxa de hoje da forma nova", () => {
+    expect(comTaxaCongelada(deHoje, atual, { metodo: "pix", formaId: "pix" })).toBe(deHoje);
+    expect(comTaxaCongelada(deHoje, atual, { metodo: "credit", formaId: "credito-2" })).toBe(deHoje);
+  });
+  it("pagamento antigo sem feePct: usa a de hoje (não inventa zero)", () => {
+    expect(comTaxaCongelada(deHoje, { ...atual, feePct: undefined }, { metodo: "credit", formaId: null })).toBe(deHoje);
   });
 });

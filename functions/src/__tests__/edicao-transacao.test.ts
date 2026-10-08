@@ -97,6 +97,7 @@ function editar(p: {
   formaId?: string | null;
   formas?: { id: string; label: string; base: PaymentMethod; feePct: number; active: boolean }[];
   catalogo?: ServicoDoCatalogo[];
+  fees?: PaymentFees;
 }) {
   return gravarEdicao({
     db,
@@ -110,7 +111,7 @@ function editar(p: {
     formaId: p.formaId ?? null,
     formas: p.formas,
     metodo: p.metodo ?? "pix",
-    fees: TAXAS,
+    fees: p.fees ?? TAXAS,
     padraoPct: 50,
     hoje: p.hoje ?? HOJE,
     chave: p.chave ?? "k1",
@@ -255,6 +256,22 @@ describe("barbeiro", () => {
       /seus atendimentos/
     );
   });
+  it("não tira o desconto que o dono deu (08/10)", async () => {
+    await semearConcluido();
+    await editar({ serviceIds: ["corte-barba"], desconto: { tipo: "valor", valor: 5 }, chave: "k1" });
+    await expect(
+      editar({ serviceIds: ["corte-barba"], papel: "staff", staffIdDoAutor: "s1", desconto: null, chave: "k2" })
+    ).rejects.toThrow(/Só o dono/);
+    expect((await pagamentoRef().get()).get("discountAmount")).toBe(5);
+    expect((await reservaRef().get()).get("discountAmount")).toBe(5);
+  });
+  it("mantém o desconto do dono ao corrigir serviço", async () => {
+    await semearConcluido();
+    await editar({ serviceIds: ["corte-barba"], desconto: { tipo: "valor", valor: 5 }, chave: "k1" });
+    const r = await editar({ serviceIds: ["corte"], papel: "staff", staffIdDoAutor: "s1", chave: "k2" });
+    expect(r.depois.discountAmount).toBe(5);
+    expect(r.depois.cobrado).toBe(45);
+  });
   it("não dá desconto novo", async () => {
     await semearConcluido();
     await expect(
@@ -288,5 +305,25 @@ describe("revisão #116", () => {
     expect(b.value).toBe(75);
     expect((await pagamentoRef().get()).get("grossAmount")).toBe(75);
     expect((await pagamentoRef().get()).get("paymentMethod")).toBe("cash");
+  });
+});
+
+describe("taxa congelada (08/10)", () => {
+  it("forma trocada: vale a taxa de hoje da forma nova", async () => {
+    await semearConcluido({ metodo: "credit" });
+    await editar({ serviceIds: ["corte"], metodo: "debit", fees: { ...TAXAS, debito: 2.5 } });
+    const p = (await pagamentoRef().get()).data()!;
+    expect(p.feePct).toBe(2.5);
+    expect(p.feeAmount).toBe(1.25);
+  });
+  it("forma igual: a edição de serviço reaproveita a taxa do dia do pagamento", async () => {
+    await semearConcluido({ metodo: "credit" });
+    /* Pago a 3,49%; o dono subiu o crédito para 4,99% depois. */
+    const r = await editar({ serviceIds: ["corte"], metodo: "credit", fees: { ...TAXAS, credito: 4.99 } });
+    expect(r.depois.cobrado).toBe(50);
+    const p = (await pagamentoRef().get()).data()!;
+    expect(p.feePct).toBe(3.49);
+    expect(p.feeAmount).toBe(1.75);
+    expect(p.netAmount).toBe(48.25);
   });
 });
