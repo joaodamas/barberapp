@@ -5,14 +5,15 @@ import {
   taxasDePagamento,
   horariosDaJornada, indicadores,
   mesPeriodo, projecaoDeCaixa, receitaDoMes, recorrenciaDeClientes,
-  resultadoDoMes, topServicos,
+  recorrentesRepetidasPorCategoria, resultadoDoMes, topServicos,
 } from "@/lib/analytics";
+import { historicoAoMudarAtivo, historicoAoMudarSalario } from "@/lib/folha";
 import { mesAtual } from "@/lib/format";
 import { PLATFORM_DEFAULT_POLICIES } from "@/lib/tenant";
 import type { Doc } from "@/lib/db/repository";
 import type {
   BookingDoc, CommissionDoc, ExpenseDoc, InventoryMovementDoc, PaymentDoc,
-  StaffDoc, SubscriberDoc,
+  StaffDoc, SubscriberDoc, SubscriptionInvoiceDoc,
 } from "@/lib/domain";
 
 const P = mesPeriodo("2026-07");
@@ -615,18 +616,18 @@ describe("mão de obra", () => {
   it("soma o salário de quem está no quadro", () => {
     // A linha de folha do DRE era R$ 0,00 estrutural: `payroll` existia como
     // parâmetro e nenhum chamador o preenchia.
-    expect(folhaMensal([st({ id: "1", salary: 2200 }), st({ id: "2", salary: 1800 })])).toBe(4000);
+    expect(folhaMensal([st({ id: "1", salary: 2200 }), st({ id: "2", salary: 1800 })], "2026-07")).toBe(4000);
   });
 
   it("quem saiu do quadro não custa mais", () => {
     expect(
-      folhaMensal([st({ id: "1", salary: 2200 }), st({ id: "2", salary: 1800, active: false })])
+      folhaMensal([st({ id: "1", salary: 2200 }), st({ id: "2", salary: 1800, active: false })], "2026-07")
     ).toBe(2200);
   });
 
   it("barbeiro só por comissão não vira NaN na folha", () => {
-    expect(folhaMensal([st({ id: "1" })])).toBe(0);
-    expect(folhaMensal([])).toBe(0);
+    expect(folhaMensal([st({ id: "1" })], "2026-07")).toBe(0);
+    expect(folhaMensal([], "2026-07")).toBe(0);
   });
 
   it("cada barbeiro comissiona pelo percentual DELE", () => {
@@ -1118,5 +1119,162 @@ describe("projeção — mensalistas como o servidor grava (28/09)", () => {
     const terca = p.find((d) => d.date === "2026-09-29")!;
     expect(terca.bookingRevenue).toBe(900);
     expect(terca.isEstimate).toBe(true);
+  });
+});
+
+/* ================================================================== */
+/* Revisão financeira de 08/10                                         */
+/* ================================================================== */
+
+describe("folha por mês — o salário que valia naquele mês", () => {
+  it("aumento em novembro não reescreve setembro", () => {
+    const antes = st({ id: "1", salary: 2000, createdAt: new Date(2026, 0, 10) });
+    const historicoSalario = historicoAoMudarSalario(antes, 2500, "2026-11");
+    const depois = { ...antes, salary: 2500, historicoSalario };
+    expect(folhaMensal([depois], "2026-09")).toBe(2000);
+    expect(folhaMensal([depois], "2026-11")).toBe(2500);
+    expect(folhaMensal([depois], "2025-12")).toBe(0); // antes de entrar
+  });
+  it("contratado em novembro não entra em setembro (dado antigo: vale o mês de criação)", () => {
+    const novo = st({ id: "1", salary: 1800, createdAt: { seconds: Date.UTC(2026, 10, 3, 15) / 1000 } });
+    expect(folhaMensal([novo], "2026-09")).toBe(0);
+    expect(folhaMensal([novo], "2026-11")).toBe(1800);
+  });
+  it("desligado em outubro: conta até outubro (o mês da saída), não depois", () => {
+    const base = st({ id: "1", salary: 2000, createdAt: new Date(2026, 0, 10) });
+    const historicoNaEquipe = historicoAoMudarAtivo(base, false, "2026-10");
+    const saiu = { ...base, active: false, historicoNaEquipe };
+    expect(folhaMensal([saiu], "2026-09")).toBe(2000);
+    expect(folhaMensal([saiu], "2026-10")).toBe(2000);
+    expect(folhaMensal([saiu], "2026-11")).toBe(0);
+  });
+  it("voltou em dezembro: conta de novo", () => {
+    const base = st({ id: "1", salary: 2000, createdAt: new Date(2026, 0, 10) });
+    const saiu = { ...base, active: false, historicoNaEquipe: historicoAoMudarAtivo(base, false, "2026-10") };
+    const voltou = { ...saiu, active: true, historicoNaEquipe: historicoAoMudarAtivo(saiu, true, "2026-12") };
+    expect(folhaMensal([voltou], "2026-11")).toBe(0);
+    expect(folhaMensal([voltou], "2026-12")).toBe(2000);
+  });
+  it("sem createdAt nem histórico: o comportamento antigo (salário atual em todo mês)", () => {
+    expect(folhaMensal([st({ id: "1", salary: 1500 })], "2020-01")).toBe(1500);
+  });
+  it("ao centavo", () => {
+    expect(folhaMensal([st({ id: "1", salary: 1412.1 }), st({ id: "2", salary: 0.2 })], "2026-07")).toBe(1412.3);
+  });
+});
+
+describe("comissão estimada ao centavo", () => {
+  it("40% de R$ 33,00 é R$ 13,20, não R$ 13,00", () => {
+    const c = comissoesDeServico({
+      bookings: [bk({ id: "1", value: 33 })],
+      staff: [st({ id: "s1", commissionPct: 40 })],
+      periodo: P,
+      policies: PLATFORM_DEFAULT_POLICIES,
+    });
+    expect(c.total).toBe(13.2);
+    expect(c.porBarbeiro[0].valor).toBe(13.2);
+  });
+});
+
+describe("topServicos — recorte do DRE", () => {
+  it("sem encaixes quando pedido, ao centavo", () => {
+    const bookings = [
+      bk({ id: "1", value: 45.5 }),
+      bk({ id: "2", value: 50, isFitIn: true }),
+    ];
+    const nomes = new Map([["corte", "Corte"]]);
+    expect(topServicos({ bookings, nomePorId: nomes, periodo: P, incluirEncaixes: false })).toEqual([
+      { name: "Corte", count: 1, revenue: 45.5 },
+    ]);
+    expect(topServicos({ bookings, nomePorId: nomes, periodo: P })[0]).toMatchObject({ count: 2, revenue: 95.5 });
+  });
+});
+
+describe("projeção — mensalidade pelas faturas", () => {
+  const fat = (o: Partial<SubscriptionInvoiceDoc> & { id: string }): Doc<SubscriptionInvoiceDoc> => ({
+    subscriptionId: "a1", clientId: "c1", competencia: "2026-10", dueDate: "2026-10-10",
+    amount: 149, planName: "Ilimitado", status: "aberta", paidAt: null, paymentMethod: null, ...o,
+  });
+  const base = {
+    bookings: [], expenses: [], historico: [],
+    openWeekdays: [0, 1, 2, 3, 4, 5, 6],
+    inicio: new Date("2026-10-08T00:00:00"), dias: 40,
+  };
+  const assinante = sub({ id: "a1", billingDay: 10, nextCharge: undefined, price: 149 });
+
+  it("fatura PAGA do mês não é projetada de novo; o mês seguinte (não emitido) vem do cadastro", () => {
+    const p = projecaoDeCaixa({ ...base, subscribers: [assinante], invoices: [fat({ id: "f1", status: "paga" })] });
+    expect(p.find((d) => d.date === "2026-10-10")?.subscriptionCharge).toBe(0);
+    expect(p.find((d) => d.date === "2026-11-10")?.subscriptionCharge).toBe(149);
+  });
+  it("\"Não cobrar\" (cancelada) não entra", () => {
+    const p = projecaoDeCaixa({ ...base, subscribers: [assinante], invoices: [fat({ id: "f1", status: "cancelada" })] });
+    expect(p.find((d) => d.date === "2026-10-10")?.subscriptionCharge).toBe(0);
+  });
+  it("aberta entra no vencimento, pelo valor CONGELADO na fatura", () => {
+    const p = projecaoDeCaixa({ ...base, subscribers: [{ ...assinante, price: 199 }], invoices: [fat({ id: "f1" })] });
+    expect(p.find((d) => d.date === "2026-10-10")?.subscriptionCharge).toBe(149);
+  });
+  it("atrasada em aberto: possível entrada no primeiro dia, rotulada à parte", () => {
+    const p = projecaoDeCaixa({
+      ...base,
+      subscribers: [],
+      invoices: [fat({ id: "f0", competencia: "2026-09", dueDate: "2026-09-10" })],
+    });
+    expect(p[0].mensalidadeAtrasada).toBe(149);
+    expect(p[0].subscriptionCharge).toBe(0);
+    expect(p[0].net).toBe(149);
+    expect(p.slice(1).every((d) => d.mensalidadeAtrasada === 0)).toBe(true);
+  });
+});
+
+describe("projeção — média divide pelos dias em que a loja abriu", () => {
+  it("uma terça com R$ 400 em oito semanas vale R$ 50 de média, não R$ 400", () => {
+    const janela = { inicio: "2026-08-11", fim: "2026-10-05" }; // 8 semanas, 8 terças
+    const p = projecaoDeCaixa({
+      bookings: [], expenses: [], subscribers: [],
+      historico: [{ date: "2026-09-15", pix: 400, cartao: 0, dinheiro: 0, naoInformado: 0, total: 400, appointments: 8 }],
+      janelaDoHistorico: janela,
+      openWeekdays: [1, 2, 3, 4, 5, 6],
+      inicio: new Date("2026-10-06T00:00:00"), // terça
+      dias: 1,
+    });
+    expect(p[0].bookingRevenue).toBe(50);
+  });
+  it("dia fechado na jornada não entra no denominador", () => {
+    const p = projecaoDeCaixa({
+      bookings: [], expenses: [], subscribers: [],
+      historico: [{ date: "2026-09-15", pix: 400, cartao: 0, dinheiro: 0, naoInformado: 0, total: 400, appointments: 8 }],
+      janelaDoHistorico: { inicio: "2026-08-11", fim: "2026-10-05" },
+      openWeekdays: [1, 3, 4, 5, 6], // terça fechada; a do dia 15 abriu por exceção
+      inicio: new Date("2026-10-13T00:00:00"),
+      dias: 1,
+    });
+    // Terça fechada: a projeção não estima nada, e a média continua sendo a do único dia aberto.
+    expect(p[0].isClosed).toBe(true);
+  });
+});
+
+describe("despesas recorrentes repetidas na mesma categoria", () => {
+  it("avisa \"Aluguel out\" + \"Aluguel nov\" vigentes juntas", () => {
+    const r = recorrentesRepetidasPorCategoria(
+      [
+        ex({ id: "1", description: "Aluguel out", date: "2026-10-05" }),
+        ex({ id: "2", description: "Aluguel nov", date: "2026-11-05" }),
+        ex({ id: "3", category: "Marketing", description: "Anúncio", date: "2026-11-02" }),
+      ],
+      "2026-11-30"
+    );
+    expect(r).toHaveLength(1);
+    expect(r[0].categoria).toBe("Aluguel");
+    expect(r[0].itens.map((e) => e.id)).toEqual(["1", "2"]);
+  });
+  it("o mesmo compromisso relançado (mesma descrição) não avisa: o mais novo substitui", () => {
+    expect(
+      recorrentesRepetidasPorCategoria(
+        [ex({ id: "1", date: "2026-10-05" }), ex({ id: "2", date: "2026-11-05", value: 1900 })],
+        "2026-11-30"
+      )
+    ).toEqual([]);
   });
 });

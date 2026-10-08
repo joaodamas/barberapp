@@ -7,7 +7,12 @@ import { KpiTile } from "@/components/ui/kpi-tile";
 import { formatBRL, formatPctPtBR } from "@/lib/format";
 import { apuracaoDe, NAO_APURADO, porQueNaoApurou, type FonteFinanceira } from "@/lib/apuracao";
 import { useFinanceiro, mesAtual, rotuloDoMes } from "@/lib/db/use-financeiro";
-import { cenarioDeCrescimento, composicaoDaReceita } from "@/lib/analytics";
+import {
+  cenarioDeCrescimento,
+  composicaoDaReceita,
+  despesasRecorrentesVigentes,
+  recorrentesRepetidasPorCategoria,
+} from "@/lib/analytics";
 import { detalheDoCustoDoVendido } from "@/lib/fontes-financeiras";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
@@ -67,7 +72,7 @@ function DreConteudo() {
    * MESMO recorte que o motor usa para o cabeçalho. Dois filtros de período
    * escritos em lugares diferentes divergem na borda do mês, e a divergência
    * aparece como um filho a mais ou a menos sob um total que não mudou. */
-  const { dre: r, receita, raw, status, periodo, fontesIlegiveis, erro } = useFinanceiro(mes);
+  const { dre: r, receita, raw, status, periodo, fontesIlegiveis, erro, folhaSemHistorico } = useFinanceiro(mes);
   const dreTaxRatePct = tenant.policies.taxRatePct;
 
   /* D3 · o número só existe se as fontes dele puderam ser lidas.
@@ -272,14 +277,22 @@ function DreConteudo() {
   /* Despesa fixa = recorrente. Antes TODA despesa entrava como fixa, inclusive
    * impulsionamento no Instagram e revisão de máquina — o custo fixo ficava 45%
    * inflado e o ponto de equilíbrio, errado. */
-  const fixasTree: DreItem[] = monthExpenses
-    .filter((e) => e.recurring)
+  /* Os filhos são os MESMOS compromissos que o cabeçalho soma (08/10): o
+   * cabeçalho vem de `despesasRecorrentesVigentes` (o aluguel lançado em
+   * agosto vale em setembro), e a lista mostrava só as recorrentes LANÇADAS
+   * no mês — em setembro, cabeçalho R$ 1.800 e nenhum filho. */
+  const fixasTree: DreItem[] = despesasRecorrentesVigentes(raw.expenses, periodo.fim)
     .map((e) => ({
       key: `fixa.${e.id}`,
       label: e.description,
       value: e.value,
       caption: e.category,
     }));
+
+  /* Duas recorrentes vigentes na mesma categoria: pode ser luz + água, pode
+   * ser o aluguel relançado com outra descrição e somado em dobro. A tela não
+   * decide — avisa (08/10, ver `recorrentesRepetidasPorCategoria`). */
+  const repetidas = recorrentesRepetidasPorCategoria(raw.expenses, periodo.fim);
 
   const eventuaisTree: DreItem[] = monthExpenses
     .filter((e) => !e.recurring)
@@ -482,6 +495,14 @@ function DreConteudo() {
           groupKey="fixas"
           tone="danger"
         />
+        {repetidas.length > 0 && (
+          <p role="status" className="pl-5 text-xs text-ink-muted">
+            Mais de uma despesa recorrente em{" "}
+            {repetidas.map((g) => `${g.categoria} (${g.itens.map((e) => e.description).join(", ")})`).join("; ")}.
+            Recorrente se repete sozinha todo mês — se uma delas foi relançada, desmarque o
+            &quot;recorrente&quot; dela em Despesas para não somar duas vezes.
+          </p>
+        )}
         <ExpandableGroup
           label="(−) Despesas Operacionais Eventuais"
           value={r.variableOperatingExpenses}
@@ -503,6 +524,14 @@ function DreConteudo() {
             </span>
             <span className="font-medium text-danger">{formatBRL(payroll)}</span>
           </div>
+        )}
+        {/* Salário sem histórico gravado sai do cadastro de HOJE (08/10): a
+            tela diz isso em vez de apresentar o número como o do mês. */}
+        {payroll > 0 && folhaSemHistorico > 0 && (
+          <p className="pl-5 text-xs text-ink-muted">
+            Pelo salário cadastrado hoje — o histórico por mês começa a ser gravado na próxima
+            alteração em Equipe.
+          </p>
         )}
         <div className="mt-1 flex items-center justify-between border-t border-border pt-2">
           <span className="text-ink">(=) Custo Fixo Total</span>

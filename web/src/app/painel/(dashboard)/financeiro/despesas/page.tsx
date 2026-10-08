@@ -10,7 +10,7 @@ import { formatBRL, formatDateShortPtBR } from "@/lib/format";
 import { contar } from "@/lib/plural";
 import { NAO_APURADO } from "@/lib/apuracao";
 import { LinhaDeErro } from "@/components/ui/erro-ao-carregar";
-import { mesPeriodo, resumoDeDespesas } from "@/lib/analytics";
+import { mesPeriodo, recorrentesRepetidasPorCategoria, resumoDeDespesas } from "@/lib/analytics";
 import { mesAtual, rotuloDoMes } from "@/lib/db/use-financeiro";
 import {
   expenseCategories,
@@ -82,6 +82,13 @@ export default function DespesasPage() {
    * O recorte agora é o mês exibido, e o rótulo diz qual é. */
   const mes = mesAtual();
   const resumo = useMemo(() => resumoDeDespesas(expenses, mesPeriodo(mes)), [expenses, mes]);
+  /* Recorrente "repete todo mês" sozinha. Duas vigentes na mesma categoria
+   * pode ser luz + água — ou o aluguel relançado, somando em dobro no custo
+   * fixo. A tela não adivinha: avisa (08/10). */
+  const repetidas = useMemo(
+    () => recorrentesRepetidasPorCategoria(expenses, mesPeriodo(mes).fim),
+    [expenses, mes]
+  );
   const total = resumo.total;
   const recurringTotal = resumo.recorrentes;
   const topCategory = { category: resumo.maiorCategoria.categoria, value: resumo.maiorCategoria.valor };
@@ -259,6 +266,38 @@ export default function DespesasPage() {
           </p>
         </Card>
       </div>
+
+      {!naoApurado && repetidas.length > 0 && (
+        <Card role="status" className="flex flex-col gap-1 border-gold/50 bg-gold/5">
+          {repetidas.map((g) => (
+            <div key={g.categoria} className="flex flex-col gap-1">
+              <p className="text-sm text-ink">
+                <strong>{g.categoria}</strong>: {contar(g.itens.length, "recorrente", "recorrentes")} valendo
+                em {rotuloDoMes(mes)}
+              </p>
+              {/* A recorrente antiga foi lançada em outro mês e não está na
+                  tabela abaixo: o botão é o caminho até ela. */}
+              {g.itens.map((e) => (
+                <p key={e.id} className="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
+                  {e.description} · {formatBRL(e.value)} · desde {formatDateShortPtBR(e.date)}
+                  <button
+                    type="button"
+                    onClick={() => openEditModal(e)}
+                    className="cursor-pointer text-gold-strong underline underline-offset-2"
+                  >
+                    Editar
+                  </button>
+                </p>
+              ))}
+            </div>
+          ))}
+          <p className="text-xs text-ink-muted">
+            Recorrente se repete sozinha todo mês, a partir da data do lançamento. Se uma delas
+            foi relançada, desmarque o &quot;recorrente&quot; dela — senão o custo fixo soma as
+            duas. Se são contas diferentes (luz e água, por exemplo), está certo.
+          </p>
+        </Card>
+      )}
 
       <Card className="table-scroll overflow-x-auto p-0">
         <table className="w-full min-w-[720px] text-sm">

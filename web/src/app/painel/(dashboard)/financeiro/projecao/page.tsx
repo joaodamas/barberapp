@@ -71,6 +71,9 @@ function ProjecaoConteudo() {
     .filter((d) => !d.isEstimate)
     .reduce((s, d) => s + d.bookingRevenue, 0);
   const subscriptionTotal = cashProjection.reduce((s, d) => s + d.subscriptionCharge, 0);
+  /* Atrasadas em aberto (08/10): entram no saldo como POSSÍVEL entrada, mas
+   * não são "confirmadas" — o cliente já deixou passar o vencimento. */
+  const atrasadas = cashProjection.reduce((s, d) => s + (d.mensalidadeAtrasada ?? 0), 0);
   const receitaConfirmada = confirmedRevenue + subscriptionTotal;
   const despesasFixas = cashProjection.reduce((s, d) => s + d.fixedExpense, 0);
   const resultadoProjetado = cashProjection.at(-1)?.cumulative ?? 0;
@@ -101,8 +104,9 @@ function ProjecaoConteudo() {
             `RecursoBloqueado` e no `BloqueioPlano` desta própria tela. */}
         <h1 className="text-xl text-ink md:text-3xl md:tracking-tight">Projeção de caixa</h1>
         <p className="mt-1 text-xs text-ink-muted md:text-sm">
-          Combina marcações já confirmadas, cobrança de mensalistas (data real)
-          e despesas fixas recorrentes (dia real). Dias sem marcação ainda
+          Combina marcações já confirmadas, mensalidades em aberto (no
+          vencimento da fatura; mês ainda não emitido, pelo cadastro) e despesas
+          fixas recorrentes (dia real). Dias sem marcação ainda
           usam a média histórica daquele dia da semana — marcados como
           &quot;estimado&quot;.
         </p>
@@ -118,6 +122,12 @@ function ProjecaoConteudo() {
             label: HORIZONTES[h].rotulo,
           }))}
         />
+        {atrasadas > 0 && (
+          <p className="text-xs text-ink-muted">
+            O saldo inclui <strong className="text-ink">{formatBRL(atrasadas)}</strong> de
+            mensalidades atrasadas ainda em aberto, no primeiro dia — entram se o cliente pagar.
+          </p>
+        )}
         {pctEstimado > 0 && (
           <p className="text-xs text-ink-muted">
             <strong className="text-ink">{pctEstimado}%</strong> desta receita é
@@ -237,7 +247,12 @@ function ProjecaoConteudo() {
                     {formatBRL(m.bookingRevenue)}
                   </td>
                   <td className="px-4 py-3 text-right text-ink-muted">
-                    {formatBRL(m.subscriptionCharge)}
+                    {formatBRL(m.subscriptionCharge + (m.mensalidadeAtrasada ?? 0))}
+                    {(m.mensalidadeAtrasada ?? 0) > 0 && (
+                      <span className="block text-[11px]">
+                        {formatBRL(m.mensalidadeAtrasada)} atrasadas
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-right text-danger">
                     −{formatBRL(m.fixedExpense)}
@@ -298,7 +313,14 @@ function ProjecaoConteudo() {
                   )}
                 </td>
                 <td className="px-4 py-2.5 text-right text-ink-muted">
-                  {d.subscriptionCharge > 0 ? formatBRL(d.subscriptionCharge) : "—"}
+                  {d.subscriptionCharge + (d.mensalidadeAtrasada ?? 0) > 0
+                    ? formatBRL(d.subscriptionCharge + (d.mensalidadeAtrasada ?? 0))
+                    : "—"}
+                  {(d.mensalidadeAtrasada ?? 0) > 0 && (
+                    <span className="ml-2">
+                      <Pill tone="danger">atrasadas</Pill>
+                    </span>
+                  )}
                 </td>
                 <td className="px-4 py-2.5 text-right text-danger">
                   {d.fixedExpense > 0 ? `− ${formatBRL(d.fixedExpense)}` : "—"}

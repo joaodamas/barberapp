@@ -668,6 +668,15 @@ export type StaffDoc = {
    * onde cadastrar. Ausente = only comissão, que é o arranjo mais comum.
    */
   salary?: number;
+  /**
+   * Histórico do salário e da passagem pela equipe (08/10) — moram em
+   * `staff_pay`, junto do salário, e chegam aqui pela mesma junção de
+   * `useStaffComRemuneracao`. Ver `lib/folha.ts`.
+   */
+  historicoSalario?: Array<{ valorCentavos: number; desde: string }> | null;
+  historicoNaEquipe?: Array<{ ativo: boolean; desde: string }> | null;
+  /** Gravado na criação pelo servidor (cadastro da barbearia). Timestamp do Firestore. */
+  createdAt?: unknown;
   /** Jornada própria. Ausente = herda a da barbearia. */
   schedule?: TenantScheduleLike | null;
   /** Para distinguir na agenda em colunas. */

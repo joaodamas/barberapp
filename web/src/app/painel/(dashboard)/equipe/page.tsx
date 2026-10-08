@@ -12,6 +12,8 @@ import { deleteField } from "firebase/firestore";
 import { useTenant } from "@/lib/tenant-context";
 import { contarDeTotal, plural } from "@/lib/plural";
 import { NOME_DO_PLANO, PRECOS_POR_PLANO, barbeirosExtras, valorMensal } from "@/lib/tenant";
+import { historicoDaMudanca } from "@/lib/folha";
+import { mesAtual } from "@/lib/format";
 
 /**
  * A equipe.
@@ -80,11 +82,16 @@ export default function EquipePage() {
        * pública (`staff`) qualquer pessoa leria o salário do barbeiro. A
        * ficha antiga perde os campos na mesma gravação, para não ficar uma
        * cópia velha exposta. */
+      /* Salário e entrada/saída gravam também o HISTÓRICO em `staff_pay`
+       * (08/10): o DRE de cada mês usa o salário que valia naquele mês, e não
+       * o de hoje. Ver `lib/folha.ts`. */
+      const historico = historicoDaMudanca(equipe.find((s) => s.id === id), campo, valor, mesAtual());
       if (campo === "commissionPct" || campo === "salary") {
-        await putDoc(tenant.id, "staffPay", id, { [campo]: valor });
+        await putDoc(tenant.id, "staffPay", id, { [campo]: valor, ...historico });
         await patchDoc(tenant.id, "staff", id, { [campo]: deleteField() });
       } else {
         await patchDoc(tenant.id, "staff", id, { [campo]: valor });
+        if (historico) await putDoc(tenant.id, "staffPay", id, historico);
       }
     } catch (e) {
       console.error("[equipe] falha ao salvar", e);

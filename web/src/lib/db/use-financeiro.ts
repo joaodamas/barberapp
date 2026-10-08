@@ -14,6 +14,7 @@ import {
   mapaDeCalor, mesPeriodo, projecaoDeCaixa, receitaDoMes,
   recorrenciaDeClientes, resultadoDoMes, topServicos,
 } from "@/lib/analytics";
+import { semHistoricoDeSalario } from "@/lib/folha";
 import type { Horizonte } from "@/lib/analytics";
 import type { FonteFinanceira } from "@/lib/apuracao";
 
@@ -118,7 +119,9 @@ export function useFinanceiro(mes: string, horizonte: Horizonte = "mensal") {
      * gravado por profissional. Com a equipe e as reservas aqui, a linha de
      * mão de obra do DRE deixa de ser R$ 0,00 estrutural e passa a respeitar o
      * que cada barbeiro combinou — defeito corrigido em 05/08/2026. */
-    payroll: folhaMensal(staff.items),
+    /* O salário que valia NESTE mês, de quem estava na equipe neste mês
+     * (08/10) — não o cadastro de hoje aplicado a qualquer mês. */
+    payroll: folhaMensal(staff.items, mes),
     staff: staff.items,
     bookings: bookings.items,
     /* Congeladas vencem sobre a derivação. Atendimentos anteriores ao trigger
@@ -170,9 +173,14 @@ export function useFinanceiro(mes: string, horizonte: Horizonte = "mensal") {
     capacidade: Math.round(capacidadeMes),
   });
 
+  const janelaDoHistorico = ultimasSemanas(8);
+
   const nomePorId = new Map(services.items.map((s) => [s.id, s.name]));
 
   const tops = topServicos({ bookings: bookings.items, nomePorId, periodo });
+  /* O DRE abre a lista sob "Serviços avulsos": sem os encaixes, que têm linha
+   * própria — senão os filhos passam do cabeçalho (08/10). */
+  const topsAvulsos = topServicos({ bookings: bookings.items, nomePorId, periodo, incluirEncaixes: false });
 
   return {
     status,
@@ -191,6 +199,8 @@ export function useFinanceiro(mes: string, horizonte: Horizonte = "mensal") {
     movimentosDeCaixa: movimentos,
     kpis,
     tops,
+    /** Salários que ainda saem do cadastro de hoje, sem histórico — a tela avisa. */
+    folhaSemHistorico: semHistoricoDeSalario(staff.items),
     recorrencia: recorrenciaDeClientes({ bookings: bookings.items, hoje: new Date() }),
     heatmap: mapaDeCalor({
       bookings: bookings.items,
@@ -201,6 +211,11 @@ export function useFinanceiro(mes: string, horizonte: Horizonte = "mensal") {
       bookings: bookings.items,
       expenses: expenses.items,
       subscribers: subscribers.items,
+      /* As faturas emitidas mandam na mensalidade projetada (08/10): aberta
+       * entra no vencimento, paga e "Não cobrar" saem, atrasada aparece à
+       * parte. O cadastro só projeta competência ainda não emitida. Já vêm
+       * carregadas acima para a receita — nenhuma leitura nova. */
+      invoices: invoices.items,
       /* A base da estimativa é o ATENDIMENTO AVULSO das últimas 8 semanas.
        *
        * Era o caixa do mês corrente inteiro: mensalidade paga numa segunda
@@ -212,8 +227,11 @@ export function useFinanceiro(mes: string, horizonte: Horizonte = "mensal") {
         payments: payments.items.filter(
           (pg) => (pg.origin ?? (pg.bookingId ? "servico" : undefined)) === "servico"
         ),
-        periodo: ultimasSemanas(8),
+        periodo: janelaDoHistorico,
       }),
+      /* A média divide pelos dias em que a loja ABRIU na janela, não só pelos
+       * que tiveram receita (08/10). */
+      janelaDoHistorico,
       openWeekdays: tenant.schedule.weekdays,
       schedule: tenant.schedule,
       inicio: new Date(),
@@ -227,7 +245,7 @@ export function useFinanceiro(mes: string, horizonte: Horizonte = "mensal") {
       subscribers: subscribers.items,
       services: services.items,
       products: products.items,
-      tops,
+      tops: topsAvulsos,
     },
   };
 }
