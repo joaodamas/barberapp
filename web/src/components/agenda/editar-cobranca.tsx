@@ -24,8 +24,8 @@ import type { Doc } from "@/lib/db/repository";
  * escreve dinheiro. O preço vem do catálogo, com combo, como na marcação.
  *
  * Dono: qualquer atendimento do mês, inclusive desconto. Barbeiro: os próprios,
- * no mesmo dia, sem dar desconto novo (o servidor confere; a tela só não
- * oferece o que vai ser recusado).
+ * no mesmo dia, sem dar, mudar ou tirar desconto — o desconto é do dono
+ * (08/10). O servidor confere; a tela só não oferece o que vai ser recusado.
  */
 
 type ModoDoDesconto = "manter" | "sem" | "novo";
@@ -242,7 +242,7 @@ export function EditarCobranca({
           )}
         </section>
 
-        {/* DESCONTO — só o dono dá ou muda; o barbeiro pode manter ou tirar. */}
+        {/* DESCONTO — só o dono dá, muda ou tira; o barbeiro só mantém (08/10). */}
         {(ehDono || tinhaDesconto) && (
           <section>
             <p className="mb-2 text-xs uppercase tracking-wider text-ink-muted">Desconto</p>
@@ -252,9 +252,11 @@ export function EditarCobranca({
                   Manter o de antes
                 </Opcao>
               )}
-              <Opcao ativa={modo === "sem" || (!tinhaDesconto && modo === "manter")} onClick={() => setModo("sem")}>
-                Sem desconto
-              </Opcao>
+              {(ehDono || !tinhaDesconto) && (
+                <Opcao ativa={modo === "sem" || (!tinhaDesconto && modo === "manter")} onClick={() => setModo("sem")}>
+                  Sem desconto
+                </Opcao>
+              )}
               {ehDono && (
                 <Opcao ativa={modo === "novo"} onClick={() => setModo("novo")}>
                   {tinhaDesconto ? "Mudar desconto" : "Dar desconto"}

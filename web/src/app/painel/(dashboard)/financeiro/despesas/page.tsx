@@ -10,7 +10,7 @@ import { formatBRL, formatDateShortPtBR } from "@/lib/format";
 import { contar } from "@/lib/plural";
 import { NAO_APURADO } from "@/lib/apuracao";
 import { LinhaDeErro } from "@/components/ui/erro-ao-carregar";
-import { mesPeriodo, resumoDeDespesas } from "@/lib/analytics";
+import { mesPeriodo, recorrentesRepetidasPorCategoria, resumoDeDespesas } from "@/lib/analytics";
 import { mesAtual, rotuloDoMes } from "@/lib/db/use-financeiro";
 import {
   expenseCategories,
@@ -23,7 +23,9 @@ import type { Doc } from "@/lib/db/repository";
 type Expense = Doc<ExpenseDoc>;
 import { useTenant } from "@/lib/tenant-context";
 import { useShopCollection } from "@/lib/db/use-collection";
-import { createDoc, patchDoc, removeDoc } from "@/lib/db/repository";
+import { gravarNovo, novoIdDe, patchDoc, removeDoc } from "@/lib/db/repository";
+import { esperarServidorOuSeguir } from "@/lib/db/sem-esperar-servidor";
+import { lerReais, reaisParaCampo, VALOR_ILEGIVEL } from "@/lib/reais";
 import { Voltar } from "@/components/ui/voltar";
 import { BloqueioPlano } from "@/components/ui/bloqueio-plano";
 import { useAcesso } from "@/lib/tenant-context";
@@ -74,6 +76,16 @@ export default function DespesasPage() {
   const [pendingDelete, setPendingDelete] = useState<Expense | null>(null);
 
   const [saving, setSaving] = useState(false);
+  /* Id da despesa nova, escolhido na primeira tentativa e mantido nas
+   * seguintes: salvar duas vezes (rede lenta, offline) sobrescreve o mesmo
+   * lançamento em vez de criar outro. Zera ao abrir o diálogo de novo. */
+  const [idDoRascunho, setIdDoRascunho] = useState<string | null>(null);
+  /* O que a tela diz depois que o diálogo fecha sem o servidor ter
+   * confirmado. "Salvo" seria mentira; silêncio esconderia uma gravação que
+   * ainda pode ser recusada. */
+  const [sincronia, setSincronia] = useState<
+    { tipo: "pendente" | "recusada"; texto: string } | null
+  >(null);
 
   /* Os KPIs diziam "no mês" e somavam o HISTÓRICO INTEIRO — o erro crescia a
    * cada mês de uso, e no terceiro mostrava o triplo do que o dono gastou. Um
@@ -82,6 +94,13 @@ export default function DespesasPage() {
    * O recorte agora é o mês exibido, e o rótulo diz qual é. */
   const mes = mesAtual();
   const resumo = useMemo(() => resumoDeDespesas(expenses, mesPeriodo(mes)), [expenses, mes]);
+  /* Recorrente "repete todo mês" sozinha. Duas vigentes na mesma categoria
+   * pode ser luz + água — ou o aluguel relançado, somando em dobro no custo
+   * fixo. A tela não adivinha: avisa (08/10). */
+  const repetidas = useMemo(
+    () => recorrentesRepetidasPorCategoria(expenses, mesPeriodo(mes).fim),
+    [expenses, mes]
+  );
   const total = resumo.total;
   const recurringTotal = resumo.recorrentes;
   const topCategory = { category: resumo.maiorCategoria.categoria, value: resumo.maiorCategoria.valor };
@@ -92,6 +111,7 @@ export default function DespesasPage() {
 
   function openModal() {
     setEditingId(null);
+    setIdDoRascunho(null);
     setForm({ ...emptyForm, date: todayISO() });
     setFormError(null);
     setModalOpen(true);
@@ -103,7 +123,7 @@ export default function DespesasPage() {
       description: expense.description,
       category: expense.category,
       supplier: expense.supplier === "—" ? "" : expense.supplier,
-      value: String(expense.value),
+      value: reaisParaCampo(expense.value),
       date: expense.date,
       payment: expense.payment,
       recurring: expense.recurring,
@@ -114,7 +134,8 @@ export default function DespesasPage() {
   }
 
   async function saveExpense() {
-    const value = Number(form.value);
+    /* `Number("1.500")` é 1,5: o aluguel de R$ 1.500 entrava como R$ 1,50. */
+    const value = lerReais(form.value);
 
     /* Antes o clique simplesmente não fazia nada: sem mensagem, com o botão
      * habilitado. E valor negativo passava. */
@@ -122,7 +143,11 @@ export default function DespesasPage() {
       setFormError("Informe a descrição do lançamento.");
       return;
     }
-    if (!Number.isFinite(value) || value <= 0) {
+    if (value === null && form.value.trim() !== "") {
+      setFormError(VALOR_ILEGIVEL);
+      return;
+    }
+    if (value === null || value <= 0) {
       setFormError("Informe um valor maior que zero.");
       return;
     }
@@ -142,12 +167,38 @@ export default function DespesasPage() {
 
     setSaving(true);
     try {
+      let noServidor: Promise<unknown>;
       if (editingId) {
-        await patchDoc(barbershopId, "expenses", editingId, fields);
+        noServidor = patchDoc(barbershopId, "expenses", editingId, fields);
       } else {
-        await createDoc(barbershopId, "expenses", fields);
+        const id = idDoRascunho ?? (await novoIdDe(barbershopId, "expenses"));
+        setIdDoRascunho(id);
+        noServidor = (await gravarNovo(barbershopId, "expenses", id, fields)).noServidor;
       }
+      /* Offline, o servidor não responde nunca — e esperar por ele deixava o
+       * diálogo preso em "Salvando…". A gravação já está guardada neste
+       * aparelho; fecha e diz que falta sincronizar. */
+      const situacao = await esperarServidorOuSeguir(noServidor);
       setModalOpen(false);
+      if (situacao === "pendente") {
+        const descricao = fields.description;
+        setSincronia({
+          tipo: "pendente",
+          texto: `"${descricao}" está guardada neste aparelho e vai sincronizar quando a conexão voltar.`,
+        });
+        noServidor.then(
+          () => setSincronia((atual) => (atual?.tipo === "pendente" ? null : atual)),
+          (error) => {
+            console.error("[despesas] servidor recusou depois", error);
+            setSincronia({
+              tipo: "recusada",
+              texto: `"${descricao}" não foi aceita pelo servidor e não foi salva. Lance de novo.`,
+            });
+          }
+        );
+      } else {
+        setSincronia(null);
+      }
     } catch (error) {
       console.error("[despesas] falha ao salvar", error);
       setFormError("Não foi possível salvar. Verifique a conexão e tente de novo.");
@@ -199,6 +250,25 @@ export default function DespesasPage() {
           Nova despesa
         </Button>
       </div>
+
+      {sincronia && (
+        <Card
+          role={sincronia.tipo === "recusada" ? "alert" : "status"}
+          className={
+            "flex items-start justify-between gap-3 p-3 text-sm md:p-4 " +
+            (sincronia.tipo === "recusada" ? "border-danger/50 text-danger" : "border-gold/50 text-ink")
+          }
+        >
+          <p>{sincronia.texto}</p>
+          <button
+            type="button"
+            onClick={() => setSincronia(null)}
+            className="shrink-0 text-xs text-ink-muted underline"
+          >
+            Fechar
+          </button>
+        </Card>
+      )}
 
       {/* Com a leitura falhando, os quatro cartões dizem que não sabem — e a
           legenda de cada um diz por quê. É a diferença que a tela não tinha:
@@ -259,6 +329,38 @@ export default function DespesasPage() {
           </p>
         </Card>
       </div>
+
+      {!naoApurado && repetidas.length > 0 && (
+        <Card role="status" className="flex flex-col gap-1 border-gold/50 bg-gold/5">
+          {repetidas.map((g) => (
+            <div key={g.categoria} className="flex flex-col gap-1">
+              <p className="text-sm text-ink">
+                <strong>{g.categoria}</strong>: {contar(g.itens.length, "recorrente", "recorrentes")} valendo
+                em {rotuloDoMes(mes)}
+              </p>
+              {/* A recorrente antiga foi lançada em outro mês e não está na
+                  tabela abaixo: o botão é o caminho até ela. */}
+              {g.itens.map((e) => (
+                <p key={e.id} className="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
+                  {e.description} · {formatBRL(e.value)} · desde {formatDateShortPtBR(e.date)}
+                  <button
+                    type="button"
+                    onClick={() => openEditModal(e)}
+                    className="cursor-pointer text-gold-strong underline underline-offset-2"
+                  >
+                    Editar
+                  </button>
+                </p>
+              ))}
+            </div>
+          ))}
+          <p className="text-xs text-ink-muted">
+            Recorrente se repete sozinha todo mês, a partir da data do lançamento. Se uma delas
+            foi relançada, desmarque o &quot;recorrente&quot; dela — senão o custo fixo soma as
+            duas. Se são contas diferentes (luz e água, por exemplo), está certo.
+          </p>
+        </Card>
+      )}
 
       <Card className="table-scroll overflow-x-auto p-0">
         <table className="w-full min-w-[720px] text-sm">
@@ -418,10 +520,12 @@ export default function DespesasPage() {
 
           <label className="flex flex-col gap-1 text-xs text-ink-muted">
             Valor (R$) *
+            {/* Texto, não `number`: o campo numérico do navegador não aceita
+                "1.500,50", e o que ele entrega para "1.500" depende do
+                aparelho. Quem lê é `lerReais`. */}
             <input
-              type="number"
-              min={0}
-              step="0.01"
+              type="text"
+              inputMode="decimal"
               value={form.value}
               onChange={(e) => setForm((f) => ({ ...f, value: e.target.value }))}
               placeholder="0"

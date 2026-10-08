@@ -1,4 +1,20 @@
-import type { SubscriptionInvoiceDoc } from "@/lib/domain";
+import type { RefundDoc, SubscriptionInvoiceDoc } from "@/lib/domain";
+
+type Devolucao = Pick<RefundDoc, "origin" | "invoiceId" | "grossAmount">;
+
+/**
+ * Quanto voltou ao cliente, por fatura (08/10). A devolução de mensalidade não
+ * muda o status da fatura — ela continua "paga", porque o pagamento aconteceu
+ * —, e o dinheiro que voltou mora em `refunds` (D22).
+ */
+export function devolvidoPorFatura(refunds: readonly Devolucao[] | undefined): Map<string, number> {
+  const m = new Map<string, number>();
+  for (const r of refunds ?? []) {
+    if (r.origin !== "mensalidade" || !r.invoiceId) continue;
+    m.set(r.invoiceId, Math.round(((m.get(r.invoiceId) ?? 0) + (Number(r.grossAmount) || 0)) * 100) / 100);
+  }
+  return m;
+}
 
 /**
  * A régua de cobrança D-5 → D+5, derivada — G2.
@@ -66,12 +82,22 @@ export function estagioDaFatura(
  * evidência era um status marcado.
  */
 export function resumoDasFaturas(
-  faturas: Array<Pick<SubscriptionInvoiceDoc, "competencia" | "status" | "amount" | "dueDate">>,
+  faturas: Array<Pick<SubscriptionInvoiceDoc, "competencia" | "status" | "amount" | "dueDate"> & { id?: string }>,
   competencia: string,
-  hoje: string
+  hoje: string,
+  /**
+   * Devoluções (08/10). "Recebido" abate o que voltou ao cliente: a fatura
+   * devolvida continua "paga", e somá-la cheia afirmava um recebimento que o
+   * caixa já tinha devolvido. Ausentes (sem acesso a `refunds`), nada é abatido.
+   */
+  refunds?: readonly Devolucao[]
 ) {
   const doMes = faturas.filter((f) => f.competencia === competencia && f.status !== "cancelada");
   const pagas = doMes.filter((f) => f.status === "paga");
+  const porFatura = devolvidoPorFatura(refunds);
+  const devolvido = Math.round(
+    pagas.reduce((s, f) => s + Math.min(f.amount, (f.id && porFatura.get(f.id)) || 0), 0) * 100
+  ) / 100;
   const abertas = doMes.filter((f) => f.status === "aberta");
 
   const porEstagio = Object.fromEntries(ESTAGIOS.map((e) => [e, 0])) as Record<
@@ -86,8 +112,10 @@ export function resumoDasFaturas(
   return {
     /** Emitido no mês. Contrato, não receita. */
     faturado: doMes.reduce((s, f) => s + f.amount, 0),
-    /** Confirmado como pago. É o único com lastro. */
-    recebido: pagas.reduce((s, f) => s + f.amount, 0),
+    /** Confirmado como pago, MENOS o que foi devolvido. É o único com lastro. */
+    recebido: Math.max(0, Math.round((pagas.reduce((s, f) => s + f.amount, 0) - devolvido) * 100) / 100),
+    /** O que voltou ao cliente das faturas pagas do mês. */
+    devolvido,
     emAberto: abertas.reduce((s, f) => s + f.amount, 0),
     quantidade: doMes.length,
     pagas: pagas.length,
@@ -131,10 +159,17 @@ export function mesVizinho(competencia: string, delta: number): string {
  * escondia o tamanho do atraso. Aqui a frase diz os dias de verdade.
  */
 export function situacaoDaFatura(
-  fatura: Pick<SubscriptionInvoiceDoc, "dueDate" | "status">,
-  hoje: string
+  fatura: Pick<SubscriptionInvoiceDoc, "dueDate" | "status"> & { amount?: number },
+  hoje: string,
+  /** Quanto desta fatura foi devolvido (`devolvidoPorFatura`). */
+  devolvido = 0
 ): { texto: string; tom: "success" | "neutral" | "gold" | "danger" } {
-  if (fatura.status === "paga") return { texto: "Paga", tom: "success" };
+  if (fatura.status === "paga") {
+    /* Devolvida não é "Paga" em verde (08/10): o dinheiro voltou ao cliente. */
+    if (devolvido > 0 && devolvido >= (Number(fatura.amount) || 0)) return { texto: "Devolvida", tom: "neutral" };
+    if (devolvido > 0) return { texto: "Paga · parte devolvida", tom: "gold" };
+    return { texto: "Paga", tom: "success" };
+  }
   if (fatura.status === "cancelada") return { texto: "Não cobrada", tom: "neutral" };
   const dias = Math.round(
     (Date.parse(`${fatura.dueDate}T00:00:00Z`) - Date.parse(`${hoje}T00:00:00Z`)) / 86_400_000

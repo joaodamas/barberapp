@@ -133,6 +133,16 @@ export function alvosDoExpurgo(barbershopId: string, slug: string | null): AlvoD
     { tipo: "consulta", colecao: "whatsapp_sent", campo: "barbershopId", valor: barbershopId },
     { tipo: "consulta", colecao: "whatsapp_conversations", campo: "barbershopId", valor: barbershopId },
     { tipo: "consulta", colecao: "whatsapp_numbers", campo: "barbershopId", valor: barbershopId },
+    /* Os outros índices na raiz que levam o `barbershopId` (08/10). Ficavam
+     * para trás: `telegram_chats` prendia a conversa de um barbeiro a uma
+     * loja que não existe mais (e o id é o chat dele); os convites guardam
+     * nome, e-mail e quem convidou; a caixa de saída e a trilha do Hub
+     * guardam nome e slug da barbearia apagada. */
+    { tipo: "consulta", colecao: "telegram_chats", campo: "barbershopId", valor: barbershopId },
+    { tipo: "consulta", colecao: "telegram_convites", campo: "barbershopId", valor: barbershopId },
+    { tipo: "consulta", colecao: "convites_equipe", campo: "barbershopId", valor: barbershopId },
+    { tipo: "consulta", colecao: "plataforma_saida", campo: "barbershopId", valor: barbershopId },
+    { tipo: "consulta", colecao: "plataforma_eventos", campo: "barbershopId", valor: barbershopId },
     // Logo, fotos, qualquer arquivo — o Storage não some com o Firestore.
     { tipo: "storage", prefixo: `${shop}/` },
     // Claims, Auth, `users` e `platform_users` de dono e equipe. Lê `members`,

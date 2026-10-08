@@ -1,4 +1,5 @@
 import { metaDoStatus } from "./booking-status";
+import { ehCortesia, valorCobrado } from "./desconto";
 import type { BookingDoc } from "./domain";
 import { mesAtual } from "./format";
 
@@ -101,7 +102,7 @@ type Reserva = Pick<
   BookingDoc,
   "clientId" | "staffId" | "clientName" | "clientWhatsapp" | "serviceIds" | "date" | "time" | "status" | "value"
 > &
-  Partial<Pick<BookingDoc, "durationMin" | "isFitIn" | "cobertura">> & {
+  Partial<Pick<BookingDoc, "durationMin" | "isFitIn" | "cobertura" | "discountAmount">> & {
     id: string;
     /** Gravado pelo servidor na reserva; não está no tipo do front (ver Agenda). */
     serviceNames?: string[];
@@ -138,7 +139,10 @@ export type ResumoDoMes = {
   outros: number;
   /** A fazer + concluídos. */
   valorPrevisto: number;
-  /** Só concluídos. */
+  /**
+   * Só concluídos — o COBRADO, pela mesma régua da receita de serviço do
+   * Financeiro (`valorCobrado`; cortesia e coberto pelo plano valem zero).
+   */
   valorRealizado: number;
   /**
    * A parte do realizado que o plano do mensalista cobriu (`cobertura`).
@@ -171,6 +175,7 @@ export type Contexto = {
 };
 
 const valorSeguro = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+const centavos = (v: number) => Math.round(v * 100) / 100;
 
 function paraLinha(b: Reserva, ctx: Contexto): LinhaDoRelatorio {
   const duracao = b.durationMin || ctx.gradeMin;
@@ -194,7 +199,9 @@ function paraLinha(b: Reserva, ctx: Contexto): LinhaDoRelatorio {
     encaixe: b.isFitIn === true || b.status === "fit_in_requested",
     grupo: grupoDoStatus(b.status),
     status: metaDoStatus(b.status).label,
-    valor: valorSeguro(b.value),
+    /* O COBRADO (08/10): com desconto no fechamento, o preço da agenda não é
+     * o que entrou. Reserva em aberto não tem desconto e fica com o valor. */
+    valor: valorCobrado({ value: valorSeguro(b.value), discountAmount: b.discountAmount }),
   };
 }
 
@@ -240,15 +247,21 @@ export function montarRelatorio(reservas: readonly Reserva[], mes: string, ctx: 
         resumo.concluidos += 1;
         resumo.valorPrevisto += linha.valor;
         {
-          /* O que o plano cobriu NÃO é dinheiro deste atendimento: a mensalidade
-           * já entra como receita própria no Financeiro. Somar o preço cheio
-           * faria o PDF divergir do Financeiro (revisão do PR #81). */
-          const coberto =
-            b.cobertura?.tipo === "plano"
-              ? Math.min(linha.valor, valorSeguro(b.cobertura.valorCoberto))
-              : 0;
-          resumo.valorRealizado += linha.valor - coberto;
-          resumo.valorCobertoPeloPlano += coberto;
+          /* A MESMA régua de `receitaDeServico` (08/10): o realizado somava
+           * `b.value` — o preço, não o cobrado —, e o PDF dizia mais do que o
+           * Financeiro sempre que houve desconto. Agora:
+           *  - avulso: `valorCobrado` (preço − desconto);
+           *  - cortesia: zero (não entrou dinheiro; o custo dela está em
+           *    "Descontos do mês");
+           *  - coberto pelo plano: zero, e o valor do serviço vai para
+           *    `valorCobertoPeloPlano` — a mensalidade entra como receita
+           *    própria no Financeiro, que exclui o atendimento coberto inteiro
+           *    (revisão do PR #81). */
+          if (b.cobertura?.tipo === "plano") {
+            resumo.valorCobertoPeloPlano += linha.valor;
+          } else if (!ehCortesia({ value: valorSeguro(b.value), discountAmount: b.discountAmount, cobertura: b.cobertura })) {
+            resumo.valorRealizado += linha.valor;
+          }
         }
         break;
       case "a_fazer":
@@ -270,6 +283,10 @@ export function montarRelatorio(reservas: readonly Reserva[], mes: string, ctx: 
 
     (linha.grupo === "cancelado" ? cancelados : ativas).push(linha);
   }
+
+  resumo.valorPrevisto = centavos(resumo.valorPrevisto);
+  resumo.valorRealizado = centavos(resumo.valorRealizado);
+  resumo.valorCobertoPeloPlano = centavos(resumo.valorCobertoPeloPlano);
 
   ativas.sort(emOrdem);
   cancelados.sort(emOrdem);

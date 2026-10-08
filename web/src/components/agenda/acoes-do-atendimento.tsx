@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,7 +27,10 @@ import {
   lerNumeroDigitado,
   valorCobrado,
 } from "@/lib/desconto";
-import type { BookingDoc, MotivoDoDesconto, TipoDeDesconto } from "@/lib/domain";
+import type { BookingDoc, MotivoDoDesconto, SubscriberDoc, TipoDeDesconto } from "@/lib/domain";
+
+/** O que o fechamento mostra do plano — o recorte de `planoDoAtendimento`. */
+type PlanoNoFechamento = Pick<SubscriberDoc, "planName" | "unlimited" | "servicesIncluded">;
 import type { Doc } from "@/lib/db/repository";
 
 /**
@@ -45,7 +48,10 @@ export function useAcoesDoAtendimento() {
   const tenant = useTenant();
   const { brand } = tenant;
   const formasDeCobranca = formasAtivas(tenant.policies);
-  const { items: assinaturas } = useSubscribers();
+  const { user, claims } = useAuth();
+  const ehDono = claims.barbershops?.[tenant.id] === "owner";
+  /* O dono lê as assinaturas; o barbeiro não (08/10) — é receita da casa. */
+  const { items: assinaturas } = useSubscribers({ enabled: ehDono });
   const hoje = toISODate(new Date());
 
   const [aFechar, setAFechar] = useState<Doc<BookingDoc> | null>(null);
@@ -62,6 +68,9 @@ export function useAcoesDoAtendimento() {
    * exatamente o que a decisão de 18/08 recusa. */
   const [aCorrigir, setACorrigir] = useState<Doc<BookingDoc> | null>(null);
   const [cancelando, setCancelando] = useState(false);
+  /* O cancelamento que acabou de dar certo, para o aviso ao cliente virar um
+   * botão que o dono toca (ver `linkDoAvisoDeCancelamento`). */
+  const [cancelado, setCancelado] = useState<Doc<BookingDoc> | null>(null);
   const [erroCancelar, setErroCancelar] = useState<string | null>(null);
   /* Uma falha de gravação precisa aparecer ONDE a ação foi disparada. Antes ela
    * ia só para o console: o diálogo fechava, o dono entendia "pronto", e no
@@ -84,8 +93,48 @@ export function useAcoesDoAtendimento() {
    * coberto" — essa decisão depende de competência e cota, mora em
    * `decidirCobertura` no servidor, e reimplementá-la aqui recriaria o D1 com
    * outro nome: o web afirmando uma coisa e o fato nascendo outra. */
-  const assinaturaDoFechamento = aFechar
-    ? assinaturaAtivaDe(assinaturas, aFechar.clientId)
+  /* O barbeiro pergunta ao servidor, por atendimento (08/10): as regras não
+   * deixam mais ele ler `subscriptions` inteira (preço e vencimento de todo
+   * mensalista da casa). Enquanto a resposta não vem, a tela NÃO oferece as
+   * formas de pagamento — cobrar um mensalista por não saber que ele é
+   * mensalista é o F2 de volta. */
+  const [planoDaCadeira, setPlanoDaCadeira] = useState<{
+    bookingId: string;
+    estado: "pronto" | "erro";
+    plano: PlanoNoFechamento | null;
+  } | null>(null);
+  const [tentativaDoPlano, setTentativaDoPlano] = useState(0);
+  const idDoFechamento = aFechar?.id ?? null;
+  useEffect(() => {
+    if (ehDono || !idDoFechamento) return;
+    let cancelado = false;
+    void (async () => {
+      try {
+        const { callFunction } = await import("@/lib/firebase");
+        const r = await callFunction<{ barbershopId: string; bookingId: string }, { plano: PlanoNoFechamento | null }>(
+          "planoDoAtendimento",
+          { barbershopId: tenant.id, bookingId: idDoFechamento }
+        );
+        if (!cancelado) setPlanoDaCadeira({ bookingId: idDoFechamento, estado: "pronto", plano: r.plano });
+      } catch (e) {
+        console.error("[fechamento] não foi possível conferir o plano", e);
+        if (!cancelado) setPlanoDaCadeira({ bookingId: idDoFechamento, estado: "erro", plano: null });
+      }
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, [ehDono, idDoFechamento, tenant.id, tentativaDoPlano]);
+  const respostaDoPlano = planoDaCadeira && planoDaCadeira.bookingId === idDoFechamento ? planoDaCadeira : null;
+  const conferenciaDoPlano: "carregando" | "pronto" | "erro" = ehDono
+    ? "pronto"
+    : respostaDoPlano?.estado ?? "carregando";
+  const planoConferido = conferenciaDoPlano === "pronto";
+
+  const assinaturaDoFechamento: PlanoNoFechamento | null = aFechar
+    ? ehDono
+      ? assinaturaAtivaDe(assinaturas, aFechar.clientId)
+      : respostaDoPlano?.plano ?? null
     : null;
 
   /* DESCONTO NO FECHAMENTO — pedido do dono em 28/09.
@@ -98,8 +147,6 @@ export function useAcoesDoAtendimento() {
    * se ESTE corte está coberto — quem decide é o servidor, com a cota —, então
    * esconde para todo cliente com plano ativo. Desconto sobre corte coberto
    * seria desconto sobre dinheiro que não entrou no balcão. */
-  const { user, claims } = useAuth();
-  const ehDono = claims.barbershops?.[tenant.id] === "owner";
   const podeDarDesconto = !!aFechar && ehDono && !!user && !assinaturaDoFechamento;
   const [descontoAberto, setDescontoAberto] = useState(false);
   const [descontoTipo, setDescontoTipo] = useState<TipoDeDesconto>("valor");
@@ -164,6 +211,7 @@ export function useAcoesDoAtendimento() {
     const booking = aFechar;
     if (!booking) return;
     if (descontoBloqueia) return;
+    if (!planoConferido) return;
     /* O desconto vai na MESMA escrita, pela mesma razão do método: o gatilho
      * lê o documento atualizado, e gravar depois materializaria o pagamento
      * cheio. `null` = sem desconto, e a escrita fica idêntica à de antes. */
@@ -268,7 +316,7 @@ export function useAcoesDoAtendimento() {
         bookingId: booking.id,
       });
       setACancelar(null);
-      avisarCancelamento(booking);
+      setCancelado(booking);
     } catch (err) {
       console.error("[hoje] falha ao cancelar", err);
       setErroCancelar(
@@ -296,14 +344,19 @@ export function useAcoesDoAtendimento() {
   }
 
   /* Só depois de o cancelamento ter dado certo. Abrir a conversa antes faria o
-   * dono avisar o cliente de algo que pode ter falhado na escrita. */
-  function avisarCancelamento(booking: Doc<BookingDoc>) {
+   * dono avisar o cliente de algo que pode ter falhado na escrita.
+   *
+   * E como BOTÃO, não `window.open` logo depois do `await`: o Safari do iPhone
+   * só abre janela nova no toque, e uma espera de rede no meio faz ele
+   * bloquear em silêncio — o dono achava que tinha avisado e o cliente nunca
+   * soube. É o mesmo desenho do aviso de encaixe e de remarcação. */
+  function linkDoAvisoDeCancelamento(booking: Doc<BookingDoc>): string | null {
     const firstName = booking.clientName.split(" ")[0];
     const digitos = String(booking.clientWhatsapp ?? "").replace(/\D/g, "");
-    if (!digitos) return;
+    if (!digitos) return null;
     const quando = booking.date === hoje ? "de hoje" : `do dia ${formatarDiaCurto(booking.date)}`;
     const message = `Olá ${firstName}, seu horário das ${booking.time} ${quando} foi cancelado. Qualquer coisa, é só chamar para remarcar. — ${brand.name}`;
-    window.open(`https://wa.me/${digitos}?text=${encodeURIComponent(message)}`, "_blank");
+    return `https://wa.me/${digitos}?text=${encodeURIComponent(message)}`;
   }
 
   /**
@@ -368,6 +421,36 @@ export function useAcoesDoAtendimento() {
 
   const avisos = (
     <>
+      {cancelado && (
+        <Card role="status" className="mb-2 flex flex-col gap-2 border-gold/40">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-sm text-ink">
+              Cancelado: {cancelado.clientName}, {cancelado.time}{" "}
+              {cancelado.date === hoje ? "de hoje" : `de ${formatarDiaCurto(cancelado.date)}`}.
+            </p>
+            <button
+              type="button"
+              aria-label="Fechar aviso"
+              onClick={() => setCancelado(null)}
+              className="alvo-toque shrink-0 text-ink-muted hover:text-ink"
+            >
+              ×
+            </button>
+          </div>
+          {(() => {
+            const href = linkDoAvisoDeCancelamento(cancelado);
+            return href ? (
+              <a href={href} target="_blank" rel="noopener noreferrer" className="self-start">
+                <Button variant="secondary">
+                  Avisar {cancelado.clientName.split(" ")[0]} no WhatsApp
+                </Button>
+              </a>
+            ) : (
+              <p className="text-xs text-ink-muted">Sem WhatsApp no cadastro: avise o cliente por outro meio.</p>
+            );
+          })()}
+        </Card>
+      )}
       {remarcado && (
         <Card role="status" className="mb-2 flex flex-col gap-2 border-gold/40">
           <div className="flex items-start justify-between gap-3">
@@ -505,7 +588,25 @@ export function useAcoesDoAtendimento() {
           )}
         </p>
 
-        {aFechar && !assinaturaDoFechamento && (
+        {/* Barbeiro: enquanto o servidor não diz se é mensalista, nada de
+            cobrar — nem de mexer no valor. */}
+        {conferenciaDoPlano === "carregando" && (
+          <p className="mb-4 text-sm text-ink-muted" aria-live="polite">
+            Conferindo se o cliente tem plano…
+          </p>
+        )}
+        {conferenciaDoPlano === "erro" && (
+          <div className="mb-4 flex flex-col items-start gap-2">
+            <p role="alert" className="text-sm text-danger">
+              Não foi possível conferir se o cliente tem plano. Confira a internet e tente de novo.
+            </p>
+            <Button variant="secondary" onClick={() => setTentativaDoPlano((n) => n + 1)}>
+              Tentar de novo
+            </Button>
+          </div>
+        )}
+
+        {aFechar && planoConferido && !assinaturaDoFechamento && (
           <AdicionarServico
             barbershopId={tenant.id}
             bookingId={aFechar.id}
@@ -673,7 +774,7 @@ export function useAcoesDoAtendimento() {
         {/* Cortesia (100%) conclui sem perguntar a forma: não entrou dinheiro,
             e oferecer "Pix" ou "Dinheiro" ali seria pedir ao dono que
             inventasse um meio para R$ 0,00 — decisão 2 do dono. */}
-        {podeDarDesconto && calculoDoDesconto.cortesia && !descontoBloqueia ? (
+        {!planoConferido ? null : podeDarDesconto && calculoDoDesconto.cortesia && !descontoBloqueia ? (
           <button
             type="button"
             disabled={salvando}

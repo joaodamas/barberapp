@@ -58,6 +58,52 @@ type ProvisionInput = {
   seedServices?: boolean;
 };
 
+/** O que importa de uma conta do Auth para decidir se ela pode virar dona. */
+export type ContaParaPosse = {
+  emailVerified?: boolean;
+  providerData?: ReadonlyArray<{ providerId: string }>;
+};
+
+function provedores(conta: ContaParaPosse): string[] {
+  return (conta.providerData ?? []).map((p) => p.providerId);
+}
+
+/**
+ * A conta que já existe com este e-mail pode receber a barbearia?
+ *
+ * O provisionamento procura a conta pelo e-mail do pedido e grava nela o
+ * papel de DONO. Sem conferir a posse do e-mail, quem criasse antes uma conta
+ * com senha usando o e-mail de outra pessoa (o Firebase aceita sem
+ * verificar) recebia a barbearia dela quando o Hub ou o operador a criasse —
+ * com a senha que ele mesmo escolheu.
+ *
+ * Vale quem PROVOU o e-mail: `emailVerified`, ou entrar com Google (o Google
+ * só entrega e-mail que é da conta). Vale também a conta SEM provedor
+ * nenhum: só o Admin SDK cria conta assim — é a que o próprio provisionamento
+ * criou numa tentativa anterior que falhou no meio —, ninguém consegue entrar
+ * nela, e a senha só é definida pelo link que vai para o e-mail verdadeiro.
+ */
+export function podeAssumirContaExistente(conta: ContaParaPosse): boolean {
+  if (conta.emailVerified === true) return true;
+  const p = provedores(conta);
+  return p.includes("google.com") || p.length === 0;
+}
+
+/**
+ * O dono precisa do e-mail de "defina sua senha"?
+ *
+ * Só quando a conta não tem como entrar: sem senha e sem Google. Decidir por
+ * "a conta acabou de ser criada" falhava na nova tentativa — a conta já
+ * existia da primeira, e o e-mail nunca saía. E quem já tem senha ou Google
+ * não recebe: um "redefina sua senha" que ele não pediu parece golpe.
+ */
+export function precisaDeEmailDeAcesso(conta: ContaParaPosse): boolean {
+  const p = provedores(conta);
+  return !p.includes("password") && !p.includes("google.com");
+}
+
+export const MOTIVO_CONTA_NAO_VERIFICADA = "conta_nao_verificada";
+
 export const provisionBarbershop = onCall<ProvisionInput>(async (request) => {
   if (request.auth?.token.platformAdmin !== true) {
     throw new HttpsError(
@@ -98,6 +144,15 @@ export const provisionBarbershop = onCall<ProvisionInput>(async (request) => {
     throw new HttpsError(
       "failed-precondition",
       `Nenhuma conta com o e-mail ${ownerEmail}. Peça para o dono entrar uma vez antes de provisionar.`
+    );
+  }
+  /* Conta com senha e e-mail não confirmado pode ser de quem digitou o
+   * e-mail de outra pessoa — ver `podeAssumirContaExistente`. */
+  if (!podeAssumirContaExistente(owner)) {
+    throw new HttpsError(
+      "failed-precondition",
+      `A conta de ${ownerEmail} ainda não confirmou o e-mail. Peça para o dono confirmar o e-mail (ou entrar com Google) antes de provisionar.`,
+      { motivo: MOTIVO_CONTA_NAO_VERIFICADA }
     );
   }
 

@@ -16,6 +16,7 @@ import {
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { destinoInterno } from "@/lib/destino-interno";
+import { explicarFalha } from "@/lib/erro-de-leitura";
 import { marcarLinkEnviado } from "@/lib/verificacao-de-email";
 import { useAuth } from "@/lib/auth-context";
 import { useTenant, useTenantIndisponivel } from "@/lib/tenant-context";
@@ -106,6 +107,12 @@ export default function LoginPage() {
   const plataforma = !indisponivel && tenant.id === DEFAULT_TENANT.id;
   type Destino = { barbershopId: string; nome: string; papel: "owner" | "staff"; url: string };
   const [destinos, setDestinos] = useState<Destino[] | null>(null);
+  /* Falha ao perguntar "de quais barbearias você é?" NÃO é "de nenhuma". O
+   * `catch` fazia `setDestinos([])` e o dono, numa queda de rede, lia "Esta
+   * conta não está ligada a nenhuma barbearia" — com convite para assinar o
+   * Topete de novo. */
+  const [falhaDestinos, setFalhaDestinos] = useState<unknown>(null);
+  const [tentativaDestinos, setTentativaDestinos] = useState(0);
 
   // Dono cai no painel, cliente cai no app — a conta decide, não a porta.
   useEffect(() => {
@@ -152,17 +159,19 @@ export default function LoginPage() {
             return;
           }
           setDestinos(r.destinos);
-        } catch {
-          if (!cancelado) setDestinos([]);
+        } catch (e) {
+          console.error("[login] meusDestinos falhou", e);
+          if (!cancelado) setFalhaDestinos(e ?? new Error("falhou"));
         }
       })();
       return () => {
         cancelado = true;
       };
     }
-    const papel = claims.barbershops?.[tenant.id] ?? claims.role;
+    /* Só o vínculo por barbearia: o `claims.role` global saiu em 08/10. */
+    const papel = claims.barbershops?.[tenant.id];
     router.replace(destinoDoPapel(papel));
-  }, [loading, user, claims, tenant.id, router, plataforma]);
+  }, [loading, user, claims, tenant.id, router, plataforma, tentativaDestinos]);
 
   /**
    * O verificador é criado SOB DEMANDA, na hora de enviar o código.
@@ -343,7 +352,22 @@ export default function LoginPage() {
         </div>
       )}
 
-      {plataforma && user && destinos !== null ? (
+      {plataforma && user && falhaDestinos !== null ? (
+        <Card role="alert" className="flex w-full max-w-sm flex-col gap-3 p-6">
+          <p className="text-sm font-medium text-ink">
+            Não conseguimos ver a quais barbearias sua conta está ligada.
+          </p>
+          <p className="text-sm text-ink-muted">{explicarFalha(falhaDestinos).explicacao}</p>
+          <Button
+            onClick={() => {
+              setFalhaDestinos(null);
+              setTentativaDestinos((n) => n + 1);
+            }}
+          >
+            Tentar de novo
+          </Button>
+        </Card>
+      ) : plataforma && user && destinos !== null ? (
         <Card className="flex w-full max-w-sm flex-col gap-3 p-6">
           {destinos.length > 0 ? (
             <>

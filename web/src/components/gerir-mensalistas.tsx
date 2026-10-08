@@ -11,10 +11,16 @@ import { formatBRL, formatDatePtBR, toISODate } from "@/lib/format";
 import { contar } from "@/lib/plural";
 import { rotuloDoMes } from "@/lib/db/use-financeiro";
 import { useTenant } from "@/lib/tenant-context";
-import { useClients, usePlans, useSubscriptionInvoices } from "@/lib/db/use-shop-data";
+import { useClients, usePlans, useRefunds, useSubscriptionInvoices } from "@/lib/db/use-shop-data";
 import { filtrarClientes } from "@/lib/clientes-busca";
 import { mascararWhatsapp } from "@/lib/whatsapp-numero";
-import { abertasDeMesesAnteriores, mesVizinho, resumoDasFaturas, situacaoDaFatura } from "@/lib/mensalidade";
+import {
+  abertasDeMesesAnteriores,
+  devolvidoPorFatura,
+  mesVizinho,
+  resumoDasFaturas,
+  situacaoDaFatura,
+} from "@/lib/mensalidade";
 import { EstornarValor } from "@/components/estornar-valor";
 import { paymentMethodLabel } from "@/lib/payment-method";
 import { formasAtivas, type FormaDePagamento } from "@/lib/formas-de-pagamento";
@@ -52,6 +58,9 @@ export function GerirMensalistas({ competencia: mesCorrente }: { competencia: st
   const { items: clientes } = useClients();
   const { items: planos } = usePlans();
   const { items: faturas, status } = useSubscriptionInvoices();
+  /* Fatura devolvida não conta como recebida (08/10). */
+  const { items: refunds } = useRefunds();
+  const devolvidas = useMemo(() => devolvidoPorFatura(refunds), [refunds]);
 
   const hoje = toISODate(new Date());
 
@@ -76,8 +85,8 @@ export function GerirMensalistas({ competencia: mesCorrente }: { competencia: st
   const planosAtivos = useMemo(() => planos.filter((p) => p.active !== false), [planos]);
   const encontrados = useMemo(() => filtrarClientes(clientes, busca, 6), [clientes, busca]);
   const resumo = useMemo(
-    () => resumoDasFaturas(faturas, competencia, hoje),
-    [faturas, competencia, hoje]
+    () => resumoDasFaturas(faturas, competencia, hoje, refunds),
+    [faturas, competencia, hoje, refunds]
   );
   const doMes = useMemo(
     () => faturas.filter((f) => f.competencia === competencia),
@@ -151,7 +160,7 @@ export function GerirMensalistas({ competencia: mesCorrente }: { competencia: st
   }
 
   function linhaDaFatura(f: Doc<SubscriptionInvoiceDoc>, mostrarMes: boolean) {
-    const situacao = situacaoDaFatura(f, hoje);
+    const situacao = situacaoDaFatura(f, hoje, devolvidas.get(f.id) ?? 0);
     const nome = clientes.find((c) => c.id === f.clientId)?.name ?? "Cliente";
     return (
       <tr key={f.id} className="border-b border-border/60 align-middle last:border-0">

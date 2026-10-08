@@ -7,11 +7,16 @@ import { AcessoDoBarbeiro } from "@/components/equipe/acesso-do-barbeiro";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
 import { useServices, useStaffComRemuneracao } from "@/lib/db/use-shop-data";
-import { createDoc, patchDoc, putDoc, removeDoc } from "@/lib/db/repository";
+import { createDoc, patchDoc, putDoc } from "@/lib/db/repository";
+import { proximaOrdem } from "@/lib/distribuicao";
+import { mensagemDaFuncao } from "@/lib/mensagem-da-funcao";
 import { deleteField } from "firebase/firestore";
 import { useTenant } from "@/lib/tenant-context";
 import { contarDeTotal, plural } from "@/lib/plural";
+import { lerReais, reaisParaCampo, VALOR_ILEGIVEL } from "@/lib/reais";
 import { NOME_DO_PLANO, PRECOS_POR_PLANO, barbeirosExtras, valorMensal } from "@/lib/tenant";
+import { historicoDaMudanca } from "@/lib/folha";
+import { mesAtual } from "@/lib/format";
 
 /**
  * A equipe.
@@ -44,6 +49,9 @@ export default function EquipePage() {
   const { items: equipe, status, error } = useStaffComRemuneracao();
   const { items: servicos } = useServices();
   const [erro, setErro] = useState<string | null>(null);
+  /* Salário que não deu para ler, por barbeiro. O campo fica com o que foi
+   * digitado e com a mensagem — e nada é gravado até ele ser corrigido. */
+  const [salarioIlegivel, setSalarioIlegivel] = useState<Record<string, boolean>>({});
 
   const ativos = equipe.filter((s) => s.active !== false);
   const soloRestante = ativos.length <= 1;
@@ -65,7 +73,9 @@ export default function EquipePage() {
         uid: null,
         serviceIds: [],
         schedule: null,
-        order: equipe.length + 1,
+        /* Depois do maior, e não `length + 1`: depois de uma remoção, o
+         * tamanho repete uma posição que já existe (08/10). */
+        order: proximaOrdem(equipe),
       });
     } catch (e) {
       console.error("[equipe] falha ao adicionar", e);
@@ -80,11 +90,16 @@ export default function EquipePage() {
        * pública (`staff`) qualquer pessoa leria o salário do barbeiro. A
        * ficha antiga perde os campos na mesma gravação, para não ficar uma
        * cópia velha exposta. */
+      /* Salário e entrada/saída gravam também o HISTÓRICO em `staff_pay`
+       * (08/10): o DRE de cada mês usa o salário que valia naquele mês, e não
+       * o de hoje. Ver `lib/folha.ts`. */
+      const historico = historicoDaMudanca(equipe.find((s) => s.id === id), campo, valor, mesAtual());
       if (campo === "commissionPct" || campo === "salary") {
-        await putDoc(tenant.id, "staffPay", id, { [campo]: valor });
+        await putDoc(tenant.id, "staffPay", id, { [campo]: valor, ...historico });
         await patchDoc(tenant.id, "staff", id, { [campo]: deleteField() });
       } else {
         await patchDoc(tenant.id, "staff", id, { [campo]: valor });
+        if (historico) await putDoc(tenant.id, "staffPay", id, historico);
       }
     } catch (e) {
       console.error("[equipe] falha ao salvar", e);
@@ -92,14 +107,24 @@ export default function EquipePage() {
     }
   }
 
+  /* Remover passa pelo servidor (08/10). Apagar a ficha direto deixava a
+   * conta do barbeiro com o papel, o `members`, o celular recebendo
+   * notificação e o Telegram da cadeira ligado — `removerBarbeiro` desfaz o
+   * acesso e só então apaga. As regras só deixam apagar direto a ficha sem
+   * conta, e nem essa a tela usa: um caminho só. */
+  const [removendo, setRemovendo] = useState<string | null>(null);
   async function remover(id: string) {
-    if (soloRestante) return;
+    if (soloRestante || removendo) return;
     setErro(null);
+    setRemovendo(id);
     try {
-      await removeDoc(tenant.id, "staff", id);
+      const { callFunction } = await import("@/lib/firebase");
+      await callFunction("removerBarbeiro", { barbershopId: tenant.id, staffId: id });
     } catch (e) {
       console.error("[equipe] falha ao remover", e);
-      setErro("Não foi possível remover agora.");
+      setErro(mensagemDaFuncao(e, "Não foi possível remover agora."));
+    } finally {
+      setRemovendo(null);
     }
   }
 
@@ -189,7 +214,7 @@ export default function EquipePage() {
                 type="button"
                 aria-label={`Remover ${b.name || "barbeiro"}`}
                 onClick={() => remover(b.id)}
-                disabled={soloRestante}
+                disabled={soloRestante || removendo === b.id}
                 title={
                   soloRestante
                     ? "A barbearia precisa de ao menos um barbeiro para receber reservas"
@@ -241,19 +266,31 @@ export default function EquipePage() {
                 </label>
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-ink-muted">R$</span>
+                  {/* Texto + `lerReais`: `Number("1.500")` é 1,5, e
+                      `Number("1.500,00") || 0` gravava ZERO por cima do
+                      salário ao sair do campo. Em branco continua sendo
+                      "só comissão" (0); ilegível não grava nada. */}
                   <input
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    defaultValue={b.salary ?? ""}
+                    type="text"
+                    inputMode="decimal"
+                    defaultValue={reaisParaCampo(b.salary)}
                     placeholder="0,00"
+                    aria-invalid={salarioIlegivel[b.id] === true}
                     onBlur={(e) => {
-                      const v = Math.max(Number(e.target.value) || 0, 0);
+                      const texto = e.target.value.trim();
+                      const v = texto === "" ? 0 : lerReais(texto);
+                      setSalarioIlegivel((atual) => ({ ...atual, [b.id]: v === null }));
+                      if (v === null) return;
                       if (v !== (b.salary ?? 0)) salvar(b.id, "salary", v);
                     }}
                     className="min-h-11 w-32 rounded-xl border border-border bg-surface-raised px-3 text-sm text-ink"
                   />
                 </div>
+                {salarioIlegivel[b.id] && (
+                  <p role="alert" className="text-xs text-danger">
+                    {VALOR_ILEGIVEL} Nada foi salvo.
+                  </p>
+                )}
                 <p className="text-xs text-ink-muted">
                   Fixo, além da comissão. Entra como custo de folha no resultado
                   do mês — deixe em branco para quem trabalha só por comissão.

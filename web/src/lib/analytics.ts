@@ -28,6 +28,7 @@ import type { Doc } from "@/lib/db/repository";
 import type { TenantPolicies } from "@/lib/tenant";
 import type { PaymentMethod } from "@/lib/types";
 import { dentroDoPeriodo, type Periodo } from "@/lib/analytics-periodo";
+import { folhaDoMes } from "@/lib/folha";
 import { valorCobrado } from "@/lib/desconto";
 import {
   comissaoDeProduto,
@@ -524,7 +525,11 @@ export function comissoesDeServico(params: {
     /* Sem fato congelado, a base é o COBRADO — a comissão é sobre o que
      * entrou, com o desconto do fechamento já tirado (decisão do dono, 28/09). */
     const base = doDia?.commissionBase ?? valorCobrado(b);
-    const valor = doDia?.commissionAmount ?? Math.round((base * pct) / 100);
+    /* Ao CENTAVO (08/10): `Math.round` em reais fazia 40% de R$ 33,00 virar
+     * R$ 13,00 em vez de R$ 13,20. A comissão congelada nasce ao centavo no servidor; a estimada
+     * tem de falar a mesma língua, senão o acerto do barbeiro muda de valor no
+     * dia em que o fato é materializado. */
+    const valor = doDia?.commissionAmount ?? centavos((base * pct) / 100);
 
     let linha = acc.get(b.staffId);
     if (!linha) {
@@ -538,8 +543,8 @@ export function comissoesDeServico(params: {
       };
       acc.set(b.staffId, linha);
     }
-    linha.base += base;
-    linha.valor += valor;
+    linha.base = centavos(linha.base + base);
+    linha.valor = centavos(linha.valor + valor);
     linha.atendimentos += 1;
   }
 
@@ -552,7 +557,7 @@ export function comissoesDeServico(params: {
     .sort((a, b) => b.valor - a.valor);
 
   return {
-    total: porBarbeiro.reduce((s, l) => s + l.valor, 0),
+    total: centavos(porBarbeiro.reduce((s, l) => s + l.valor, 0)),
     porBarbeiro,
   };
 }
@@ -592,16 +597,44 @@ export function despesasRecorrentesVigentes(
 }
 
 /**
- * Folha mensal da equipe.
+ * Categorias com MAIS DE UMA despesa recorrente vigente — o aviso de 08/10.
  *
- * Quem está fora do quadro não entra: o cadastro é preservado para o histórico
- * e para um eventual retorno, mas o salário não é mais devido. Sem salário
- * definido conta zero — o arranjo mais comum em barbearia é só comissão.
+ * O modelo da tela de Despesas é "esta despesa se repete todo mês a partir da
+ * data" (o rótulo do campo: "repete todo mês"), e o compromisso é reconhecido
+ * por `categoria|descrição`. Quem relança mesmo assim, com outra descrição
+ * ("Aluguel out", "Aluguel nov"), fica com DOIS compromissos, e o custo fixo
+ * soma os dois.
+ *
+ * Substituir automaticamente pela mais nova da categoria seria errado na
+ * outra metade dos casos: "Energia/Água" tem luz E água, "Software e
+ * assinaturas" tem várias — duas recorrentes na mesma categoria é, muitas
+ * vezes, verdade. Por isso a regra não decide: ela AVISA, com os lançamentos
+ * na mão, e o dono desmarca o "recorrente" do que foi relançado.
  */
-export function folhaMensal(staff: Doc<StaffDoc>[]) {
-  return staff
-    .filter((s) => s.active !== false)
-    .reduce((soma, s) => soma + (s.salary ?? 0), 0);
+export function recorrentesRepetidasPorCategoria(
+  expenses: Doc<ExpenseDoc>[],
+  ateData: string
+): Array<{ categoria: string; itens: Doc<ExpenseDoc>[] }> {
+  const porCategoria = new Map<string, Doc<ExpenseDoc>[]>();
+  for (const e of despesasRecorrentesVigentes(expenses, ateData)) {
+    porCategoria.set(e.category, [...(porCategoria.get(e.category) ?? []), e]);
+  }
+  return [...porCategoria.entries()]
+    .filter(([, itens]) => itens.length > 1)
+    .map(([categoria, itens]) => ({ categoria, itens: [...itens].sort((a, b) => a.date.localeCompare(b.date)) }));
+}
+
+/**
+ * Folha fixa da equipe NO MÊS `mes` (`AAAA-MM`).
+ *
+ * Quem estava fora do quadro naquele mês não entra; quem estava entra com o
+ * salário que valia naquele mês — não o de hoje (revisão de 08/10: o aumento
+ * de novembro reescrevia o DRE de setembro). O histórico e a regra para dado
+ * antigo moram em `lib/folha.ts`. Sem salário definido conta zero — o arranjo
+ * mais comum em barbearia é só comissão.
+ */
+export function folhaMensal(staff: Doc<StaffDoc>[], mes: string) {
+  return folhaDoMes(staff, mes);
 }
 
 /**
@@ -717,7 +750,7 @@ export function resultadoDoMes(params: {
         commissions: params.commissions,
       })
     : {
-        total: Math.round((receitaDeServico * padraoPct) / 100),
+        total: centavos((receitaDeServico * padraoPct) / 100),
         porBarbeiro: [] as ComissaoDeBarbeiro[],
       };
 
@@ -935,17 +968,27 @@ export function indicadores(params: {
   };
 }
 
-/** Serviços mais vendidos no período. */
+/**
+ * Serviços mais vendidos no período.
+ *
+ * `incluirEncaixes: false` é o recorte do DRE (08/10): a lista é aberta como
+ * filha de "Serviços avulsos", e o encaixe tem linha própria ("Encaixes") —
+ * somá-lo aqui fazia os filhos passarem do cabeçalho, e o "Outros serviços"
+ * (que é a diferença, limitada a zero) escondia o excesso. Ausente, conta
+ * tudo: é o ranking da tela Números, onde o corte de encaixe também é corte.
+ */
 export function topServicos(params: {
   bookings: Doc<BookingDoc>[];
   nomePorId: Map<string, string>;
   periodo: Periodo;
   limite?: number;
+  incluirEncaixes?: boolean;
 }) {
   const acc = new Map<string, { name: string; count: number; revenue: number }>();
 
   for (const b of params.bookings) {
     if (!isRevenue(b) || !dentroDoPeriodo(b.date, params.periodo)) continue;
+    if (params.incluirEncaixes === false && b.isFitIn) continue;
     /* O atendimento coberto pelo plano CONTA mas não FATURA — D2.
      *
      * A tesourada aconteceu: excluir a linha inteira faria "serviços mais
@@ -969,7 +1012,9 @@ export function topServicos(params: {
   return [...acc.values()]
     .sort((a, b) => b.revenue - a.revenue)
     .slice(0, params.limite ?? 5)
-    .map((s) => ({ ...s, revenue: Math.round(s.revenue) }));
+    /* Ao centavo: em reais, os filhos do DRE não fechavam com o cabeçalho, que
+     * é ao centavo. */
+    .map((s) => ({ ...s, revenue: centavos(s.revenue) }));
 }
 
 /** Recorrência dos clientes — mais acionável que ranquear por gasto. */
@@ -1119,7 +1164,15 @@ export type DiaProjetado = {
   isClosed: boolean;
   isEstimate: boolean;
   bookingRevenue: number;
+  /** Mensalidade que vence neste dia: fatura aberta, ou o cadastro quando a competência ainda não foi emitida. */
   subscriptionCharge: number;
+  /**
+   * Faturas ATRASADAS ainda em aberto — só no primeiro dia da projeção.
+   *
+   * Entram no líquido como POSSÍVEL entrada (o cliente ainda pode pagar), mas
+   * com campo próprio: a tela as rotula e não as chama de "confirmadas".
+   */
+  mensalidadeAtrasada: number;
   fixedExpense: number;
   net: number;
   cumulative: number;
@@ -1129,7 +1182,20 @@ export function projecaoDeCaixa(params: {
   bookings: Doc<BookingDoc>[];
   expenses: Doc<ExpenseDoc>[];
   subscribers: Doc<SubscriberDoc>[];
+  /**
+   * Faturas de mensalidade (08/10). Presentes, mandam: a fatura aberta entra
+   * no vencimento; paga e "Não cobrar" (cancelada) não entram; a atrasada em
+   * aberto vai para `mensalidadeAtrasada`. O cadastro do mensalista só projeta
+   * competência que ainda não tem fatura.
+   */
+  invoices?: Doc<SubscriptionInvoiceDoc>[];
   historico: DiaDeCaixa[];
+  /**
+   * O período de onde `historico` saiu. Presente, a média por dia da semana
+   * divide pelos dias em que a loja ABRIU nele — não só pelos que tiveram
+   * receita (08/10).
+   */
+  janelaDoHistorico?: Periodo;
   openWeekdays: number[];
   /**
    * A jornada completa, quando o chamador a tem.
@@ -1144,6 +1210,11 @@ export function projecaoDeCaixa(params: {
 }): DiaProjetado[] {
   const dias = params.dias ?? 30;
 
+  const abertoNoDia = (weekday: number, date: string) =>
+    params.schedule
+      ? jornadaDoDia({ schedule: params.schedule, weekday, date }).aberto
+      : params.openWeekdays.includes(weekday);
+
   // Média histórica por dia da semana — base para os dias sem marcação.
   const soma: Record<number, { total: number; n: number }> = {};
   for (const d of params.historico) {
@@ -1152,7 +1223,29 @@ export function projecaoDeCaixa(params: {
     soma[dow].total += d.total;
     soma[dow].n += 1;
   }
-  const media = (dow: number) => (soma[dow] ? Math.round(soma[dow].total / soma[dow].n) : 0);
+  /* O denominador é o número de dias em que a loja ABRIU naquele dia da semana
+   * (08/10). `caixaDiario` só devolve dia COM pagamento: dividir pelos dias da
+   * lista fazia a terça que rendeu R$ 400 numa semana e zero nas outras sete
+   * valer R$ 400 de média — oito vezes o real. Dia fechado (folga, feriado
+   * cadastrado) não entra; dia que teve receita conta sempre, mesmo fora da
+   * jornada (o dono abriu). */
+  const diasAbertos: Record<number, number> = {};
+  if (params.janelaDoHistorico) {
+    const comReceita = new Set(params.historico.map((d) => d.date));
+    const fim = parseISODate(params.janelaDoHistorico.fim);
+    for (const d = parseISODate(params.janelaDoHistorico.inicio); d <= fim; d.setDate(d.getDate() + 1)) {
+      const iso = toISODate(d);
+      if (abertoNoDia(d.getDay(), iso) || comReceita.has(iso)) {
+        diasAbertos[d.getDay()] = (diasAbertos[d.getDay()] ?? 0) + 1;
+      }
+    }
+  }
+  const media = (dow: number) => {
+    const s = soma[dow];
+    if (!s) return 0;
+    const n = params.janelaDoHistorico ? Math.max(diasAbertos[dow] ?? 0, s.n) : s.n;
+    return Math.round(s.total / n);
+  };
 
   const ativos = params.subscribers.filter((s) => s.status === "ativo");
   /* O dia da cobrança de cada mensalista. `billingDay` é o que o servidor
@@ -1185,6 +1278,19 @@ export function projecaoDeCaixa(params: {
     toISODate(params.inicio)
   );
 
+  /* Mensalidade pelas FATURAS (08/10). O cadastro projetava todo mensalista
+   * ativo no dia da cobrança, inclusive quem JÁ pagou a fatura do mês (a
+   * mesma mensalidade duas vezes: no caixa e na projeção) e quem o dono marcou
+   * "Não cobrar". A fatura emitida é o fato; o cadastro só vale para o mês que
+   * ainda não foi emitido. */
+  const invoices = params.invoices ?? [];
+  const emitidas = new Set(invoices.map((f) => `${f.subscriptionId}|${f.competencia}`));
+  const abertas = invoices.filter((f) => f.status === "aberta");
+  const inicioISO = toISODate(params.inicio);
+  const atrasadas = centavos(
+    abertas.filter((f) => f.dueDate < inicioISO).reduce((t, f) => t + (Number(f.amount) || 0), 0)
+  );
+
   const resultado: DiaProjetado[] = [];
   let cumulative = 0;
 
@@ -1196,9 +1302,7 @@ export function projecaoDeCaixa(params: {
       d.getDate()
     ).padStart(2, "0")}`;
     const dow = d.getDay();
-    const isClosed = params.schedule
-      ? !jornadaDoDia({ schedule: params.schedule, weekday: dow, date }).aberto
-      : !params.openWeekdays.includes(dow);
+    const isClosed = !abertoNoDia(dow, date);
 
     /* Falta NÃO é receita: `OCCUPIES_SLOT` inclui `no_show` porque a falta
      * ocupou a cadeira, e a projeção herdava isso como dinheiro que entra. */
@@ -1227,8 +1331,10 @@ export function projecaoDeCaixa(params: {
      * anterior ao contrato. Dia 31 em mês de 30 cai no último dia — é o que os
      * meios de pagamento fazem. */
     const ultimoDiaDoMes = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-    const subscriptionCharge = ativos
+    const peloCadastro = ativos
       .filter((sub) => {
+        /* Competência já emitida: quem responde é a fatura (abaixo). */
+        if (emitidas.has(`${sub.id}|${date.slice(0, 7)}`)) return false;
         const dia = diaDoMensalista(sub);
         if (dia === null) return false;
         /* Com `nextCharge` (formato antigo), nada antes dele. */
@@ -1236,6 +1342,11 @@ export function projecaoDeCaixa(params: {
         return Math.min(dia, ultimoDiaDoMes) === d.getDate();
       })
       .reduce((s, sub) => s + (Number(sub.price) || 0), 0);
+    const pelaFatura = abertas
+      .filter((f) => f.dueDate === date)
+      .reduce((s, f) => s + (Number(f.amount) || 0), 0);
+    const subscriptionCharge = centavos(peloCadastro + pelaFatura);
+    const mensalidadeAtrasada = i === 0 ? atrasadas : 0;
 
     /* Mesma regra de dia da cobrança do mensalista, agora para a conta a pagar:
      * o dia do lançamento é o do vencimento, e o que cai no 31 vence no último
@@ -1244,7 +1355,7 @@ export function projecaoDeCaixa(params: {
       .filter((e) => Math.min(Number(e.date.slice(-2)), ultimoDiaDoMes) === d.getDate())
       .reduce((s, e) => s + e.value, 0);
 
-    const net = bookingRevenue + subscriptionCharge - fixedExpense;
+    const net = bookingRevenue + subscriptionCharge + mensalidadeAtrasada - fixedExpense;
     cumulative += net;
 
     resultado.push({
@@ -1253,6 +1364,7 @@ export function projecaoDeCaixa(params: {
       isEstimate,
       bookingRevenue,
       subscriptionCharge,
+      mensalidadeAtrasada,
       fixedExpense,
       net,
       cumulative,
@@ -1419,6 +1531,8 @@ export type MesProjetado = {
   rotulo: string;
   bookingRevenue: number;
   subscriptionCharge: number;
+  /** Atrasadas em aberto — só no mês do primeiro dia. Ver `DiaProjetado`. */
+  mensalidadeAtrasada: number;
   fixedExpense: number;
   net: number;
   cumulative: number;
@@ -1453,6 +1567,7 @@ export function agruparProjecaoPorMes(dias: DiaProjetado[]): MesProjetado[] {
         }),
         bookingRevenue: 0,
         subscriptionCharge: 0,
+        mensalidadeAtrasada: 0,
         fixedExpense: 0,
         net: 0,
         // O acumulado é o do ÚLTIMO dia do mês, não a soma dos acumulados
@@ -1464,6 +1579,7 @@ export function agruparProjecaoPorMes(dias: DiaProjetado[]): MesProjetado[] {
     }
     m.bookingRevenue += d.bookingRevenue;
     m.subscriptionCharge += d.subscriptionCharge;
+    m.mensalidadeAtrasada += d.mensalidadeAtrasada ?? 0;
     m.fixedExpense += d.fixedExpense;
     m.net += d.net;
     m.cumulative = d.cumulative;

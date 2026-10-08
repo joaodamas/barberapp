@@ -13,8 +13,6 @@ type Claims = {
   platformAdmin?: boolean;
   /** Conta criada por nós com senha provisória: prende na tela de troca. */
   mustChangePassword?: boolean;
-  /** @deprecated modelo single-tenant; sai quando os tokens renovarem. */
-  role?: string;
 };
 
 type AuthState = {
@@ -81,7 +79,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           equipe: token.claims.equipe as Record<string, string> | undefined,
           platformAdmin: token.claims.platformAdmin === true,
           mustChangePassword: token.claims.mustChangePassword === true,
-          role: token.claims.role as string | undefined,
         },
         loading: false,
         semResposta: false,

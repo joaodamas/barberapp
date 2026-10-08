@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   diaDaSemanaNoFuso,
+  fusoValido,
   hojeNoFuso,
   instanteNoFuso,
   localeDoDocumento,
@@ -83,5 +84,22 @@ describe("barbearia sem locale gravado", () => {
       currency: "EUR",
       locale: "pt-BR",
     });
+  });
+});
+
+describe("fuso torto no documento não derruba ninguém", () => {
+  it("fuso desconhecido cai no padrão da plataforma", () => {
+    /* `Intl` lança RangeError com fuso que não existe: sem a validação, a
+     * agenda das 7h e o expirar encaixes paravam na primeira loja assim. */
+    expect(localeDoDocumento({ locale: { timeZone: "Brasil" } }, "loja-x").timeZone).toBe("America/Sao_Paulo");
+    expect(localeDoDocumento({ locale: { timeZone: 42 } }).timeZone).toBe("America/Sao_Paulo");
+    expect(() => hojeNoFuso(localeDoDocumento({ locale: { timeZone: "Marte/Olympus" } }).timeZone)).not.toThrow();
+  });
+
+  it("fuso válido passa como está", () => {
+    expect(localeDoDocumento({ locale: { timeZone: "Europe/Lisbon" } }).timeZone).toBe("Europe/Lisbon");
+    expect(fusoValido("America/Manaus")).toBe(true);
+    expect(fusoValido("")).toBe(false);
+    expect(fusoValido("nao/existe")).toBe(false);
   });
 });

@@ -2,7 +2,13 @@ import { onRequest, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import { getAuth, type UserRecord } from "firebase-admin/auth";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
-import { criarBarbeariaAssistida, grantRole } from "../provisioning";
+import {
+  criarBarbeariaAssistida,
+  grantRole,
+  MOTIVO_CONTA_NAO_VERIFICADA,
+  podeAssumirContaExistente,
+  precisaDeEmailDeAcesso,
+} from "../provisioning";
 import { urlDaBarbearia } from "../destinos";
 import {
   idDoEventoRecebido,
@@ -116,11 +122,25 @@ async function provisionar(d: PedidoDeProvisionamento): Promise<Resposta> {
     const barbershopId = String(indice.get("barbershopId") ?? "");
     const hub = barbershopId ? await db.doc(`barbershops/${barbershopId}/private/hub`).get() : null;
     if (hub?.get("tenantId") === d.hubTenantId) {
-      await garantirVinculoDoDono(barbershopId, d.ownerEmail);
+      const dono = await garantirVinculoDoDono(barbershopId, d.ownerEmail);
       const shop = await db.doc(`barbershops/${barbershopId}`).get();
+      const url = urlDaBarbearia(shop.data() ?? {});
+      /* A chamada repetida também diz como o dono entra. Se a primeira caiu
+       * antes do e-mail de senha (o vínculo falhou, o Hub desistiu de
+       * esperar), é aqui que ele sai — uma vez só: `acessoEnviadoEmMs` evita
+       * um e-mail por tentativa do Hub. */
+      const acesso = await entregarAcesso({
+        dono,
+        email: d.ownerEmail,
+        url,
+        slug: d.slug,
+        hubRef: db.doc(`barbershops/${barbershopId}/private/hub`),
+        jaEnviadoEmMs: hub?.get("acessoEnviadoEmMs"),
+        dominioAutorizado: null,
+      });
       return {
         codigo: 200,
-        corpo: { ok: true, barbershopId, url: urlDaBarbearia(shop.data() ?? {}), repetido: true },
+        corpo: { ok: true, barbershopId, url, acesso, repetido: true },
       };
     }
     return erro(409, `o endereco "${d.slug}" ja esta em uso`);
@@ -128,11 +148,11 @@ async function provisionar(d: PedidoDeProvisionamento): Promise<Resposta> {
 
   /* A conta do dono. Sem senha: quem define é ele, pelo e-mail do Firebase.
    * Se o e-mail já tem conta (entrou com Google, é dono de outra barbearia),
-   * ela é usada como está — e o e-mail de senha NÃO vai, porque essa pessoa
-   * já tem como entrar e um "redefina sua senha" que ela não pediu parece
-   * golpe. */
+   * ela é usada como está — desde que o e-mail dela esteja PROVADO
+   * (`podeAssumirContaExistente`). Conta com senha e e-mail não confirmado
+   * pode ser de quem cadastrou o e-mail de outra pessoa para ficar com a
+   * barbearia dela: recusa, com um motivo que o Hub reconhece. */
   let dono: UserRecord;
-  let contaNova = false;
   try {
     dono = await auth.getUserByEmail(d.ownerEmail);
   } catch (e) {
@@ -142,7 +162,19 @@ async function provisionar(d: PedidoDeProvisionamento): Promise<Resposta> {
       displayName: d.ownerNome ?? undefined,
       emailVerified: false,
     });
-    contaNova = true;
+  }
+  if (!podeAssumirContaExistente(dono)) {
+    console.warn(`[plataforma] ${d.slug}: conta de ${d.ownerEmail} existe e não confirmou o e-mail — recusado`);
+    return {
+      codigo: 409,
+      corpo: {
+        ok: false,
+        error: MOTIVO_CONTA_NAO_VERIFICADA,
+        mensagem:
+          "ja existe uma conta com este e-mail, com senha, que ainda nao confirmou o e-mail; " +
+          "peca ao dono para confirmar o e-mail (ou entrar com Google) e tente de novo",
+      },
+    };
   }
 
   let barbershopId: string;
@@ -184,20 +216,15 @@ async function provisionar(d: PedidoDeProvisionamento): Promise<Resposta> {
     }
   }
 
-  let acesso: "email_enviado" | "conta_existente" | "email_falhou" = "conta_existente";
-  if (contaNova) {
-    try {
-      await enviarEmailDeDefinirSenha({
-        email: d.ownerEmail,
-        chaveWeb: TOPETE_WEB_API_KEY.value(),
-        continueUrl: dominioAutorizado && url ? `${url}/login` : null,
-      });
-      acesso = "email_enviado";
-    } catch (e) {
-      acesso = "email_falhou";
-      console.error(`[plataforma] e-mail de acesso NÃO enviado para o dono de ${d.slug}`, e);
-    }
-  }
+  const acesso = await entregarAcesso({
+    dono,
+    email: d.ownerEmail,
+    url,
+    slug: d.slug,
+    hubRef: db.doc(`barbershops/${barbershopId}/private/hub`),
+    jaEnviadoEmMs: null,
+    dominioAutorizado,
+  });
 
   return {
     codigo: 200,
@@ -205,17 +232,79 @@ async function provisionar(d: PedidoDeProvisionamento): Promise<Resposta> {
   };
 }
 
-/** Refaz o vínculo do dono quando a mesma criação chega de novo. Idempotente. */
-async function garantirVinculoDoDono(barbershopId: string, email: string) {
+type Acesso = "email_enviado" | "conta_existente" | "email_falhou";
+
+/**
+ * Manda o e-mail de definir senha quando a conta não tem como entrar.
+ *
+ * A decisão é pela CONTA (`precisaDeEmailDeAcesso`: sem senha e sem Google),
+ * não por "acabei de criar": se `createUser` deu certo e a criação da loja
+ * falhou, a nova tentativa achava a conta pronta e o e-mail nunca saía — o
+ * dono ficava com uma barbearia e nenhum jeito de entrar nela.
+ *
+ * `dominioAutorizado` nulo é a chamada repetida, que não sabe se a primeira
+ * autorizou o domínio: tenta de novo (é idempotente) só se for mandar.
+ */
+async function entregarAcesso(p: {
+  dono: UserRecord | null;
+  email: string;
+  url: string | null;
+  slug: string;
+  hubRef: FirebaseFirestore.DocumentReference;
+  jaEnviadoEmMs: unknown;
+  dominioAutorizado: boolean | null;
+}): Promise<Acesso> {
+  if (!p.dono || !precisaDeEmailDeAcesso(p.dono)) return "conta_existente";
+  if (Number(p.jaEnviadoEmMs) > 0) return "email_enviado";
+
+  let autorizado = p.dominioAutorizado;
+  if (autorizado === null) {
+    const dominio = p.url ? new URL(p.url).host : null;
+    autorizado = false;
+    if (dominio) {
+      try {
+        await autorizarDominio({ projeto: projetoAtual(), dominio });
+        autorizado = true;
+      } catch (e) {
+        console.error(`[plataforma] domínio ${dominio} NÃO autorizado no Firebase Auth`, e);
+      }
+    }
+  }
+
+  try {
+    await enviarEmailDeDefinirSenha({
+      email: p.email,
+      chaveWeb: TOPETE_WEB_API_KEY.value(),
+      continueUrl: autorizado && p.url ? `${p.url}/login` : null,
+    });
+  } catch (e) {
+    console.error(`[plataforma] e-mail de acesso NÃO enviado para o dono de ${p.slug}`, e);
+    return "email_falhou";
+  }
+  /* Marca o envio para a próxima repetição do Hub não mandar outro. Falhar
+   * aqui só custa um e-mail a mais depois — não desfaz o que saiu. */
+  await p.hubRef.set({ acessoEnviadoEmMs: Date.now() }, { merge: true }).catch((e) => {
+    console.warn(`[plataforma] envio do e-mail de acesso de ${p.slug} não ficou registrado`, e);
+  });
+  return "email_enviado";
+}
+
+/**
+ * Refaz o vínculo do dono quando a mesma criação chega de novo. Idempotente.
+ * Devolve a conta do dono — ou nulo, se o e-mail do pedido não é o dono
+ * registrado na criação.
+ */
+async function garantirVinculoDoDono(barbershopId: string, email: string): Promise<UserRecord | null> {
   const dono = await getAuth()
     .getUserByEmail(email)
     .catch(() => null);
-  if (!dono) return;
+  if (!dono) return null;
   const membro = await getFirestore().doc(`barbershops/${barbershopId}/members/${dono.uid}`).get();
   // Só quem a criação registrou como dono: o e-mail do pedido não dá papel a mais ninguém.
-  if (membro.get("role") !== "owner") return;
+  if (membro.get("role") !== "owner") return null;
   const papel = (dono.customClaims?.barbershops as Record<string, string> | undefined)?.[barbershopId];
   if (papel !== "owner") await grantRole(dono.uid, barbershopId, "owner");
+  return dono;
 }
 
 /* ------------------------------------------------------------------ */

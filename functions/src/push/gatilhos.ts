@@ -30,11 +30,11 @@ export const pushAoCriarReserva = onDocumentCreated({ document: DOC, region: "so
   const tipo = avisoDaCriacao(r);
   if (!tipo) return;
   const shopRef = getFirestore().doc(`barbershops/${event.params.barbershopId}`);
-  await notificarEquipe(shopRef, {
-    ...textoDaNotificacao(tipo, r as never),
-    url: "/painel/agenda",
-    tag: `reserva-${event.params.bookingId}`,
-  });
+  await notificarEquipe(
+    shopRef,
+    { ...textoDaNotificacao(tipo, r as never), tag: `reserva-${event.params.bookingId}` },
+    r.staffId as string | undefined
+  );
 });
 
 export const pushAoMudarReserva = onDocumentUpdated({ document: DOC, region: "southamerica-east1" }, async (event) => {
@@ -44,9 +44,9 @@ export const pushAoMudarReserva = onDocumentUpdated({ document: DOC, region: "so
   if (antes.status === depois.status || depois.status !== "cancelled_by_client") return;
   if (antes.status === "fit_in_requested") return;
   const shopRef = getFirestore().doc(`barbershops/${event.params.barbershopId}`);
-  await notificarEquipe(shopRef, {
-    ...textoDaNotificacao("cancelamento", depois as never),
-    url: "/painel/agenda",
-    tag: `reserva-${event.params.bookingId}`,
-  });
+  await notificarEquipe(
+    shopRef,
+    { ...textoDaNotificacao("cancelamento", depois as never), tag: `reserva-${event.params.bookingId}` },
+    depois.staffId as string | undefined
+  );
 });

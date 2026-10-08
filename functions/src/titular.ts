@@ -244,7 +244,7 @@ export async function anonimizarNaBarbearia(params: {
   barbershopId: string;
   clientId: string;
   autor: { uid: string; papel: "dono" | "titular" };
-  /** Telefones que a barbearia não conhece mas o titular tinha (o de `users/{uid}`). */
+  /** Telefones que a barbearia não conhece mas o titular PROVOU ter (`token.phone_number`). */
   telefonesExtras?: string[];
 }): Promise<ResultadoDaAnonimizacao> {
   const { db, barbershopId, clientId } = params;
@@ -261,14 +261,25 @@ export async function anonimizarNaBarbearia(params: {
   const { shopRef, ids } = l;
   const cadastros = [l.cadastro, ...l.fundidos];
 
-  /* Todas as formas do telefone desta pessoa: do cadastro, das reservas e o
-   * que veio de fora. O WhatsApp grava com 55; o cadastro, sem. */
+  /* Todas as formas do telefone desta pessoa. O WhatsApp grava com 55; o
+   * cadastro, sem.
+   *
+   * Pedido do DONO: o cadastro e as reservas da casa — é o dado dele, sobre
+   * o cliente dele. Pedido do TITULAR (excluir a própria conta): só o
+   * telefone que ele provou ter. `whatsapp` do cadastro e `clientWhatsapp`
+   * da reserva são DIGITADOS — quem pôs o número de outra pessoa ali
+   * apagaria as conversas e anonimizaria as mensagens dela ao excluir a
+   * própria conta. */
   const telefones = new Set<string>();
-  for (const bruto of [
-    ...cadastros.map((d) => d.get("whatsapp")),
-    ...l.reservas.map((d) => d.get("clientWhatsapp")),
-    ...(params.telefonesExtras ?? []),
-  ]) {
+  const fontes =
+    params.autor.papel === "titular"
+      ? params.telefonesExtras ?? []
+      : [
+          ...cadastros.map((d) => d.get("whatsapp")),
+          ...l.reservas.map((d) => d.get("clientWhatsapp")),
+          ...(params.telefonesExtras ?? []),
+        ];
+  for (const bruto of fontes) {
     for (const v of variantesDoTelefone(bruto)) telefones.add(v);
   }
   const listaDeTelefones = [...telefones];
@@ -433,12 +444,19 @@ export async function excluirContaDoCliente(params: {
   db: Firestore;
   auth: Pick<Auth, "deleteUser">;
   uid: string;
+  /**
+   * `token.phone_number` de quem pediu — o único telefone que o servidor sabe
+   * que é dele (o Firebase só põe no token depois do SMS). Ausente, nenhum
+   * telefone entra: o `whatsapp` de `users/{uid}` é digitado, e usá-lo
+   * apagava a conversa de quem fosse o dono daquele número de verdade.
+   */
+  telefoneVerificado?: unknown;
 }): Promise<ResultadoDaExclusao> {
   const { db, uid } = params;
 
   const perfilRef = db.doc(`users/${uid}`);
-  const perfil = await perfilRef.get();
-  const telefonesExtras = variantesDoTelefone(perfil.get("whatsapp"));
+  const telefonesExtras =
+    typeof params.telefoneVerificado === "string" ? variantesDoTelefone(params.telefoneVerificado) : [];
 
   const cadastros = await cadastrosDoTitular(db, uid);
   const pares = [...cadastros.entries()].flatMap(([barbershopId, clientIds]) =>
@@ -589,5 +607,10 @@ export const excluirMinhaConta = onCall(async (request) => {
     );
   }
 
-  return excluirContaDoCliente({ db: getFirestore(), auth: getAuth(), uid });
+  return excluirContaDoCliente({
+    db: getFirestore(),
+    auth: getAuth(),
+    telefoneVerificado: request.auth?.token.phone_number,
+    uid
+  });
 });

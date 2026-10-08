@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aplicarCombos, type ServicoDoCatalogo } from "@/lib/combos";
+import { aplicarCombos, aplicarCombosComCongelados, type ServicoDoCatalogo } from "@/lib/combos";
 
 /** Catálogo da O Siqueira (01/10), com as composições propostas. */
 const CAT: ServicoDoCatalogo[] = [
@@ -53,5 +53,43 @@ describe("aplicarCombos", () => {
   it("combo mais caro que as peças não é usado", () => {
     const cat = CAT.map((s) => (s.id === "cb" ? { ...s, price: 120 } : s));
     expect(aplicarCombos(["corte", "barba"], cat).valor).toBe(95);
+  });
+});
+
+/**
+ * Somar a uma reserva que já tem preço (08/10) — mesma tabela nos dois lados:
+ * a tela diz "Fica R$ X" com esta conta e o servidor grava com ela.
+ */
+describe("aplicarCombosComCongelados", () => {
+  const reajustado = CAT.map((s) => (s.id === "corte" ? { ...s, price: 65 } : s));
+  it("o corte marcado a 60 continua 60 depois do reajuste: + pezinho = 75", () => {
+    expect(aplicarCombosComCongelados({ serviceIds: ["corte"], value: 60 }, ["pez"], reajustado).valor).toBe(75);
+  });
+  it("combo vale quando sai mais barato que congelado + extra", () => {
+    expect(aplicarCombosComCongelados({ serviceIds: ["corte"], value: 60 }, ["barba"], reajustado)).toMatchObject({
+      ids: ["cb"],
+      valor: 90,
+    });
+  });
+  it("corte promocional de 50 + barba: 85, sem combo", () => {
+    expect(aplicarCombosComCongelados({ serviceIds: ["corte"], value: 50 }, ["barba"], CAT)).toMatchObject({
+      ids: ["corte", "barba"],
+      valor: 85,
+    });
+  });
+  it("serviço fora do catálogo mantém nome e preço gravados", () => {
+    const r = aplicarCombosComCongelados(
+      { serviceIds: ["navalhado"], serviceNames: ["Navalhado"], value: 55 },
+      ["barba"],
+      CAT
+    );
+    expect(r.valor).toBe(90);
+    expect(r.nomes).toEqual(["Navalhado", "Barba"]);
+  });
+  it("combo de 3 a partir de um combo gravado: cb (90) + sobrancelha → cbs 100", () => {
+    expect(aplicarCombosComCongelados({ serviceIds: ["cb"], value: 90 }, ["sobr"], CAT)).toMatchObject({
+      ids: ["cbs"],
+      valor: 100,
+    });
   });
 });

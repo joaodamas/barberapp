@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { CalendarDays, LogOut, Wallet } from "lucide-react";
+import { CalendarDays, LogOut, Wallet, WifiOff } from "lucide-react";
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
@@ -11,6 +11,8 @@ import { useTenant } from "@/lib/tenant-context";
 import { useStaff } from "@/lib/db/use-shop-data";
 import { mensagemDaFuncao } from "@/lib/mensagem-da-funcao";
 import { cn } from "@/lib/cn";
+import { Button } from "@/components/ui/button";
+import { EstadoCentral } from "@/components/ui/estado-central";
 
 type Cadeira = { staffId: string; nome: string };
 const CadeiraContext = createContext<Cadeira | null>(null);
@@ -35,7 +37,7 @@ const ABAS = [
  * token: a área pede ao servidor para completar e renova o token sozinha.
  */
 export function AreaDoBarbeiro({ children }: { children: React.ReactNode }) {
-  const { user, claims, loading } = useAuth();
+  const { user, claims, loading, semResposta } = useAuth();
   const tenant = useTenant();
   const router = useRouter();
   const pathname = usePathname();
@@ -47,10 +49,12 @@ export function AreaDoBarbeiro({ children }: { children: React.ReactNode }) {
   const precisaSincronizar = !!user && papel === "staff" && !staffId && !claims.mustChangePassword;
 
   useEffect(() => {
-    if (loading) return;
+    /* Sem resposta do Auth não é "sem conta": mandar para o login quem só
+     * perdeu a rede era expulsar o barbeiro logado (08/10). */
+    if (loading || semResposta) return;
     if (!user) router.replace(`/login?next=${encodeURIComponent(pathname)}`);
     else if (claims.mustChangePassword) router.replace("/trocar-senha");
-  }, [loading, user, claims.mustChangePassword, pathname, router]);
+  }, [loading, semResposta, user, claims.mustChangePassword, pathname, router]);
 
   useEffect(() => {
     if (!precisaSincronizar) return;
@@ -68,6 +72,23 @@ export function AreaDoBarbeiro({ children }: { children: React.ReactNode }) {
       cancelado = true;
     };
   }, [precisaSincronizar, tenant.id]);
+
+  /* O Auth não respondeu (rede caiu, token não veio): o mesmo tratamento do
+   * `AuthGuard`. Antes isto caía em "Sua conta não tem acesso de barbeiro" —
+   * o token sem claims parece conta sem papel —, e o barbeiro achava que tinha
+   * sido tirado do sistema (08/10). */
+  if (semResposta) {
+    return (
+      <div className="flex min-h-full flex-1 items-center justify-center px-4 py-16">
+        <EstadoCentral
+          icon={WifiOff}
+          titulo="Não conseguimos confirmar sua conta"
+          descricao="A conexão falhou ou demorou demais. Confira a internet e tente de novo — nada do que você fez se perdeu."
+          acao={<Button onClick={() => window.location.reload()}>Tentar de novo</Button>}
+        />
+      </div>
+    );
+  }
 
   if (loading || !user || claims.mustChangePassword) {
     return <Centro>Carregando…</Centro>;

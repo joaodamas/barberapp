@@ -1,7 +1,13 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { validateSlug, ONBOARDING_WRITABLE_FIELDS, TRIAL_DAYS, TRIAL_PLAN } from "../signup";
+import {
+  validateSlug,
+  validarCampoDoOnboarding,
+  ONBOARDING_WRITABLE_FIELDS,
+  TRIAL_DAYS,
+  TRIAL_PLAN,
+} from "../signup";
 import { featuresFor, toPlanId } from "../plans";
 
 describe("endereço da barbearia", () => {
@@ -83,6 +89,62 @@ describe("campos graváveis pelo onboarding", () => {
     for (const campo of enviadosPelasTelas) {
       expect(ONBOARDING_WRITABLE_FIELDS.has(campo), campo).toBe(true);
     }
+  });
+});
+
+describe("forma do que o onboarding grava (08/10)", () => {
+  it("aceita exatamente o que as telas mandam", () => {
+    const telaDaBarbearia: Record<string, unknown> = {
+      "brand.name": "Barbearia do Zé",
+      "brand.shortName": "Barbearia do",
+      "brand.accentColor": "#b8863a",
+      "contact.address": "Rua das Flores, 120 — Centro",
+      "contact.whatsapp": "5511988887777",
+      "contact.instagram": null,
+    };
+    const telaDeHorarios: Record<string, unknown> = {
+      "schedule.weekdays": [1, 2, 3, 4, 5, 6],
+      "schedule.opensAt": "09:00",
+      "schedule.closesAt": "19:00",
+      "schedule.slotMinutes": 30,
+      "schedule.breaks": [{ from: "12:00", to: "14:00" }],
+      "schedule.perDay": { "2": { opensAt: "09:00", closesAt: "17:30" } },
+    };
+    for (const [campo, valor] of Object.entries({ ...telaDaBarbearia, ...telaDeHorarios })) {
+      expect(validarCampoDoOnboarding(campo, valor), campo).toBeNull();
+    }
+    // Todo campo liberado tem validação própria — nenhum cai no "não grava".
+    for (const campo of ONBOARDING_WRITABLE_FIELDS) {
+      expect(validarCampoDoOnboarding(campo, undefined), campo).not.toMatch(/não grava/);
+    }
+  });
+
+  it("🔒 recusa o que a regra da marca recusaria", () => {
+    expect(validarCampoDoOnboarding("brand.name", "x".repeat(61))).not.toBeNull();
+    expect(validarCampoDoOnboarding("brand.name", "a")).not.toBeNull();
+    expect(validarCampoDoOnboarding("brand.shortName", "x".repeat(15))).not.toBeNull();
+    expect(validarCampoDoOnboarding("brand.accentColor", "red; background:url(x)")).not.toBeNull();
+    expect(validarCampoDoOnboarding("brand.name", { $gt: "" })).not.toBeNull();
+  });
+
+  it("🔒 recusa jornada que travaria a grade", () => {
+    expect(validarCampoDoOnboarding("schedule.slotMinutes", 0)).not.toBeNull();
+    expect(validarCampoDoOnboarding("schedule.slotMinutes", "30")).not.toBeNull();
+    expect(validarCampoDoOnboarding("schedule.opensAt", "25:00")).not.toBeNull();
+    expect(validarCampoDoOnboarding("schedule.weekdays", [1, 1])).not.toBeNull();
+    expect(validarCampoDoOnboarding("schedule.weekdays", [7])).not.toBeNull();
+    expect(validarCampoDoOnboarding("schedule.breaks", [{ from: "12:00", to: "14:00", extra: 1 }])).not.toBeNull();
+    expect(validarCampoDoOnboarding("schedule.perDay", { "9": { opensAt: "09:00" } })).not.toBeNull();
+    expect(validarCampoDoOnboarding("schedule.perDay", { "1": { opensAt: "9h" } })).not.toBeNull();
+  });
+
+  it("🔒 completeOnboardingStep valida o passo, exige edição e valida cada campo", () => {
+    const fonte = readFileSync(resolve(__dirname, "../signup.ts"), "utf8");
+    const corpo = fonte.slice(fonte.indexOf("export const completeOnboardingStep"));
+    expect(corpo).toContain("PASSOS_DO_ONBOARDING.has(step)");
+    expect(corpo.indexOf("await exigirEdicao(barbershopId)")).toBeGreaterThan(-1);
+    expect(corpo.indexOf("await exigirEdicao(barbershopId)")).toBeLessThan(corpo.indexOf("shopRef.update"));
+    expect(corpo).toContain("validarCampoDoOnboarding(campo, valor)");
   });
 });
 

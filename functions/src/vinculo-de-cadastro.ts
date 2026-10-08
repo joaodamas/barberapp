@@ -246,8 +246,10 @@ export const vincularCadastroDeBalcao = onCall<{
     throw new HttpsError("invalid-argument", "Informe os dois cadastros.");
   }
   const papel = vinculosDe(request)?.[barbershopId];
-  if (papel !== "owner" && papel !== "staff") {
-    throw new HttpsError("permission-denied", "Só a barbearia vincula cadastros.");
+  /* Juntar dois cadastros move o histórico, a fidelidade e as faturas de um
+   * para o outro — é a porta do DONO, como diz o nome (08/10). */
+  if (papel !== "owner") {
+    throw new HttpsError("permission-denied", "Só o dono da barbearia vincula cadastros.");
   }
   await exigirEdicao(barbershopId);
 

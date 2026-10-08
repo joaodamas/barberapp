@@ -41,7 +41,9 @@ export const useStaff = () =>
  */
 export function useStaffComRemuneracao() {
   const equipe = useStaff();
-  const pay = useShopCollection<Pick<StaffDoc, "commissionPct" | "salary">>("staffPay");
+  const pay = useShopCollection<
+    Pick<StaffDoc, "commissionPct" | "salary" | "historicoSalario" | "historicoNaEquipe">
+  >("staffPay");
   const porId = new Map(pay.items.map((p) => [p.id, p]));
   return {
     ...equipe,
@@ -51,7 +53,14 @@ export function useStaffComRemuneracao() {
     items: equipe.items.map((s) => {
       const p = porId.get(s.id);
       return p
-        ? { ...s, commissionPct: p.commissionPct ?? s.commissionPct, salary: p.salary ?? s.salary }
+        ? {
+            ...s,
+            commissionPct: p.commissionPct ?? s.commissionPct,
+            salary: p.salary ?? s.salary,
+            /* A folha por mês (08/10): o histórico mora junto do salário. */
+            historicoSalario: p.historicoSalario ?? null,
+            historicoNaEquipe: p.historicoNaEquipe ?? null,
+          }
         : s;
     }),
   } as typeof equipe;
@@ -133,8 +142,10 @@ export const useClients = () =>
 export const useExpenses = () =>
   useShopCollection<ExpenseDoc>("expenses", { orderByField: "date", direction: "desc" });
 
-export const useSubscribers = () =>
-  useShopCollection<SubscriberDoc>("subscriptions", { orderByField: "name" });
+/* `enabled` (08/10): o barbeiro não lê mais a coleção (é receita da casa) —
+ * o fechamento dele pergunta por atendimento (`planoDoAtendimento`). */
+export const useSubscribers = (opcoes?: { enabled?: boolean }) =>
+  useShopCollection<SubscriberDoc>("subscriptions", { orderByField: "name", enabled: opcoes?.enabled ?? true });
 
 /**
  * As faturas de mensalidade — G2.

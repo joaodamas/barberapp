@@ -127,7 +127,7 @@ export function AcessoDoBarbeiro({ barbeiro }: { barbeiro: Doc<StaffDoc> }) {
         open={tirando}
         onClose={() => setTirando(false)}
         title={`Tirar o acesso de ${barbeiro.name || "barbeiro"}?`}
-        description="Ele sai do sistema na hora. Continua na agenda e nos relatórios; os atendimentos e a comissão dele não mudam."
+        description="Ele perde o acesso na hora: a agenda e os botões dele param de responder, o celular deixa de receber notificação e o Telegram da cadeira é desligado. Continua na agenda e nos relatórios; os atendimentos e a comissão dele não mudam."
         footer={
           <div className="flex gap-2">
             <Button variant="secondary" className="flex-1" onClick={() => setTirando(false)}>
@@ -139,7 +139,13 @@ export function AcessoDoBarbeiro({ barbeiro }: { barbeiro: Doc<StaffDoc> }) {
           </div>
         }
       >
-        <p className="text-sm text-ink-muted">Para dar acesso de novo, é só mandar outro convite.</p>
+        {/* O que a revogação NÃO alcança, dito antes (08/10): as regras e as
+            funções conferem a cadeira a cada pedido, mas o que já foi
+            carregado na tela de um aparelho aberto não é apagado de lá. */}
+        <p className="text-sm text-ink-muted">
+          Se o app estiver aberto no celular dele, o que já está na tela continua visível até ele fechar ou
+          recarregar — nada novo abre. Para dar acesso de novo, é só mandar outro convite.
+        </p>
       </Modal>
     </div>
   );
@@ -153,6 +159,9 @@ function ConviteModal({ barbeiro, onClose }: { barbeiro: Doc<StaffDoc>; onClose:
   const [erro, setErro] = useState<string | null>(null);
   const [link, setLink] = useState<string | null>(null);
   const [copiado, setCopiado] = useState(false);
+  /* O convite foi gerado para ir pelo WhatsApp: a tela passa a mostrar o
+   * botão de envio, que abre a conversa no toque. */
+  const [prontoParaWhatsApp, setProntoParaWhatsApp] = useState(false);
 
   const numero = whatsappParaConvite(whatsapp);
   const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
@@ -183,19 +192,22 @@ function ConviteModal({ barbeiro, onClose }: { barbeiro: Doc<StaffDoc>; onClose:
     }
   }
 
+  /* Gera e PARA: quem abre a conversa é o botão "Enviar no WhatsApp", no
+   * toque do dono. `window.open` depois da espera do servidor é bloqueado em
+   * silêncio pelo Safari do iPhone — o dono achava que tinha mandado o
+   * convite e o barbeiro nunca recebia. Mesmo desenho do aviso de encaixe. */
   async function enviarWhatsApp() {
     if (!numero) return;
+    setProntoParaWhatsApp(false);
     const l = await gerar(false);
-    if (!l) return;
-    window.open(
-      linkDoWhatsApp(numero, textoDoConvite({ barbearia: tenant.brand.name, barbeiro: barbeiro.name, link: l })),
-      "_blank",
-      "noopener,noreferrer"
-    );
+    if (l) setProntoParaWhatsApp(true);
   }
 
   async function enviarEmail() {
     if (!emailOk) return;
+    /* O convite por e-mail fica preso àquele e-mail e invalida o anterior:
+     * o botão do WhatsApp não pode continuar mandando um link morto. */
+    setProntoParaWhatsApp(false);
     const l = await gerar(true);
     if (!l) return;
     window.location.href = linkDoEmail(
@@ -237,9 +249,21 @@ function ConviteModal({ barbeiro, onClose }: { barbeiro: Doc<StaffDoc>; onClose:
               className="min-h-11 flex-1 rounded-xl border border-border bg-surface px-3 text-sm text-ink"
             />
             <Button disabled={!numero || gerando} onClick={enviarWhatsApp}>
-              <MessageCircle size={16} /> Enviar
+              <MessageCircle size={16} /> {gerando ? "Gerando…" : "Gerar convite"}
             </Button>
           </div>
+          {prontoParaWhatsApp && link && numero && (
+            <a
+              href={linkDoWhatsApp(numero, textoDoConvite({ barbearia: tenant.brand.name, barbeiro: barbeiro.name, link }))}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="self-start"
+            >
+              <Button>
+                <MessageCircle size={16} /> Enviar no WhatsApp
+              </Button>
+            </a>
+          )}
           <p className="text-[11px] text-ink-muted">O número não fica salvo; é só para abrir a conversa.</p>
         </div>
 
@@ -273,9 +297,9 @@ function ConviteModal({ barbeiro, onClose }: { barbeiro: Doc<StaffDoc>; onClose:
               <Button variant="secondary" className="min-h-9 px-3 text-xs" onClick={copiar}>
                 <Copy size={14} /> {copiado ? "Copiado" : "Copiar link"}
               </Button>
-              {/* O navegador pode barrar a janela aberta depois da espera do
-                  servidor; o link direto sempre funciona. */}
-              {numero && (
+              {/* Para quem gerou pelo e-mail e prefere mandar pelo WhatsApp;
+                  quem gerou pelo WhatsApp já tem o botão de envio acima. */}
+              {numero && !prontoParaWhatsApp && (
                 <a
                   href={linkDoWhatsApp(numero, textoDoConvite({ barbearia: tenant.brand.name, barbeiro: barbeiro.name, link }))}
                   target="_blank"

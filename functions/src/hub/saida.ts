@@ -210,9 +210,11 @@ export const enviarAvisoAoHub = onDocumentCreated(
 /**
  * Reenvia o que ficou pendente.
  *
- * A consulta é só por `estado`, e a hora é filtrada aqui: filtrar os dois no
- * Firestore exigiria um índice composto para uma coleção que, no normal, tem
- * zero pendentes.
+ * A consulta filtra a hora no Firestore e ORDENA pela próxima tentativa, com
+ * índice composto (`estado` + `proximaTentativaEmMs`). Antes era só por
+ * `estado` com `limit(200)`, e a hora era filtrada aqui: com mais de 200
+ * pendentes (o Hub fora do ar por um dia), os 200 que voltavam podiam ser
+ * todos adiados para depois — e o que já estava na hora nunca era alcançado.
  */
 export const reenviarAvisosAoHub = onSchedule(
   {
@@ -224,11 +226,16 @@ export const reenviarAvisosAoHub = onSchedule(
   async () => {
     const db = getFirestore();
     const agora = Date.now();
-    const pendentes = await db.collection(COLECAO_DA_SAIDA).where("estado", "==", "pendente").limit(200).get();
-    const naHora = pendentes.docs.filter((d) => Number(d.get("proximaTentativaEmMs") ?? 0) <= agora);
-    for (const d of naHora) {
+    const naHora = await db
+      .collection(COLECAO_DA_SAIDA)
+      .where("estado", "==", "pendente")
+      .where("proximaTentativaEmMs", "<=", agora)
+      .orderBy("proximaTentativaEmMs")
+      .limit(200)
+      .get();
+    for (const d of naHora.docs) {
       await entregarAviso(d.ref, PLATAFORMA_TOKEN.value());
     }
-    if (naHora.length) console.log(`[hub] ${naHora.length} aviso(s) reenviado(s) de ${pendentes.size} pendente(s)`);
+    if (naHora.size) console.log(`[hub] ${naHora.size} aviso(s) na hora reenviado(s)`);
   }
 );
