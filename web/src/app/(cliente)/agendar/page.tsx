@@ -177,8 +177,14 @@ export default function AgendarPage() {
   /* Uma chave por TENTATIVA de confirmar: repetida se a rede falhar no meio,
    * trocada depois do sucesso. O servidor deriva dela o id da reserva, e a
    * repetição devolve a mesma reserva em vez de "esse horário acabou de ser
-   * reservado" (ver `idDaReservaPorChave`). */
-  const chaveDaTentativa = useRef<string | null>(null);
+   * reservado" (ver `idDaReservaPorChave`).
+   *
+   * A chave vale para UM pedido — serviços, barbeiro, dia e hora — e guarda
+   * a assinatura dele. Antes só era trocada no sucesso: o cliente confirmava
+   * 15h, a resposta se perdia, ele escolhia 16h e a mesma chave voltava; o
+   * servidor devolvia a reserva das 15h e a tela anunciava 16h (08/10). Pedido
+   * diferente, chave nova. */
+  const chaveDaTentativa = useRef<{ chave: string; assinatura: string } | null>(null);
 
   /* Pré-preenche com o que a pessoa já informou numa reserva anterior. O
    * documento é dela e atravessa barbearias: quem corta em duas não digita o
@@ -249,15 +255,24 @@ export default function AgendarPage() {
     setErroReserva(null);
     try {
       const { callFunction } = await import("@/lib/firebase");
-      chaveDaTentativa.current ??= crypto.randomUUID();
-      const r = await callFunction<Record<string, unknown>, { status?: string; staffName?: string }>("createBooking", {
+      const pedidoDaTentativa = {
         isFitIn: selectedSlot.available === false,
-        chave: chaveDaTentativa.current,
-        barbershopId: tenant.id,
         serviceIds: selectedServiceIds,
         staffId: modoQualquer ? QUALQUER_BARBEIRO : barbeiroEscolhido?.id,
         date: selectedDay.iso,
         time: selectedSlot.time,
+      };
+      const assinatura = JSON.stringify({
+        ...pedidoDaTentativa,
+        serviceIds: [...selectedServiceIds].sort(),
+      });
+      if (chaveDaTentativa.current?.assinatura !== assinatura) {
+        chaveDaTentativa.current = { chave: crypto.randomUUID(), assinatura };
+      }
+      const r = await callFunction<Record<string, unknown>, { status?: string; staffName?: string }>("createBooking", {
+        ...pedidoDaTentativa,
+        chave: chaveDaTentativa.current.chave,
+        barbershopId: tenant.id,
         paymentOrigin: "in_person",
         clientName: nome.trim(),
         clientWhatsapp: normalizarWhatsapp(whatsapp),
@@ -301,8 +316,10 @@ export default function AgendarPage() {
   });
   /* A lista vai até o limite SÓ quando o barbeiro configurou a janela; sem
    * configuração, os 10 dias de sempre — senão eram 60 botões seguidos. */
+  /* Para o mensalista, a data liberada aos avulsos também conta: o limite dele
+   * é o maior entre ela e os dias do plano (`lib/janela.ts`). */
   const janelaConfigurada = ehMensalista
-    ? tenant.policies.janela?.diasMensalista != null
+    ? tenant.policies.janela?.diasMensalista != null || !!tenant.policies.janela?.abertaAte
     : !!tenant.policies.janela?.abertaAte;
   const days = useMemo(
     () => bookableDays(new Date(), tenant.schedule, janelaConfigurada ? limite : undefined),
