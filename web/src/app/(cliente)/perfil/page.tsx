@@ -20,6 +20,7 @@ import { ProfileIdentity } from "@/components/profile-identity";
 import { OwnerPanelLink } from "@/components/owner-panel-link";
 import { useAuth } from "@/lib/auth-context";
 import { formatBRL } from "@/lib/format";
+import { totalGasto } from "@/lib/ficha-do-cliente";
 import { useTenant, usePolicies } from "@/lib/tenant-context";
 import { lerPerfil, mascararWhatsapp, salvarPerfil, whatsappValido } from "@/lib/db/perfil";
 import { useLoyalty, useMinhasAssinaturas, useMyBookings } from "@/lib/db/use-shop-data";
@@ -87,7 +88,9 @@ export default function PerfilPage() {
   /* Só atendimento concluído conta — a reserva futura (possivelmente "a pagar
    * no salão") era somada como visita realizada e dinheiro gasto. */
   const totalVisits = bookingHistory.length;
-  const totalSpent = bookingHistory.reduce((s, b) => s + b.value, 0);
+  /* O que ele PAGOU (08/10): cobrado, com o coberto pelo plano valendo zero —
+   * a mesma régua da ficha do cliente no painel (`totalGasto`). */
+  const totalSpent = totalGasto(bookingHistory);
 
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => {

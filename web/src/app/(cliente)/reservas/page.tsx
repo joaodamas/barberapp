@@ -13,6 +13,7 @@ import { bookingStatusMeta } from "@/lib/booking-status";
 import { labelDoPagamento } from "@/lib/payment-method";
 import { ehCortesia, valorCobrado } from "@/lib/desconto";
 import { formatBRL, formatDatePtBR, toISODate } from "@/lib/format";
+import { totalGasto } from "@/lib/ficha-do-cliente";
 import { useTenant } from "@/lib/tenant-context";
 import { useAuth } from "@/lib/auth-context";
 import { useLoyalty, useMinhasAssinaturas, useMyBookings, useServices } from "@/lib/db/use-shop-data";
@@ -205,7 +206,9 @@ export default function ReservasPage() {
 
   const refund = booking ? refundFor(booking, cancelamento) : null;
 
-  const totalSpentHistory = bookingHistory.reduce((s, b) => s + b.value, 0);
+  /* O que ele PAGOU (08/10): cobrado, com o coberto pelo plano valendo zero —
+   * a mesma régua da ficha do cliente no painel (`totalGasto`). */
+  const totalSpentHistory = totalGasto(bookingHistory);
   const stampsLeft = loyalty.faltam;
 
   /* Reagendar era grátis, ilimitado e sem prazo — dava para reagendar 10 min

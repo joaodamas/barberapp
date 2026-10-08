@@ -24,6 +24,7 @@ import {
   useBookings,
   useClients,
   useInventoryMovements,
+  useRefunds,
   useSubscribers,
 } from "@/lib/db/use-shop-data";
 
@@ -57,6 +58,8 @@ export default function ClientesPage() {
   const { items: bookings } = useBookings();
   const { items: movements } = useInventoryMovements();
   const { items: subscribers } = useSubscribers();
+  /* Devoluções abatem o gasto da ficha (08/10). */
+  const { items: refunds } = useRefunds();
 
   const tenant = useTenant();
   const [busca, setBusca] = useState("");
@@ -69,10 +72,10 @@ export default function ClientesPage() {
   const hojeISO = toISODate(hoje);
 
   const fichas = useMemo(
-    () => listaDeClientes({ clientes, bookings, movements, subscribers, hoje, hojeISO }),
+    () => listaDeClientes({ clientes, bookings, movements, subscribers, refunds, hoje, hojeISO }),
     // `hoje` é novo a cada render; `hojeISO` é o que muda de verdade.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [clientes, bookings, movements, subscribers, hojeISO]
+    [clientes, bookings, movements, subscribers, refunds, hojeISO]
   );
 
   const encontrados = useMemo(

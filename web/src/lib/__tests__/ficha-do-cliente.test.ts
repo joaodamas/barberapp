@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fichaDoCliente, listaDeClientes, paresDeMesmoNumero } from "@/lib/ficha-do-cliente";
+import { fichaDoCliente, totalGasto, listaDeClientes, paresDeMesmoNumero } from "@/lib/ficha-do-cliente";
 import type { Doc } from "@/lib/db/repository";
 import type {
   BookingDoc,
@@ -305,5 +305,52 @@ describe("02/10 · conta e balcão com o mesmo número", () => {
   it("indício apontando para outra conta não é par", () => {
     const outra = cliente({ id: "u2", uid: "u2", name: "Outro", whatsapp: "11988887777" });
     expect(paresDeMesmoNumero([outra, { ...conta, mesmoNumeroQue: "u2" }])).toHaveLength(0);
+  });
+});
+
+/** Revisão financeira de 08/10 — a régua única do "total gasto". */
+describe("gasto: coberto pelo plano e devoluções", () => {
+  const plano = {
+    tipo: "plano" as const,
+    subscriptionId: "s1",
+    planId: "p1",
+    planName: "Ilimitado",
+    competencia: "2026-09",
+    valorCoberto: 50,
+    usoNaCompetencia: 1,
+    cota: null,
+  };
+  it("corte coberto pelo plano não é gasto do atendimento (quem pagou foi a mensalidade)", () => {
+    const f = fichaDoCliente({
+      ...base,
+      cliente: cliente({ id: "c1" }),
+      bookings: [bk({ id: "1", value: 50, cobertura: plano }), bk({ id: "2", value: 60, date: "2026-09-10" })],
+    });
+    expect(f.gastoEmServicos).toBe(60);
+    expect(f.visitas).toBe(2);
+    expect(f.ticketMedio).toBe(60);
+  });
+  it("devolução de produto e de serviço abate o gasto", () => {
+    const f = fichaDoCliente({
+      ...base,
+      cliente: cliente({ id: "c1" }),
+      bookings: [bk({ id: "1", value: 50 })],
+      movements: [mov({ id: "v1", clientId: "c1", value: 45 })],
+      refunds: [
+        { id: "r1", origin: "produto", movementId: "v1", paymentId: "p", clientId: "c1", date: "2026-09-06", originalDate: "2026-09-05", reason: "", paymentMethod: "pix", grossAmount: 45, feeAmount: 0, netAmount: 45, parcial: false },
+        { id: "r2", origin: "servico", bookingId: "1", paymentId: "p2", clientId: "c1", date: "2026-09-02", originalDate: "2026-09-01", reason: "", paymentMethod: "pix", grossAmount: 20, feeAmount: 0, netAmount: 20, parcial: true },
+      ],
+    });
+    expect(f.gastoEmProdutos).toBe(0);
+    expect(f.gastoEmServicos).toBe(30);
+  });
+  it("totalGasto: a mesma régua do app do cliente (Reservas e Perfil)", () => {
+    expect(
+      totalGasto([
+        { value: 50, discountAmount: 10 },
+        { value: 50, cobertura: plano },
+        { value: 50, discountAmount: 50 },
+      ])
+    ).toBe(40);
   });
 });
