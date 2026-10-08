@@ -353,6 +353,27 @@ describe("excluir minha conta", () => {
     expect(chamadas).toEqual([{ fn: "deleteUser", uid: UID }]);
   });
 
+  it("🔒 sem telefone verificado, o número DIGITADO não apaga conversa nem mensagem de ninguém", async () => {
+    /* O `whatsapp` de users/{uid}, o do cadastro e o `clientWhatsapp` da
+     * reserva são digitados. Se fossem de outra pessoa, excluir a própria
+     * conta apagaria a conversa dela e anonimizaria as mensagens dela. */
+    const { auth } = dubleDoAuth({});
+    await excluirContaDoCliente({ db, auth, uid: UID });
+    expect((await db.doc("whatsapp_conversations/5511988887777").get()).exists).toBe(true);
+    expect(await ler(`barbershops/${ALFA}/whatsapp_messages/m1`)).toMatchObject({ to: "5511988887777" });
+    expect(await ler(`barbershops/${ALFA}/whatsapp_messages/m2`)).toMatchObject({ de: "5511988887777" });
+    // O cadastro dele, esse sim, sai anonimizado.
+    expect(await ler(`barbershops/${ALFA}/clients/${UID}`)).toMatchObject({ name: MARCADOR_ANONIMO });
+  });
+
+  it("com o telefone provado pelo SMS (token.phone_number), as conversas dele saem", async () => {
+    const { auth } = dubleDoAuth({});
+    await excluirContaDoCliente({ db, auth, uid: UID, telefoneVerificado: "+5511988887777" });
+    expect((await db.doc("whatsapp_conversations/5511988887777").get()).exists).toBe(false);
+    expect(await ler(`barbershops/${ALFA}/whatsapp_messages/m1`)).toMatchObject({ to: "" });
+    expect(await ler(`barbershops/${ALFA}/whatsapp_messages/m2`)).toMatchObject({ de: "" });
+  });
+
   it("tudo ou nada na verificação: bloqueada numa casa, não mexe em nenhuma", async () => {
     await db.doc(`barbershops/${BETA}/bookings/bk-futuro`).set({
       clientId: UID,
