@@ -338,7 +338,7 @@ Código existe, testes passam, produção não viu.
 | Rotação do cache do PWA | a primeira publicação criou `barbearia-<sha>`; provar exige a **próxima** — não vale deploy artificial |
 | Botão "Atualizar" do PWA | **observado sem funcionar** em 11/08: nem o clique nem um `SKIP_WAITING` direto trocaram o worker. O caminho "fechar e reabrir" funciona |
 | `ChunkLoadError` | apareceu 4× e some quando forçado; sem causa raiz. Reavaliar junto com a rotação do cache |
-| Regras do Storage nunca publicadas | a esteira publica índices, regras do Firestore, functions e Hosting — **não** as regras de Storage. Cinco tentativas, cinco falhas, causa não identificada. Hoje é inofensivo porque nenhuma tela usa Storage; **vira buraco no dia em que existir envio de arquivo** |
+| Regras do Storage publicadas pela esteira | desde o #127 existe tela que envia arquivo ("Sua marca", logo e ícones). As regras de produção foram publicadas **pelo dono, à mão**, em 03/10, e em 08/10 conferiam com `storage.rules`. A esteira **tenta** `--only storage` e, quando a conta não consegue (404 no `defaultBucket`), **compara** as regras no ar com o repositório: divergiu, vermelho no DEV e aviso em produção (`docs/DEPLOY.md`). O que falta é a permissão da conta de deploy para a publicação deixar de depender do dono |
 | Encaixe expira | `fitInExpirationMinutes` (45) existe e **nada expira nada** — pendência acumula para sempre. Defeito conhecido, não bloqueador |
 | Exclusão de dados ao encerrar a conta | rotina escrita em 12/08, em **`DRY_RUN`**: registra o que apagaria e não apaga. Ninguém encerrou conta nenhuma, nem leu o log |
 

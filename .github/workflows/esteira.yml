@@ -16,6 +16,12 @@ permissions:
 
 jobs:
   dev:
+    # O deploy pede `actions: read` (confere a esteira do DEV antes de
+    # produção). Workflow chamado não ganha mais permissão do que quem chama:
+    # sem esta linha, a chamada falha antes de começar.
+    permissions:
+      contents: read
+      actions: read
     uses: ./.github/workflows/deploy.yml
     with:
       ambiente: dev

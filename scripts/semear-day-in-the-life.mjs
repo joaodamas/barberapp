@@ -43,7 +43,10 @@ const SHOP_ID = "shop-day-in-the-life";
 const EMAIL = "dono@osiqueira.teste";
 /* No DEV o site é público: a senha vem de fora (DEV_SENHA), não do código. */
 const SENHA = EH_DEV ? process.env.DEV_SENHA : "dono12345";
-if (!SENHA || SENHA.length < 12) {
+/* A exigência de 12+ é do DEV. Valia para o emulador também, e a senha fixa
+ * dele tem 9: o passeio no celular parou na semente desde o #74 (achado em
+ * 08/10, quando voltou a rodar). */
+if (EH_DEV && (!SENHA || SENHA.length < 12)) {
   console.error("RECUSADO: no DEV, passe DEV_SENHA com 12+ caracteres.");
   process.exit(1);
 }
