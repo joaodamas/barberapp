@@ -211,7 +211,12 @@ export default function SuaMarcaPage() {
           ? "Pronto. Sua barbearia voltou a usar as iniciais como marca."
           : imagem
             ? "Pronto, sua marca foi salva. Quem já instalou o app pode levar um tempo para ver o ícone novo."
-            : "Pronto, sua marca foi salva."
+            : !temLogoProprio && (nomeMudou || corMudou)
+              ? /* O monograma muda com o nome e a cor. O painel acompanha na
+                 * hora; o ícone na tela de início e a tela de entrar vêm do
+                 * servidor, que leva alguns minutos para reler a ficha. */
+                "Pronto, sua marca foi salva. O ícone do app no celular pode levar alguns minutos para mudar."
+              : "Pronto, sua marca foi salva."
       );
       setImagem(null);
       setRemover(false);

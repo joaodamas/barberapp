@@ -15,6 +15,7 @@ import { PassoHorarios } from "@/components/comecar/passo-horarios";
 import { PassoCompartilhar } from "@/components/comecar/passo-compartilhar";
 import { ONBOARDING_STEPS, nextOnboardingStep, type OnboardingStep } from "@/lib/tenant";
 import { logoSemOtimizar } from "@/lib/logo-da-marca";
+import { marcarOnboardingConcluido } from "@/lib/onboarding-concluido";
 
 /**
  * Onboarding guiado.
@@ -98,7 +99,11 @@ export default function ComecarPage() {
       });
 
       if (indice === ONBOARDING_STEPS.length - 1) {
-        // Recarrega para o servidor reler o tenant já configurado.
+        /* Recarrega para o servidor reler o tenant já configurado — mas a
+         * ficha do servidor tem cache de 300 s e pode chegar AINDA incompleta.
+         * O marcador diz ao `AuthGuard` que o último passo foi aceito, para
+         * ele não devolver o dono ao passo 1 com a ficha velha. */
+        marcarOnboardingConcluido(tenant.id);
         window.location.href = "/painel";
         return;
       }

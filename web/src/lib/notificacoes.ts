@@ -67,11 +67,24 @@ export async function ativarNotificacao(barbershopId: string): Promise<EstadoDaN
   return "ligado";
 }
 
+/**
+ * Desliga a notificação deste aparelho — e só diz "desligado" se desligou.
+ *
+ * `removerPush` tinha `.catch(() => undefined)` e a função devolvia
+ * "desligado" de qualquer jeito: sem rede, a tela mostrava o interruptor
+ * desligado enquanto o servidor continuava mandando encaixe e cancelamento
+ * para este celular. Quem tira o endereço da lista de envio é o servidor;
+ * sem a resposta dele, nada mudou — a falha sobe e o estado continua "ligado".
+ *
+ * O `deleteToken` local continua tolerante: depois que o servidor esqueceu o
+ * endereço, apagá-lo do aparelho é faxina, e falhar nela não faz chegar
+ * notificação nenhuma.
+ */
 export async function desativarNotificacao(barbershopId: string): Promise<EstadoDaNotificacao> {
   const token = lerLocal(barbershopId);
   if (token) {
     const { callFunction, firebaseApp } = await import("@/lib/firebase");
-    await callFunction("removerPush", { barbershopId, token }).catch(() => undefined);
+    await callFunction("removerPush", { barbershopId, token });
     const { getMessaging, deleteToken } = await import("firebase/messaging");
     await deleteToken(getMessaging(firebaseApp)).catch(() => undefined);
   }
