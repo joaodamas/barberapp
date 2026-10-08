@@ -23,6 +23,26 @@ describe("modo leitura no servidor", () => {
     expect(motivoDeLeitura({ status: "encerrada" }, agora)).toBe("cancelada");
     expect(motivoDeLeitura({ status: "ativo" }, agora)).toBeNull();
   });
+
+  it("isenta não cai em modo leitura por suspensão ou teste vencido — só por encerrar", () => {
+    const isento = { ativa: true, motivo: "Barbearia fundadora" };
+    expect(motivoDeLeitura({ status: "suspenso", isento }, agora)).toBeNull();
+    expect(
+      motivoDeLeitura({ status: "trial", isento: true, trial: { endsAt: new Date("2026-09-01") } }, agora)
+    ).toBeNull();
+    expect(motivoDeLeitura({ status: "encerrada", isento }, agora)).toBe("cancelada");
+    // Isenção desligada (`ativa: false`) volta a valer a regra comum.
+    expect(motivoDeLeitura({ status: "suspenso", isento: { ativa: false } }, agora)).toBe("suspensa");
+  });
+
+  it("revisarAssinaturas pula a isenta antes de qualquer decisão de suspender", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    const fonte = readFileSync(resolve(__dirname, "../billing.ts"), "utf8");
+    const corpo = fonte.slice(fonte.indexOf("for (const shop of barbearias.docs)"));
+    expect(corpo.indexOf("isentoDeCobranca(")).toBeGreaterThan(-1);
+    expect(corpo.indexOf("isentoDeCobranca(")).toBeLessThan(corpo.indexOf('status: "suspenso"'));
+  });
 });
 
 describe("vinculosDe — a trava da senha provisória vale no servidor (auditoria 28/09, A1)", () => {
