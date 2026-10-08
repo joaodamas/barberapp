@@ -34,8 +34,19 @@ service firebase.storage {
     /* `in` antes de indexar: sem a checagem de chave, avaliar
      * `token.barbershops[id]` para quem não tem vínculo derruba a regra com
      * erro em vez de negar — e regra que quebra não é regra que protege. */
+    /* Senha provisória não dá papel (08/10), como `memberships()` no
+     * Firestore e `vinculosDe` nas functions: quem viu a senha provisória no
+     * WhatsApp trocava a logo e as fotos da barbearia antes de o dono
+     * verdadeiro trocar a senha. `in` antes de ler, pelo mesmo motivo de
+     * `isPlatformAdmin`. */
+    function senhaProvisoria() {
+      return 'mustChangePassword' in request.auth.token
+             && request.auth.token.mustChangePassword == true;
+    }
+
     function temVinculo(barbershopId) {
       return isSignedIn()
+             && !senhaProvisoria()
              && 'barbershops' in request.auth.token
              && barbershopId in request.auth.token.barbershops;
     }
@@ -60,8 +71,11 @@ service firebase.storage {
              && request.auth.token.platformAdmin == true;
     }
 
+    /* Lista fechada de formatos (08/10). `image/.*` aceitava `image/svg+xml`
+     * — documento, que pode levar script e é servido do domínio do Storage
+     * —, e qualquer `image/qualquer-coisa` que o navegador declarasse. */
     function isImageUnder(maxMB) {
-      return request.resource.contentType.matches('image/.*')
+      return request.resource.contentType in ['image/png', 'image/jpeg', 'image/webp']
              && request.resource.size < maxMB * 1024 * 1024;
     }
 

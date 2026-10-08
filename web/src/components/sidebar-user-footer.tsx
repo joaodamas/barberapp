@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { signOut } from "firebase/auth";
 import { LogOut } from "lucide-react";
-import { auth } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
+import { useTenant } from "@/lib/tenant-context";
+import { sairDaConta } from "@/components/sign-out-button";
 
 function initialsOf(name: string) {
   return name
@@ -28,12 +28,13 @@ export function SidebarUserFooter({
 }) {
   const router = useRouter();
   const { user } = useAuth();
+  const { id: barbershopId } = useTenant();
 
   const name = user?.displayName || user?.email?.split("@")[0] || fallbackName;
   const initials = initialsOf(name) || "?";
 
   async function handleSignOut() {
-    await signOut(auth);
+    await sairDaConta(barbershopId);
     router.replace("/login");
   }
 

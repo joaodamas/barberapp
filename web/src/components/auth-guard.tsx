@@ -8,6 +8,8 @@ import { auth } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
 import { useTenant } from "@/lib/tenant-context";
 import { isOnboardingComplete } from "@/lib/tenant";
+import { useEstadoDaFichaAoVivo } from "@/lib/ficha-ao-vivo";
+import { decidirOnboarding, onboardingConcluidoAgora } from "@/lib/onboarding-concluido";
 import { Button } from "@/components/ui/button";
 import { EstadoCentral } from "@/components/ui/estado-central";
 
@@ -48,8 +50,18 @@ export function AuthGuard({
    * que mandamos por mensagem parar de funcionar. */
   const precisaTrocarSenha = !!user && claims.mustChangePassword === true;
 
-  // Dono com onboarding pela metade não deve cair num painel vazio.
-  const precisaOnboarding = isOwner && !isOnboardingComplete(tenant.onboarding);
+  /* Dono com onboarding pela metade não deve cair num painel vazio — mas quem
+   * acabou de concluir também não pode voltar ao passo 1 porque a ficha do
+   * servidor ainda é a de antes (cache de 300 s). Ver `onboarding-concluido`. */
+  const estadoDaFicha = useEstadoDaFichaAoVivo();
+  const onboarding = decidirOnboarding({
+    isOwner,
+    completo: isOnboardingComplete(tenant.onboarding),
+    estadoDaFicha,
+    concluidoAgora: isOwner && typeof window !== "undefined" && onboardingConcluidoAgora(tenant.id),
+  });
+  const precisaOnboarding = onboarding === "onboarding";
+  const esperandoFicha = onboarding === "esperar";
 
   /* Tem conta, e a conta não é desta barbearia.
    *
@@ -131,7 +143,7 @@ export function AuthGuard({
 
   if (!loading && vitrine) return <>{children}</>;
 
-  if (loading || !authorized || precisaOnboarding || precisaTrocarSenha) {
+  if (loading || !authorized || precisaOnboarding || esperandoFicha || precisaTrocarSenha) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-canvas">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-gold border-t-transparent" />

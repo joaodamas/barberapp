@@ -90,7 +90,10 @@ export function MarcarNoBalcao({
   const [servicosEscolhidos, setServicosEscolhidos] = useState<string[]>([]);
   const [barbeiroClicado, setBarbeiroClicado] = useState<string | null>(null);
 
-  const [resposta, setResposta] = useState<{ chave: string; slots: string[] } | null>(null);
+  const [resposta, setResposta] = useState<{ chave: string; slots: string[]; falhou: boolean } | null>(null);
+  /* Cada "Tentar de novo" é uma busca nova: entra na chave, e a resposta que
+   * falhou deixa de valer na hora (volta para "carregando"). */
+  const [tentativa, setTentativa] = useState(0);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [pronto, setPronto] = useState(false);
@@ -144,7 +147,7 @@ export function MarcarNoBalcao({
    * sozinha, porque o dono lê a agenda inteira — e seria uma segunda fonte para
    * a mesma pergunta, exatamente o padrão que esta auditoria mais encontrou. */
   const duracaoParaSlots = duracaoTotal > 0 ? duracaoTotal : (tenant.schedule?.slotMinutes ?? 30);
-  const chave = `${dia?.iso ?? ""}|${barbeiroId ?? ""}|${duracaoParaSlots}`;
+  const chave = `${dia?.iso ?? ""}|${barbeiroId ?? ""}|${duracaoParaSlots}|${tentativa}`;
 
   useEffect(() => {
     if (!open || !dia?.iso || !barbeiroId) return;
@@ -172,10 +175,13 @@ export function MarcarNoBalcao({
            * oferecido 17:00. Quem valida o pedido é o servidor, pelo claim. */
           paraOBalcao: true,
         });
-        if (!cancelado) setResposta({ chave, slots: r.slots ?? [] });
+        if (!cancelado) setResposta({ chave, slots: r.slots ?? [], falhou: false });
       } catch (err) {
+        /* Falhar NÃO é "nenhum horário livre". Com lista vazia, a tela dizia
+         * "Nenhum horário livre — dá para encaixar" e o dono encaixava alguém
+         * por cima de um horário que estava livre. */
         console.error("[balcao] falha ao buscar horários", err);
-        if (!cancelado) setResposta({ chave, slots: [] });
+        if (!cancelado) setResposta({ chave, slots: [], falhou: true });
       }
     })();
     return () => {
@@ -189,6 +195,7 @@ export function MarcarNoBalcao({
    * "carregando" quando qualquer uma muda — sem um `setState` de limpeza no
    * efeito, que renderizaria o resultado do dia anterior por um quadro. */
   const horariosLivres = resposta?.chave === chave ? resposta.slots : null;
+  const buscaFalhou = resposta?.chave === chave && resposta.falhou;
 
   /* A regra da busca mora em `lib/clientes-busca.ts`, com teste.
    *
@@ -457,6 +464,21 @@ export function MarcarNoBalcao({
             </p>
           ) : horariosLivres === null ? (
             <p className="text-xs text-ink-muted">Carregando horários…</p>
+          ) : buscaFalhou ? (
+            <div role="alert" className="flex flex-col items-start gap-1">
+              <p className="text-xs text-danger">
+                Não foi possível ver os horários livres agora. Isso não quer dizer
+                que o dia está cheio.
+              </p>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="px-0"
+                onClick={() => setTentativa((n) => n + 1)}
+              >
+                Tentar de novo
+              </Button>
+            </div>
           ) : horariosLivres.length === 0 ? (
             <p className="text-xs text-ink-muted">
               Nenhum horário livre nesse dia para esse barbeiro — dá para encaixar logo abaixo.

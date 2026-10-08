@@ -17,6 +17,7 @@ import {
   ROTULO_DO_TIPO,
 } from "@/lib/livro-caixa";
 import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
+import { lerReais, VALOR_ILEGIVEL } from "@/lib/reais";
 import type { PaymentMethod } from "@/lib/types";
 import type { CashEntryDoc } from "@/lib/domain";
 
@@ -81,7 +82,11 @@ export function LivroCaixa({ competencia }: { competencia?: string }) {
   );
   const ativos = useMemo(() => equipe.filter((b) => b.active !== false), [equipe]);
 
-  const numero = Math.round((Number(valor.replace(",", ".")) || 0) * 100) / 100;
+  /* Lia "1.500" como R$ 1,50 — uma sangria de mil e quinhentos registrada
+   * como um real e meio. O leitor único entende o milhar e recusa o resto. */
+  const lido = lerReais(valor);
+  const numero = lido ?? 0;
+  const valorIlegivel = valor.trim() !== "" && lido === null;
   const podeConfirmar =
     numero > 0 &&
     motivo.trim().length >= 3 &&
@@ -305,14 +310,19 @@ export function LivroCaixa({ competencia }: { competencia?: string }) {
           <label className="flex flex-col gap-1 text-xs text-ink-muted">
             Quanto
             <input
-              type="number"
-              min={0}
-              step="0.01"
+              type="text"
+              inputMode="decimal"
               value={valor}
               placeholder="0,00"
+              aria-invalid={valorIlegivel}
               onChange={(e) => setValor(e.target.value)}
               className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ink"
             />
+            {valorIlegivel && (
+              <span role="alert" className="text-[11px] text-danger">
+                {VALOR_ILEGIVEL}
+              </span>
+            )}
           </label>
 
           <div className="flex flex-col gap-1.5">

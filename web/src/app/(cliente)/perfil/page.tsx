@@ -47,7 +47,10 @@ const MODAL_TITLE: Record<MenuKey, string> = {
 export default function PerfilPage() {
   const { user } = useAuth();
   const tenant = useTenant();
-  const { items: minhas } = useMyBookings(user?.uid);
+  const { items: minhas, status: statusDasReservas } = useMyBookings(user?.uid);
+  /* Sem leitura das reservas, "0 atendimentos" e "R$ 0,00" afirmariam um
+   * histórico vazio que ninguém conferiu. */
+  const historicoIlegivel = statusDasReservas === "erro";
   const remarcacao = usePolicies().reschedule;
   const { items: assinaturas } = useMinhasAssinaturas(user?.uid);
   const minhaAssinatura = assinaturaAtivaDe(assinaturas, user?.uid);
@@ -67,6 +70,12 @@ export default function PerfilPage() {
   const [saved, setSaved] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [erroPerfil, setErroPerfil] = useState<string | null>(null);
+  /* A leitura do perfil tem estado próprio. O `catch` era vazio: com a leitura
+   * falhando, o formulário abria em branco como se não houvesse nada
+   * cadastrado — e "Salvar" gravava `whatsapp: ""` por cima do número que o
+   * cliente tinha. Salvar só existe depois de ler. */
+  const [leitura, setLeitura] = useState<"carregando" | "pronto" | "erro">("carregando");
+  const [tentativa, setTentativa] = useState(0);
 
   /* Carrega o que já está gravado, para o formulário mostrar o estado real em
    * vez de campos vazios que sugerem "nada cadastrado". */
@@ -75,15 +84,27 @@ export default function PerfilPage() {
     let cancelado = false;
     lerPerfil(user.uid)
       .then((perfil) => {
-        if (cancelado || !perfil) return;
-        setName((atual) => atual || perfil.name);
-        setPhone((atual) => atual || mascararWhatsapp(perfil.whatsapp));
+        if (cancelado) return;
+        if (perfil) {
+          setName((atual) => atual || perfil.name);
+          setPhone((atual) => atual || mascararWhatsapp(perfil.whatsapp));
+        }
+        setLeitura("pronto");
       })
-      .catch(() => undefined);
+      .catch((e) => {
+        if (cancelado) return;
+        console.error("[perfil] falha ao ler", e);
+        setLeitura("erro");
+      });
     return () => {
       cancelado = true;
     };
-  }, [user?.uid]);
+  }, [user?.uid, tentativa]);
+
+  function lerDeNovo() {
+    setLeitura("carregando");
+    setTentativa((n) => n + 1);
+  }
 
   /* Só atendimento concluído conta — a reserva futura (possivelmente "a pagar
    * no salão") era somada como visita realizada e dinheiro gasto. */
@@ -111,6 +132,8 @@ export default function PerfilPage() {
    */
   async function saveProfile() {
     if (!user?.uid) return;
+    // Sem o que está gravado, os campos em branco apagariam o que existe.
+    if (leitura !== "pronto") return;
 
     if (phone.trim() && !whatsappValido(phone)) {
       setErroPerfil("Informe um WhatsApp válido com DDD, ou deixe em branco.");
@@ -171,12 +194,14 @@ export default function PerfilPage() {
           </h2>
           <Card className="grid grid-cols-2 gap-3 md:p-6">
             <div className="flex flex-col gap-0.5">
-              <p className="font-display text-2xl font-semibold text-ink">{totalVisits}</p>
+              <p className="font-display text-2xl font-semibold text-ink">
+                {historicoIlegivel ? "—" : totalVisits}
+              </p>
               <p className="text-xs text-ink-muted">atendimentos no total</p>
             </div>
             <div className="flex flex-col gap-0.5">
               <p className="font-display text-2xl font-semibold text-gold-strong">
-                {formatBRL(totalSpent)}
+                {historicoIlegivel ? "—" : formatBRL(totalSpent)}
               </p>
               <p className="text-xs text-ink-muted">investido na barbearia</p>
             </div>
@@ -228,7 +253,7 @@ export default function PerfilPage() {
               <Button variant="ghost" onClick={() => setOpenMenu(null)}>
                 Cancelar
               </Button>
-              <Button onClick={() => void saveProfile()} disabled={salvando}>
+              <Button onClick={() => void saveProfile()} disabled={salvando || leitura !== "pronto"}>
                 {salvando ? "Salvando…" : saved ? "Salvo!" : "Salvar"}
               </Button>
             </>
@@ -241,7 +266,24 @@ export default function PerfilPage() {
           )
         }
       >
-        {openMenu === "dados" && (
+        {openMenu === "dados" && leitura === "erro" && (
+          <div role="alert" className="flex flex-col items-start gap-2">
+            <p className="text-sm text-ink">Não foi possível carregar seus dados.</p>
+            <p className="text-xs text-ink-muted">
+              Para não apagar o que já está gravado, salvar fica desligado até
+              eles carregarem.
+            </p>
+            <Button variant="ghost" size="sm" onClick={lerDeNovo} className="px-0">
+              Tentar de novo
+            </Button>
+          </div>
+        )}
+
+        {openMenu === "dados" && leitura === "carregando" && (
+          <p className="text-sm text-ink-muted">Carregando seus dados…</p>
+        )}
+
+        {openMenu === "dados" && leitura === "pronto" && (
           <div className="flex flex-col gap-3">
             <label className="flex flex-col gap-1 text-xs text-ink-muted">
               Nome
@@ -312,11 +354,13 @@ export default function PerfilPage() {
             <div className="flex flex-col gap-1 rounded-xl border border-border px-4 py-3 text-sm">
               <div className="flex justify-between">
                 <span className="text-ink-muted">Você já investiu</span>
-                <span className="text-ink">{formatBRL(totalSpent)}</span>
+                <span className="text-ink">{historicoIlegivel ? "—" : formatBRL(totalSpent)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-ink-muted">Em</span>
-                <span className="text-ink">{totalVisits} atendimentos</span>
+                <span className="text-ink">
+                  {historicoIlegivel ? "não foi possível carregar" : `${totalVisits} atendimentos`}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-ink-muted">Fidelidade</span>

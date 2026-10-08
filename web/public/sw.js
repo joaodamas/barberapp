@@ -18,7 +18,9 @@ const OFFLINE_URL = "/offline";
 const APP_SHELL = [
   OFFLINE_URL,
   /* A marca DESTA barbearia — o worker é por origem, e cada subdomínio
-   * pré-cacheia a sua. Eram os arquivos do piloto, iguais para todas. */
+   * pré-cacheia a sua. Eram os arquivos do piloto, iguais para todas.
+   * Pré-cacheada só para a tela offline ter marca: no `fetch`, estes caminhos
+   * vão à rede primeiro (ver `isMarca`). */
   "/marca.svg",
   "/icone/192",
   "/icone/512",
@@ -99,6 +101,38 @@ self.addEventListener("fetch", (event) => {
   }
 
   const { pathname } = new URL(request.url);
+
+  /* A marca e os ícones vêm da REDE PRIMEIRO; o cache é só para offline.
+   *
+   * Estavam no cache-primeiro do app shell: pré-cacheados na instalação e
+   * servidos dali para sempre. A URL não muda quando o dono troca o nome ou a
+   * cor em "Sua marca" — então o celular mostrava a marca antiga até o
+   * próximo deploy trocar a versão do worker. "Pronto, sua marca foi salva" e
+   * a marca velha na tela, lado a lado.
+   *
+   * `no-cache` faz o navegador conferir com o servidor em vez de usar a
+   * cópia HTTP de até 5 minutos. Só a estratégia destes caminhos mudou — a
+   * atualização do worker (versão na URL, sem skipWaiting automático) é a
+   * mesma do incidente de 28/09. */
+  const isMarca = pathname === "/marca.svg" || pathname.startsWith("/icone/");
+  if (isMarca) {
+    event.respondWith(
+      fetch(request, { cache: "no-cache" })
+        .then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          }
+          return response;
+        })
+        .catch(async () => {
+          const cached = await caches.match(request);
+          return cached ?? Response.error();
+        })
+    );
+    return;
+  }
+
   const isAppShell = APP_SHELL.includes(pathname);
   // Assets do build têm hash no nome: o conteúdo nunca muda para a mesma URL.
   const isImmutable = pathname.startsWith("/_next/static/");

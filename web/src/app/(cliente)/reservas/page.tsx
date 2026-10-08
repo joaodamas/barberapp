@@ -21,6 +21,7 @@ import { assinaturaAtivaDe } from "@/lib/booking-status";
 import { limiteDoCliente } from "@/lib/janela";
 import { EM_ABERTO } from "@/lib/domain";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
+import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
 import { bookableDays, firstBookableIndex } from "@/lib/slots";
 import { refundAmountFor } from "@/lib/business-rules";
 import type { TenantPolicies } from "@/lib/tenant";
@@ -68,7 +69,7 @@ function refundFor(booking: Booking, policy: TenantPolicies["cancellation"]) {
 export default function ReservasPage() {
   const tenant = useTenant();
   const { user } = useAuth();
-  const { items: minhas, status } = useMyBookings(user?.uid);
+  const { items: minhas, status, error: erroDasReservas } = useMyBookings(user?.uid);
   const { items: services } = useServices();
 
   const barbershop = { whatsapp: tenant.contact.whatsapp };
@@ -170,8 +171,9 @@ export default function ReservasPage() {
    * disponibilidade da loja inteira devolveria horário livre em outro barbeiro
    * e o erro voltaria pela porta de trás. */
   const idDoBarbeiro = booking?.staffId;
+  const idDaReserva = booking?.id;
   const duracaoParaSlots = booking?.durationMin || duracaoDaReserva;
-  const chaveDaConsulta = `${selectedDay?.iso ?? ""}|${idDoBarbeiro ?? ""}|${duracaoParaSlots}`;
+  const chaveDaConsulta = `${selectedDay?.iso ?? ""}|${idDoBarbeiro ?? ""}|${duracaoParaSlots}|${idDaReserva ?? ""}`;
 
   useEffect(() => {
     if (!rescheduleOpen || !selectedDay?.iso || !idDoBarbeiro) return;
@@ -180,13 +182,18 @@ export default function ReservasPage() {
       try {
         const { callFunction } = await import("@/lib/firebase");
         const r = await callFunction<
-          { barbershopId: string; date: string; staffId: string; durationMin: number },
+          { barbershopId: string; date: string; staffId: string; durationMin: number; ignorarReservaId?: string },
           { slots: string[] }
         >("availableSlots", {
           barbershopId: tenant.id,
           date: selectedDay.iso,
           staffId: idDoBarbeiro,
           durationMin: duracaoParaSlots,
+          /* A própria reserva sai da conta, como no painel
+           * (`remarcar-atendimento.tsx`): sem isto ela bloqueava a si mesma, e
+           * empurrar o horário 30 minutos no mesmo dia não aparecia como opção.
+           * O servidor só ignora reserva do próprio cliente. */
+          ignorarReservaId: idDaReserva,
         });
         if (!cancelado) setResposta({ chave: chaveDaConsulta, slots: r.slots ?? [] });
       } catch (err) {
@@ -197,7 +204,7 @@ export default function ReservasPage() {
     return () => {
       cancelado = true;
     };
-  }, [rescheduleOpen, selectedDay?.iso, idDoBarbeiro, duracaoParaSlots, tenant.id, chaveDaConsulta]);
+  }, [rescheduleOpen, selectedDay?.iso, idDoBarbeiro, duracaoParaSlots, idDaReserva, tenant.id, chaveDaConsulta]);
 
   /* Só vale a resposta desta combinação. Trocar o dia volta a lista para
    * "carregando" sem precisar limpá-la — e nunca mostra o dia anterior. */
@@ -306,14 +313,16 @@ export default function ReservasPage() {
       <div className="flex flex-col gap-5 md:col-start-1 md:row-start-2 md:gap-7">
         <div className="grid grid-cols-2 gap-2 md:w-fit md:gap-4">
           <Card className="flex flex-col items-center gap-0.5 p-3 text-center md:min-w-32 md:p-4">
+            {/* Sem leitura, "0 atendimentos" e "R$ 0,00" seriam uma afirmação
+                sobre o histórico do cliente que a tela não conseguiu ler. */}
             <p className="font-display text-lg font-semibold text-ink">
-              {bookingHistory.length}
+              {status === "erro" ? "—" : bookingHistory.length}
             </p>
             <p className="text-[11px] text-ink-muted md:text-xs">atendimentos concluídos</p>
           </Card>
           <Card className="flex flex-col items-center gap-0.5 p-3 text-center md:min-w-32 md:p-4">
             <p className="font-display text-lg font-semibold text-gold-strong">
-              {formatBRL(totalSpentHistory)}
+              {status === "erro" ? "—" : formatBRL(totalSpentHistory)}
             </p>
             <p className="text-[11px] text-ink-muted md:text-xs">investido na barbearia</p>
           </Card>
@@ -336,6 +345,11 @@ export default function ReservasPage() {
 
         {status === "carregando" ? (
           <LoadingRows rows={2} />
+        ) : status === "erro" ? (
+          /* Caía no vazio: "Você não tem reserva futura" + "Agendar horário"
+             para quem TEM reserva e só não conseguiu lê-la — e o convite
+             levava a marcar de novo o mesmo horário. */
+          <ErroAoCarregar oQue="suas reservas" erro={erroDasReservas} className="md:max-w-xl" />
         ) : tab === "futuras" ? (
           futuras.length > 0 || encaixesRespondidos.length > 0 ? (
             <div className="flex flex-col gap-3 md:max-w-xl">

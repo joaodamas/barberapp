@@ -6,9 +6,15 @@ import { useTenant } from "@/lib/tenant-context";
 import { useAuth } from "@/lib/auth-context";
 import {
   subscribeToCollection,
-  type Doc,
   type ListOptions,
 } from "@/lib/db/repository";
+import {
+  estadoDaChave,
+  type CollectionState,
+  type EstadoGuardado,
+} from "@/lib/db/estado-da-chave";
+
+export type { CollectionState };
 
 /**
  * Assina uma subcoleção da barbearia atual.
@@ -17,16 +23,8 @@ import {
  * carregamento só começa depois que o Auth resolve: consultar antes garante
  * `permission-denied`, porque a regra depende do token.
  *
- * `status` distingue "carregando" de "vazio de verdade". Sem isso, toda tela
- * pisca o estado vazio antes dos dados chegarem — o defeito que a revisão de
- * UI/UX apontou como o próximo a aparecer quando o Firestore entrasse.
+ * O estado e a regra da troca de filtro estão em `estado-da-chave.ts`.
  */
-export type CollectionState<T> = {
-  items: Doc<T>[];
-  status: "carregando" | "pronto" | "erro";
-  error: Error | null;
-};
-
 export function useShopCollection<T extends DocumentData>(
   collectionName: Parameters<typeof subscribeToCollection>[1],
   options?: ListOptions & { enabled?: boolean; publica?: boolean }
@@ -34,10 +32,11 @@ export function useShopCollection<T extends DocumentData>(
   const { id: barbershopId } = useTenant();
   const { user, loading: authLoading } = useAuth();
 
-  const [state, setState] = useState<CollectionState<T>>({
+  const [state, setState] = useState<EstadoGuardado<T>>({
     items: [],
     status: "carregando",
     error: null,
+    chave: null,
   });
 
   const enabled = options?.enabled ?? true;
@@ -51,30 +50,33 @@ export function useShopCollection<T extends DocumentData>(
     equals: options?.equals,
     range: options?.range,
   });
+  const chave = `${barbershopId}:${collectionName}:${optionsKey}`;
 
   useEffect(() => {
     if (authLoading || (!user && !publica) || !enabled) return;
 
     /* Sem `setState("carregando")` aqui de propósito, por duas razões: o React
      * Compiler desiste de otimizar o componente quando encontra setState no
-     * corpo do efeito, e manter os dados anteriores enquanto a nova assinatura
-     * chega evita o pisca-vazio na troca de filtro. O estado inicial já é
-     * "carregando". */
+     * corpo do efeito, e o estado inicial já é "carregando". Na troca de
+     * filtro, quem diz "carregando" é `estadoDaChave`: o resultado guardado é
+     * de outra chave. Manter os itens antigos como "pronto" evitava piscar,
+     * mas mostrava o recorte anterior sob o título do novo — carregando não é
+     * vazio, e a tela tem esqueleto para ele. */
     const unsubscribe = subscribeToCollection<T>(
       barbershopId,
       collectionName,
       {
-        onData: (items) => setState({ items, status: "pronto", error: null }),
+        onData: (items) => setState({ items, status: "pronto", error: null, chave }),
         onError: (error) => {
           console.error(`[firestore] ${collectionName}`, error);
-          setState({ items: [], status: "erro", error });
+          setState({ items: [], status: "erro", error, chave });
         },
       },
       JSON.parse(optionsKey)
     );
 
     return unsubscribe;
-  }, [barbershopId, collectionName, optionsKey, authLoading, user, enabled, publica]);
+  }, [barbershopId, collectionName, optionsKey, chave, authLoading, user, enabled, publica]);
 
-  return state;
+  return estadoDaChave(state, chave);
 }

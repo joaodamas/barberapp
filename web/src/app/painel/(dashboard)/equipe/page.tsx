@@ -11,6 +11,7 @@ import { createDoc, patchDoc, putDoc, removeDoc } from "@/lib/db/repository";
 import { deleteField } from "firebase/firestore";
 import { useTenant } from "@/lib/tenant-context";
 import { contarDeTotal, plural } from "@/lib/plural";
+import { lerReais, reaisParaCampo, VALOR_ILEGIVEL } from "@/lib/reais";
 import { NOME_DO_PLANO, PRECOS_POR_PLANO, barbeirosExtras, valorMensal } from "@/lib/tenant";
 import { historicoDaMudanca } from "@/lib/folha";
 import { mesAtual } from "@/lib/format";
@@ -46,6 +47,9 @@ export default function EquipePage() {
   const { items: equipe, status, error } = useStaffComRemuneracao();
   const { items: servicos } = useServices();
   const [erro, setErro] = useState<string | null>(null);
+  /* Salário que não deu para ler, por barbeiro. O campo fica com o que foi
+   * digitado e com a mensagem — e nada é gravado até ele ser corrigido. */
+  const [salarioIlegivel, setSalarioIlegivel] = useState<Record<string, boolean>>({});
 
   const ativos = equipe.filter((s) => s.active !== false);
   const soloRestante = ativos.length <= 1;
@@ -248,19 +252,31 @@ export default function EquipePage() {
                 </label>
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-ink-muted">R$</span>
+                  {/* Texto + `lerReais`: `Number("1.500")` é 1,5, e
+                      `Number("1.500,00") || 0` gravava ZERO por cima do
+                      salário ao sair do campo. Em branco continua sendo
+                      "só comissão" (0); ilegível não grava nada. */}
                   <input
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    defaultValue={b.salary ?? ""}
+                    type="text"
+                    inputMode="decimal"
+                    defaultValue={reaisParaCampo(b.salary)}
                     placeholder="0,00"
+                    aria-invalid={salarioIlegivel[b.id] === true}
                     onBlur={(e) => {
-                      const v = Math.max(Number(e.target.value) || 0, 0);
+                      const texto = e.target.value.trim();
+                      const v = texto === "" ? 0 : lerReais(texto);
+                      setSalarioIlegivel((atual) => ({ ...atual, [b.id]: v === null }));
+                      if (v === null) return;
                       if (v !== (b.salary ?? 0)) salvar(b.id, "salary", v);
                     }}
                     className="min-h-11 w-32 rounded-xl border border-border bg-surface-raised px-3 text-sm text-ink"
                   />
                 </div>
+                {salarioIlegivel[b.id] && (
+                  <p role="alert" className="text-xs text-danger">
+                    {VALOR_ILEGIVEL} Nada foi salvo.
+                  </p>
+                )}
                 <p className="text-xs text-ink-muted">
                   Fixo, além da comissão. Entra como custo de folha no resultado
                   do mês — deixe em branco para quem trabalha só por comissão.

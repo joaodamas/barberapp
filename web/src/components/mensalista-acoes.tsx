@@ -9,6 +9,7 @@ import { useShopCollection } from "@/lib/db/use-collection";
 import { mensagemDoErro } from "@/lib/direitos-do-titular";
 import { formatBRL, formatDatePtBR, toISODate } from "@/lib/format";
 import { useTenant } from "@/lib/tenant-context";
+import { lerReais, reaisParaCampo } from "@/lib/reais";
 import type { Doc } from "@/lib/db/repository";
 import type { BookingDoc, SubscriberDoc } from "@/lib/domain";
 
@@ -31,12 +32,15 @@ const EM_ABERTO = ["confirmed", "confirmed_by_client", "pending_payment"];
 
 export function ValorDoMensal({ assinatura, onClose }: { assinatura: Doc<SubscriberDoc>; onClose: () => void }) {
   const tenant = useTenant();
-  const [texto, setTexto] = useState(String(assinatura.price ?? ""));
+  const [texto, setTexto] = useState(reaisParaCampo(assinatura.price));
   const [naAberta, setNaAberta] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
-  const valor = Number(texto.replace(/\./g, "").replace(",", "."));
-  const valido = Number.isFinite(valor) && valor > 0;
+  /* O leitor único de reais (`lib/reais`): este campo já tirava o ponto de
+   * milhar, mas lia o próprio valor salvo ("89.9") como 899. */
+  const lido = lerReais(texto);
+  const valor = lido ?? 0;
+  const valido = lido !== null && lido > 0;
 
   async function salvar() {
     setSalvando(true);
