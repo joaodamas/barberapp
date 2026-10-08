@@ -39,7 +39,6 @@ const PUBLICAS_POR_DESENHO = new Set([
   "availableSlots",
   "checkSlugAvailability",
   "signUpBarbershop", // cria a PRÓPRIA barbearia; não recebe id de outra
-  "redeemLoyaltyReward", // resgata do próprio saldo, na barbearia informada
   // O cliente não tem vínculo com a barbearia: só traz para a PRÓPRIA conta os
   // cadastros de balcão do telefone que o Firebase verificou por SMS (02/10).
   "vincularMinhaContaPeloTelefone",
@@ -56,8 +55,7 @@ const GUARDAS = [
   /token\.barbershops/, // lê o vínculo do claim
   /vinculosDe\(request\)/, // a mesma leitura, com a trava da senha provisória (28/09)
   /platformAdmin/, // operador da plataforma
-  /token\.role/, // modelo antigo, ainda aceito no bootstrap
-  /exigirVinculo\(/, // a MESMA leitura, centralizada — ver o teste logo abaixo
+  /exigirDono\(/, // a MESMA leitura, centralizada — ver o teste logo abaixo
 ];
 
 type Handler = { nome: string; corpo: string; arquivo: string };
@@ -161,22 +159,63 @@ describe("toda function que recebe barbershopId verifica o vínculo", () => {
     }
   });
 
-  it("🔒 `exigirVinculo` realmente lê o claim, e recusa quem não é da casa", () => {
+  it("🔒 `exigirDono` realmente lê o claim, e recusa quem não é DONO", () => {
     /* A guarda aceita como padrão em `GUARDAS` é uma CHAMADA. Sem verificar o
      * que ela faz, bastaria alguém escrever uma função vazia com esse nome para
-     * quatro handlers passarem no teste sem guarda nenhuma.
+     * os handlers de mensalidade passarem no teste sem guarda nenhuma.
      *
-     * Este caso fecha o buraco: o padrão só vale porque o corpo do helper faz a
-     * mesma leitura que o regex exigiria inline. */
+     * Era `exigirVinculo`, que aceitava `staff` (08/10): com barbeiro de login
+     * próprio, qualquer um da equipe dispensava mensalidade pelo SDK. */
     const fonte = readFileSync(resolve(SRC, "mensalistas.ts"), "utf8");
     const helper = fonte.slice(
-      fonte.indexOf("function exigirVinculo"),
+      fonte.indexOf("function exigirDono"),
       fonte.indexOf("export const criarMensalista")
     );
     expect(helper).toMatch(/vinculosDe\(request\)/);
-    expect(helper).toMatch(/"owner"/);
-    expect(helper).toMatch(/"staff"/);
+    expect(helper).toMatch(/!== "owner"/);
+    expect(helper).not.toMatch(/"staff"/);
     expect(helper).toMatch(/permission-denied/);
+  });
+});
+
+/**
+ * Dinheiro da casa é do dono (08/10).
+ *
+ * Estas guardas aceitavam `owner` OU `staff` desde quando o único `staff` era o
+ * próprio dono. Com o painel do barbeiro (#137), viraram portas abertas pelo
+ * SDK: dispensar mensalidade, dar entrada de estoque (que fixa o custo),
+ * resgatar fidelidade e juntar cadastros.
+ */
+describe("o que é só do dono não aceita barbeiro", () => {
+  it.each([
+    "criarMensalista",
+    "cancelarMensalista",
+    "gerarFaturasDoMes",
+    "registrarPagamentoDeMensalidade",
+    "dispensarMensalidade",
+    "registrarEntradaDeEstoque",
+    "redeemLoyaltyReward",
+    "vincularCadastroDeBalcao",
+    "removerBarbeiro",
+    "revogarAcessoDoBarbeiro",
+  ])("🔒 %s", (nome) => {
+    const f = HANDLERS.find((h) => h.nome === nome);
+    expect(f, `${nome} não encontrada`).toBeDefined();
+    expect(/"staff"/.test(f!.corpo), `${nome} ainda aceita staff`).toBe(false);
+    expect(/exigirDono\(|!== "owner"/.test(f!.corpo), nome).toBe(true);
+  });
+
+  it("🔒 a venda do barbeiro vai para a cadeira DELE, conferida na ficha", () => {
+    const f = HANDLERS.find((h) => h.nome === "registrarVendaDeProduto")!;
+    expect(f.corpo).toMatch(/exigirCadeiraAtiva\(/);
+    expect(f.corpo).toMatch(/minhaCadeira \?\?/);
+  });
+
+  it("🔒 a cadeira de quem chama é conferida na ficha, não só no token", () => {
+    /* O token de quem teve o acesso tirado vale por até uma hora. */
+    const fonte = readFileSync(resolve(SRC, "convite-equipe.ts"), "utf8");
+    const helper = fonte.slice(fonte.indexOf("export async function staffIdDeQuemChamou"));
+    expect(helper).toMatch(/ficha\.get\("uid"\) === uid/);
   });
 });
 

@@ -10,9 +10,8 @@
  */
 
 import { setGlobalOptions } from "firebase-functions/v2";
-import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { onCall } from "firebase-functions/v2/https";
 import { initializeApp } from "firebase-admin/app";
-import { getAuth } from "firebase-admin/auth";
 
 initializeApp();
 
@@ -25,8 +24,10 @@ export {
   lerConviteDeBarbeiro,
   aceitarConviteDeBarbeiro,
   revogarAcessoDoBarbeiro,
+  removerBarbeiro,
   sincronizarMeuAcessoDeBarbeiro,
 } from "./convite-equipe";
+export { planoDoAtendimento } from "./plano-do-atendimento";
 export {
   signUpBarbershop,
   checkSlugAvailability,
@@ -95,63 +96,12 @@ export const healthcheck = onCall(() => ({
   region: "southamerica-east1",
 }));
 
-/**
- * @deprecated Use `grantShopRole`, que vincula a uma barbearia específica.
- *
- * Concede ou revoga o papel de dono GLOBAL — modelo single-tenant. Mantido
- * apenas para o bootstrap do primeiro operador da plataforma.
- *
- * O app inteiro decide o que mostrar a partir do claim `role: owner`, e até
- * aqui NENHUM código do repositório o atribuía — ele havia sido gravado à mão,
- * sem procedimento documentado. Se a conta do dono fosse recriada, ninguém
- * saberia restaurar o acesso ao painel.
- *
- * Bootstrap do primeiro dono (não há dono para autorizar o primeiro dono):
- *
- *   npx firebase-admin ...  — ou, mais simples, uma vez no console:
- *   const { getAuth } = require("firebase-admin/auth");
- *   await getAuth().setCustomUserClaims(uid, { role: "owner" });
- *
- * Depois do primeiro, use esta função. O usuário precisa renovar o token
- * (`getIdToken(true)` ou novo login) para o claim valer no cliente.
- */
-export const setOwnerRole = onCall<{ uid: string; isOwner: boolean }>(
-  async (request) => {
-    if (request.auth?.token.role !== "owner") {
-      throw new HttpsError(
-        "permission-denied",
-        "Só um dono pode conceder ou revogar o papel de dono."
-      );
-    }
+/* `setOwnerRole` (dono GLOBAL, claim `role`) saiu em 08/10. Nenhum fluxo
+ * emitia mais o claim, as regras nunca o honraram e a interface deixou de
+ * lê-lo — mas quem o tivesse cunhava outros donos globais. O vínculo é por
+ * barbearia (`grantShopRole`). A function publicada precisa ser apagada à mão
+ * (`firebase functions:delete setOwnerRole`): o deploy não remove órfãs. */
 
-    const { uid, isOwner } = request.data ?? {};
-    if (typeof uid !== "string" || !uid) {
-      throw new HttpsError("invalid-argument", "Informe o uid do usuário.");
-    }
-    if (uid === request.auth.uid && !isOwner) {
-      throw new HttpsError(
-        "failed-precondition",
-        "Um dono não pode revogar o próprio acesso — outra conta precisa fazer isso."
-      );
-    }
-
-    const auth = getAuth();
-    const user = await auth.getUser(uid);
-    const claims = { ...(user.customClaims ?? {}) };
-
-    if (isOwner) {
-      claims.role = "owner";
-    } else {
-      delete claims.role;
-    }
-
-    await auth.setCustomUserClaims(uid, claims);
-    // Invalida os refresh tokens: o claim antigo para de valer na próxima renovação.
-    await auth.revokeRefreshTokens(uid);
-
-    return { uid, role: claims.role ?? null };
-  }
-);
 export { criarConviteTelegram, desligarTelegram, ajustarAvisosTelegram } from "./telegram/convite";
 export { telegramWebhook } from "./telegram/webhook";
 export {

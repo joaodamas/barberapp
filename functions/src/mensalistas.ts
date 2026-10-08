@@ -364,12 +364,20 @@ export function valeNaCompetencia(
 /* Cloud Functions                                                    */
 /* ================================================================== */
 
-function exigirVinculo(request: { auth?: { token: Record<string, unknown> } | null }, barbershopId: string) {
-  const papel = vinculosDe(request)?.[
-    barbershopId
-  ];
-  if (papel !== "owner" && papel !== "staff") {
-    throw new HttpsError("permission-denied", "Só quem trabalha na barbearia faz isso.");
+/**
+ * Mensalidade é dinheiro da casa: só o DONO contrata, cancela, gera fatura,
+ * recebe e dispensa (08/10).
+ *
+ * A guarda aceitava `owner` ou `staff` — escrita quando o único `staff` era o
+ * próprio dono. Com barbeiro de login próprio (#137), qualquer um da equipe
+ * dispensava a mensalidade de um cliente ou registrava um pagamento que não
+ * entrou, direto pelo SDK. O painel do barbeiro não tem estas telas, e a
+ * regra de produto é a mesma de `ajustarValorDoMensal`.
+ */
+function exigirDono(request: { auth?: { token: Record<string, unknown> } | null }, barbershopId: string) {
+  const papel = vinculosDe(request)?.[barbershopId];
+  if (papel !== "owner") {
+    throw new HttpsError("permission-denied", "Só o dono da barbearia mexe em mensalidade.");
   }
 }
 
@@ -391,7 +399,7 @@ export const criarMensalista = onCall<{
 
   const { barbershopId, clientId, planId, billingDay } = request.data ?? {};
   if (!barbershopId) throw new HttpsError("invalid-argument", "Barbearia não informada.");
-  exigirVinculo(request, barbershopId);
+  exigirDono(request, barbershopId);
   await exigirEdicao(barbershopId);
 
   if (!clientId) throw new HttpsError("invalid-argument", "Escolha o cliente.");
@@ -480,7 +488,7 @@ export const cancelarMensalista = onCall<{
   if (!barbershopId || !subscriptionId) {
     throw new HttpsError("invalid-argument", "Assinatura não informada.");
   }
-  exigirVinculo(request, barbershopId);
+  exigirDono(request, barbershopId);
   await exigirEdicao(barbershopId);
 
   const db = getFirestore();
@@ -568,7 +576,7 @@ export const gerarFaturasDoMes = onCall<{
 
   const { barbershopId } = request.data ?? {};
   if (!barbershopId) throw new HttpsError("invalid-argument", "Barbearia não informada.");
-  exigirVinculo(request, barbershopId);
+  exigirDono(request, barbershopId);
   await exigirEdicao(barbershopId);
 
   const db = getFirestore();
@@ -624,7 +632,7 @@ export const registrarPagamentoDeMensalidade = onCall<{
   if (!barbershopId || !invoiceId) {
     throw new HttpsError("invalid-argument", "Fatura não informada.");
   }
-  exigirVinculo(request, barbershopId);
+  exigirDono(request, barbershopId);
   await exigirEdicao(barbershopId);
   if (!metodoValido(paymentMethod)) {
     throw new HttpsError("invalid-argument", "Informe como o cliente pagou.");
@@ -745,7 +753,7 @@ export const dispensarMensalidade = onCall<{
   if (!barbershopId || !invoiceId) {
     throw new HttpsError("invalid-argument", "Fatura não informada.");
   }
-  exigirVinculo(request, barbershopId);
+  exigirDono(request, barbershopId);
   await exigirEdicao(barbershopId);
   const motivo = String(request.data?.motivo ?? "").trim().slice(0, 140) || null;
 

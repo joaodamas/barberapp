@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,7 +27,10 @@ import {
   lerNumeroDigitado,
   valorCobrado,
 } from "@/lib/desconto";
-import type { BookingDoc, MotivoDoDesconto, TipoDeDesconto } from "@/lib/domain";
+import type { BookingDoc, MotivoDoDesconto, SubscriberDoc, TipoDeDesconto } from "@/lib/domain";
+
+/** O que o fechamento mostra do plano — o recorte de `planoDoAtendimento`. */
+type PlanoNoFechamento = Pick<SubscriberDoc, "planName" | "unlimited" | "servicesIncluded">;
 import type { Doc } from "@/lib/db/repository";
 
 /**
@@ -45,7 +48,10 @@ export function useAcoesDoAtendimento() {
   const tenant = useTenant();
   const { brand } = tenant;
   const formasDeCobranca = formasAtivas(tenant.policies);
-  const { items: assinaturas } = useSubscribers();
+  const { user, claims } = useAuth();
+  const ehDono = claims.barbershops?.[tenant.id] === "owner";
+  /* O dono lê as assinaturas; o barbeiro não (08/10) — é receita da casa. */
+  const { items: assinaturas } = useSubscribers({ enabled: ehDono });
   const hoje = toISODate(new Date());
 
   const [aFechar, setAFechar] = useState<Doc<BookingDoc> | null>(null);
@@ -87,8 +93,48 @@ export function useAcoesDoAtendimento() {
    * coberto" — essa decisão depende de competência e cota, mora em
    * `decidirCobertura` no servidor, e reimplementá-la aqui recriaria o D1 com
    * outro nome: o web afirmando uma coisa e o fato nascendo outra. */
-  const assinaturaDoFechamento = aFechar
-    ? assinaturaAtivaDe(assinaturas, aFechar.clientId)
+  /* O barbeiro pergunta ao servidor, por atendimento (08/10): as regras não
+   * deixam mais ele ler `subscriptions` inteira (preço e vencimento de todo
+   * mensalista da casa). Enquanto a resposta não vem, a tela NÃO oferece as
+   * formas de pagamento — cobrar um mensalista por não saber que ele é
+   * mensalista é o F2 de volta. */
+  const [planoDaCadeira, setPlanoDaCadeira] = useState<{
+    bookingId: string;
+    estado: "pronto" | "erro";
+    plano: PlanoNoFechamento | null;
+  } | null>(null);
+  const [tentativaDoPlano, setTentativaDoPlano] = useState(0);
+  const idDoFechamento = aFechar?.id ?? null;
+  useEffect(() => {
+    if (ehDono || !idDoFechamento) return;
+    let cancelado = false;
+    void (async () => {
+      try {
+        const { callFunction } = await import("@/lib/firebase");
+        const r = await callFunction<{ barbershopId: string; bookingId: string }, { plano: PlanoNoFechamento | null }>(
+          "planoDoAtendimento",
+          { barbershopId: tenant.id, bookingId: idDoFechamento }
+        );
+        if (!cancelado) setPlanoDaCadeira({ bookingId: idDoFechamento, estado: "pronto", plano: r.plano });
+      } catch (e) {
+        console.error("[fechamento] não foi possível conferir o plano", e);
+        if (!cancelado) setPlanoDaCadeira({ bookingId: idDoFechamento, estado: "erro", plano: null });
+      }
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, [ehDono, idDoFechamento, tenant.id, tentativaDoPlano]);
+  const respostaDoPlano = planoDaCadeira && planoDaCadeira.bookingId === idDoFechamento ? planoDaCadeira : null;
+  const conferenciaDoPlano: "carregando" | "pronto" | "erro" = ehDono
+    ? "pronto"
+    : respostaDoPlano?.estado ?? "carregando";
+  const planoConferido = conferenciaDoPlano === "pronto";
+
+  const assinaturaDoFechamento: PlanoNoFechamento | null = aFechar
+    ? ehDono
+      ? assinaturaAtivaDe(assinaturas, aFechar.clientId)
+      : respostaDoPlano?.plano ?? null
     : null;
 
   /* DESCONTO NO FECHAMENTO — pedido do dono em 28/09.
@@ -101,8 +147,6 @@ export function useAcoesDoAtendimento() {
    * se ESTE corte está coberto — quem decide é o servidor, com a cota —, então
    * esconde para todo cliente com plano ativo. Desconto sobre corte coberto
    * seria desconto sobre dinheiro que não entrou no balcão. */
-  const { user, claims } = useAuth();
-  const ehDono = claims.barbershops?.[tenant.id] === "owner";
   const podeDarDesconto = !!aFechar && ehDono && !!user && !assinaturaDoFechamento;
   const [descontoAberto, setDescontoAberto] = useState(false);
   const [descontoTipo, setDescontoTipo] = useState<TipoDeDesconto>("valor");
@@ -167,6 +211,7 @@ export function useAcoesDoAtendimento() {
     const booking = aFechar;
     if (!booking) return;
     if (descontoBloqueia) return;
+    if (!planoConferido) return;
     /* O desconto vai na MESMA escrita, pela mesma razão do método: o gatilho
      * lê o documento atualizado, e gravar depois materializaria o pagamento
      * cheio. `null` = sem desconto, e a escrita fica idêntica à de antes. */
@@ -543,7 +588,25 @@ export function useAcoesDoAtendimento() {
           )}
         </p>
 
-        {aFechar && !assinaturaDoFechamento && (
+        {/* Barbeiro: enquanto o servidor não diz se é mensalista, nada de
+            cobrar — nem de mexer no valor. */}
+        {conferenciaDoPlano === "carregando" && (
+          <p className="mb-4 text-sm text-ink-muted" aria-live="polite">
+            Conferindo se o cliente tem plano…
+          </p>
+        )}
+        {conferenciaDoPlano === "erro" && (
+          <div className="mb-4 flex flex-col items-start gap-2">
+            <p role="alert" className="text-sm text-danger">
+              Não foi possível conferir se o cliente tem plano. Confira a internet e tente de novo.
+            </p>
+            <Button variant="secondary" onClick={() => setTentativaDoPlano((n) => n + 1)}>
+              Tentar de novo
+            </Button>
+          </div>
+        )}
+
+        {aFechar && planoConferido && !assinaturaDoFechamento && (
           <AdicionarServico
             barbershopId={tenant.id}
             bookingId={aFechar.id}
@@ -711,7 +774,7 @@ export function useAcoesDoAtendimento() {
         {/* Cortesia (100%) conclui sem perguntar a forma: não entrou dinheiro,
             e oferecer "Pix" ou "Dinheiro" ali seria pedir ao dono que
             inventasse um meio para R$ 0,00 — decisão 2 do dono. */}
-        {podeDarDesconto && calculoDoDesconto.cortesia && !descontoBloqueia ? (
+        {!planoConferido ? null : podeDarDesconto && calculoDoDesconto.cortesia && !descontoBloqueia ? (
           <button
             type="button"
             disabled={salvando}
