@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, ChevronLeft, ChevronRight, Plus, UserX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -12,7 +12,7 @@ import { useAcoesDoAtendimento } from "@/components/agenda/acoes-do-atendimento"
 import { useCadeira } from "@/components/barbeiro/area-do-barbeiro";
 import { useAgendaDoBarbeiro, useServices } from "@/lib/db/use-shop-data";
 import { useAcesso } from "@/lib/tenant-context";
-import { diaVizinho } from "@/lib/barbeiro";
+import { atendimentoJaChegou, diaVizinho } from "@/lib/barbeiro";
 import { liquidacaoDoAtendimento, metaDoStatus } from "@/lib/booking-status";
 import { formatBRL, toISODate } from "@/lib/format";
 import { contar } from "@/lib/plural";
@@ -36,6 +36,16 @@ export default function AgendaDoBarbeiroPage() {
   const { items, status, error } = useAgendaDoBarbeiro(staffId, dia, dia);
   const { items: servicos } = useServices();
   const atendimento = useAcoesDoAtendimento();
+  /* Relógio da tela, como na Agenda do dono: decide o que já começou e pode
+   * ser concluído (ou dado como falta). Montado no cliente para o servidor
+   * não renderizar outra hora. */
+  const [agora, setAgora] = useState<Date | null>(null);
+  useEffect(() => {
+    const tique = () => setAgora(new Date());
+    tique();
+    const id = window.setInterval(tique, 60_000);
+    return () => window.clearInterval(id);
+  }, []);
 
   const linhas = useMemo(
     () =>
@@ -107,7 +117,11 @@ export default function AgendaDoBarbeiroPage() {
       <ul className="flex flex-col gap-2">
         {linhas.map((b) => {
           const meta = metaDoStatus(b.status);
-          const aberto = EM_ABERTO.includes(b.status);
+          /* Concluir e "não veio" só depois que o horário chegou (08/10): os
+           * botões apareciam em qualquer dia, e concluir o corte da semana que
+           * vem materializava pagamento e comissão de algo que não aconteceu.
+           * A regra do Firestore recusa o mesmo para dia futuro. */
+          const aberto = EM_ABERTO.includes(b.status) && atendimentoJaChegou(b, hoje, agora);
           const encaixe = b.status === "fit_in_requested";
           const liquidacao = b.status === "completed" ? liquidacaoDoAtendimento(b) : null;
           return (

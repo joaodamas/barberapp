@@ -168,7 +168,8 @@ export default function LoginPage() {
         cancelado = true;
       };
     }
-    const papel = claims.barbershops?.[tenant.id] ?? claims.role;
+    /* Só o vínculo por barbearia: o `claims.role` global saiu em 08/10. */
+    const papel = claims.barbershops?.[tenant.id];
     router.replace(destinoDoPapel(papel));
   }, [loading, user, claims, tenant.id, router, plataforma, tentativaDestinos]);
 

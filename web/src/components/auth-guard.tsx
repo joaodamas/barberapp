@@ -40,10 +40,16 @@ export function AuthGuard({
   const pathname = usePathname();
   const vitrine = !user && !!publicoEm?.includes(pathname);
 
-  /* O vínculo agora é por barbearia. `claims.role` é o modelo single-tenant
-   * antigo, mantido enquanto houver token não renovado em circulação. */
-  const papel = claims.barbershops?.[tenant.id] ?? claims.role;
+  /* O vínculo é por barbearia. O `claims.role` global (single-tenant) saiu em
+   * 08/10: nenhum fluxo o emitia mais, e honrá-lo aqui abria o painel de
+   * QUALQUER barbearia a quem o tivesse. */
+  const papel = claims.barbershops?.[tenant.id];
   const isOwner = papel === "owner";
+  /* O barbeiro que abre o app instalado cai no `start_url` ("/"), que é o app
+   * do cliente — e não tinha caminho para a agenda dele (08/10). No início,
+   * ele vai direto para a área dele; as outras telas do cliente continuam
+   * abertas (ele também pode marcar o próprio corte). */
+  const barbeiroNoInicio = !!user && papel === "staff" && !requireOwner && pathname === "/";
   const authorized = !!user && (!requireOwner || isOwner);
 
   /* Senha provisória vem antes de tudo: a conta só é dele depois que a senha
@@ -86,11 +92,15 @@ export function AuthGuard({
       router.replace("/comecar");
       return;
     }
+    if (barbeiroNoInicio) {
+      router.replace("/barbeiro");
+      return;
+    }
     if (authorized || vitrine) return;
     /* Sem conta → login, voltando para onde estava. Com conta e sem vínculo
      * NÃO redireciona mais: explica e oferece as duas saídas reais. */
     if (!user) router.replace(`/login?next=${encodeURIComponent(pathname)}`);
-  }, [loading, authorized, user, router, precisaOnboarding, precisaTrocarSenha, vitrine, pathname]);
+  }, [loading, authorized, user, router, precisaOnboarding, precisaTrocarSenha, barbeiroNoInicio, vitrine, pathname]);
 
   /* Antes de qualquer decisão sobre permissão: sem resposta do Auth, não dá para
    * saber se a pessoa é dona, cliente ou visitante — e decidir no escuro ou
@@ -116,15 +126,29 @@ export function AuthGuard({
           icon={DoorClosed}
           titulo="Esta conta não tem acesso a este painel"
           descricao={
-            <>
-              Você está conectado como <strong className="text-ink">{user.email}</strong>, e
-              esta conta não está vinculada a esta barbearia. Nada foi perdido — se você
-              administra a barbearia, entre com a conta que recebeu o acesso.
-            </>
+            papel === "staff" ? (
+              <>
+                Você está conectado como <strong className="text-ink">{user.email ?? user.phoneNumber}</strong>,
+                que é barbeiro desta barbearia. O painel é do dono; a sua agenda e a sua
+                comissão ficam em Minha agenda.
+              </>
+            ) : (
+              <>
+                Você está conectado como <strong className="text-ink">{user.email}</strong>, e
+                esta conta não está vinculada a esta barbearia. Nada foi perdido — se você
+                administra a barbearia, entre com a conta que recebeu o acesso.
+              </>
+            )
           }
           acao={
             <div className="flex flex-wrap items-center justify-center gap-2">
-              <Button onClick={() => router.replace("/")}>Ir para a área do cliente</Button>
+              {/* Barbeiro desta casa: o painel é do dono, a agenda dele mora em
+                  /barbeiro (08/10). */}
+              {papel === "staff" ? (
+                <Button onClick={() => router.replace("/barbeiro")}>Ir para minha agenda</Button>
+              ) : (
+                <Button onClick={() => router.replace("/")}>Ir para a área do cliente</Button>
+              )}
               <Button
                 variant="ghost"
                 onClick={async () => {
@@ -143,7 +167,7 @@ export function AuthGuard({
 
   if (!loading && vitrine) return <>{children}</>;
 
-  if (loading || !authorized || precisaOnboarding || esperandoFicha || precisaTrocarSenha) {
+  if (loading || !authorized || precisaOnboarding || esperandoFicha || precisaTrocarSenha || barbeiroNoInicio) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-canvas">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-gold border-t-transparent" />
