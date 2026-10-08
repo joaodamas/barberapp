@@ -7,7 +7,9 @@ import { AcessoDoBarbeiro } from "@/components/equipe/acesso-do-barbeiro";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
 import { useServices, useStaffComRemuneracao } from "@/lib/db/use-shop-data";
-import { createDoc, patchDoc, putDoc, removeDoc } from "@/lib/db/repository";
+import { createDoc, patchDoc, putDoc } from "@/lib/db/repository";
+import { proximaOrdem } from "@/lib/distribuicao";
+import { mensagemDaFuncao } from "@/lib/mensagem-da-funcao";
 import { deleteField } from "firebase/firestore";
 import { useTenant } from "@/lib/tenant-context";
 import { contarDeTotal, plural } from "@/lib/plural";
@@ -71,7 +73,9 @@ export default function EquipePage() {
         uid: null,
         serviceIds: [],
         schedule: null,
-        order: equipe.length + 1,
+        /* Depois do maior, e não `length + 1`: depois de uma remoção, o
+         * tamanho repete uma posição que já existe (08/10). */
+        order: proximaOrdem(equipe),
       });
     } catch (e) {
       console.error("[equipe] falha ao adicionar", e);
@@ -103,14 +107,24 @@ export default function EquipePage() {
     }
   }
 
+  /* Remover passa pelo servidor (08/10). Apagar a ficha direto deixava a
+   * conta do barbeiro com o papel, o `members`, o celular recebendo
+   * notificação e o Telegram da cadeira ligado — `removerBarbeiro` desfaz o
+   * acesso e só então apaga. As regras só deixam apagar direto a ficha sem
+   * conta, e nem essa a tela usa: um caminho só. */
+  const [removendo, setRemovendo] = useState<string | null>(null);
   async function remover(id: string) {
-    if (soloRestante) return;
+    if (soloRestante || removendo) return;
     setErro(null);
+    setRemovendo(id);
     try {
-      await removeDoc(tenant.id, "staff", id);
+      const { callFunction } = await import("@/lib/firebase");
+      await callFunction("removerBarbeiro", { barbershopId: tenant.id, staffId: id });
     } catch (e) {
       console.error("[equipe] falha ao remover", e);
-      setErro("Não foi possível remover agora.");
+      setErro(mensagemDaFuncao(e, "Não foi possível remover agora."));
+    } finally {
+      setRemovendo(null);
     }
   }
 
@@ -200,7 +214,7 @@ export default function EquipePage() {
                 type="button"
                 aria-label={`Remover ${b.name || "barbeiro"}`}
                 onClick={() => remover(b.id)}
-                disabled={soloRestante}
+                disabled={soloRestante || removendo === b.id}
                 title={
                   soloRestante
                     ? "A barbearia precisa de ao menos um barbeiro para receber reservas"
