@@ -17,9 +17,18 @@ name: Deploy
 #
 # - As Actions são fixadas por SHA, não por tag. Tag é ponteiro móvel, e este é
 #   o único workflow do repositório com credencial de produção em mãos.
-# - A credencial é escrita o mais tarde possível, depois de todo `npm ci`. Um
-#   `postinstall` de qualquer pacote transitivo roda com o mesmo usuário; se a
-#   chave já estivesse em disco, bastaria um pacote comprometido para lê-la.
+# - A credencial é escrita o mais tarde possível, depois de todo `npm ci` e da
+#   instalação do navegador da fumaça. Um `postinstall` de qualquer pacote
+#   transitivo roda com o mesmo usuário; se a chave já estivesse em disco,
+#   bastaria um pacote comprometido para lê-la.
+#   O que ISTO NÃO cobre: o `next build`. O Hosting framework-aware roda o
+#   `next build` de dentro do `firebase deploy` — sempre, sem opção de
+#   reaproveitar um build feito antes (conferido no firebase-tools 15.25.1,
+#   `lib/frameworks/next/index.js`) — e o processo herda o ambiente, com
+#   `GOOGLE_APPLICATION_CREDENTIALS` apontando para a chave. Código de
+#   terceiros que roda no build (plugins do Next, PostCSS, Tailwind) roda com a
+#   chave em disco. A mitigação é a de sempre: dependências fixadas no lock,
+#   `npm ci`, e a conta de deploy com o mínimo de papel (`docs/DEPLOY.md`).
 # - A credencial é apagada no fim, aconteça o que acontecer.
 
 on:
@@ -76,13 +85,19 @@ jobs:
     uses: ./.github/workflows/qualidade.yml
 
   # Janela de produção (combinado com o dono em 28/09, depois do incidente):
-  # no máximo uma publicação por dia, depois das 20h de Brasília, quando a
-  # barbearia já fechou. Fora dela só com `urgente`. Roda ANTES da aprovação
-  # do ambiente — ninguém aprova um deploy que ia ser recusado.
+  # produção publica à noite, das 20h às 5h59 de Brasília, quando a barbearia
+  # já fechou. Fora dela só com `urgente`. Não há limite de publicações por
+  # noite — em 03/10 foram quatro, todas dentro da janela.
+  #
+  # A conferência roda DUAS vezes. Esta, antes da aprovação do ambiente, existe
+  # para ninguém aprovar um deploy que ia ser recusado. Mas a aprovação pode
+  # chegar horas depois do disparo — um deploy pedido às 23h e aprovado às 10h
+  # publicaria em pleno expediente. Por isso a regra que vale é a do primeiro
+  # passo do job `deploy`, conferida DEPOIS do portão.
   janela:
     runs-on: ubuntu-latest
     steps:
-      - name: Conferir a janela de produção
+      - name: Conferir a janela de produção (no disparo)
         env:
           AMBIENTE: ${{ inputs.ambiente }}
           URGENTE: ${{ inputs.urgente }}
@@ -105,10 +120,18 @@ jobs:
     needs: [qualidade, janela]
     runs-on: ubuntu-latest
     # O ambiente é onde ficam a credencial e a configuração pública, é onde se
-    # liga a aprovação obrigatória e é o que restringe a publicação à `main`.
+    # liga a aprovação obrigatória e é o que restringe a publicação à `main`
+    # (`producao` desde 11/08; `dev` desde 08/10).
     # Sem essa restrição, `workflow_dispatch` dispara de qualquer branch — e a
     # branch traria o próprio workflow alterado junto.
     environment: ${{ inputs.ambiente }}
+
+    # `actions: read` para conferir a execução da esteira do DEV deste mesmo
+    # commit antes de publicar em produção. Quem chama este workflow
+    # (`esteira.yml`) precisa conceder o mesmo, senão a chamada nem começa.
+    permissions:
+      contents: read
+      actions: read
 
     env:
       # DEV (28/09): projeto separado, sem dado de cliente real. Os dois valores
@@ -123,6 +146,66 @@ jobs:
       SITE_FUMACA: ${{ inputs.ambiente == 'dev' && 'https://cortehub-dev.web.app' || 'https://osiqueira.jpproject.com.br' }}
 
     steps:
+      # ── Depois do portão: as duas travas que dependem da hora ───────────
+      # PRIMEIRO passo, antes de qualquer trabalho: a aprovação acabou de
+      # acontecer, e é a hora DELA que decide (ver o job `janela`).
+      - name: Conferir a janela de produção (depois da aprovação)
+        env:
+          AMBIENTE: ${{ inputs.ambiente }}
+          URGENTE: ${{ inputs.urgente }}
+        run: |
+          set -euo pipefail
+          HORA=$(TZ=America/Sao_Paulo date +%H)
+          H=$((10#$HORA))
+          echo "hora em Brasília na aprovação: ${HORA}h · ambiente: $AMBIENTE · urgente: $URGENTE"
+          if [ "$AMBIENTE" = "producao" ] && [ "$URGENTE" != "true" ] && [ "$H" -ge 6 ] && [ "$H" -lt 20 ]; then
+            echo "::error::a aprovação chegou às ${HORA}h, fora da janela de produção (20h às 6h). Nada foi publicado. Dispare de novo à noite, ou marque 'urgente' se não puder esperar."
+            exit 1
+          fi
+
+      # Produção só recebe o commit que já passou pelo DEV — com fumaça. Em
+      # 03/10 (8f85cf5) e 04/10 (705c8de) produção foi disparada no mesmo
+      # minuto do merge, com o DEV do mesmo commit ainda rodando: a fumaça do
+      # DEV, que existe para pegar o problema ANTES, não teve chance.
+      #
+      # Ainda rodando: espera até 30 min. Vermelha, cancelada ou inexistente:
+      # recusa. Com `urgente`, só avisa — a correção urgente pode não poder
+      # esperar o DEV, e quem marca `urgente` assume isso.
+      - name: Conferir que o DEV deste commit passou
+        if: inputs.ambiente == 'producao'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          URGENTE: ${{ inputs.urgente }}
+        run: |
+          set -euo pipefail
+          situacao() {
+            gh api "repos/$GITHUB_REPOSITORY/actions/workflows/esteira.yml/runs?head_sha=$GITHUB_SHA&per_page=30" \
+              --jq '.workflow_runs as $r
+                | if ($r | map(select(.conclusion == "success")) | length) > 0 then "passou"
+                  elif ($r | map(select(.status != "completed")) | length) > 0 then "rodando"
+                  elif ($r | length) == 0 then "inexistente"
+                  else "falhou:" + (($r | sort_by(.created_at) | last | .conclusion) // "?") end'
+          }
+          LINK="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/workflows/esteira.yml?query=branch%3Amain"
+          S=$(situacao)
+          echo "DEV de ${GITHUB_SHA:0:7}: $S"
+          if [ "$URGENTE" = "true" ]; then
+            [ "$S" = "passou" ] || echo "::warning::urgente: publicando em produção sem o DEV de ${GITHUB_SHA:0:7} concluído com sucesso ($S). $LINK"
+            exit 0
+          fi
+          for _ in $(seq 1 60); do
+            [ "$S" = "rodando" ] || break
+            echo "  o DEV de ${GITHUB_SHA:0:7} ainda está rodando; esperando…"
+            sleep 30
+            S=$(situacao)
+          done
+          case "$S" in
+            passou) echo "DEV de ${GITHUB_SHA:0:7} passou, com fumaça." ;;
+            rodando) echo "::error::o DEV de ${GITHUB_SHA:0:7} não terminou em 30 minutos. Nada foi publicado. $LINK"; exit 1 ;;
+            inexistente) echo "::error::não há execução da esteira do DEV para ${GITHUB_SHA:0:7} — este commit não passou pela main? Nada foi publicado."; exit 1 ;;
+            *) echo "::error::o DEV de ${GITHUB_SHA:0:7} não passou (${S#falhou:}). Produção não recebe o que o DEV recusou. $LINK"; exit 1 ;;
+          esac
+
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
@@ -210,10 +293,41 @@ jobs:
           npm install --no-audit --no-fund
           npx playwright install --with-deps chromium
 
+      # O cenário de 28/09, montado de propósito: um navegador com perfil
+      # persistente abre o site QUE ESTÁ NO AR e instala o service worker
+      # dela. Depois do deploy, a fumaça reabre com o MESMO perfil — é o
+      # celular de quem já usava o app — e exige que a versão nova assuma e
+      # responda. Antes da credencial, como todo código de terceiros.
+      # Não segura o deploy: se o site no ar já está quebrado, publicar a
+      # correção é justamente o que se quer. Só faz a fumaça pular o cenário.
+      - name: Abrir o site no ar antes do deploy (service worker da versão atual)
+        continue-on-error: true
+        timeout-minutes: 5
+        working-directory: scripts/fumaca
+        env:
+          SITE: ${{ env.SITE_FUMACA }}
+          FASE: antes
+          PERFIL: ${{ runner.temp }}/fumaca-perfil
+        run: node fumaca.mjs
+
+      # DEV fora dos buscadores (08/10): cortehub-dev.web.app é público e
+      # estava indexável. O `robots.txt` é arquivo estático servido direto
+      # pelo Hosting; no DEV ele é trocado ANTES do build por um que recusa
+      # tudo. O cabeçalho `X-Robots-Tag: noindex` vem de `next.config.ts`,
+      # pela mesma variável que só existe no DEV.
+      - name: DEV fora dos buscadores (robots.txt)
+        if: inputs.ambiente == 'dev' && (inputs.escopo == 'tudo' || inputs.escopo == 'somente hosting')
+        run: |
+          printf 'User-agent: *\nDisallow: /\n' > web/public/robots.txt
+          cat web/public/robots.txt
+
       # ── A partir daqui a credencial existe em disco ─────────────────────
       # Fora do workspace, de propósito: nada que empacote o diretório do
       # projeto a leva junto. Permissão 600 e vida curta.
+      # O gcloud é ativado aqui, uma vez, para os passos que falam direto com
+      # as APIs (versão do Hosting, revisões das functions, regras do Storage).
       - name: Autenticar como a conta de serviço de deploy
+        id: autenticar
         env:
           CREDENCIAL: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
@@ -222,6 +336,7 @@ jobs:
           (umask 077 && printf '%s' "$CREDENCIAL" > "$ARQUIVO")
           chmod 600 "$ARQUIVO"
           echo "GOOGLE_APPLICATION_CREDENTIALS=$ARQUIVO" >> "$GITHUB_ENV"
+          gcloud auth activate-service-account --key-file="$ARQUIVO" --quiet
 
       - name: Apontar functions em produção sem código no repositório
         if: inputs.escopo == 'tudo' || inputs.escopo == 'somente functions'
@@ -244,39 +359,108 @@ jobs:
         if: inputs.escopo == 'tudo' || inputs.escopo == 'somente regras e índices'
         run: firebase deploy --only firestore:indexes --project "$PROJETO" --non-interactive
 
-      # As regras do STORAGE ficam de fora, e a ausência é deliberada.
-      #
-      # Cinco publicações seguidas morreram aqui com uma mensagem falsa —
-      # "Firebase Storage has not been set up on project axon-barber" — enquanto
-      # o console mostra o Storage configurado, com bucket e abas de arquivos e
-      # regras. O firebase-tools traduz assim um 404 do endpoint
-      # `v1alpha/projects/{p}/defaultBucket`, que responde 200 para o owner e
-      # 404 para a conta da esteira.
-      #
-      # Foram tentados, sem sucesso: `firebasestorage.defaultBucket.get`,
-      # `buckets.get` e `buckets.list` no papel personalizado; depois o
-      # `roles/firebasestorage.viewer` inteiro, que contém as três; e por fim
-      # declarar o bucket em `firebase.json`, que não elimina a consulta. A
-      # propagação foi descartada com mais de dez minutos entre a concessão e a
-      # tentativa.
-      #
-      # Segurar TODA a publicação por causa disto custava caro e entregava
-      # pouco: nenhuma tela do produto usa Storage — o ajudante existe em
-      # `lib/firebase.ts` e ninguém o chama. As regras estão escritas e passam
-      # nos testes de emulador do job de qualidade; o que não existe é a
-      # publicação delas.
-      #
-      # ⚠️ ANTES de existir a primeira tela que envia arquivo, isto precisa
-      # voltar. Sem as regras publicadas, o bucket fica com o padrão do projeto
-      # — e aí o que hoje é ausência vira buraco. Registrado em
-      # `docs/GO-LIVE-READINESS.md`.
       - name: Regras do Firestore
         if: inputs.escopo == 'tudo' || inputs.escopo == 'somente regras e índices'
         run: firebase deploy --only firestore:rules --project "$PROJETO" --non-interactive
 
+      # As regras do STORAGE voltaram à esteira (08/10) — com rede.
+      #
+      # Ficaram de fora desde agosto: a publicação morria com "Firebase Storage
+      # has not been set up on project axon-barber", que é como o firebase-tools
+      # traduz um 404 do endpoint `v1alpha/projects/{p}/defaultBucket` — 200
+      # para o owner, 404 para a conta da esteira, mesmo com
+      # `firebasestorage.defaultBucket.get`, `buckets.get`/`list` e o
+      # `roles/firebasestorage.viewer` inteiro (ver `docs/DEPLOY.md`). Desde o
+      # #127 existe tela que envia arquivo ("Sua marca"), e a ausência deixou
+      # de ser inofensiva: regra mudada no repositório e não publicada é
+      # exatamente o buraco que o comentário antigo previa.
+      #
+      # Por isso são dois passos. O primeiro TENTA publicar e não derruba o
+      # deploy se a conta não tiver a permissão (`continue-on-error`). O
+      # segundo é quem decide: baixa as regras que estão VALENDO no bucket (API
+      # do Firebase Rules, que a conta lê com `roles/firebaserules.admin`) e
+      # compara com `storage.rules`. Divergiu: vermelho no DEV, aviso em
+      # produção — lá, regra de Storage quem publica ainda é o dono.
+      - name: Regras do Storage
+        id: storage
+        if: inputs.escopo == 'tudo' || inputs.escopo == 'somente regras e índices'
+        continue-on-error: true
+        run: firebase deploy --only storage --project "$PROJETO" --non-interactive
+
+      - name: Conferir as regras do Storage publicadas
+        id: storage_conferido
+        if: always() && steps.storage.outcome != 'skipped' && steps.autenticar.outcome == 'success'
+        env:
+          BUCKET: ${{ vars.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
+          AMBIENTE: ${{ inputs.ambiente }}
+          PUBLICOU: ${{ steps.storage.outcome }}
+        run: |
+          set -euo pipefail
+          if [ -z "${BUCKET:-}" ]; then
+            echo "::error::NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ausente no ambiente '$AMBIENTE' — não dá para saber qual bucket conferir"
+            exit 1
+          fi
+          TOKEN=$(gcloud auth print-access-token)
+          API="https://firebaserules.googleapis.com/v1"
+          RULESET=$(curl -sf -H "Authorization: Bearer $TOKEN" "$API/projects/$PROJETO/releases/firebase.storage/$BUCKET" \
+            | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>process.stdout.write(JSON.parse(d).rulesetName||''))")
+          if [ -z "$RULESET" ]; then
+            echo "::error::o bucket $BUCKET não tem regras publicadas (release firebase.storage ausente)"
+            exit 1
+          fi
+          curl -sf -H "Authorization: Bearer $TOKEN" "$API/$RULESET" > "$RUNNER_TEMP/storage-no-ar.json"
+          # Compara o texto, ignorando só espaço no fim do arquivo.
+          if node -e "
+            const fs = require('fs');
+            const r = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + '/storage-no-ar.json', 'utf8'));
+            const noAr = ((r.source && r.source.files) || []).map((f) => f.content).join('\n').trimEnd();
+            const aqui = fs.readFileSync('storage.rules', 'utf8').trimEnd();
+            process.exit(noAr === aqui ? 0 : 1);
+          "; then
+            echo "regras do Storage no ar ($BUCKET) iguais a storage.rules · publicação nesta execução: $PUBLICOU"
+            echo "STORAGE_SITUACAO=iguais ao repositório (publicação: $PUBLICOU)" >> "$GITHUB_ENV"
+            if [ "$PUBLICOU" != "success" ]; then
+              echo "::warning::a esteira não conseguiu publicar as regras do Storage (permissão do defaultBucket — ver docs/DEPLOY.md), mas as que estão no ar são as do repositório."
+            fi
+            exit 0
+          fi
+          echo "STORAGE_SITUACAO=DIVERGENTES do repositório (publicação: $PUBLICOU)" >> "$GITHUB_ENV"
+          if [ "$AMBIENTE" = "dev" ]; then
+            echo "::error::as regras do Storage no ar ($BUCKET) não são as de storage.rules, e a esteira não conseguiu publicá-las. Publique com 'firebase deploy --only storage --project dev' e veja docs/DEPLOY.md."
+            exit 1
+          fi
+          echo "::warning::as regras do Storage em PRODUÇÃO ($BUCKET) não são as de storage.rules. O dono publica: firebase deploy --only storage --project default"
+
+      # Antes das functions: a revisão do Cloud Run que cada uma serve AGORA.
+      # Fumaça vermelha não desfaz function (volta às cegas de código que
+      # escreve no banco é pior do que o defeito), mas quem for desfazer na
+      # mão precisa saber para onde voltar — o resumo do job mostra.
+      - name: Guardar as revisões das functions no ar
+        if: inputs.escopo == 'tudo' || inputs.escopo == 'somente functions'
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          gcloud run services list --project "$PROJETO" --format=json \
+            | node scripts/esteira/revisoes-functions.mjs foto > "$RUNNER_TEMP/revisoes-antes.json"
+
       - name: Cloud Functions
+        id: functions
         if: inputs.escopo == 'tudo' || inputs.escopo == 'somente functions'
         run: firebase deploy --only "$ALVOS_FUNCTIONS" --project "$PROJETO" --non-interactive
+
+      # Toda function cuja revisão mudou ganha, no resumo, a revisão anterior e
+      # o comando que devolve o tráfego para ela. Roda mesmo se o deploy das
+      # functions falhou no meio: parte delas pode ter sido trocada.
+      - name: Registrar como voltar as functions
+        if: always() && steps.functions.outcome != 'skipped' && steps.autenticar.outcome == 'success'
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          ANTES="$RUNNER_TEMP/revisoes-antes.json"
+          [ -s "$ANTES" ] || { echo "sem a foto de antes do deploy — nada a comparar"; exit 0; }
+          gcloud run services list --project "$PROJETO" --format=json > "$RUNNER_TEMP/revisoes-depois.json"
+          node scripts/esteira/revisoes-functions.mjs resumo "$ANTES" "$RUNNER_TEMP/revisoes-depois.json" "$PROJETO" \
+            | tee -a "$GITHUB_STEP_SUMMARY"
 
       # ── Hosting ─────────────────────────────────────────────────────────
       # Por último: é a chave que liga o que foi publicado para o cliente.
@@ -293,7 +477,6 @@ jobs:
         if: inputs.escopo == 'tudo' || inputs.escopo == 'somente hosting'
         run: |
           set -euo pipefail
-          gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS" --quiet
           TOKEN=$(gcloud auth print-access-token)
           ANTERIOR=$(curl -sf -H "Authorization: Bearer $TOKEN" \
             "https://firebasehosting.googleapis.com/v1beta1/sites/$SITE_ID/releases?pageSize=1" \
@@ -344,17 +527,36 @@ jobs:
 
       # ── Fumaça: o site publicado, num navegador de verdade ──────────────
       # O que faltou em 28/09: CI e passeio verdes contra o emulador, e o app
-      # no ar travado. Aqui o alvo é o site real, na primeira visita e na volta
-      # com o service worker instalado. Ver `scripts/fumaca/fumaca.mjs`.
+      # no ar travado. Aqui o alvo é o site real: quem já tinha o service
+      # worker da versão anterior, a primeira visita, a volta e o login
+      # hidratado. Ver `scripts/fumaca/fumaca.mjs` — o MESMO script no DEV e
+      # em produção; só muda o quanto ele conta no log.
+      #
+      # `always()`: roda em TODO escopo e mesmo que um passo de publicação
+      # tenha falhado — function ou regra publicada pela metade também pode
+      # travar o site, e é justamente aí que se quer saber. Só não roda se a
+      # credencial nem chegou a existir (nada foi publicado).
       - name: Teste de fumaça no site publicado
         id: fumaca
+        if: always() && steps.autenticar.outcome == 'success'
         working-directory: scripts/fumaca
         env:
           SITE: ${{ env.SITE_FUMACA }}
-        run: node fumaca.mjs
+          PERFIL: ${{ runner.temp }}/fumaca-perfil
+          # Só exige o worker da versão nova se a versão nova foi publicada.
+          BUILD_ESPERADO: ${{ steps.hosting.outcome == 'success' && github.sha || '' }}
+          # Repositório público (08/10): em produção o log mostra só o
+          # veredito — nada do console nem dos endereços do site dos clientes.
+          DETALHE: ${{ inputs.ambiente == 'dev' && 'completo' || 'resumo' }}
+        run: |
+          # A identidade do build é a mesma de `next.config.ts`: 12 caracteres.
+          export BUILD_ESPERADO="${BUILD_ESPERADO:0:12}"
+          node fumaca.mjs
 
-      - name: Guardar a tela da fumaça
-        if: failure() && steps.fumaca.outcome == 'failure'
+      # Print e diário só do DEV. Em produção a tela é do site de um cliente
+      # real, e o artefato de um repositório público é público.
+      - name: Guardar a tela da fumaça (só DEV)
+        if: failure() && steps.fumaca.outcome == 'failure' && inputs.ambiente == 'dev'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: fumaca-${{ inputs.ambiente }}
@@ -362,8 +564,9 @@ jobs:
           if-no-files-found: ignore
 
       # Fumaça vermelha depois de publicar o site: o site volta sozinho para a
-      # versão de antes. Functions, regras e índices NÃO voltam — o incidente
-      # que motivou isto era do site, e desfazer regra às cegas é pior.
+      # versão de antes. Functions, regras e índices NÃO voltam — desfazer regra
+      # ou código que escreve no banco às cegas é pior. Para as functions, o
+      # resumo do job traz a revisão anterior de cada uma e o comando de volta.
       - name: Voltar o site para a versão anterior
         if: failure() && steps.fumaca.outcome == 'failure' && steps.hosting.outcome == 'success' && env.VERSAO_ANTERIOR != ''
         run: |
@@ -380,7 +583,7 @@ jobs:
         if: always()
         run: |
           ARQUIVO="$RUNNER_TEMP/conta-de-servico.json"
-          # O gcloud guarda cópia da chave ao ativar a conta (passo da versão).
+          # O gcloud guarda cópia da chave ao ativar a conta (passo de autenticar).
           gcloud auth revoke --all --quiet 2>/dev/null || true
           if [ -f "$ARQUIVO" ]; then
             shred -u "$ARQUIVO" 2>/dev/null || rm -f "$ARQUIVO"
@@ -399,6 +602,7 @@ jobs:
             echo "| escopo | ${{ inputs.escopo }} |"
             echo "| publicado por | @${GITHUB_ACTOR} |"
             echo "| site | $SITE |"
+            echo "| regras do Storage | ${STORAGE_SITUACAO:-não conferidas} |"
             echo "| fumaça | ${{ steps.fumaca.outcome || 'não rodou' }} em $SITE_FUMACA |"
             [ "${VOLTOU:-}" = "sim" ] && echo "| ⚠️ | site voltou para \`$VERSAO_ANTERIOR\` |"
             true

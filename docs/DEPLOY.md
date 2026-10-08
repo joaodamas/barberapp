@@ -18,15 +18,33 @@ no ar travou para todo mundo.
 | Quando | sozinho, a cada merge na `main` (`esteira.yml`) | manual, com aprovação, **depois das 20h** |
 | Ambiente do GitHub | `dev` | `producao` |
 
-- **Todo deploy termina com a fumaça** (`scripts/fumaca/fumaca.mjs`). Ela abre o
-  agendar num Chromium de verdade, escolhe um serviço e exige `availableSlots`
-  200. Faz isso duas vezes: na primeira visita e na volta com o service worker
-  instalado.
+- **Todo deploy termina com a fumaça** (`scripts/fumaca/fumaca.mjs`), em todo
+  escopo e mesmo que um passo de publicação tenha falhado. Ela abre o agendar
+  num Chromium de verdade, escolhe um serviço e exige `availableSlots` 200, em
+  três situações: (1) **quem já usava a versão anterior** — antes do deploy, um
+  perfil persistente abre o site no ar e instala o service worker dele; depois,
+  o mesmo perfil reabre e precisa chegar ao worker da versão nova e responder
+  (o cenário de 28/09); (2) a primeira visita; (3) a volta com o worker novo.
+  Por fim, `/login` precisa hidratar (o botão de entrar habilita com o
+  formulário preenchido). Em produção a fumaça só imprime o veredito, e print e
+  diário não sobem como artefato: o repositório é público.
 - **Fumaça vermelha depois de publicar o site:** o release do Hosting volta
   sozinho para a versão anterior (e com ele a revisão do SSR, por causa do
-  pinTags). Functions, regras e índices não voltam.
-- **A janela das 20h** é conferida pelo job `janela`, antes da aprovação. Uma
-  correção urgente é rodada com `urgente` marcado.
+  pinTags). Functions, regras e índices não voltam. Para as functions, o
+  resumo do job lista a revisão anterior do Cloud Run de cada uma que mudou e
+  o `gcloud run services update-traffic … --to-revisions <anterior>=100` que
+  devolve o tráfego (na mão, com uma conta que tenha `run.services.update`).
+- **A janela das 20h às 5h59** é conferida duas vezes: no disparo (job
+  `janela`, para ninguém aprovar o que seria recusado) e de novo como primeiro
+  passo do job de deploy, **depois** da aprovação — é essa que vale. Uma
+  correção urgente é rodada com `urgente` marcado. Não há limite de
+  publicações por noite.
+- **Produção espera o DEV do mesmo commit.** Antes de publicar, o job consulta
+  a execução da "Esteira (DEV automático)" para o mesmo `github.sha`: rodando,
+  espera até 30 min; vermelha ou inexistente, recusa. Com `urgente`, só avisa.
+- **O DEV não é indexável:** `X-Robots-Tag: noindex, nofollow` em toda
+  resposta (pela variável `NEXT_PUBLIC_TENANT_SLUG_FIXO`, que só existe lá) e um
+  `robots.txt` que recusa tudo, trocado pela esteira antes do build.
 - **O DEV não tem WhatsApp:** os segredos lá são valores de mentira. O slug fixo
   (`NEXT_PUBLIC_TENANT_SLUG_FIXO=osiqueira`) existe porque `*.web.app` não tem
   subdomínio. A senha das contas de teste está no segredo `DEV_SENHA` do
@@ -115,6 +133,26 @@ Dois pontos que só aparecem olhando o código:
 
 Cria um ruleset novo e move dois releases: `cloud.firestore` e
 `axon-barber.firebasestorage.app`.
+
+**Storage (08/10):** a esteira voltou a tentar `--only storage`, mas sem
+derrubar o deploy se falhar. A falha conhecida é o firebase-tools consultar
+`v1alpha/projects/{p}/defaultBucket` (API do Firebase Storage) antes de
+publicar: responde 200 para o owner e 404 para a conta da esteira, e a CLI
+traduz como "Firebase Storage has not been set up". Logo depois, o passo
+"Conferir as regras do Storage publicadas" baixa o ruleset do release
+`firebase.storage/<bucket>` pela API do Firebase Rules e compara com
+`storage.rules`: divergiu, **vermelho no DEV** e **aviso em produção**.
+
+Para religar a publicação de verdade, o owner precisa achar a permissão que
+falta no `defaultBucket`. O que já foi tentado e NÃO resolveu:
+`firebasestorage.defaultBucket.get`, `storage.buckets.get`/`list` e o
+`roles/firebasestorage.viewer` inteiro. O próximo candidato é
+`roles/firebasestorage.admin` na conta de deploy — antes de conceder, conferir
+em IAM → Papéis o que ele inclui; a intenção é a API do Firebase Storage, não
+ler os arquivos dos clientes. Não testado: a conta da esteira não tem como
+provar isso sem a concessão. Até lá, regra nova de
+Storage em produção é o owner quem publica:
+`firebase deploy --only storage --project default`.
 
 ### `--only firestore:indexes`
 
@@ -340,6 +378,20 @@ A restrição de branch, essa sim, é estrutural: `workflow_dispatch` dispara de
 qualquer branch por padrão, e a branch traria o próprio `deploy.yml` alterado
 junto. É ela que impede alguém de publicar com um workflow que não passou pela
 `main`.
+
+### Ambiente `dev`
+
+| | |
+|---|---|
+| Deployment branches | `main` apenas (desde 08/10) |
+| Required reviewer | nenhum — o DEV é automático |
+
+Até 08/10 o `dev` aceitava deploy de qualquer branch, e a credencial do projeto
+DEV ficava ao alcance de um `deploy.yml` alterado numa branch. Consequência da
+restrição: testar uma branch no DEV antes do merge deixou de ser possível pelo
+`workflow_dispatch`. O caminho é o merge (que publica no DEV sozinho) ou, se
+for mesmo preciso, liberar a branch temporariamente em Settings → Environments
+→ dev → Deployment branches e tirar depois.
 
 ### Segredo (1)
 

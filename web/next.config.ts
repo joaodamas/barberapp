@@ -60,6 +60,13 @@ const securityHeaders = [
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
   // O login com Google usa popup: 'same-origin' puro quebraria o fluxo.
   { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
+  /* DEV fora dos buscadores (08/10). `NEXT_PUBLIC_TENANT_SLUG_FIXO` só existe
+   * no ambiente `dev` — é o que fixa a barbearia de teste em
+   * cortehub-dev.web.app —, então serve de marca de "isto não é produção". O
+   * `robots.txt` que recusa tudo é trocado pela esteira no mesmo build. */
+  ...(process.env.NEXT_PUBLIC_TENANT_SLUG_FIXO
+    ? [{ key: "X-Robots-Tag", value: "noindex, nofollow" }]
+    : []),
 ];
 
 const nextConfig: NextConfig = {
