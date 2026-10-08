@@ -12,7 +12,8 @@
  * Só o SERVIDOR decide: a escolha acontece dentro da transação que trava o
  * horário (`gravarComTravaDeHorario`), com a agenda lida naquele instante. A
  * tela só mostra a união dos horários livres e, depois de gravar, quem ficou.
- * Por isso este módulo não tem par no web — não há o que manter em paridade.
+ * O único par no web é a ORDEM da equipe (`porOrdem` ↔ `emOrdem`), que a tela
+ * de Ajustes mostra e precisa ser a mesma fila daqui.
  */
 
 export type RegraDeDistribuicao = "equilibrio" | "rodizio" | "prioridade";
@@ -44,6 +45,9 @@ export function fazTodosOsServicos(servicosDoBarbeiro: unknown, serviceIds: stri
 
 /** Ordem do dono; sem `order` gravado, vai para o fim. */
 export function ordemDoBarbeiro(order: unknown): number {
+  /* `Number(null)` é 0: sem esta guarda, a ficha com `order: null` furava a
+   * fila e ia para o topo — e a tela (`emOrdem`) a punha no fim. */
+  if (order === null || order === undefined || order === "") return Number.MAX_SAFE_INTEGER;
   const n = Number(order);
   return Number.isFinite(n) ? n : Number.MAX_SAFE_INTEGER;
 }
@@ -72,8 +76,18 @@ export type Candidato = {
   livre: boolean;
 };
 
-function porOrdem(a: { ordem: number; staffId: string }, b: { ordem: number; staffId: string }) {
-  return a.ordem - b.ordem || a.staffId.localeCompare(b.staffId);
+/**
+ * Ordem do dono; empate (dois com o mesmo `order`, ou os dois sem), pelo id.
+ *
+ * É o MESMO desempate de `emOrdem` em `web/src/lib/distribuicao.ts` (08/10). A
+ * tela de Ajustes desempatava pelo nome e o servidor pelo id: com dois
+ * barbeiros de mesmo `order` — o que a tela de Equipe gravava ao adicionar
+ * depois de uma remoção —, a lista que o dono via não era a fila que o
+ * servidor usava, e "Ordem de preferência" escolhia quem não estava em
+ * primeiro na tela. O id não muda com o nome e nunca empata.
+ */
+export function porOrdem(a: { ordem: number; staffId: string }, b: { ordem: number; staffId: string }) {
+  return a.ordem - b.ordem || (a.staffId < b.staffId ? -1 : a.staffId > b.staffId ? 1 : 0);
 }
 
 /**

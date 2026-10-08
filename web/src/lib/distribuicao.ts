@@ -35,10 +35,41 @@ export function regraDe(valor: unknown): RegraDeDistribuicao {
   return REGRAS.some((r) => r.id === valor) ? (valor as RegraDeDistribuicao) : "equilibrio";
 }
 
-/** Barbeiros na ordem do dono; sem `order`, no fim, por nome. */
-export function emOrdem<B extends { order?: number; name: string }>(equipe: B[]): B[] {
-  const ordem = (b: B) => (Number.isFinite(Number(b.order)) ? Number(b.order) : Number.MAX_SAFE_INTEGER);
-  return [...equipe].sort((a, b) => ordem(a) - ordem(b) || a.name.localeCompare(b.name, "pt-BR"));
+function ordemDe(order: unknown): number {
+  /* `Number(null)` é 0: sem esta guarda, o barbeiro sem ordem ia para o topo. */
+  if (order === null || order === undefined || order === "") return Number.MAX_SAFE_INTEGER;
+  const n = Number(order);
+  return Number.isFinite(n) ? n : Number.MAX_SAFE_INTEGER;
+}
+
+/**
+ * Barbeiros na ordem do dono; sem `order`, no fim. Empate, pelo id — o MESMO
+ * desempate de `porOrdem` em `functions/src/distribuicao.ts` (08/10).
+ *
+ * Desempatava pelo nome, e o servidor pelo id: com dois `order` iguais a tela
+ * de Ajustes mostrava uma fila e a "Ordem de preferência" escolhia por outra.
+ * O id não muda quando o dono renomeia e nunca empata.
+ */
+export function emOrdem<B extends { id: string; order?: number | null }>(equipe: B[]): B[] {
+  return [...equipe].sort(
+    (a, b) => ordemDe(a.order) - ordemDe(b.order) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+  );
+}
+
+/**
+ * O `order` de quem entra na equipe: depois do maior que existe (08/10).
+ *
+ * Era `equipe.length + 1`: com três barbeiros (1, 2, 3), remover o 2 e
+ * adicionar outro gravava 3 de novo — dois barbeiros na mesma posição, e a
+ * fila dependia só do desempate.
+ */
+export function proximaOrdem(equipe: Array<{ order?: number | null }>): number {
+  let maior = 0;
+  for (const b of equipe) {
+    const n = ordemDe(b.order);
+    if (n !== Number.MAX_SAFE_INTEGER && n > maior) maior = n;
+  }
+  return Math.floor(maior) + 1;
 }
 
 /** Troca de lugar o barbeiro `i` com o vizinho (`-1` sobe, `1` desce). */

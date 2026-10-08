@@ -95,6 +95,11 @@ beforeEach(async () => {
       });
       await setDoc(doc(db, `barbershops/${bid}/audit_log`, "log-1"), { action: "criou" });
     }
+    /* A cadeira do barbeiro da Alfa, ligada à conta dele na FICHA (08/10): as
+     * regras conferem `staff.uid` além do claim. */
+    await setDoc(doc(db, `barbershops/${ALFA}/staff`, "s-alfa"), {
+      name: "Barbeiro Alfa", active: true, uid: BARBEIRO_ALFA.sub,
+    });
     await setDoc(doc(db, "slugs", ALFA), { barbershopId: ALFA });
     await setDoc(doc(db, "users", CLIENTE.sub), { name: "Cliente Um" });
   });
@@ -1058,7 +1063,10 @@ describe("vitrine pública e o que não é vitrine (rodada E2E de 23/09)", () =>
     });
     await assertFails(getDoc(doc(as(CLIENTE), `barbershops/${ALFA}/products`, "pomada")));
     await assertFails(getDoc(doc(anon(), `barbershops/${ALFA}/products`, "pomada")));
-    await assertSucceeds(getDoc(doc(as(BARBEIRO_ALFA), `barbershops/${ALFA}/products`, "pomada")));
+    /* 08/10: nem o barbeiro — a ficha traz o custo, e o painel dele não
+     * vende produto. */
+    await assertFails(getDoc(doc(as(BARBEIRO_ALFA), `barbershops/${ALFA}/products`, "pomada")));
+    await assertSucceeds(getDoc(doc(as(DONO_ALFA), `barbershops/${ALFA}/products`, "pomada")));
   });
 
   it("🔒 senha provisória não trocada: nenhum papel", async () => {
@@ -1171,5 +1179,156 @@ describe("o arquivo fiscal do expurgo", () => {
         setDoc(doc(as(quem), `arquivo_fiscal/${ALFA}/payments`, "forjado"), { value: 1 })
       );
     }
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* Acesso do barbeiro — 08/10                                          */
+/* ------------------------------------------------------------------ */
+
+describe("acesso do barbeiro: tirado é tirado (08/10)", () => {
+  /* O dono tirou o acesso: a ficha perdeu o `uid`, mas o token do barbeiro
+   * (com o claim antigo) ainda vale por até uma hora. */
+  const tirarAcesso = () =>
+    testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `barbershops/${ALFA}/staff`, "s-alfa"), { uid: null });
+    });
+
+  it("com a cadeira ligada, lê a agenda dele e a lista de clientes", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `barbershops/${ALFA}/clients`, "cli-1"), { name: "Cliente", uid: null });
+    });
+    await assertSucceeds(getDoc(doc(as(BARBEIRO_ALFA), `barbershops/${ALFA}/bookings`, "bk-1")));
+    await assertSucceeds(getDocs(collection(as(BARBEIRO_ALFA), `barbershops/${ALFA}/clients`)));
+  });
+
+  it("🔒 com o token antigo e a ficha solta: não lê agenda, clientes nem comissão", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `barbershops/${ALFA}/clients`, "cli-1"), { name: "Cliente", uid: null });
+      await setDoc(doc(ctx.firestore(), `barbershops/${ALFA}/commissions`, "c-alfa"), {
+        staffId: "s-alfa", uid: null, commissionAmount: 25,
+      });
+    });
+    await tirarAcesso();
+    await assertFails(getDoc(doc(as(BARBEIRO_ALFA), `barbershops/${ALFA}/bookings`, "bk-1")));
+    await assertFails(
+      getDocs(query(collection(as(BARBEIRO_ALFA), `barbershops/${ALFA}/bookings`), where("staffId", "==", "s-alfa")))
+    );
+    await assertFails(getDocs(collection(as(BARBEIRO_ALFA), `barbershops/${ALFA}/clients`)));
+    await assertFails(getDoc(doc(as(BARBEIRO_ALFA), `barbershops/${ALFA}/commissions`, "c-alfa")));
+  });
+
+  it("🔒 com o token antigo e a ficha solta: não fecha atendimento nem marca falta", async () => {
+    await tirarAcesso();
+    const bk = doc(as(BARBEIRO_ALFA), `barbershops/${ALFA}/bookings`, "bk-1");
+    await assertFails(updateDoc(bk, { status: "completed", paymentMethod: "pix" }));
+    await assertFails(updateDoc(bk, { status: "no_show" }));
+  });
+
+  it("🔒 a ficha ligada a OUTRA conta não serve ao claim desta", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `barbershops/${ALFA}/staff`, "s-alfa"), { uid: "outra-conta" });
+    });
+    await assertFails(getDoc(doc(as(BARBEIRO_ALFA), `barbershops/${ALFA}/bookings`, "bk-1")));
+  });
+});
+
+describe("o que o barbeiro não lê (08/10)", () => {
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, `barbershops/${ALFA}/members`, BARBEIRO_ALFA.sub), {
+        role: "staff", staffId: "s-alfa", email: "barbeiro@exemplo.com",
+      });
+      await setDoc(doc(db, `barbershops/${ALFA}/members`, DONO_ALFA.sub), {
+        role: "owner", email: "dono@exemplo.com",
+      });
+      await setDoc(doc(db, `barbershops/${ALFA}/subscriptions`, "sub-1"), {
+        clientId: CLIENTE.sub, status: "ativo", planName: "Ilimitado", price: 149,
+      });
+    });
+  });
+
+  it("lê o PRÓPRIO `members`, não o dos outros", async () => {
+    await assertSucceeds(getDoc(doc(as(BARBEIRO_ALFA), `barbershops/${ALFA}/members`, BARBEIRO_ALFA.sub)));
+    await assertFails(getDoc(doc(as(BARBEIRO_ALFA), `barbershops/${ALFA}/members`, DONO_ALFA.sub)));
+    await assertFails(getDocs(collection(as(BARBEIRO_ALFA), `barbershops/${ALFA}/members`)));
+    await assertSucceeds(getDocs(collection(as(DONO_ALFA), `barbershops/${ALFA}/members`)));
+  });
+
+  it("🔒 não lê as assinaturas — preço e vencimento são receita da casa", async () => {
+    await assertFails(getDoc(doc(as(BARBEIRO_ALFA), `barbershops/${ALFA}/subscriptions`, "sub-1")));
+    await assertFails(getDocs(collection(as(BARBEIRO_ALFA), `barbershops/${ALFA}/subscriptions`)));
+    await assertFails(
+      getDocs(query(collection(as(BARBEIRO_ALFA), `barbershops/${ALFA}/subscriptions`), where("clientId", "==", CLIENTE.sub)))
+    );
+  });
+
+  it("o dono lê as assinaturas, e o cliente a dele", async () => {
+    await assertSucceeds(getDocs(collection(as(DONO_ALFA), `barbershops/${ALFA}/subscriptions`)));
+    await assertSucceeds(getDoc(doc(as(CLIENTE), `barbershops/${ALFA}/subscriptions`, "sub-1")));
+    await assertFails(getDoc(doc(as(OUTRO_CLIENTE), `barbershops/${ALFA}/subscriptions`, "sub-1")));
+  });
+});
+
+describe("remover barbeiro (08/10)", () => {
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `barbershops/${ALFA}/staff`, "sem-conta"), {
+        name: "Sem conta", active: true, uid: null,
+      });
+    });
+  });
+
+  it("o dono apaga direto a ficha SEM conta ligada", async () => {
+    await assertSucceeds(deleteDoc(doc(as(DONO_ALFA), `barbershops/${ALFA}/staff`, "sem-conta")));
+  });
+
+  it("🔒 ficha com conta ligada só sai pelo servidor (`removerBarbeiro`)", async () => {
+    /* Apagando direto, a conta seguia com o papel de barbeiro, o `members`, o
+     * celular recebendo notificação e o Telegram da cadeira. */
+    await assertFails(deleteDoc(doc(as(DONO_ALFA), `barbershops/${ALFA}/staff`, "s-alfa")));
+  });
+
+  it("🔒 o barbeiro não apaga ficha nenhuma", async () => {
+    await assertFails(deleteDoc(doc(as(BARBEIRO_ALFA), `barbershops/${ALFA}/staff`, "sem-conta")));
+  });
+});
+
+describe("concluir e marcar falta só a partir do dia (08/10)", () => {
+  const comData = (date: string) =>
+    testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `barbershops/${ALFA}/bookings`, "bk-1"), { date, time: "10:00" });
+    });
+  const bk = (quem: { sub: string } & Record<string, unknown>) =>
+    doc(as(quem), `barbershops/${ALFA}/bookings`, "bk-1");
+
+  it("🔒 reserva de dia futuro: nem o barbeiro nem o dono concluem ou marcam falta", async () => {
+    await comData("2099-12-31");
+    await assertFails(updateDoc(bk(BARBEIRO_ALFA), { status: "completed", paymentMethod: "pix" }));
+    await assertFails(updateDoc(bk(BARBEIRO_ALFA), { status: "no_show" }));
+    await assertFails(updateDoc(bk(DONO_ALFA), { status: "completed", paymentMethod: "pix" }));
+    await assertFails(updateDoc(bk(DONO_ALFA), { status: "no_show" }));
+  });
+
+  it("reserva de dia que já passou: conclui e marca falta normalmente", async () => {
+    await comData("2026-01-15");
+    await assertSucceeds(updateDoc(bk(BARBEIRO_ALFA), { status: "no_show" }));
+  });
+
+  it("dia que já passou: o dono conclui", async () => {
+    await comData("2026-01-15");
+    await assertSucceeds(updateDoc(bk(DONO_ALFA), { status: "completed", paymentMethod: "cash" }));
+  });
+
+  it("hoje (no fuso de São Paulo) conclui — a hora fica com a tela", async () => {
+    const hojeEmSaoPaulo = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    await comData(hojeEmSaoPaulo);
+    await assertSucceeds(updateDoc(bk(BARBEIRO_ALFA), { status: "completed", paymentMethod: "pix" }));
+  });
+
+  it("🔒 data fora do formato não passa", async () => {
+    await comData("amanhã");
+    await assertFails(updateDoc(bk(DONO_ALFA), { status: "no_show" }));
   });
 });

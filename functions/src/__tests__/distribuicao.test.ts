@@ -4,6 +4,7 @@ import {
   escolherBarbeiro,
   fazTodosOsServicos,
   ordemDoBarbeiro,
+  porOrdem,
   regraDaBarbearia,
   type Candidato,
 } from "../distribuicao";
@@ -111,5 +112,26 @@ describe("05/10 · quem pode atender", () => {
   it("sem ordem gravada vai para o fim", () => {
     expect(ordemDoBarbeiro(undefined)).toBeGreaterThan(ordemDoBarbeiro(99));
     expect(ordemDoBarbeiro("2")).toBe(2);
+  });
+});
+
+/* 08/10: a tela de Ajustes desempatava pelo nome e o servidor pelo id. O
+ * par no web (`emOrdem`) tem o mesmo teste em web/src/lib/__tests__. */
+describe("08/10 · desempate da ordem igual ao da tela", () => {
+  it("mesma ordem: decide o id, em comparação simples (sem locale)", () => {
+    const fila = [
+      { staffId: "s2", ordem: 2 },
+      { staffId: "s1", ordem: 2 },
+      { staffId: "B", ordem: 2 },
+    ].sort(porOrdem);
+    expect(fila.map((b) => b.staffId)).toEqual(["B", "s1", "s2"]);
+  });
+
+  it("sem ordem (ausente ou nula) vai para o fim, e não para o topo", () => {
+    expect(ordemDoBarbeiro(null)).toBe(Number.MAX_SAFE_INTEGER);
+    expect(ordemDoBarbeiro(undefined)).toBe(Number.MAX_SAFE_INTEGER);
+    expect(ordemDoBarbeiro("")).toBe(Number.MAX_SAFE_INTEGER);
+    expect(ordemDoBarbeiro(0)).toBe(0);
+    expect(ordemDoBarbeiro(3)).toBe(3);
   });
 });

@@ -63,11 +63,29 @@ service cloud.firestore {
         : null;
     }
 
+    /* A cadeira do claim AINDA é desta conta? (08/10)
+     *
+     * O claim diz qual cadeira a conta tinha quando o token foi emitido. Tirar
+     * o acesso revoga a sessão, mas o token já emitido vale por até uma hora —
+     * e nesse intervalo quem saiu seguia lendo a agenda e a lista de clientes
+     * e fechando atendimento. A ficha (`staff.uid`) é a verdade de agora: a
+     * revogação a zera antes de qualquer outra coisa.
+     *
+     * Custa UMA leitura por pedido do barbeiro (consulta inteira conta uma
+     * vez), e só para quem é `staff`: dono e cliente não chegam aqui, porque
+     * `meuStaffId` é nulo para eles e o `&&` para antes. */
+    function souBarbeiroAtivo(barbershopId) {
+      return meuStaffId(barbershopId) != null
+        && get(/databases/$(database)/documents/barbershops/$(barbershopId)/staff/$(meuStaffId(barbershopId)))
+             .data.get('uid', null) == request.auth.uid;
+    }
+
     /* O barbeiro vê SÓ a própria agenda (decisão do dono, 05/10): nada dos
      * colegas nem do caixa da casa. */
     function ehDaMinhaCadeira(barbershopId, dados) {
       return meuStaffId(barbershopId) != null
-        && dados.get('staffId', null) == meuStaffId(barbershopId);
+        && dados.get('staffId', null) == meuStaffId(barbershopId)
+        && souBarbeiroAtivo(barbershopId);
     }
 
     function isSelf(userId) {
@@ -322,7 +340,11 @@ service cloud.firestore {
       /* -------- quem trabalha aqui -------- */
 
       match /members/{userId} {
-        allow read: if isStaffOf(barbershopId) || isSelf(userId);
+        /* Quem trabalha aqui, com e-mail. O barbeiro lia a lista inteira — os
+         * e-mails dos colegas e do dono — porque a regra é de quando o único
+         * `staff` era o próprio dono (08/10). Agora: o dono lê todos; cada um,
+         * o próprio. */
+        allow read: if isOwnerOf(barbershopId) || isSelf(userId);
         // Conceder acesso passa por Cloud Function: o claim precisa ser
         // gravado junto, senão o documento e o token divergem.
         allow write: if false;
@@ -360,7 +382,11 @@ service cloud.firestore {
         allow update: if isOwnerOf(barbershopId)
           && !request.resource.data.diff(resource.data).addedKeys().hasAny(['commissionPct', 'salary'])
           && !request.resource.data.diff(resource.data).changedKeys().hasAny(['commissionPct', 'salary']);
-        allow delete: if isOwnerOf(barbershopId);
+        /* Ficha com conta ligada (`uid`) só sai pelo servidor (08/10):
+         * `removerBarbeiro` desfaz claim, `members`, aparelhos e Telegram antes
+         * de apagar. Apagando direto, a conta seguia com o papel de barbeiro. */
+        allow delete: if isOwnerOf(barbershopId)
+          && resource.data.get('uid', null) == null;
       }
 
       match /staff_pay/{staffId} {
@@ -373,9 +399,13 @@ service cloud.firestore {
       }
 
       /* Produto é da loja, não da vitrine: `cost` é quanto o dono pagou, e o
-       * app do cliente não lê produto nenhum. */
+       * app do cliente não lê produto nenhum.
+       *
+       * O barbeiro também não (08/10): a ficha traz o custo — o CMV da casa —
+       * e o painel dele não vende produto. Quando vender, a tela pede ao
+       * servidor só nome, preço e estoque, em vez de reabrir o custo. */
       match /products/{productId} {
-        allow read: if isStaffOf(barbershopId);
+        allow read: if isOwnerOf(barbershopId);
         allow write: if isOwnerOf(barbershopId);
       }
 
@@ -391,7 +421,11 @@ service cloud.firestore {
          * então ele é visível apenas para a barbearia. É o desenho, não uma
          * lacuna — e o limite (o walk-in que criar conta não vê o histórico
          * antigo) está declarado em `functions/src/clients.ts`. */
-        allow read: if isStaffOf(barbershopId)
+        /* O barbeiro com a cadeira AINDA ligada (08/10): com o claim só, quem
+         * teve o acesso tirado seguia lendo nome e WhatsApp de todo cliente
+         * até o token vencer. */
+        allow read: if isOwnerOf(barbershopId)
+                    || souBarbeiroAtivo(barbershopId)
                     || (isSignedIn() && clientId == request.auth.uid);
 
         /* Escrita é SÓ do servidor.
@@ -454,6 +488,25 @@ service cloud.firestore {
         );
       }
 
+      /* Concluir e marcar falta só a partir do DIA do atendimento (08/10).
+       *
+       * O painel do barbeiro mostrava "Concluir" na reserva da semana que vem,
+       * e a conclusão materializa pagamento e comissão de um corte que não
+       * aconteceu. A tela agora espera o horário; esta é a camada que não
+       * depende dela. A regra compara só o DIA (no fuso de São Paulo, UTC−3,
+       * sem horário de verão desde 2019): a hora fica com a tela, que sabe a
+       * tolerância.
+       *
+       * `date` é `AAAA-MM-DD`, gravado pelo servidor. Reserva sem `date`
+       * (anterior ao campo) não tem dia a conferir e segue a regra de sempre. */
+      function diaDoAtendimentoChegou(dados) {
+        return !('date' in dados)
+          || timestamp.date(int(dados.date.split('-')[0]),
+                            int(dados.date.split('-')[1]),
+                            int(dados.date.split('-')[2]))
+             <= request.time - duration.value(3, 'h');
+      }
+
       match /bookings/{bookingId} {
         allow read: if isOwnerOf(barbershopId)
                     || ehDaMinhaCadeira(barbershopId, resource.data)
@@ -497,6 +550,7 @@ service cloud.firestore {
                .hasOnly(['status', 'paymentMethod', 'paymentFormId', 'paymentFormLabel',
                          'discountAmount', 'discountInput', 'discountReason',
                          'discountBy', 'discountAt'])
+          && diaDoAtendimentoChegou(resource.data)
           && (resource.data.status in ['pending_payment', 'confirmed', 'confirmed_by_client', 'fit_in_requested']
               /* "Veio depois" (02/10): a falta pode virar atendimento concluído
                * — e SÓ concluído, pelo mesmo ramo com método e desconto
@@ -589,11 +643,13 @@ service cloud.firestore {
         allow read: if isOwnerOf(barbershopId) || ownsResource();
         allow write: if false;
       }
-      /* O barbeiro também lê (05/10): é o que diz, no fechamento, que aquele
-       * cliente é mensalista e o corte pode ser coberto pelo plano. É contrato
-       * de cliente, não caixa da casa. */
+      /* O barbeiro NÃO lê (08/10). Lia a coleção inteira para saber, no
+       * fechamento, se o cliente é mensalista — e com ela o preço, o
+       * vencimento e o horário fixo de todo mensalista da casa, que é receita
+       * da barbearia. O fechamento dele pergunta à callable
+       * `planoDoAtendimento`: só da cadeira dele, e só nome e cobertura. */
       match /subscriptions/{subscriptionId} {
-        allow read: if isStaffOf(barbershopId) || ownsResource();
+        allow read: if isOwnerOf(barbershopId) || ownsResource();
         allow write: if false;
       }
       /* Semanas do horário fixo que a rotina não conseguiu reservar (dia

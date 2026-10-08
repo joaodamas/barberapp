@@ -142,8 +142,10 @@ export const useClients = () =>
 export const useExpenses = () =>
   useShopCollection<ExpenseDoc>("expenses", { orderByField: "date", direction: "desc" });
 
-export const useSubscribers = () =>
-  useShopCollection<SubscriberDoc>("subscriptions", { orderByField: "name" });
+/* `enabled` (08/10): o barbeiro não lê mais a coleção (é receita da casa) —
+ * o fechamento dele pergunta por atendimento (`planoDoAtendimento`). */
+export const useSubscribers = (opcoes?: { enabled?: boolean }) =>
+  useShopCollection<SubscriberDoc>("subscriptions", { orderByField: "name", enabled: opcoes?.enabled ?? true });
 
 /**
  * As faturas de mensalidade — G2.

@@ -1,6 +1,7 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { politicasDe } from "./politicas-financeiras";
 import { exigirEdicao, vinculosDe } from "./acesso";
+import { exigirCadeiraAtiva } from "./convite-equipe";
 import { percentualDoCadastro } from "./remuneracao";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { hojeNoFuso, localeDoDocumento } from "./locale";
@@ -589,6 +590,12 @@ export const registrarVendaDeProduto = onCall<VendaInput>(async (request) => {
     throw new HttpsError("permission-denied", "Só quem trabalha na barbearia registra venda.");
   }
   await exigirEdicao(barbershopId);
+  /* O barbeiro vende em nome PRÓPRIO (08/10). O `staffId` vinha do pedido e
+   * decide de quem é a comissão: aberto, um barbeiro lançava a venda na
+   * cadeira de um colega (ou deixava sem vendedor, e a comissão sumia). A
+   * cadeira é conferida na ficha, não só no token — quem teve o acesso tirado
+   * não vende mais. */
+  const minhaCadeira = await exigirCadeiraAtiva(request, barbershopId, papel);
 
   for (const item of itens) {
     if (!item?.productId) throw new HttpsError("invalid-argument", "Produto não informado.");
@@ -633,7 +640,7 @@ export const registrarVendaDeProduto = onCall<VendaInput>(async (request) => {
    * o percentual do barbeiro quando ele tem um, o padrão da casa quando não.
    * Depois desta escrita, nada relê `policies` para reconstruir a comissão —
    * que é justamente o defeito P1-7 do lado da loja. */
-  const staffId = request.data?.staffId ? String(request.data.staffId) : null;
+  const staffId = minhaCadeira ?? (request.data?.staffId ? String(request.data.staffId) : null);
   const vendedorSnap = staffId
     ? await shopRef.collection("staff").doc(staffId).get()
     : null;
@@ -814,8 +821,11 @@ export const registrarEntradaDeEstoque = onCall<{
   const papel = vinculosDe(request)?.[
     barbershopId
   ];
-  if (papel !== "owner" && papel !== "staff") {
-    throw new HttpsError("permission-denied", "Só quem trabalha na barbearia dá entrada.");
+  /* Entrada de estoque fixa o CUSTO médio do produto — é o CMV da casa, e
+   * só o dono mexe (08/10). Aceitava `staff` desde quando o único `staff` era
+   * o próprio dono. */
+  if (papel !== "owner") {
+    throw new HttpsError("permission-denied", "Só o dono da barbearia dá entrada no estoque.");
   }
   await exigirEdicao(barbershopId);
 

@@ -141,10 +141,16 @@ export const redeemLoyaltyReward = onCall<{ barbershopId: string; clientId: stri
     const papel = vinculosDe(request)?.[
       barbershopId
     ];
-    if (papel !== "owner" && papel !== "staff") {
+    /* Só o DONO registra o resgate (08/10). A recompensa é um corte que a
+     * casa deixa de cobrar — dinheiro dela —, e a guarda aceitava `staff`
+     * desde quando o único `staff` era o próprio dono. Restringir o barbeiro
+     * ao cliente com reserva dele hoje exigiria conferir agenda e saldo de
+     * cada pedido; o painel do barbeiro nem tem a ficha do cliente. Quando
+     * ele precisar resgatar no balcão, a regra entra com a tela. */
+    if (papel !== "owner") {
       throw new HttpsError(
         "permission-denied",
-        "O resgate é registrado no balcão, por quem entrega a recompensa."
+        "O resgate é registrado pelo dono da barbearia, no balcão."
       );
     }
     await exigirEdicao(barbershopId);

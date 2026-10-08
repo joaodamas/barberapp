@@ -21,6 +21,11 @@ export function diaVizinho(iso: string, delta: number): string {
   return new Date(t).toISOString().slice(0, 10);
 }
 
+export type LinhaDaComissao = Pick<
+  CommissionDoc,
+  "date" | "origin" | "commissionPct" | "commissionBase" | "commissionAmount" | "bookingId" | "movementId"
+> & { id: string };
+
 export type ExtratoDaComissao = {
   atendimentos: number;
   vendas: number;
@@ -28,7 +33,7 @@ export type ExtratoDaComissao = {
   base: number;
   /** O que o barbeiro tem a receber no período — estornos já descontados. */
   total: number;
-  linhas: Array<Pick<CommissionDoc, "date" | "origin" | "commissionPct" | "commissionBase" | "commissionAmount"> & { id: string }>;
+  linhas: LinhaDaComissao[];
 };
 
 function centavos(v: number) {
@@ -36,27 +41,60 @@ function centavos(v: number) {
 }
 
 /**
- * O extrato do mês. Comissão estornada vem como linha NEGATIVA (o servidor não
- * apaga o passado — P1-7), então somar é o certo; contar atendimento só conta
- * as linhas positivas, para o estorno não virar "um atendimento a menos" duas
- * vezes.
+ * De que fato a linha veio: o atendimento (`bookingId`) ou a venda
+ * (`movementId`). Linha antiga sem nenhum dos dois conta sozinha.
  */
-export function extratoDaComissao(
-  itens: Array<Pick<CommissionDoc, "date" | "origin" | "commissionPct" | "commissionBase" | "commissionAmount"> & { id: string }>
-): ExtratoDaComissao {
+function fatoDaLinha(l: LinhaDaComissao): string {
+  if (l.origin === "produto") return l.movementId ? `venda:${l.movementId}` : `linha:${l.id}`;
+  return l.bookingId ? `atendimento:${l.bookingId}` : `linha:${l.id}`;
+}
+
+/**
+ * O extrato do mês. Comissão estornada vem como linha NEGATIVA (o servidor não
+ * apaga o passado — P1-7), então somar é o certo.
+ *
+ * CONTAR é por fato, não por linha (08/10). A edição de cobrança grava o
+ * estorno da comissão antiga (negativa) e a comissão nova (positiva) com o
+ * MESMO `bookingId`: contar linhas positivas fazia um corte editado virar
+ * dois atendimentos. Agora: atendimentos (e vendas) distintos cujo saldo no
+ * período ficou positivo — o estorno total some da contagem, a edição conta
+ * uma vez.
+ */
+export function extratoDaComissao(itens: LinhaDaComissao[]): ExtratoDaComissao {
   const linhas = [...itens].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
-  let atendimentos = 0;
-  let vendas = 0;
+  const saldoPorFato = new Map<string, { produto: boolean; saldo: number }>();
   let base = 0;
   let total = 0;
   for (const l of linhas) {
     const valor = Number(l.commissionAmount) || 0;
-    if (valor > 0) {
-      if (l.origin === "produto") vendas++;
-      else atendimentos++;
-    }
+    const chave = fatoDaLinha(l);
+    const atual = saldoPorFato.get(chave) ?? { produto: l.origin === "produto", saldo: 0 };
+    atual.saldo += valor;
+    saldoPorFato.set(chave, atual);
     base += Number(l.commissionBase) || 0;
     total += valor;
   }
+  let atendimentos = 0;
+  let vendas = 0;
+  for (const f of saldoPorFato.values()) {
+    if (centavos(f.saldo) <= 0) continue;
+    if (f.produto) vendas++;
+    else atendimentos++;
+  }
   return { atendimentos, vendas, base: centavos(base), total: centavos(total), linhas };
+}
+
+/**
+ * O atendimento já começou? Mesma condição `jaChegou` da Agenda do dono
+ * (08/10): dia que passou, ou hoje com o horário já alcançado.
+ *
+ * O painel do barbeiro mostrava "Concluir" e "Não veio" em qualquer dia,
+ * inclusive no da semana que vem — e concluir é dizer que o corte aconteceu.
+ * `agora` nulo (antes do relógio montar no navegador) só libera dia passado.
+ */
+export function atendimentoJaChegou(b: { date: string; time?: string | null }, hoje: string, agora: Date | null): boolean {
+  if (b.date < hoje) return true;
+  if (b.date > hoje || !agora) return false;
+  const inicio = new Date(`${b.date}T${b.time || "00:00"}:00`);
+  return inicio.getTime() <= agora.getTime();
 }

@@ -127,7 +127,7 @@ export function AcessoDoBarbeiro({ barbeiro }: { barbeiro: Doc<StaffDoc> }) {
         open={tirando}
         onClose={() => setTirando(false)}
         title={`Tirar o acesso de ${barbeiro.name || "barbeiro"}?`}
-        description="Ele sai do sistema na hora. Continua na agenda e nos relatórios; os atendimentos e a comissão dele não mudam."
+        description="Ele perde o acesso na hora: a agenda e os botões dele param de responder, o celular deixa de receber notificação e o Telegram da cadeira é desligado. Continua na agenda e nos relatórios; os atendimentos e a comissão dele não mudam."
         footer={
           <div className="flex gap-2">
             <Button variant="secondary" className="flex-1" onClick={() => setTirando(false)}>
@@ -139,7 +139,13 @@ export function AcessoDoBarbeiro({ barbeiro }: { barbeiro: Doc<StaffDoc> }) {
           </div>
         }
       >
-        <p className="text-sm text-ink-muted">Para dar acesso de novo, é só mandar outro convite.</p>
+        {/* O que a revogação NÃO alcança, dito antes (08/10): as regras e as
+            funções conferem a cadeira a cada pedido, mas o que já foi
+            carregado na tela de um aparelho aberto não é apagado de lá. */}
+        <p className="text-sm text-ink-muted">
+          Se o app estiver aberto no celular dele, o que já está na tela continua visível até ele fechar ou
+          recarregar — nada novo abre. Para dar acesso de novo, é só mandar outro convite.
+        </p>
       </Modal>
     </div>
   );
