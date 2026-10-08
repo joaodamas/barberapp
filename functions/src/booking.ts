@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { staffIdDeQuemChamou } from "./convite-equipe";
-import { exigirEdicao, idSeguro, vinculosDe } from "./acesso";
+import { exigirEdicao, idSeguro, motivoDeLeitura, vinculosDe } from "./acesso";
 import { ehMensalistaAtivo, limiteDoCliente } from "./janela";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import * as logger from "firebase-functions/logger";
@@ -108,6 +108,59 @@ const EM_ABERTO = ["pending_payment", "confirmed", "confirmed_by_client", "fit_i
 export function idDaReservaPorChave(uid: string, chave: unknown): string | undefined {
   if (typeof chave !== "string" || !/^[A-Za-z0-9_-]{8,64}$/.test(chave)) return undefined;
   return `app_${createHash("sha256").update(`${uid}:${chave}`).digest("hex").slice(0, 32)}`;
+}
+
+/**
+ * A repetição pela chave é MESMO a mesma tentativa? (revisão de 08/10)
+ *
+ * A chave só prova que veio do mesmo toque em "Confirmar" se o pedido for o
+ * mesmo. Cenário que escapava: o cliente confirma 15h, a resposta se perde, ele
+ * volta, escolhe 16h e confirma — a tela reaproveitava a chave, o servidor
+ * achava a reserva das 15h e respondia sucesso, e a tela anunciava 16h. O
+ * cliente aparecia às 16h para um horário marcado às 15h.
+ *
+ * Compara o que define o atendimento: dia, hora, serviços e barbeiro. Serviços
+ * como conjunto, aceitando tanto os ids crus do pedido quanto os já trocados
+ * pelo combo (reservas antigas gravavam os crus). Barbeiro só quando o pedido
+ * escolheu um: em "qualquer barbeiro" quem atende é o servidor que decide, e a
+ * repetição devolve quem ficou.
+ *
+ * Devolve a frase para o cliente, ou `null` quando é a mesma tentativa.
+ */
+export function divergenciaDaRepeticao(
+  existente: { date?: unknown; time?: unknown; serviceIds?: unknown; staffId?: unknown },
+  pedido: {
+    date: string;
+    time: string;
+    /** Os serviços como pedidos, sem combo. */
+    serviceIds: string[];
+    /** Os mesmos, depois de `aplicarCombos` — como o app grava hoje. */
+    serviceIdsGravados: string[];
+    /** `null` em "qualquer barbeiro". */
+    staffId: string | null;
+  }
+): string | null {
+  const mesmoConjunto = (a: string[], b: string[]) =>
+    a.length === b.length && [...a].sort().join("|") === [...b].sort().join("|");
+  const gravados = Array.isArray(existente.serviceIds) ? existente.serviceIds.map(String) : [];
+  const mesmosServicos =
+    mesmoConjunto(gravados, pedido.serviceIds.map(String)) ||
+    mesmoConjunto(gravados, pedido.serviceIdsGravados.map(String));
+  const mesmoBarbeiro = pedido.staffId === null || String(existente.staffId ?? "") === pedido.staffId;
+
+  if (
+    String(existente.date ?? "") === pedido.date &&
+    String(existente.time ?? "") === pedido.time &&
+    mesmosServicos &&
+    mesmoBarbeiro
+  ) {
+    return null;
+  }
+  const quando =
+    typeof existente.date === "string" && typeof existente.time === "string"
+      ? ` (${diaMes(existente.date)} às ${existente.time})`
+      : "";
+  return `Esta confirmação já foi usada em outro agendamento${quando}. Veja em Reservas antes de marcar de novo.`;
 }
 
 /* ================================================================== */
@@ -245,6 +298,18 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
   const shop = shopSnap.data() ?? {};
   const policies = shop.policies ?? {};
 
+  /* Encaixe com a loja em modo leitura (revisão de 08/10): o pedido nascia
+   * `fit_in_requested` e ficava esperando uma aprovação que ninguém consegue
+   * dar — `responderEncaixe` passa por `exigirEdicao` e o painel está travado.
+   * O cliente saía achando que tinha um pedido em análise até ele expirar.
+   *
+   * A reserva NORMAL continua aceita em modo leitura, de propósito (`acesso.ts`:
+   * "o cliente continua agendando pelo link"): ela não depende de ninguém
+   * responder. */
+  if (pedeEncaixe && motivoDeLeitura(shop)) {
+    throw new HttpsError("failed-precondition", "Esta barbearia não está aceitando encaixes agora.");
+  }
+
   /* Fuso da barbearia, não do servidor. A função roda em UTC: numa barbearia em
    * Dublin, `new Date("2026-08-04T15:00:00")` erra por uma hora e em São Paulo
    * por três — o bastante para recusar horário válido ou aceitar um que passou. */
@@ -289,6 +354,9 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
    * tentativa que viu o horário ocupado não pode deixar "aguardando aprovação"
    * para uma reserva que a repetição gravou confirmada. */
   let status = "confirmed";
+  /* Preenchido só quando a chave cai numa reserva que já existia: a resposta
+   * passa a ser a do DOCUMENTO, não a do pedido. */
+  let jaGravada: FirebaseFirestore.DocumentData | null = null;
 
   /* ---- Grava checando conflito na mesma transação ---- */
   const bookingId = await gravarComTravaDeHorario({
@@ -300,6 +368,19 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
     },
     aoDefinirStatus: (gravado) => {
       status = gravado;
+    },
+    aoRepetir: (existente) => {
+      const divergencia = divergenciaDaRepeticao(existente, {
+        date,
+        time,
+        serviceIds: serviceIds.map(String),
+        serviceIdsGravados: pedido.serviceIds,
+        /* Sem barbeiro no pedido (loja de uma cadeira), vale o que o servidor
+         * resolveu — que é o mesmo da primeira tentativa. */
+        staffId: qualquer ? null : pedido.staffId,
+      });
+      if (divergencia) throw new HttpsError("failed-precondition", divergencia);
+      jaGravada = existente;
     },
     idDaReserva: idDaReservaPorChave(uid, request.data?.chave),
     /* Por conta, não por barbearia: quem lota a agenda de uma lota a de
@@ -347,7 +428,11 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
       staffName,
       clientName: nomeLimpo(request.data?.clientName ?? request.auth?.token.name) || "Cliente",
       clientWhatsapp: String(request.data?.clientWhatsapp ?? "").replace(/\D/g, ""),
-      serviceIds,
+      /* Os ids já com o combo, como o balcão e o horário fixo gravam
+       * (`documentoDaReserva`): gravar os crus ao lado dos nomes do combo
+       * deixava `serviceIds` dizendo "corte, barba" e `serviceNames` dizendo
+       * "Corte + barba" na mesma reserva. */
+      serviceIds: pedido.serviceIds,
       serviceNames: nomes,
       date,
       time,
@@ -377,7 +462,22 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
     );
   }
 
-  return { bookingId, value, status, durationMin, staffId, staffName };
+  /* Na repetição, tudo vem do que está GRAVADO — a tela mostra o que o
+   * barbeiro vai ver na agenda, não o que este pedido trouxe. */
+  const gravada = jaGravada as FirebaseFirestore.DocumentData | null;
+  if (gravada) {
+    return {
+      bookingId,
+      status,
+      date: String(gravada.date ?? date),
+      time: String(gravada.time ?? time),
+      value: Number(gravada.value ?? 0),
+      durationMin: Number(gravada.durationMin ?? 0),
+      staffId: String(gravada.staffId ?? ""),
+      staffName: String(gravada.staffName ?? ""),
+    };
+  }
+  return { bookingId, value, status, date, time, durationMin, staffId, staffName };
 });
 
 /**
@@ -1095,6 +1195,12 @@ export async function gravarComTravaDeHorario(params: {
    */
   aoDefinirStatus?: (status: string) => void;
   /**
+   * Recebe o documento existente quando o `idDaReserva` já está gravado — a
+   * repetição. Chamado ANTES de devolver o id: quem chama confere se a
+   * repetição é mesmo o mesmo pedido e, se não for, lança para recusar.
+   */
+  aoRepetir?: (existente: FirebaseFirestore.DocumentData) => void;
+  /**
    * Teto de criações por conta por dia (ver `RESERVAS_POR_DIA`). Só o
    * `createBooking` passa: o balcão é o dono marcando, e não tem por que
    * esbarrar num limite feito contra conta descartável.
@@ -1144,6 +1250,9 @@ export async function gravarComTravaDeHorario(params: {
     if (params.idDaReserva) {
       const existente = await tx.get(bookingRef);
       if (existente.exists) {
+        /* Mesma chave, pedido diferente: quem chama recusa aqui, antes de
+         * qualquer resposta de sucesso. */
+        params.aoRepetir?.(existente.data() ?? {});
         /* A resposta da repetição tem de dizer o que foi GRAVADO: se a
          * primeira virou pedido de encaixe, "confirmado" seria mentira. */
         params.aoDefinirStatus?.(String(existente.get("status")));

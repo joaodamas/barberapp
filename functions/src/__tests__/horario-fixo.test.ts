@@ -1,7 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { datasDoHorarioFixo, diaDaSemanaDe, semanaJaResolvida, horarioFixoValido, idDaOcorrencia, versaoDoHorario } from "../horario-fixo";
+import {
+  datasDoHorarioFixo,
+  diaDaSemanaDe,
+  semanaJaResolvida,
+  horarioFixoValido,
+  idDaOcorrencia,
+  liberadaPeloFixo,
+  lojaRecebeReservaDoFixo,
+  ocorrenciaLiberavel,
+  versaoDoHorario,
+} from "../horario-fixo";
 
-const base = { hora: "17:00", staffId: "romulo", serviceIds: ["corte"] };
+const base = { hora: "17:00", staffId: "barbeiro-1", serviceIds: ["corte"] };
 
 describe("horário fixo do mensalista", () => {
   it("dia da semana calculado pelo calendário, sem depender do fuso da máquina", () => {
@@ -58,7 +68,7 @@ describe("horário fixo do mensalista", () => {
 });
 
 describe("semanaJaResolvida — a rotina não recria a semana que o cliente já resolveu (30/09)", () => {
-  it("o caso do Cleiton: quarta remarcada para terça não volta como fixo", () => {
+  it("quarta remarcada para terça não volta como fixo", () => {
     const reservas = [{ date: "2026-09-30", status: "completed", rescheduledFrom: { date: "2026-10-01" } }];
     expect(semanaJaResolvida("2026-10-01", reservas)).toBe(true);
   });
@@ -81,5 +91,106 @@ describe("semanaJaResolvida — a rotina não recria a semana que o cliente já 
 describe("semana apagada (removido) não volta", () => {
   it("a data com a ocorrência apagada conta como resolvida", () => {
     expect(semanaJaResolvida("2026-10-03", [{ date: "2026-10-03", status: "removido" }])).toBe(true);
+  });
+});
+
+describe("liberação do fixo não é semana desmarcada (07/10)", () => {
+  it("mudar o fixo: as semanas liberadas não bloqueiam o horário novo", () => {
+    const liberada = { date: "2026-10-09", status: "cancelled_by_shop", liberadaPeloFixo: true };
+    expect(semanaJaResolvida("2026-10-09", [liberada])).toBe(false);
+  });
+
+  it("dados antigos, sem o marcador, são reconhecidos pelo motivo gravado", () => {
+    for (const cancelReason of ["Horário fixo alterado", "Horário fixo removido", "Plano de mensalista encerrado"]) {
+      expect(semanaJaResolvida("2026-10-09", [{ date: "2026-10-09", status: "cancelled_by_shop", cancelReason }])).toBe(
+        false
+      );
+    }
+  });
+
+  it("cancelamento do cliente, ou da barbearia por outro motivo, continua contando", () => {
+    expect(
+      semanaJaResolvida("2026-10-09", [
+        { date: "2026-10-09", status: "cancelled_by_client", cancelReason: "Viagem" },
+      ])
+    ).toBe(true);
+    expect(
+      semanaJaResolvida("2026-10-09", [{ date: "2026-10-09", status: "cancelled_by_shop", cancelReason: "Feriado" }])
+    ).toBe(true);
+  });
+
+  it("liberada ao lado de uma reserva de verdade no mesmo dia: vale a de verdade", () => {
+    expect(
+      semanaJaResolvida("2026-10-09", [
+        { date: "2026-10-09", status: "cancelled_by_shop", liberadaPeloFixo: true },
+        { date: "2026-10-09", status: "confirmed" },
+      ])
+    ).toBe(true);
+  });
+
+  it("o marcador só vale para documento cancelado", () => {
+    expect(liberadaPeloFixo({ status: "confirmed", liberadaPeloFixo: true })).toBe(false);
+    expect(liberadaPeloFixo({ status: "confirmed", cancelReason: "Horário fixo alterado" })).toBe(false);
+    expect(liberadaPeloFixo({ status: "cancelled_by_shop", liberadaPeloFixo: true })).toBe(true);
+  });
+});
+
+describe("ocorrenciaLiberavel — só libera o que ainda não começou (07/10)", () => {
+  const SP = "America/Sao_Paulo";
+  /* 08/10/2026 às 18:00 em São Paulo (UTC-3) = 21:00 UTC. */
+  const agora = new Date("2026-10-08T21:00:00Z");
+
+  it("o corte de hoje às 10h, ainda não fechado, fica", () => {
+    expect(ocorrenciaLiberavel({ date: "2026-10-08", time: "10:00", status: "confirmed" }, SP, agora)).toBe(false);
+  });
+
+  it("o de hoje mais tarde e o de amanhã são liberados", () => {
+    expect(ocorrenciaLiberavel({ date: "2026-10-08", time: "19:30", status: "confirmed" }, SP, agora)).toBe(true);
+    expect(ocorrenciaLiberavel({ date: "2026-10-09", time: "08:00", status: "confirmed_by_client" }, SP, agora)).toBe(
+      true
+    );
+  });
+
+  it("o que começa agora já começou", () => {
+    expect(ocorrenciaLiberavel({ date: "2026-10-08", time: "18:00", status: "confirmed" }, SP, agora)).toBe(false);
+  });
+
+  it("decide pelo fuso da barbearia, não pelo do servidor", () => {
+    /* 19h em Lisboa (UTC+1 em outubro) = 18:00 UTC, já passou às 21:00 UTC. */
+    expect(
+      ocorrenciaLiberavel({ date: "2026-10-08", time: "19:00", status: "confirmed" }, "Europe/Lisbon", agora)
+    ).toBe(false);
+    /* 19h em São Paulo = 22:00 UTC, ainda não chegou. */
+    expect(ocorrenciaLiberavel({ date: "2026-10-08", time: "19:00", status: "confirmed" }, SP, agora)).toBe(true);
+  });
+
+  it("concluída, cancelada ou sem hora não é liberada", () => {
+    expect(ocorrenciaLiberavel({ date: "2026-10-20", time: "10:00", status: "completed" }, SP, agora)).toBe(false);
+    expect(ocorrenciaLiberavel({ date: "2026-10-20", time: "10:00", status: "cancelled_by_client" }, SP, agora)).toBe(
+      false
+    );
+    expect(ocorrenciaLiberavel({ date: "2026-10-20", status: "confirmed" }, SP, agora)).toBe(false);
+  });
+});
+
+describe("lojaRecebeReservaDoFixo — rotina não reserva em loja parada (07/10)", () => {
+  it("ativa e em teste válido recebem", () => {
+    expect(lojaRecebeReservaDoFixo({ status: "ativo" })).toBe(true);
+    expect(lojaRecebeReservaDoFixo({ status: "trial", trial: { endsAt: new Date(Date.now() + 86_400_000) } })).toBe(
+      true
+    );
+  });
+
+  it("encerrada, suspensa e teste vencido não recebem", () => {
+    expect(lojaRecebeReservaDoFixo({ status: "encerrada" })).toBe(false);
+    expect(lojaRecebeReservaDoFixo({ status: "suspenso" })).toBe(false);
+    expect(lojaRecebeReservaDoFixo({ status: "trial", trial: { endsAt: new Date(Date.now() - 86_400_000) } })).toBe(
+      false
+    );
+  });
+
+  it("isenta segue recebendo mesmo marcada como suspensa, mas encerrada não", () => {
+    expect(lojaRecebeReservaDoFixo({ status: "suspenso", isento: { motivo: "Barbearia fundadora" } })).toBe(true);
+    expect(lojaRecebeReservaDoFixo({ status: "encerrada", isento: true })).toBe(false);
   });
 });

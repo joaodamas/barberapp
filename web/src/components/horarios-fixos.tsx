@@ -121,7 +121,9 @@ export function HorariosFixos() {
     setErro(null);
     try {
       const r = await chamar(montar(), false);
-      const criadas = r?.ocorrencias.filter((o) => o.resultado === "criada").length ?? 0;
+      /* Reativada é semana reservada de novo: para quem lê, é o mesmo que criada. */
+      const criadas =
+        r?.ocorrencias.filter((o) => o.resultado === "criada" || o.resultado === "reativada").length ?? 0;
       const falhas = r?.ocorrencias.filter((o) => o.resultado === "conflito").length ?? 0;
       setAviso(
         `${editando?.name}: horário fixo salvo. ${contar(criadas, "semana reservada", "semanas reservadas")}` +
@@ -357,13 +359,15 @@ export function HorariosFixos() {
                 {previa.map((o) => (
                   <li key={o.data} className={o.resultado === "conflito" ? "text-danger" : "text-ink"}>
                     {formatDatePtBR(o.data)} às {hora} —{" "}
-                    {o.resultado === "criada"
+                    {o.resultado === "criada" || o.resultado === "reativada"
                       ? "será reservado"
                       : o.resultado === "ja-existe"
                         ? "já reservado"
-                        : o.resultado === "cliente-ja-marcado"
-                          ? "cliente já tem horário neste dia"
-                          : o.motivo ?? "não cabe"}
+                        : o.resultado === "desmarcada"
+                          ? "semana desmarcada, não volta sozinha"
+                          : o.resultado === "cliente-ja-marcado"
+                            ? "cliente já tem horário neste dia"
+                            : o.motivo ?? "não cabe"}
                   </li>
                 ))}
               </ul>

@@ -3,6 +3,7 @@ import {
   NOME_MAX,
   dataValida,
   desfechoDoCancelamento,
+  divergenciaDaRepeticao,
   horaValida,
   idDaReservaPorChave,
   jornadaDoBarbeiro,
@@ -150,5 +151,38 @@ describe("idempotência da criação (rodada E2E de 23/09)", () => {
     for (const c of [undefined, "", "curta", "com espaço aqui!!", "x".repeat(65), 123]) {
       expect(idDaReservaPorChave("uid-1", c), String(c)).toBeUndefined();
     }
+  });
+});
+
+describe("repetição pela chave só vale para o MESMO pedido (08/10)", () => {
+  const gravada = { date: "2026-10-20", time: "15:00", serviceIds: ["combo-corte-barba"], staffId: "b1" };
+  const mesmo = {
+    date: "2026-10-20",
+    time: "15:00",
+    serviceIds: ["corte", "barba"],
+    serviceIdsGravados: ["combo-corte-barba"],
+    staffId: "b1",
+  };
+
+  it("mesmo pedido é a mesma tentativa — com os ids do combo ou os crus", () => {
+    expect(divergenciaDaRepeticao(gravada, mesmo)).toBeNull();
+    /* Reserva antiga, gravada com os ids crus, em outra ordem. */
+    expect(divergenciaDaRepeticao({ ...gravada, serviceIds: ["barba", "corte"] }, mesmo)).toBeNull();
+  });
+
+  it("outra hora, outro dia, outros serviços ou outro barbeiro: recusa e diz o que está gravado", () => {
+    const msg = divergenciaDaRepeticao(gravada, { ...mesmo, time: "16:00" });
+    expect(msg).toContain("20/10 às 15:00");
+    expect(msg).toContain("Reservas");
+    expect(divergenciaDaRepeticao(gravada, { ...mesmo, date: "2026-10-21" })).not.toBeNull();
+    expect(
+      divergenciaDaRepeticao(gravada, { ...mesmo, serviceIds: ["corte"], serviceIdsGravados: ["corte"] })
+    ).not.toBeNull();
+    expect(divergenciaDaRepeticao(gravada, { ...mesmo, staffId: "b2" })).not.toBeNull();
+  });
+
+  it("em 'qualquer barbeiro' o barbeiro gravado não conta — quem decidiu foi o servidor", () => {
+    expect(divergenciaDaRepeticao({ ...gravada, staffId: "b2" }, { ...mesmo, staffId: null })).toBeNull();
+    expect(divergenciaDaRepeticao(gravada, { ...mesmo, staffId: null, time: "16:00" })).not.toBeNull();
   });
 });
