@@ -364,6 +364,15 @@ describe("contrato com a plataforma", () => {
     );
   });
 
+  it("🔒 o dono NÃO grava `locale` direto — fuso inválido parava as rotinas (08/10)", async () => {
+    await assertFails(
+      updateDoc(doc(as(DONO_ALFA), "barbershops", ALFA), { locale: { timeZone: "Brasil" } })
+    );
+    await assertFails(
+      updateDoc(doc(as(DONO_ALFA), "barbershops", ALFA), { "locale.timeZone": "America/Sao_Paulo" })
+    );
+  });
+
   it("🔒 o dono NÃO estende o próprio período de teste", async () => {
     await assertFails(
       updateDoc(doc(as(DONO_ALFA), "barbershops", ALFA), {
