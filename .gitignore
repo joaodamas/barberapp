@@ -20,6 +20,9 @@ yarn-error.log*
 
 # env files (pode ser versionado seletivamente se precisar)
 .env*
+# Parâmetros (não segredos) das functions: o deploy não interativo exige o
+# valor aqui, mesmo com `default` no defineString (08/10).
+!functions/.env
 
 # vercel
 .vercel
