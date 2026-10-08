@@ -73,6 +73,14 @@ const nextConfig: NextConfig = {
    * service worker — ver BUILD_ID acima. */
   env: { NEXT_PUBLIC_BUILD_ID: BUILD_ID },
 
+  /* O otimizador de imagem do servidor NÃO busca nada fora do site. Os logos
+   * que o dono sobe ficam no Storage e vão com `unoptimized`
+   * (`logoSemOtimizar`): o navegador baixa direto, o servidor nem toca. Lista
+   * vazia de propósito, e explícita: a SSRF do otimizador (GHSA-cjq9-62q9-8jv4,
+   * corrigida no 16.3.8) só alcança quem libera host remoto aqui. Liberar um
+   * host é decisão de segurança, não de layout. */
+  images: { remotePatterns: [] },
+
 
 
   /* O multi-tenant só é testável localmente com subdomínio de verdade
