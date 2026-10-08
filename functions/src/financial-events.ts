@@ -510,6 +510,34 @@ export function chaveDoCiclo(eventId: string | undefined): string {
   return limpa || "sem-evento";
 }
 
+/** Pura: a reserva já guarda o congelado DESTA reversão? Reentrega não refaz. */
+export function jaReverteuNesteEvento(ciclo: unknown, chave: string): boolean {
+  return (ciclo as Partial<CicloFinanceiro> | null | undefined)?.revertidoEm === chave;
+}
+
+/**
+ * Quantos atendimentos DESTA assinatura já foram cobertos na competência — D2.
+ *
+ * Pura para ser verificável sem emulador. Exclui a própria reserva: o gatilho
+ * reprocessa em retry, e na segunda passada a reserva atual já estaria marcada
+ * — ela consumiria a própria cota e o quarto corte de um plano de quatro
+ * viraria "cota esgotada".
+ */
+export function contarCobertosNaCompetencia(
+  reservas: { id: string; cobertura?: Cobertura | null }[],
+  params: { bookingId: string; subscriptionId: string; competencia: string }
+): number {
+  return reservas.filter((r) => {
+    if (r.id === params.bookingId) return false;
+    const c = r.cobertura;
+    return (
+      c?.tipo === "plano" &&
+      c.subscriptionId === params.subscriptionId &&
+      c.competencia === params.competencia
+    );
+  }).length;
+}
+
 /**
  * Descobre, no momento da conclusão, se o atendimento está coberto — D2.
  *
@@ -517,9 +545,13 @@ export function chaveDoCiclo(eventId: string | undefined): string {
  * função só busca os dois dados que ela não tem como inventar: a assinatura
  * ativa do cliente e quantos cortes ela já cobriu na competência.
  *
- * Por que a contagem exclui a própria reserva: o gatilho reprocessa em retry, e
- * na segunda passada a reserva atual já estaria marcada — ela consumiria a
- * própria cota e o quarto corte de um plano de quatro viraria "cota esgotada".
+ * DENTRO DA TRANSAÇÃO que grava a cobertura (08/10, revisão do #135). Lida
+ * fora, a contagem tinha corrida: duas conclusões simultâneas do mesmo
+ * cliente liam "3 de 4" e as duas saíam cobertas — a cota de quatro pagava
+ * cinco. Com as consultas no `tx`, cada conclusão trava as reservas do cliente
+ * que leu; a que grava primeiro invalida a outra, que relê e já conta a
+ * vizinha. A própria reserva fica fora da contagem
+ * (`contarCobertosNaCompetencia`), então reprocessar não conta duas vezes.
  *
  * As duas consultas filtram em MEMÓRIA o que exigiria índice composto. É a
  * mesma decisão de `gravarComTravaDeHorario`, e pela mesma razão: índice
@@ -527,6 +559,7 @@ export function chaveDoCiclo(eventId: string | undefined): string {
  * por natureza.
  */
 async function resolverCobertura(params: {
+  tx: FirebaseFirestore.Transaction;
   db: FirebaseFirestore.Firestore;
   barbershopId: string;
   bookingId: string;
@@ -536,19 +569,20 @@ async function resolverCobertura(params: {
   /** O que o dono informou ao concluir — D-3. `null` é o caminho de cobertura. */
   metodoInformado: string | null;
 }): Promise<Cobertura> {
-  const { db, barbershopId, clientId } = params;
+  const { tx, db, barbershopId, clientId } = params;
   if (!clientId) return { tipo: "avulso", motivo: "sem_plano", valorCoberto: 0 };
 
   const shopRef = db.doc(`barbershops/${barbershopId}`);
 
   /* Mesma consulta que `criarMensalista` usa para barrar a segunda assinatura
    * — e é ela que garante que existe no máximo uma ativa por cliente. */
-  const assinaturas = await shopRef
-    .collection("subscriptions")
-    .where("clientId", "==", clientId)
-    .where("status", "==", "ativo")
-    .limit(1)
-    .get();
+  const assinaturas = await tx.get(
+    shopRef
+      .collection("subscriptions")
+      .where("clientId", "==", clientId)
+      .where("status", "==", "ativo")
+      .limit(1)
+  );
 
   const snap = assinaturas.docs[0];
   if (!snap) return { tipo: "avulso", motivo: "sem_plano", valorCoberto: 0 };
@@ -562,17 +596,12 @@ async function resolverCobertura(params: {
   >[0]["assinatura"];
 
   const competencia = competenciaDe(params.date);
-  const doCliente = await shopRef.collection("bookings").where("clientId", "==", clientId).get();
+  const doCliente = await tx.get(shopRef.collection("bookings").where("clientId", "==", clientId));
 
-  const jaCobertosNaCompetencia = doCliente.docs.filter((d) => {
-    if (d.id === params.bookingId) return false;
-    const cobertura = d.get("cobertura") as Cobertura | undefined;
-    return (
-      cobertura?.tipo === "plano" &&
-      cobertura.subscriptionId === snap.id &&
-      cobertura.competencia === competencia
-    );
-  }).length;
+  const jaCobertosNaCompetencia = contarCobertosNaCompetencia(
+    doCliente.docs.map((d) => ({ id: d.id, cobertura: d.get("cobertura") as Cobertura | undefined })),
+    { bookingId: params.bookingId, subscriptionId: snap.id, competencia }
+  );
 
   return decidirCobertura({
     valor: params.valor,
@@ -586,7 +615,8 @@ async function resolverCobertura(params: {
 export const materializeFinancialsOnCompletion = onDocumentUpdated(
   /* `retry` (05/10): no v2 ele vem DESLIGADO, e uma falha passageira deixava
    * o atendimento concluído sem pagamento nem comissão, sem aviso. Seguro
-   * porque tudo aqui é idempotente pelos ids derivados da reserva. */
+   * porque a conclusão lê a comissão do ciclo na transação e não regrava o
+   * que já existe, e a reversão grava ids derivados do evento. */
   { document: "barbershops/{barbershopId}/bookings/{bookingId}", retry: true },
   async (event) => {
     const antes = event.data?.before.data();
@@ -597,9 +627,9 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
     const db = getFirestore();
 
     /* Ids derivados da reserva: o Firestore reprocessa o gatilho em caso de
-     * retry, e `set` no mesmo id sobrescreve em vez de duplicar. Idempotência
-     * por construção, não por checagem — que teria corrida entre a leitura e a
-     * escrita. */
+     * retry, e o mesmo id não duplica. Na conclusão, a transação também LÊ a
+     * comissão do ciclo e não regrava o que já existe (08/10): reentrega com
+     * o retrato velho não pode desfazer edição nem correção. */
     const pagamentoRef = db.doc(
       `barbershops/${barbershopId}/payments/pagamento_${bookingId}`
     );
@@ -662,6 +692,11 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
       /* Conferido de novo DENTRO da transação: se a reserva foi concluída de
        * novo entre a saída cedo e aqui, a transação relê e este evento para. */
       if (!estadoAindaVale("reverter", atual.get("status"))) return;
+      /* Reentrega desta MESMA reversão (08/10). A primeira passada já apagou o
+       * pagamento e limpou o desconto da reserva; congelar de novo gravaria
+       * `cicloFinanceiro.pagamento: null` por cima do bruto congelado, e a
+       * reconclusão voltaria a ler o preço de hoje. */
+      if (jaReverteuNesteEvento(atual.get("cicloFinanceiro"), chave)) return;
 
       const congelado: CicloFinanceiro = {
         revertidoEm: chave,
@@ -745,7 +780,8 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
 /**
  * A conclusão vira fato financeiro: comissão sempre; pagamento quando houve
  * dinheiro (05/10: extraída do gatilho para a conferência noturna poder
- * refazer o que um gatilho perdido não fez). Idempotente pelos ids derivados.
+ * refazer o que um gatilho perdido não fez). Idempotente: comissão do ciclo
+ * já existente = conclusão já materializada, e nada é regravado (08/10).
  */
 export async function materializarConclusao(params: {
   db: FirebaseFirestore.Firestore;
@@ -825,60 +861,14 @@ export async function materializarConclusao(params: {
    * congelado já vem resolvido em `commissionPct`. */
   const pctCongelado = reconclusao ? ciclo?.comissao?.commissionPct ?? null : null;
 
-  /* A cobertura já decidida MANDA — D2.
-   *
-   * Reprocessamento não redecide: a cobertura é congelada como o percentual e
-   * a taxa. Redecidir a cada retry faria o mesmo atendimento sair coberto
-   * numa passada e cobrado na outra, conforme o estado da assinatura no
-   * instante do retry.
-   *
-   * CORTESIA NÃO PASSA PELO PLANO (28/09). Ela chega com `metodo: null`, que
-   * é exatamente a entrada do caminho do mensalista: sem este desvio, a
-   * cortesia dada a um cliente com plano viraria "coberto pelo plano" e
-   * gastaria uma vaga da cota que ele pagou — o dono deu um presente e o
-   * cliente perderia um corte. A decisão foi do dono, no balcão; ela é
-   * gravada como fato próprio, e o plano nem é consultado. */
-  const cobertura: Cobertura =
-    (depois.cobertura as Cobertura | undefined) ??
-    (cortesia
-      ? { tipo: "avulso", motivo: "cortesia", valorCoberto: 0 }
-      : await resolverCobertura({
-          db,
-          barbershopId,
-          bookingId,
-          clientId: String(depois.clientId ?? ""),
-          date,
-          valor,
-          /* D-3 · o que o dono informou entra na decisão. Método preenchido é
-           * afirmação de que houve dinheiro, e ela vence a cobertura do plano. */
-          metodoInformado: metodo,
-        }));
-
-  const coberto = cobertura.tipo === "plano";
-
-  const { commission, payment } = calcularEventoFinanceiro({
-    valor,
-    metodo,
-    formas,
-    formaId: (depois.paymentFormId ?? null) as string | null,
-    origem: (depois.paymentOrigin ?? null) as PaymentOrigin | null,
-    // Gravado como `null` no cadastro inicial, não ausente.
-    commissionPctDoBarbeiro:
-      pctCongelado ??
-      ((await percentualDoCadastro(
+  // Gravado como `null` no cadastro inicial, não ausente.
+  const pctDoCadastro = pctCongelado !== null
+    ? null
+    : ((await percentualDoCadastro(
         db.doc(`barbershops/${barbershopId}`),
         staffId ? String(staffId) : null,
         staffSnap
-      )) as number | null) ??
-      null,
-    padraoPct,
-    fees,
-    /* O atendimento coberto pelo plano ignora desconto: quem pagou por ele foi
-     * a mensalidade, e não há cobrança no balcão para descontar. Só chega
-     * aqui por escrita direta — a tela esconde o controle para mensalista e a
-     * regra exige método em todo desconto que não seja cortesia. */
-    desconto: coberto ? 0 : desconto,
-  });
+      )) as number | null);
 
   /* Onde a comissão deste ciclo é gravada.
    *
@@ -895,23 +885,107 @@ export async function materializarConclusao(params: {
       )
     : comissaoRef;
 
-  const regravado = descontoDaReconclusao({
-    desconto: coberto ? 0 : desconto,
-    congelado: ciclo?.descontoDaReserva ?? null,
-  });
-  const camposDeDescontoNaReserva: Record<string, unknown> = regravado ?? {
-    discountAmount: FieldValue.delete(),
-    discountInput: FieldValue.delete(),
-    discountReason: FieldValue.delete(),
-    discountBy: FieldValue.delete(),
-    discountAt: FieldValue.delete(),
-  };
-
   await db.runTransaction(async (tx) => {
+    /* TODAS as leituras antes de qualquer escrita: o Firestore recusa leitura
+     * depois de escrita na mesma transação. */
+    const [atual, comissaoSnap, pagamentoSnap] = await Promise.all([
+      tx.get(reservaRef),
+      tx.get(comissaoDoCicloRef),
+      tx.get(pagamentoRef),
+    ]);
     /* Conferido de novo DENTRO da transação: se a conclusão foi desfeita
      * entre a saída cedo e aqui, a transação relê e este evento para. */
-    const atual = await tx.get(reservaRef);
     if (!estadoAindaVale("materializar", atual.get("status"))) return;
+
+    /* ESTA CONCLUSÃO JÁ VIROU FATO — idempotência por leitura (08/10, revisão
+     * do #135).
+     *
+     * Antes era `set` cego, "idempotente por construção": regravar o mesmo id
+     * com os mesmos valores. Só que os valores vêm do retrato `depois` DO
+     * EVENTO, e o gatilho é entregue mais de uma vez — com `retry` ligado, mais
+     * ainda. Uma reentrega que chegasse depois de uma edição de cobrança
+     * (`edicao-de-cobranca.ts`) ou de uma correção do meio de pagamento
+     * (`correcao-de-pagamento.ts`) regravaria o pagamento com o bruto, o
+     * método e a taxa ANTIGOS — desfazendo, em silêncio, o que o dono acabou
+     * de corrigir; e a cobertura da reserva junto.
+     *
+     * A comissão do ciclo é a marca: ela nasce SEMPRE (inclusive no coberto e
+     * na cortesia) e na mesma transação que o pagamento. Existe = esta
+     * conclusão já foi materializada, e nada aqui é regravado. É também o
+     * critério da conferência noturna, que por isso só recria o que FALTA.
+     * Lida dentro da transação, duas entregas simultâneas não passam juntas:
+     * a segunda relê e vê a comissão da primeira. */
+    if (comissaoSnap.exists) {
+      console.info(
+        `[financeiro] ${bookingId}: ${comissaoDoCicloRef.id} já existe — ` +
+          `conclusão já materializada, nada é regravado.`
+      );
+      return;
+    }
+
+    /* A cobertura já decidida MANDA — D2.
+     *
+     * Reprocessamento não redecide: a cobertura é congelada como o percentual e
+     * a taxa. Redecidir a cada retry faria o mesmo atendimento sair coberto
+     * numa passada e cobrado na outra, conforme o estado da assinatura no
+     * instante do retry.
+     *
+     * CORTESIA NÃO PASSA PELO PLANO (28/09). Ela chega com `metodo: null`, que
+     * é exatamente a entrada do caminho do mensalista: sem este desvio, a
+     * cortesia dada a um cliente com plano viraria "coberto pelo plano" e
+     * gastaria uma vaga da cota que ele pagou — o dono deu um presente e o
+     * cliente perderia um corte. A decisão foi do dono, no balcão; ela é
+     * gravada como fato próprio, e o plano nem é consultado.
+     *
+     * A decisão do plano é tomada AQUI DENTRO (08/10): a contagem da cota e a
+     * marcação da cobertura na reserva são a mesma transação. */
+    const cobertura: Cobertura =
+      (depois.cobertura as Cobertura | undefined) ??
+      (cortesia
+        ? { tipo: "avulso", motivo: "cortesia", valorCoberto: 0 }
+        : await resolverCobertura({
+            tx,
+            db,
+            barbershopId,
+            bookingId,
+            clientId: String(depois.clientId ?? ""),
+            date,
+            valor,
+            /* D-3 · o que o dono informou entra na decisão. Método preenchido é
+             * afirmação de que houve dinheiro, e ela vence a cobertura do plano. */
+            metodoInformado: metodo,
+          }));
+
+    const coberto = cobertura.tipo === "plano";
+
+    const { commission, payment } = calcularEventoFinanceiro({
+      valor,
+      metodo,
+      formas,
+      formaId: (depois.paymentFormId ?? null) as string | null,
+      origem: (depois.paymentOrigin ?? null) as PaymentOrigin | null,
+      commissionPctDoBarbeiro: pctCongelado ?? pctDoCadastro ?? null,
+      padraoPct,
+      fees,
+      /* O atendimento coberto pelo plano ignora desconto: quem pagou por ele foi
+       * a mensalidade, e não há cobrança no balcão para descontar. Só chega
+       * aqui por escrita direta — a tela esconde o controle para mensalista e a
+       * regra exige método em todo desconto que não seja cortesia. */
+      desconto: coberto ? 0 : desconto,
+    });
+
+    const regravado = descontoDaReconclusao({
+      desconto: coberto ? 0 : desconto,
+      congelado: ciclo?.descontoDaReserva ?? null,
+    });
+    const camposDeDescontoNaReserva: Record<string, unknown> = regravado ?? {
+      discountAmount: FieldValue.delete(),
+      discountInput: FieldValue.delete(),
+      discountReason: FieldValue.delete(),
+      discountBy: FieldValue.delete(),
+      discountAt: FieldValue.delete(),
+    };
+
     /* O fato do atendimento passa a dizer como foi liquidado.
      *
      * Vai para a RESERVA, e não só para o pagamento, porque no caso coberto
@@ -984,6 +1058,17 @@ export async function materializarConclusao(params: {
      * cobre a mesma reconclusão que o caso coberto cobre. */
     if (cortesia) {
       tx.delete(pagamentoRef);
+      return;
+    }
+    /* Pagamento já existente sem a comissão do ciclo não deveria acontecer —
+     * os dois nascem juntos e a reversão apaga o pagamento. Se aparecer, ele
+     * pode ter sido corrigido ou editado depois de nascer: fica como está, e
+     * o log diz. Reprocessar nunca sobrescreve pagamento (08/10). */
+    if (pagamentoSnap.exists) {
+      console.warn(
+        `[financeiro] ${bookingId}: pagamento já existia sem ${comissaoDoCicloRef.id}; ` +
+          `mantido como estava, só a comissão foi criada.`
+      );
       return;
     }
     tx.set(pagamentoRef, {
