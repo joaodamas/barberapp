@@ -134,6 +134,21 @@ export const availableSlots = onCall<{
    * derruba a tela em produção. */
   const reservas = await shopRef.collection("bookings").where("date", "==", date).get();
 
+  /* A reserva a ignorar na remarcação (08/10: o cliente passou a mandar,
+   * como o painel já fazia). Quem é da casa ignora qualquer uma; o cliente,
+   * só a DELE — senão um id alheio faria o horário de outra pessoa aparecer
+   * livre na tela dele. Reserva de outro dia não pesa neste, então não
+   * precisa ser achada aqui. */
+  const pedidoParaIgnorar = request.data?.ignorarReservaId;
+  const ignorarReservaId =
+    pedidoParaIgnorar &&
+    (ehDaCasa ||
+      reservas.docs.some(
+        (d) => d.id === pedidoParaIgnorar && !!request.auth?.uid && d.get("clientId") === request.auth.uid
+      ))
+      ? pedidoParaIgnorar
+      : undefined;
+
   const daLoja: Jornada = shop.schedule ?? {};
 
   /** Horários de UM barbeiro: livres, encaixes, ou o dia fechado para ele. */
@@ -176,7 +191,7 @@ export const availableSlots = onCall<{
       reservas.docs
         .filter(
           (d) =>
-            d.id !== request.data?.ignorarReservaId &&
+            d.id !== ignorarReservaId &&
             d.get("staffId") === b.id &&
             OCUPAM_SLOT.includes(d.get("status"))
         )

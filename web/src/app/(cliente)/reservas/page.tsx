@@ -169,8 +169,9 @@ export default function ReservasPage() {
    * disponibilidade da loja inteira devolveria horário livre em outro barbeiro
    * e o erro voltaria pela porta de trás. */
   const idDoBarbeiro = booking?.staffId;
+  const idDaReserva = booking?.id;
   const duracaoParaSlots = booking?.durationMin || duracaoDaReserva;
-  const chaveDaConsulta = `${selectedDay?.iso ?? ""}|${idDoBarbeiro ?? ""}|${duracaoParaSlots}`;
+  const chaveDaConsulta = `${selectedDay?.iso ?? ""}|${idDoBarbeiro ?? ""}|${duracaoParaSlots}|${idDaReserva ?? ""}`;
 
   useEffect(() => {
     if (!rescheduleOpen || !selectedDay?.iso || !idDoBarbeiro) return;
@@ -179,13 +180,18 @@ export default function ReservasPage() {
       try {
         const { callFunction } = await import("@/lib/firebase");
         const r = await callFunction<
-          { barbershopId: string; date: string; staffId: string; durationMin: number },
+          { barbershopId: string; date: string; staffId: string; durationMin: number; ignorarReservaId?: string },
           { slots: string[] }
         >("availableSlots", {
           barbershopId: tenant.id,
           date: selectedDay.iso,
           staffId: idDoBarbeiro,
           durationMin: duracaoParaSlots,
+          /* A própria reserva sai da conta, como no painel
+           * (`remarcar-atendimento.tsx`): sem isto ela bloqueava a si mesma, e
+           * empurrar o horário 30 minutos no mesmo dia não aparecia como opção.
+           * O servidor só ignora reserva do próprio cliente. */
+          ignorarReservaId: idDaReserva,
         });
         if (!cancelado) setResposta({ chave: chaveDaConsulta, slots: r.slots ?? [] });
       } catch (err) {
@@ -196,7 +202,7 @@ export default function ReservasPage() {
     return () => {
       cancelado = true;
     };
-  }, [rescheduleOpen, selectedDay?.iso, idDoBarbeiro, duracaoParaSlots, tenant.id, chaveDaConsulta]);
+  }, [rescheduleOpen, selectedDay?.iso, idDoBarbeiro, duracaoParaSlots, idDaReserva, tenant.id, chaveDaConsulta]);
 
   /* Só vale a resposta desta combinação. Trocar o dia volta a lista para
    * "carregando" sem precisar limpá-la — e nunca mostra o dia anterior. */
