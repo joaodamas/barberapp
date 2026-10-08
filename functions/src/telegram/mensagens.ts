@@ -46,10 +46,58 @@ export function textoDoEncaixe(r: ReservaResumo, loja: string): string {
   ].join("\n");
 }
 
+/**
+ * O que aconteceu com o toque no botão do encaixe.
+ *
+ * Os três primeiros são a resposta DESTE toque. Os demais dizem por que o
+ * pedido já não estava aberto — antes tudo virava "já tinha sido respondido",
+ * e o barbeiro lia "respondido" num pedido que o cliente cancelou ou que
+ * venceu, sem saber se alguém da equipe tinha falado com o cliente.
+ */
+export type DesfechoDoToque =
+  | "confirmed"
+  | "cancelled_by_shop"
+  | "expired"
+  | "ja_aprovado"
+  | "ja_recusado"
+  | "cancelado_pelo_cliente"
+  | "ja_respondido";
+
+/** O status atual da reserva → por que o toque não teve efeito. Puro, para teste. */
+export function desfechoPeloStatusAtual(status: unknown): DesfechoDoToque {
+  if (status === "confirmed" || status === "confirmed_by_client" || status === "completed" || status === "no_show") {
+    return "ja_aprovado";
+  }
+  if (status === "cancelled_by_shop") return "ja_recusado";
+  if (status === "cancelled_by_client") return "cancelado_pelo_cliente";
+  if (status === "expired") return "expired";
+  return "ja_respondido";
+}
+
+/** O aviso curto que aparece no topo do Telegram depois do toque. */
+export function avisoDoToque(desfecho: DesfechoDoToque): string {
+  switch (desfecho) {
+    case "confirmed":
+      return "Encaixe aprovado.";
+    case "cancelled_by_shop":
+      return "Encaixe recusado.";
+    case "expired":
+      return "O horário já passou — o pedido expirou.";
+    case "ja_aprovado":
+      return "Esse encaixe já tinha sido aprovado.";
+    case "ja_recusado":
+      return "Esse encaixe já tinha sido recusado.";
+    case "cancelado_pelo_cliente":
+      return "O cliente desistiu desse pedido.";
+    default:
+      return "Esse pedido não está mais aberto.";
+  }
+}
+
 export function textoDoEncaixeRespondido(
   r: ReservaResumo,
   loja: string,
-  desfecho: "confirmed" | "cancelled_by_shop" | "expired" | "ja_respondido",
+  desfecho: DesfechoDoToque,
   quem: string
 ): string {
   const fim =
@@ -59,10 +107,44 @@ export function textoDoEncaixeRespondido(
         ? `✖️ <b>Recusado</b> por ${esc(quem)}.`
         : desfecho === "expired"
           ? "⌛ O horário já passou — o pedido expirou."
-          : "ℹ️ Esse pedido já tinha sido respondido (ou o cliente cancelou).";
+          : desfecho === "ja_aprovado"
+            ? "✅ Esse encaixe já tinha sido <b>aprovado</b>."
+            : desfecho === "ja_recusado"
+              ? "✖️ Esse encaixe já tinha sido <b>recusado</b>."
+              : desfecho === "cancelado_pelo_cliente"
+                ? "❌ O cliente <b>desistiu</b> do pedido antes da resposta."
+                : "ℹ️ Esse pedido não está mais aberto.";
   return [`🔔 <b>Pedido de encaixe</b> · ${esc(loja)}`, `${esc(r.clientName ?? "Cliente")} · ${esc(servicos(r))}`, linhaDoHorario(r), "", fim].join(
     "\n"
   );
+}
+
+/**
+ * A confirmação de que a conversa foi ligada.
+ *
+ * Uma conversa só serve UMA barbearia; ligar em outra desliga a anterior. Isso
+ * acontecia calado, e o barbeiro que trabalha em duas casas descobria dias
+ * depois que a primeira parou de avisar. Agora a frase diz.
+ */
+export function textoDaConexao(params: {
+  contato: { nome: string };
+  loja: string;
+  doQue: string;
+  lojaDesligada?: string | null;
+}): string {
+  const linhas = [
+    `✅ Pronto, ${esc(params.contato.nome)}! Este Telegram está ligado à <b>${esc(params.loja)}</b>.`,
+    "",
+    `Você vai receber aqui ${params.doQue}.`,
+  ];
+  if (params.lojaDesligada) {
+    linhas.push(
+      "",
+      `⚠️ Ele estava ligado à <b>${esc(params.lojaDesligada)}</b> e foi <b>desligado de lá</b> — cada Telegram recebe os avisos de uma barbearia só. Para voltar a receber de lá, peça um novo convite a ela.`
+    );
+  }
+  linhas.push("", "Para pausar, mande /parar.");
+  return linhas.join("\n");
 }
 
 export function textoDoCancelamento(r: ReservaResumo, loja: string): string {
@@ -107,14 +189,22 @@ export function textoDoFechamento(params: {
   concluidos: number;
   faltas: number;
   emAberto: number;
+  /** Soma dos pagamentos com a DATA DO ATENDIMENTO de hoje, já sem os estornos do dia. */
   recebido: number;
+  /** Estornos lançados hoje — já descontados de `recebido`. */
+  estornado?: number;
 }): string {
-  const brl = params.recebido.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  /* O rótulo diz o critério de verdade: `payments.date` é a data do
+   * ATENDIMENTO, não a hora em que o dinheiro entrou na gaveta — "recebidos
+   * no balcão" prometia uma conta que não era a feita. E o estorno do dia
+   * sai do total, como no caixa. */
   const linhas = [
     `🌙 <b>Fechamento de hoje</b> · ${diaCurto(params.data)} · ${esc(params.loja)}`,
     "",
     `✂️ ${params.concluidos} ${params.concluidos === 1 ? "atendimento concluído" : "atendimentos concluídos"}`,
-    `💰 ${brl} recebidos no balcão`,
+    `💰 ${brl(params.recebido)} pelos atendimentos de hoje` +
+      (params.estornado ? ` (já descontados ${brl(params.estornado)} de estornos)` : ""),
   ];
   if (params.faltas) linhas.push(`🚫 ${params.faltas} ${params.faltas === 1 ? "falta" : "faltas"}`);
   if (params.emAberto) {

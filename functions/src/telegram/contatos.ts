@@ -1,3 +1,4 @@
+import * as logger from "firebase-functions/logger";
 import { getFirestore, type DocumentReference } from "firebase-admin/firestore";
 import { enviar, type Botao } from "./api";
 
@@ -73,12 +74,34 @@ export async function avisar(params: {
     if (r.ok) {
       enviados++;
     } else if (r.bloqueado) {
-      await contatosRef(params.shopRef).doc(String(c.chatId)).update({ ativo: false, desligadoPor: "bloqueou o bot" });
+      await desligarPorBloqueio(params.shopRef, c.chatId);
     } else {
       console.warn(`[telegram] aviso ${params.tipo} não saiu para ${c.chatId}: ${r.erro}`);
     }
   }
   return enviados;
+}
+
+/**
+ * Desliga a conversa que bloqueou o bot. Nunca lança.
+ *
+ * Era `update`, que falha com NOT_FOUND quando o contato foi apagado no meio
+ * do envio (o dono desligou pelo painel, ou a conversa foi ligada em outra
+ * loja) — e a exceção abortava o laço, deixando os contatos seguintes sem o
+ * aviso. `set` com merge não depende de o documento existir, e um erro aqui
+ * fica no log em vez de interromper os demais.
+ */
+export async function desligarPorBloqueio(shopRef: DocumentReference, chatId: string | number): Promise<void> {
+  await contatosRef(shopRef)
+    .doc(String(chatId))
+    .set({ ativo: false, desligadoPor: "bloqueou o bot" }, { merge: true })
+    .catch((e) => {
+      logger.warn("[telegram] não consegui desligar a conversa que bloqueou o bot", {
+        barbershopId: shopRef.id,
+        chatId: String(chatId),
+        erro: e instanceof Error ? e.message : String(e),
+      });
+    });
 }
 
 export function lojaDaConversa(chatId: string | number) {

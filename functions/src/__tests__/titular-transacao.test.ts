@@ -148,8 +148,17 @@ async function semear() {
   await db.doc(`users/${UID}`).set({ name: "João da Silva", whatsapp: "5511988887777" });
 }
 
+/** Índices na raiz com `barbershopId` que o expurgo também alcança (08/10). */
+const RAIZES_COM_BARBEARIA = [
+  "telegram_chats",
+  "telegram_convites",
+  "convites_equipe",
+  "plataforma_saida",
+  "plataforma_eventos",
+];
+
 async function limparTudo() {
-  for (const raiz of ["barbershops", "users", "whatsapp_conversations", "slugs", "arquivo_fiscal", "platform_users", "whatsapp_sent", "whatsapp_numbers"]) {
+  for (const raiz of ["barbershops", "users", "whatsapp_conversations", "slugs", "arquivo_fiscal", "platform_users", "whatsapp_sent", "whatsapp_numbers", ...RAIZES_COM_BARBEARIA]) {
     const snap = await db.collection(raiz).get();
     await Promise.all(snap.docs.map((d) => db.recursiveDelete(d.ref)));
   }
@@ -344,6 +353,27 @@ describe("excluir minha conta", () => {
     expect(chamadas).toEqual([{ fn: "deleteUser", uid: UID }]);
   });
 
+  it("🔒 sem telefone verificado, o número DIGITADO não apaga conversa nem mensagem de ninguém", async () => {
+    /* O `whatsapp` de users/{uid}, o do cadastro e o `clientWhatsapp` da
+     * reserva são digitados. Se fossem de outra pessoa, excluir a própria
+     * conta apagaria a conversa dela e anonimizaria as mensagens dela. */
+    const { auth } = dubleDoAuth({});
+    await excluirContaDoCliente({ db, auth, uid: UID });
+    expect((await db.doc("whatsapp_conversations/5511988887777").get()).exists).toBe(true);
+    expect(await ler(`barbershops/${ALFA}/whatsapp_messages/m1`)).toMatchObject({ to: "5511988887777" });
+    expect(await ler(`barbershops/${ALFA}/whatsapp_messages/m2`)).toMatchObject({ de: "5511988887777" });
+    // O cadastro dele, esse sim, sai anonimizado.
+    expect(await ler(`barbershops/${ALFA}/clients/${UID}`)).toMatchObject({ name: MARCADOR_ANONIMO });
+  });
+
+  it("com o telefone provado pelo SMS (token.phone_number), as conversas dele saem", async () => {
+    const { auth } = dubleDoAuth({});
+    await excluirContaDoCliente({ db, auth, uid: UID, telefoneVerificado: "+5511988887777" });
+    expect((await db.doc("whatsapp_conversations/5511988887777").get()).exists).toBe(false);
+    expect(await ler(`barbershops/${ALFA}/whatsapp_messages/m1`)).toMatchObject({ to: "" });
+    expect(await ler(`barbershops/${ALFA}/whatsapp_messages/m2`)).toMatchObject({ de: "" });
+  });
+
   it("tudo ou nada na verificação: bloqueada numa casa, não mexe em nenhuma", async () => {
     await db.doc(`barbershops/${BETA}/bookings/bk-futuro`).set({
       clientId: UID,
@@ -372,6 +402,10 @@ describe("expurgo de uma barbearia encerrada", () => {
     await db.doc(`barbershops/${ALFA}/commissions/c1`).set({ staffName: "Pedro", uid: "barbeiro-2casas", commissionAmount: 20 });
     await db.doc(`platform_users/dono-alfa`).set({ hash: "x" });
     await db.doc(`whatsapp_numbers/pn-1`).set({ barbershopId: ALFA });
+    for (const raiz of RAIZES_COM_BARBEARIA) {
+      await db.doc(`${raiz}/da-alfa`).set({ barbershopId: ALFA });
+      await db.doc(`${raiz}/da-beta`).set({ barbershopId: BETA });
+    }
   });
 
   const usuarios = {
@@ -411,6 +445,11 @@ describe("expurgo de uma barbearia encerrada", () => {
     expect((await db.doc(`slugs/${ALFA}`).get()).exists).toBe(false);
     expect((await db.doc("whatsapp_conversations/5511988887777").get()).exists).toBe(false);
     expect((await db.doc("whatsapp_numbers/pn-1").get()).exists).toBe(false);
+    for (const raiz of RAIZES_COM_BARBEARIA) {
+      expect((await db.doc(`${raiz}/da-alfa`).get()).exists, raiz).toBe(false);
+      // O da outra barbearia fica.
+      expect((await db.doc(`${raiz}/da-beta`).get()).exists, raiz).toBe(true);
+    }
     expect(balde.apagados).toEqual([`barbershops/${ALFA}/`]);
 
     // O que a Política manda reter ficou — sem nome, sem e-mail.

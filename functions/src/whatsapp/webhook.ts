@@ -1,7 +1,11 @@
-import { onRequest } from "firebase-functions/v2/https";
+import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { motivoDeLeitura } from "../acesso";
+import { EM_ABERTO } from "../anonimizacao";
+import { aplicarRespostaDoEncaixe, desfechoDoCancelamento } from "../booking";
+import { instanteNoFuso, localeDoDocumento } from "../locale";
 import { parseButtonPayload, type ButtonAction } from "./templates";
 
 /**
@@ -31,7 +35,11 @@ function segredo(param: { value(): string }): string {
   return (param.value() ?? "").trim();
 }
 
-/** Status de reserva resultante de cada botão. */
+/**
+ * Status de reserva resultante de cada botão. Documenta a intenção; quem
+ * grava é o caminho de cada ação em `aplicarBotao`, que confere o estado
+ * atual numa transação. `null` = o botão não muda a reserva.
+ */
 const EFEITO: Record<ButtonAction, string | null> = {
   CONFIRM_BOOKING: "confirmed_by_client",
   CANCEL_BOOKING: "cancelled_by_client",
@@ -119,16 +127,22 @@ export const whatsappWebhook = onRequest(
       return;
     }
 
-    /* A Meta reenvia o evento se não receber 200 rápido. Reconhecer primeiro e
-     * processar depois evita que um erro nosso vire uma enxurrada de retries —
-     * e cada retry reprocessaria o mesmo toque de botão. */
-    res.status(200).send("EVENT_RECEIVED");
-
+    /* Processa ANTES de responder. Respondia primeiro: depois do `send` o
+     * Cloud Functions pode congelar a CPU da instância, e o toque no botão
+     * ficava pela metade — o cliente via "Cancelar" funcionar e a reserva
+     * continuava de pé. O processamento é curto (algumas leituras e uma
+     * transação), bem dentro do prazo da Meta.
+     *
+     * O erro nosso continua respondendo 200: a Meta reenvia o que recebe
+     * erro, e cada reenvio reprocessaria o mesmo toque. A repetição é segura
+     * de qualquer forma — as mudanças de status passam por transação que
+     * relê o estado e não faz nada no que já mudou. */
     try {
       await processar(req.body);
     } catch (error) {
       console.error("[whatsapp] falha ao processar evento", error);
     }
+    res.status(200).send("EVENT_RECEIVED");
   }
 );
 
@@ -268,15 +282,103 @@ async function aplicarBotao(
 
   /* Reserva já encerrada não volta atrás por toque de botão. O lembrete fica
    * no celular do cliente e ele pode tocar em "Confirmo" dias depois — sem
-   * esta guarda, isso ressuscitaria uma reserva cancelada. */
+   * esta guarda, isso ressuscitaria uma reserva cancelada. (A guarda de
+   * verdade é a transação de cada caminho abaixo, que relê o status: esta
+   * leitura é de antes e só poupa trabalho.) */
   const atual = reserva.get("status");
   if (["completed", "cancelled_by_client", "cancelled_by_shop", "expired", "removido"].includes(atual)) {
     console.info(`[whatsapp] ${action} ignorado: reserva ${bookingId} está "${atual}"`);
     return;
   }
 
-  await ref.update({
-    status: novoStatus,
-    respondidoPorWhatsappEm: FieldValue.serverTimestamp(),
+  /* Cada botão passa pela MESMA lógica do caminho do app. Era um `update`
+   * direto com o status do mapa, lido antes e gravado sem transação: o
+   * "Cancelar" de um atendimento que o dono concluía no mesmo instante
+   * apagava a receita (o caso de `cancelBooking`), o cancelamento não
+   * calculava devolução nenhuma, e "Confirmo" num pedido de encaixe o
+   * virava `confirmed_by_client` — encaixe aprovado pelo próprio cliente. */
+  try {
+    if (action === "APPROVE_FITIN" || action === "DECLINE_FITIN") {
+      if (motivoDeLeitura(shopDoc.data())) {
+        console.info(`[whatsapp] ${action} ignorado: ${barbershopId} está em modo leitura`);
+        return;
+      }
+      await aplicarRespostaDoEncaixe({
+        barbershopId,
+        bookingId,
+        aprovar: action === "APPROVE_FITIN",
+        por: `whatsapp:${de}`,
+      });
+    } else if (action === "CANCEL_BOOKING") {
+      await cancelarPeloBotao({ barbershopId, bookingId, shop: shopDoc.data() ?? {}, peloDono: ehDaLoja && !ehOCliente });
+    } else {
+      await confirmarPeloBotao(ref);
+    }
+  } catch (e) {
+    /* Status que mudou entre a leitura e a transação: não é falha, é o
+     * toque chegando tarde. Fica no log como informação. */
+    if (e instanceof HttpsError) {
+      console.info(`[whatsapp] ${action} sem efeito na reserva ${bookingId}: ${e.message}`);
+      return;
+    }
+    throw e;
+  }
+}
+
+/** O que fica no lugar do status quando o cliente confirma presença pelo botão. */
+export function confirmacaoPeloBotao(statusAtual: unknown): "confirmed_by_client" | null {
+  /* Só a reserva CONFIRMADA ganha a confirmação do cliente. Pedido de
+   * encaixe não (quem aprova é a barbearia), nem reserva esperando
+   * pagamento (confirmar presença não paga). Já confirmada pelo cliente:
+   * nada a fazer. */
+  return statusAtual === "confirmed" ? "confirmed_by_client" : null;
+}
+
+async function confirmarPeloBotao(ref: FirebaseFirestore.DocumentReference) {
+  await getFirestore().runTransaction(async (tx) => {
+    const atual = await tx.get(ref);
+    const novo = confirmacaoPeloBotao(atual.get("status"));
+    if (!novo) return;
+    tx.update(ref, { status: novo, respondidoPorWhatsappEm: FieldValue.serverTimestamp() });
+  });
+}
+
+/**
+ * O cancelamento pelo botão, com a mesma conta e a mesma guarda de
+ * `cancelBooking`: devolução pela política da barbearia
+ * (`desfechoDoCancelamento`) e transação que relê o status e recusa o que
+ * não está mais aberto.
+ */
+async function cancelarPeloBotao(p: {
+  barbershopId: string;
+  bookingId: string;
+  shop: FirebaseFirestore.DocumentData;
+  peloDono: boolean;
+}) {
+  const db = getFirestore();
+  const ref = db.doc(`barbershops/${p.barbershopId}/bookings/${p.bookingId}`);
+  const { timeZone } = localeDoDocumento(p.shop, p.barbershopId);
+  await db.runTransaction(async (tx) => {
+    const atual = await tx.get(ref);
+    const status = atual.get("status");
+    if (!(EM_ABERTO as readonly string[]).includes(status)) {
+      throw new HttpsError("failed-precondition", `reserva está "${status}"`);
+    }
+    const horas =
+      (instanteNoFuso(String(atual.get("date")), String(atual.get("time")), timeZone).getTime() - Date.now()) /
+      3_600_000;
+    const { refund, status: novo } = desfechoDoCancelamento({
+      value: Number(atual.get("value")) || 0,
+      paymentMethod: atual.get("paymentMethod"),
+      horasAteOAtendimento: horas,
+      politica: (p.shop.policies ?? {}).cancellation ?? {},
+      peloDono: p.peloDono,
+    });
+    tx.update(ref, {
+      status: novo,
+      cancelledAt: FieldValue.serverTimestamp(),
+      refundedAmount: refund,
+      respondidoPorWhatsappEm: FieldValue.serverTimestamp(),
+    });
   });
 }

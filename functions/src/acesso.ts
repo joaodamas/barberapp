@@ -1,5 +1,6 @@
 import { HttpsError } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
+import { isentoDeCobranca } from "./hub/contrato";
 
 /**
  * O modo leitura, do lado do servidor.
@@ -40,7 +41,13 @@ export function motivoDeLeitura(
   agora = new Date()
 ): MotivoDeLeitura | null {
   const status = shop?.status;
+  /* Encerrar é pedido do próprio dono e vale para a isenta também. */
   if (status === "encerrada") return "cancelada";
+  /* Isenta (`isentoDeCobranca`) não tem teste nem cobrança para vencer: uma
+   * suspensão ou um trial vencido nela só pode ser engano (dado antigo, um
+   * comando errado) — e travar a fundadora em modo leitura por engano é
+   * exatamente o que a isenção existe para impedir. */
+  if (shop && isentoDeCobranca(shop)) return null;
   if (status === "suspenso") return "suspensa";
   if (status === "trial") {
     const fim = paraData(shop?.trial?.endsAt);

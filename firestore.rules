@@ -246,7 +246,14 @@ service cloud.firestore {
                                                       * (`meusDestinos`): gravável,
                                                       * virava redirecionamento para
                                                       * qualquer site (29/09). */
-                                                     'isento', 'dominio'])
+                                                     'isento', 'dominio',
+                                                     /* `locale` decide o fuso
+                                                      * de todas as rotinas da
+                                                      * loja; um fuso inválido
+                                                      * gravado daqui derrubava
+                                                      * a agenda das 7h. Nenhuma
+                                                      * tela grava (08/10). */
+                                                     'locale'])
                         && marcaDoDonoValida(barbershopId));
 
       /* A MARCA que o dono edita em "Sua marca" (02/10).

@@ -69,6 +69,12 @@ describe("o que o expurgo alcança", () => {
     expect(caminhos).toContain("whatsapp_numbers");
   });
 
+  it("alcança os outros índices na raiz que levam o barbershopId (08/10)", () => {
+    for (const colecao of ["telegram_chats", "telegram_convites", "convites_equipe", "plataforma_saida", "plataforma_eventos"]) {
+      expect(alvos, colecao).toContainEqual({ tipo: "consulta", colecao, campo: "barbershopId", valor: "shop1" });
+    }
+  });
+
   it("cuida das contas de dono e equipe, lendo `members` da própria barbearia", () => {
     /* Este caso afirmava o alvo `grupo memberships` — uma coleção que nada
      * escreve, varrida na plataforma inteira para apagar zero documentos. Era

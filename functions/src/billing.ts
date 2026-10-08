@@ -1,5 +1,6 @@
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
+import { isentoDeCobranca } from "./hub/contrato";
 
 /**
  * Rotina diária de estado da assinatura.
@@ -42,6 +43,11 @@ export const revisarAssinaturas = onSchedule(
     for (const shop of barbearias.docs) {
       const status = shop.get("status");
       const nome = shop.get("brand.name") ?? shop.id;
+
+      /* Isenta não tem cobrança para vencer: sem esta guarda, a fundadora
+       * entraria na régua de inadimplência no dia em que o DRY_RUN fosse
+       * desligado — o mesmo erro que `transicaoDoHub` já recusa vindo do Hub. */
+      if (isentoDeCobranca(shop.data() ?? {})) continue;
 
       /* ---- Trial vencido → suspensa ---- */
       if (status === "trial") {

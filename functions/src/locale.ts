@@ -1,3 +1,5 @@
+import * as logger from "firebase-functions/logger";
+
 /**
  * Fuso, moeda e idioma de uma barbearia.
  *
@@ -27,11 +29,43 @@ export const DEFAULT_LOCALE: BarbershopLocale = {
   locale: "pt-BR",
 };
 
-/** Lê o `locale` do documento da barbearia, com o padrão da plataforma no que faltar. */
-export function localeDoDocumento(data: unknown): BarbershopLocale {
+/**
+ * O fuso é um nome IANA que o `Intl` conhece?
+ *
+ * `Intl.DateTimeFormat` LANÇA `RangeError` com fuso desconhecido. Um
+ * `locale.timeZone: "Brasil"` gravado no documento derrubava, sem aviso, cada
+ * função que decide "que dia é hoje" para aquela loja — e, nas rotinas que
+ * percorrem todas as barbearias, também as lojas que vinham depois dela.
+ */
+export function fusoValido(timeZone: unknown): timeZone is string {
+  if (typeof timeZone !== "string" || !timeZone.trim()) return false;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Lê o `locale` do documento da barbearia, com o padrão da plataforma no que
+ * faltar. `barbershopId` só serve ao log, para o fuso torto ter endereço.
+ */
+export function localeDoDocumento(data: unknown, barbershopId?: string): BarbershopLocale {
   const l = ((data as { locale?: unknown })?.locale ?? {}) as Partial<BarbershopLocale>;
+  let timeZone = l.timeZone || DEFAULT_LOCALE.timeZone;
+  /* Fuso ilegível cai no padrão e fica no log: errar o dia de uma loja é
+   * ruim, mas parar a agenda dela (e de quem vem depois na rotina) é pior. */
+  if (!fusoValido(timeZone)) {
+    logger.error("[locale] fuso inválido no documento da barbearia; usando o padrão", {
+      barbershopId: barbershopId ?? null,
+      timeZone: String(timeZone).slice(0, 80),
+      padrao: DEFAULT_LOCALE.timeZone,
+    });
+    timeZone = DEFAULT_LOCALE.timeZone;
+  }
   return {
-    timeZone: l.timeZone || DEFAULT_LOCALE.timeZone,
+    timeZone,
     currency: l.currency || DEFAULT_LOCALE.currency,
     locale: l.locale || DEFAULT_LOCALE.locale,
   };
