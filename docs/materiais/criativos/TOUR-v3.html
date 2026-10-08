@@ -1,0 +1,152 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><link rel="stylesheet" href="base.css"><style>
+html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:#0E0D0B}
+body{position:relative;font-family:Manrope;color:#F4EFE4;background:radial-gradient(ellipse at 45% 55%,#2A2017 0%,#14120E 55%,#0B0A08 100%)}
+.marca{position:absolute;left:56px;top:44px;display:flex;align-items:center;gap:12px;font:700 40px Outfit;letter-spacing:-1px}
+.marca img{width:52px;height:52px}
+#kicker{position:absolute;left:0;right:0;top:36px;text-align:center;font:800 20px Manrope;letter-spacing:.16em;text-transform:uppercase;color:#E0AE58}
+#titulo{position:absolute;left:300px;right:300px;top:66px;text-align:center;font:700 54px/1.05 Outfit;letter-spacing:-1.5px}
+.leg{position:absolute;left:120px;right:120px;top:1004px;text-align:center;font:700 38px/1.15 Outfit;letter-spacing:-.5px;opacity:0}
+.leg em{font-style:normal;color:#E0AE58}
+/* Notebook (mesmo desenho da landing): tampa com aro de alumínio fino, borda preta e câmera; base mais larga com o rebaixo. */
+#note{position:absolute;left:126px;top:132px;width:1280px;height:830px;border-radius:18px 18px 4px 4px;background:linear-gradient(180deg,#d9dade,#a9abb1);box-shadow:0 40px 90px -30px #000}
+#note::before{content:"";position:absolute;left:6px;right:6px;top:6px;bottom:4px;border-radius:14px 14px 2px 2px;background:#0A0A0B}
+#note::after{content:"";position:absolute;left:50%;top:18px;width:6px;height:6px;margin-left:-3px;border-radius:50%;background:#2B2D33}
+#base{position:absolute;left:56px;top:961px;width:1420px;height:38px;border-radius:0 0 45% 45% / 0 0 100% 100%;background:linear-gradient(180deg,#e6e7ea 0%,#c4c6cb 45%,#8f9197 100%);box-shadow:0 18px 26px -16px #000}
+#base::after{content:"";position:absolute;left:50%;top:0;width:213px;height:16px;margin-left:-106px;border-radius:0 0 40% 40%;background:linear-gradient(180deg,#9fa1a7,#c9cbd0)}
+.tela{position:absolute;overflow:hidden;background:#F4EFE4}
+#tc{left:150px;top:165px;width:1232px;height:770px;border-radius:2px}
+/* iPhone 17 Pro Max (mesmas proporções da landing): corpo 78 × 163,4 mm em titânio fino. */
+#cel{position:absolute;left:1408px;top:226px;width:329px;height:689px;transform-origin:50% 50%}
+#cel .corpo{position:absolute;inset:0;border-radius:43px;background:linear-gradient(140deg,#e9e4da 0%,#a8a298 18%,#d8d2c7 34%,#8c867c 52%,#cbc5ba 70%,#9a948a 86%,#e2ddd3 100%);box-shadow:0 40px 80px -28px #000,0 12px 24px -14px #000}
+#cel .vidro{position:absolute;left:3.5px;right:3.5px;top:3.5px;bottom:3.5px;border-radius:40px;background:#050505}
+#cel .botao{position:absolute;width:3.6px;border-radius:1px;background:linear-gradient(90deg,#cfc9be,#8c867c)}
+#cel .tela-cel{position:absolute;left:13.6px;right:13.6px;top:13.6px;bottom:13.6px;border-radius:32px;overflow:hidden;background:#fff;display:flex;flex-direction:column}
+#cel .status{height:44px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:4px 26px 0 30px;font:600 14px -apple-system,Manrope;color:#0B0A08;letter-spacing:-.2px;background:#fff}
+#cel .icones{display:flex;gap:5px;align-items:center;height:11px}
+#cel .ilha{position:absolute;left:50%;top:9px;width:88px;height:24px;margin-left:-44px;border-radius:12px;background:#000;z-index:3}
+#cel .safari{flex:1;background:#F6F6F8;position:relative;display:flex;flex-direction:column;align-items:center;padding-top:8px}
+#cel .barra{width:88%;height:31px;border-radius:999px;background:#fff;box-shadow:0 1px 3px rgba(22,20,15,.12);display:flex;align-items:center;justify-content:space-between;padding:0 12px;font:500 10.5px -apple-system,Manrope;color:#16140F}
+#cel .barra b{font-weight:600;color:#3c3c43}
+#cel .inicio{position:absolute;bottom:8px;left:50%;width:36%;height:4px;margin-left:-18%;border-radius:4px;background:rgba(11,10,8,.85)}
+#cel .reflexo{position:absolute;inset:0;pointer-events:none;background:linear-gradient(115deg,rgba(255,255,255,.10) 0%,rgba(255,255,255,0) 32%);z-index:4}
+#tp{position:relative;flex:none;width:301.7px;height:513.7px;background:#F4EFE4}
+.zoom{position:absolute;left:0;top:0;transform-origin:0 0}
+#zc{width:1232px;height:770px} #zp{width:301.7px;height:513.7px}
+video{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:fill;display:none}
+.anel{position:absolute;border-radius:50%;border:6px solid #E0AE58;opacity:0;pointer-events:none}
+.vela{position:absolute;inset:0;background:#0E0D0B;opacity:0;pointer-events:none}
+#cta{position:absolute;inset:0;background:radial-gradient(circle at 50% 42%,#2A2017,#0B0A08 70%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center;opacity:0}
+#cta .t1{font:700 150px/0.9 Outfit;letter-spacing:-6px} #cta .t1 span{color:#E0AE58}
+#cta .t2{font:700 46px Outfit;color:#E0AE58;letter-spacing:-1px} #cta .t3{font:700 30px Manrope;color:#CFC6B4}
+#cta .bt{margin-top:18px;background:#F4EFE4;color:#0E0D0B;border-radius:999px;padding:24px 52px;font:800 32px Manrope}
+</style></head><body>
+<div class="marca"><img src="../../marca/topete-mascote.svg">topete</div>
+<div id="kicker"></div><div id="titulo"></div>
+<div id="base"></div><div id="note"></div>
+<div class="tela" id="tc"><div class="zoom" id="zc"><video id="v-computador-agendar" src="file:///Users/joaodamas/Desktop/Topete/app-real/tour-demo/scripts/tour-demo/saida/computador__agendar.mp4" muted preload="auto" playsinline></video><video id="v-computador-avisos" src="file:///Users/joaodamas/Desktop/Topete/app-real/tour-demo/scripts/tour-demo/saida/computador__avisos.mp4" muted preload="auto" playsinline></video><video id="v-computador-clientes" src="file:///Users/joaodamas/Desktop/Topete/app-real/tour-demo/scripts/tour-demo/saida/computador__clientes.mp4" muted preload="auto" playsinline></video><video id="v-computador-concluir-atendimento" src="file:///Users/joaodamas/Desktop/Topete/app-real/tour-demo/scripts/tour-demo/saida/computador__concluir-atendimento.mp4" muted preload="auto" playsinline></video><video id="v-computador-dre" src="file:///Users/joaodamas/Desktop/Topete/app-real/tour-demo/scripts/tour-demo/saida/computador__dre.mp4" muted preload="auto" playsinline></video><video id="v-computador-encaixe" src="file:///Users/joaodamas/Desktop/Topete/app-real/tour-demo/scripts/tour-demo/saida/computador__encaixe.mp4" muted preload="auto" playsinline></video><video id="v-computador-equipe" src="file:///Users/joaodamas/Desktop/Topete/app-real/tour-demo/scripts/tour-demo/saida/computador__equipe.mp4" muted preload="auto" playsinline></video><video id="v-computador-hoje" src="file:///Users/joaodamas/Desktop/Topete/app-real/tour-demo/scripts/tour-demo/saida/computador__hoje.mp4" muted preload="auto" playsinline></video><video id="v-computador-horarios" src="file:///Users/joaodamas/Desktop/Topete/app-real/tour-demo/scripts/tour-demo/saida/computador__horarios.mp4" muted preload="auto" playsinline></video><video id="v-computador-loja" src="file:///Users/joaodamas/Desktop/Topete/app-real/tour-demo/scripts/tour-demo/saida/computador__loja.mp4" muted preload="auto" playsinline></video><video id="v-computador-mensalistas" src="file:///Users/joaodamas/Desktop/Topete/app-real/tour-demo/scripts/tour-demo/saida/computador__mensalistas.mp4" muted preload="auto" playsinline></video><video id="v-computador-meu-link" src="file:///Users/joaodamas/Desktop/Topete/app-real/tour-demo/scripts/tour-demo/saida/computador__meu-link.mp4" muted preload="auto" playsinline></video><video id="v-computador-projecao" src="file:///Users/joaodamas/Desktop/Topete/app-real/tour-demo/scripts/tour-demo/saida/computador__projecao.mp4" muted preload="auto" playsinline></video><video id="v-computador-servicos" src="file:///Users/joaodamas/Desktop/Topete/app-real/tour-demo/scripts/tour-demo/saida/computador__servicos.mp4" muted preload="auto" playsinline></video><video id="v-computador-vitrine" src="file:///Users/joaodamas/Desktop/Topete/app-real/tour-demo/scripts/tour-demo/saida/computador__vitrine.mp4" muted preload="auto" playsinline></video><div id="anel-c" class="anel"></div></div><div class="vela" id="vela-c"></div></div>
+<div id="cel"><span class="botao" style="left:-1.2px;top:17.4%;height:2.9%"></span><span class="botao" style="left:-1.2px;top:23.2%;height:5.6%"></span><span class="botao" style="left:-1.2px;top:30.0%;height:5.6%"></span><span class="botao" style="right:-1.2px;top:25.5%;height:8.8%"></span><span class="botao" style="right:-1.2px;top:47.5%;height:5.4%;background:linear-gradient(90deg,#6f6a62,#3a3732)"></span><div class="corpo"><div class="vidro"><div class="tela-cel">
+<div class="status"><span>9:41</span><span class="icones"><svg viewBox="0 0 18 12" height="11" fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12" height="11" fill="currentColor"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.3-1.4A10.9 10.9 0 0 0 8 .2 10.9 10.9 0 0 0 .4 3.3l1.3 1.4A9 9 0 0 1 8 2.2Zm0 3.6c1.4 0 2.8.5 3.8 1.5l1.3-1.4A7.4 7.4 0 0 0 8 3.8 7.4 7.4 0 0 0 2.9 5.9l1.3 1.4c1-1 2.4-1.5 3.8-1.5Zm0 3.5c.5 0 1 .2 1.4.6L8 11.9 6.6 9.9c.4-.4.9-.6 1.4-.6Z"/></svg><svg viewBox="0 0 27 12" height="11"><rect x="0.5" y="0.5" width="22" height="11" rx="3.2" fill="none" stroke="currentColor" opacity=".4"/><rect x="2" y="2" width="17" height="8" rx="2" fill="currentColor"/><path d="M24.5 4v4a2.2 2.2 0 0 0 0-4Z" fill="currentColor" opacity=".45"/></svg></span></div>
+<div id="tp"><div class="zoom" id="zp"><video id="v-celular-agendar" src="file:///Users/joaodamas/Desktop/Topete/app-real/tour-demo/scripts/tour-demo/saida/celular__agendar.mp4" muted preload="auto" playsinline></video><video id="v-celular-avisos" src="file:///Users/joaodamas/Desktop/Topete/app-real/tour-demo/scripts/tour-demo/saida/celular__avisos.mp4" muted preload="auto" playsinline></video><video id="v-celular-clientes" src="file:///Users/joaodamas/Desktop/Topete/app-real/tour-demo/scripts/tour-demo/saida/celular__clientes.mp4" muted preload="auto" playsinline></video><video id="v-celular-concluir-atendimento" src="file:///Users/joaodamas/Desktop/Topete/app-real/tour-demo/scripts/tour-demo/saida/celular__concluir-atendimento.mp4" muted preload="auto" playsinline></video><video id="v-celular-dre" src="file:///Users/joaodamas/Desktop/Topete/app-real/tour-demo/scripts/tour-demo/saida/celular__dre.mp4" muted preload="auto" playsinline></video><video id="v-celular-encaixe" src="file:///Users/joaodamas/Desktop/Topete/app-real/tour-demo/scripts/tour-demo/saida/celular__encaixe.mp4" muted preload="auto" playsinline></video><video id="v-celular-equipe" src="file:///Users/joaodamas/Desktop/Topete/app-real/tour-demo/scripts/tour-demo/saida/celular__equipe.mp4" muted preload="auto" playsinline></video><video id="v-celular-hoje" src="file:///Users/joaodamas/Desktop/Topete/app-real/tour-demo/scripts/tour-demo/saida/celular__hoje.mp4" muted preload="auto" playsinline></video><video id="v-celular-horarios" src="file:///Users/joaodamas/Desktop/Topete/app-real/tour-demo/scripts/tour-demo/saida/celular__horarios.mp4" muted preload="auto" playsinline></video><video id="v-celular-loja" src="file:///Users/joaodamas/Desktop/Topete/app-real/tour-demo/scripts/tour-demo/saida/celular__loja.mp4" muted preload="auto" playsinline></video><video id="v-celular-mensalistas" src="file:///Users/joaodamas/Desktop/Topete/app-real/tour-demo/scripts/tour-demo/saida/celular__mensalistas.mp4" muted preload="auto" playsinline></video><video id="v-celular-meu-link" src="file:///Users/joaodamas/Desktop/Topete/app-real/tour-demo/scripts/tour-demo/saida/celular__meu-link.mp4" muted preload="auto" playsinline></video><video id="v-celular-projecao" src="file:///Users/joaodamas/Desktop/Topete/app-real/tour-demo/scripts/tour-demo/saida/celular__projecao.mp4" muted preload="auto" playsinline></video><video id="v-celular-servicos" src="file:///Users/joaodamas/Desktop/Topete/app-real/tour-demo/scripts/tour-demo/saida/celular__servicos.mp4" muted preload="auto" playsinline></video><video id="v-celular-vitrine" src="file:///Users/joaodamas/Desktop/Topete/app-real/tour-demo/scripts/tour-demo/saida/celular__vitrine.mp4" muted preload="auto" playsinline></video><div id="anel-p" class="anel"></div></div><div class="vela" id="vela-p"></div></div>
+<div class="safari"><div class="barra"><b>aA</b><span style="display:flex;align-items:center"><svg viewBox="0 0 10 12" height="9" fill="currentColor" opacity=".55" style="margin-right:4px"><path d="M5 0a3 3 0 0 1 3 3v2h.6c.8 0 1.4.6 1.4 1.4v4.2c0 .8-.6 1.4-1.4 1.4H1.4C.6 12 0 11.4 0 10.6V6.4C0 5.6.6 5 1.4 5H2V3a3 3 0 0 1 3-3Zm0 1.4A1.6 1.6 0 0 0 3.4 3v2h3.2V3A1.6 1.6 0 0 0 5 1.4Z"/></svg>navalha.topete.com.br</span><svg viewBox="0 0 12 12" height="10" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M10.2 6.2A4.3 4.3 0 1 1 8.9 3"/><path d="M9.4 0.9v2.6H6.8"/></svg></div><span class="inicio"></span></div>
+<span class="ilha"></span><span class="reflexo"></span></div></div></div></div>
+<div class="leg" id="leg1">O cliente abre o link da barbearia, escolhe o serviço, o barbeiro e o horário. <em>Sozinho.</em></div><div class="leg" id="leg2">Você abre o Topete e vê <em>o seu dia inteiro.</em></div><div class="leg" id="leg3">Horário cheio? Chega o pedido de encaixe. <em>Um toque, e está aprovado.</em></div><div class="leg" id="leg4">Terminou o corte? Adiciona o que ele fez a mais, escolhe como pagou, e <em>já entra no caixa.</em></div><div class="leg" id="leg5">Mensalistas com horário fixo, e <em>quem já pagou o mês.</em></div><div class="leg" id="leg6">No financeiro, <em>o resultado do mês</em> e a projeção do caixa.</div><div class="leg" id="leg7">Seus clientes, com as visitas e <em>há quantos dias não aparecem.</em></div><div class="leg" id="leg8">E os avisos <em>chegam no seu celular.</em></div><div class="leg" id="leg9">Serviços, combos, equipe, horários, loja e o seu link. <em>Tudo num lugar só.</em></div>
+<div id="cta"><svg viewBox="0 0 512 512" style="width:260px;height:260px;overflow:visible"><defs>
+<linearGradient id="l1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFE9B3"/><stop offset="1" stop-color="#E4B25C"/></linearGradient>
+<linearGradient id="l2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#E9BB68"/><stop offset="1" stop-color="#B98534"/></linearGradient>
+<linearGradient id="l3" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B98534"/><stop offset="1" stop-color="#7E5820"/></linearGradient>
+<linearGradient id="fade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9C7128"/><stop offset=".5" stop-color="#B98A45"/><stop offset="1" stop-color="#F3E9D6"/></linearGradient>
+<linearGradient id="barba" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9C7128"/><stop offset="1" stop-color="#6E4D1B"/></linearGradient>
+<linearGradient id="fundo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1B1915"/><stop offset="1" stop-color="#0B0A08"/></linearGradient>
+<clipPath id="rostoClip"><path d="M150,230 C150,352 196,432 256,434 C316,432 362,352 362,236 Z"/></clipPath></defs><g transform="translate(0,6)">
+<!-- orelhas -->
+<ellipse cx="148" cy="300" rx="20" ry="30" fill="#E2D3B8"/><ellipse cx="364" cy="300" rx="20" ry="30" fill="#E2D3B8"/>
+<!-- rosto -->
+<path d="M150,236 C150,200 196,180 256,180 C316,180 362,200 362,236 C362,352 316,432 256,434 C196,432 150,352 150,236 Z" fill="#F3E9D6"/>
+<!-- base do cabelo: linha do cabelo arredondada e costeletas em degradê -->
+<path d="M144,290 C136,184 196,126 262,124 C330,124 376,180 368,290 C362,262 350,244 330,236 C306,226 280,224 256,224 C232,224 206,226 182,236 C162,244 150,262 144,290 Z" fill="url(#l3)"/>
+<g clip-path="url(#rostoClip)"><path d="M146,262 C146,300 150,326 158,346 C166,344 170,340 172,334 C168,306 168,282 174,256 C164,254 154,256 146,262 Z" fill="url(#fade)"/>
+<path d="M366,262 C366,300 362,326 354,346 C346,344 342,340 340,334 C344,306 344,282 338,256 C348,254 358,256 366,262 Z" fill="url(#fade)"/></g>
+<!-- barba aparada -->
+<path d="M152,320 C160,400 204,440 256,442 C308,440 352,400 360,320 C348,356 324,372 300,370 C288,356 272,352 256,356 C240,352 224,356 212,370 C188,372 164,356 152,320 Z" fill="url(#barba)"/>
+<path d="M234,392 C246,398 266,398 278,392" fill="none" stroke="#F3E9D6" stroke-width="8" stroke-linecap="round"/>
+<!-- sobrancelhas e olhos -->
+<path d="M196,282 C208,272 224,270 236,274" fill="none" stroke="#6E4D1B" stroke-width="10" stroke-linecap="round"/>
+<path d="M276,274 C288,270 304,272 316,282" fill="none" stroke="#6E4D1B" stroke-width="10" stroke-linecap="round"/>
+<circle cx="218" cy="306" r="8" fill="#0E0D0B"/><circle cx="294" cy="306" r="8" fill="#0E0D0B"/>
+<path d="M256,312 C252,328 250,338 260,342" fill="none" stroke="#E2D3B8" stroke-width="7" stroke-linecap="round"/>
+<g id="cta-topete" style="transform-origin:256px 226px"><!-- TOPETE: três camadas, de trás para a frente -->
+<path d="M150,232 C136,168 180,112 246,104 C296,98 334,118 346,150 C318,136 280,138 254,156 C224,176 206,200 206,222 C186,220 164,224 150,232 Z" fill="url(#l3)"/>
+<path d="M180,226 C172,162 222,96 294,88 C352,82 398,112 402,160 C404,190 384,208 360,206 C372,190 370,170 354,156 C334,138 298,138 272,156 C246,174 236,200 238,222 C216,218 196,220 180,226 Z" fill="url(#l2)"/>
+<path d="M230,224 C230,168 270,114 330,110 C384,106 422,146 414,192 C408,224 380,238 354,230 C374,218 382,196 370,178 C356,158 326,158 306,176 C288,194 284,208 288,224 C270,220 250,220 230,224 Z" fill="url(#l1)"/>
+<path d="M246,196 C258,156 288,132 326,128" fill="none" stroke="#FFF6DA" stroke-width="8" stroke-linecap="round" opacity=".7"/></g></g></svg><p class="t1">topete<span>.</span></p><p class="t2">Sistema para barbearias</p>
+<p class="t3">Agenda online · encaixe · caixa · mensalistas · financeiro</p><span class="bt">Fale com a gente</span></div>
+<script>
+const CENAS = [{"kicker": "Topete", "titulo": "A sua barbearia, no celular e no computador", "dur": 4.2, "c": [["vitrine", 0, 99, 1.0, 1.0]], "p": [["vitrine", 0, 99, 1.0, 1.0]], "zc": [], "zp": [], "tq": []}, {"kicker": "1 · Agendamento", "titulo": "O cliente marca sozinho, pelo link", "dur": 7.4, "foco": "celular", "c": [["agendar", 0, 0.25, 0.6, 0.6], ["agendar", 0.25, 7.1, 0.6, 21.6], ["agendar", 7.1, 99, 21.6, 21.6]], "p": [["agendar", 0, 0.25, 0.6, 0.6], ["agendar", 0.25, 7.1, 0.6, 21.6], ["agendar", 7.1, 99, 21.6, 21.6]], "toques": "agendar", "zc": [], "zp": [], "tq": [["computador", 0.456, {"x": 320, "y": 356, "w": 336, "h": 78}], ["computador", 0.915, {"x": 668, "y": 176, "w": 336, "h": 78}], ["computador", 1.672, {"x": 1061, "y": 326, "w": 290, "h": 44}], ["computador", 2.328, {"x": 448, "y": 264, "w": 56, "h": 78}], ["computador", 2.882, {"x": 320, "y": 200, "w": 77, "h": 44}], ["computador", 3.998, {"x": 494, "y": 410, "w": 162, "h": 49}], ["computador", 5.534, {"x": 320, "y": 459, "w": 684, "h": 48}], ["computador", 6.405, {"x": 1061, "y": 509, "w": 290, "h": 44}], ["celular", 0.472, {"x": 16, "y": 464, "w": 358, "h": 70}], ["celular", 0.932, {"x": 16, "y": 218, "w": 358, "h": 70}], ["celular", 1.685, {"x": 16, "y": 556, "w": 358, "h": 44}], ["celular", 2.344, {"x": 144, "y": 224, "w": 56, "h": 78}], ["celular", 2.902, {"x": 16, "y": 160, "w": 77, "h": 44}], ["celular", 4.024, {"x": 138, "y": 386, "w": 114, "h": 49}], ["celular", 5.56, {"x": 16, "y": 399, "w": 358, "h": 48}], ["celular", 6.438, {"x": 16, "y": 520, "w": 358, "h": 44}]]}, {"kicker": "2 · Hoje", "titulo": "O dia do barbeiro, numa tela", "dur": 3.8, "c": [["hoje", 0, 99, 1.0, 1.0]], "p": [["hoje", 0, 99, 1.0, 1.0]], "zc": [[0.4, 99, [320, 110, 1070, 470]]], "zp": [], "tq": []}, {"kicker": "3 · Encaixe", "titulo": "Encaixe com aprovação num toque", "dur": 5.1, "c": [["encaixe", 0, 0.2, 1.2, 1.2], ["encaixe", 0.2, 4.9, 1.2, 5.9], ["encaixe", 4.9, 99, 5.9, 5.9]], "p": [["encaixe", 0, 0.2, 1.2, 1.2], ["encaixe", 0.2, 4.9, 1.2, 5.9], ["encaixe", 4.9, 99, 5.9, 5.9]], "zc": [[0.3, 99, [300, 400, 620, 200]]], "toques": "encaixe", "zp": [], "tq": [["computador", 1.97, {"x": 337, "y": 515, "w": 239, "h": 44}], ["celular", 1.97, {"x": 33, "y": 612, "w": 157, "h": 44}]]}, {"kicker": "4 · Fechamento", "titulo": "Concluiu, cobrou, entrou no caixa", "dur": 6.8, "c": [["concluir-atendimento", 0, 0.2, 1.3, 1.3], ["concluir-atendimento", 0.2, 6.5, 1.3, 12.9], ["concluir-atendimento", 6.5, 99, 12.9, 12.9]], "p": [["concluir-atendimento", 0, 0.2, 1.3, 1.3], ["concluir-atendimento", 0.2, 6.5, 1.3, 12.9], ["concluir-atendimento", 6.5, 99, 12.9, 12.9]], "zc": [[0.7702586206896551, 5.631034482758621, [440, 230, 560, 440]]], "toques": "concluir-atendimento", "zp": [], "tq": [["computador", 0.45, {"x": 1053, "y": 432, "w": 93, "h": 36}], ["computador", 1.444, {"x": 489, "y": 367, "w": 132, "h": 20}], ["computador", 2.372, {"x": 502, "y": 299, "w": 150, "h": 36}], ["computador", 3.632, {"x": 502, "y": 457, "w": 161, "h": 36}], ["computador", 5.273, {"x": 489, "y": 442, "w": 225, "h": 64}], ["celular", 0.461, {"x": 33, "y": 314, "w": 93, "h": 36}], ["celular", 1.476, {"x": 17, "y": 384, "w": 132, "h": 20}], ["celular", 2.41, {"x": 30, "y": 234, "w": 150, "h": 36}], ["celular", 3.67, {"x": 30, "y": 440, "w": 161, "h": 36}], ["celular", 5.305, {"x": 17, "y": 459, "w": 172, "h": 64}]]}, {"kicker": "5 · Mensalistas", "titulo": "Horário fixo e mensalidade em dia", "dur": 4.4, "c": [["mensalistas", 0, 99, 1.0, 1.0]], "p": [["mensalistas", 0, 99, 1.0, 1.0]], "zc": [[0.4, 99, [320, 150, 1070, 600]]], "zp": [], "tq": []}, {"kicker": "6 · Financeiro", "titulo": "Quanto sobrou, e quanto vai sobrar", "dur": 5.4, "c": [["dre", 0, 2.7, 0.8, 0.8], ["projecao", 2.7, 99, 0.8, 0.8]], "p": [["dre", 0, 2.7, 0.8, 0.8], ["projecao", 2.7, 99, 0.8, 0.8]], "zc": [[0.4, 2.6, [320, 200, 1070, 160]], [3.0, 99, [320, 380, 1070, 420]]], "zp": [], "tq": []}, {"kicker": "7 · Clientes", "titulo": "Quem vem, quanto vem, quando sumiu", "dur": 4.3, "c": [["clientes", 0, 99, 6.0, 6.0]], "p": [["clientes", 0, 99, 6.0, 6.0]], "zc": [[0.4, 99, [300, 330, 1110, 430]]], "zp": [], "tq": []}, {"kicker": "8 · Avisos", "titulo": "Avisos no celular e no Telegram", "dur": 3.4, "c": [["avisos", 0, 99, 1.0, 1.0]], "p": [["avisos", 0, 99, 1.0, 1.0]], "zc": [[0.4, 99, [280, 150, 920, 330]]], "zp": [], "tq": []}, {"kicker": "E mais", "titulo": "Serviços, combos, equipe, horários, loja e link", "dur": 5.8, "c": [["servicos", 0.0, 1.16, 1.0, 1.0], ["equipe", 1.16, 2.32, 1.0, 1.0], ["horarios", 2.32, 3.4799999999999995, 1.0, 1.0], ["loja", 3.4799999999999995, 4.64, 1.0, 1.0], ["meu-link", 4.64, 99, 1.0, 1.0]], "p": [["servicos", 0.0, 1.16, 1.0, 1.0], ["equipe", 1.16, 2.32, 1.0, 1.0], ["horarios", 2.32, 3.4799999999999995, 1.0, 1.0], ["loja", 3.4799999999999995, 4.64, 1.0, 1.0], ["meu-link", 4.64, 99, 1.0, 1.0]], "zc": [], "zp": [], "tq": []}, {"kicker": "", "titulo": "", "dur": 4.8, "cta": true, "c": [["meu-link", 0, 99, 1.0, 1.0]], "p": [["meu-link", 0, 99, 1.0, 1.0]], "zc": [], "zp": [], "tq": []}], INICIO = [0.0, 4.2, 11.600000000000001, 15.400000000000002, 20.5, 27.3, 31.700000000000003, 37.1, 41.4, 44.8, 50.599999999999994], D = 55.4;
+const EVENTOS = [{"t": 4.08, "som": "whoosh", "v": 0.32}, {"t": 4.672, "som": "tap", "v": 0.45}, {"t": 5.132, "som": "tap", "v": 0.45}, {"t": 5.885, "som": "tap", "v": 0.45}, {"t": 6.544, "som": "tap", "v": 0.45}, {"t": 7.102, "som": "tap", "v": 0.45}, {"t": 8.224, "som": "tap", "v": 0.45}, {"t": 9.76, "som": "tap", "v": 0.45}, {"t": 10.638, "som": "tap", "v": 0.45}, {"t": 11.48, "som": "whoosh", "v": 0.32}, {"t": 15.28, "som": "whoosh", "v": 0.32}, {"t": 17.37, "som": "tap", "v": 0.45}, {"t": 17.8, "som": "ding", "v": 0.35}, {"t": 20.38, "som": "whoosh", "v": 0.32}, {"t": 20.961, "som": "tap", "v": 0.45}, {"t": 21.976, "som": "tap", "v": 0.45}, {"t": 22.91, "som": "tap", "v": 0.45}, {"t": 24.17, "som": "tap", "v": 0.45}, {"t": 25.805, "som": "tap", "v": 0.45}, {"t": 26.1, "som": "ding", "v": 0.3}, {"t": 27.18, "som": "whoosh", "v": 0.32}, {"t": 31.58, "som": "whoosh", "v": 0.32}, {"t": 36.98, "som": "whoosh", "v": 0.32}, {"t": 41.28, "som": "whoosh", "v": 0.32}, {"t": 42.0, "som": "notif", "v": 0.35}, {"t": 44.68, "som": "whoosh", "v": 0.32}, {"t": 50.48, "som": "whoosh", "v": 0.32}, {"t": 51.5, "som": "boing", "v": 0.5}, {"t": 52.1, "som": "brilho", "v": 0.4}], FALAS = [[0.35, "fala0.wav", 3.02], [4.55, "fala1.wav", 4.97], [11.95, "fala2.wav", 2.46], [15.75, "fala3.wav", 3.95], [20.85, "fala4.wav", 4.41], [27.65, "fala5.wav", 3.2], [32.05, "fala6.wav", 3.11], [37.45, "fala7.wav", 3.11], [41.75, "fala8.wav", 1.95], [45.15, "fala9.wav", 4.32], [50.95, "fala10.wav", 3.04]];
+const cl = (x) => Math.max(0, Math.min(1, x)), E = (x) => 1 - Math.pow(1 - cl(x), 3), EIO = (x) => { x = cl(x); return x < .5 ? 4*x*x*x : 1 - Math.pow(-2*x+2, 3)/2; };
+const $ = (id) => document.getElementById(id);
+const VP = { computador: [1440, 900, 1232, 770], celular: [390, 664, 301.7, 513.7] };
+function mapa(tr, ts) { for (const [m, a, b, v0, v1] of tr) if (ts >= a && ts < b) return [m, v0 === v1 ? v0 : v0 + (ts - a) / (b - a) * (v1 - v0)]; const u = tr[tr.length - 1]; return [u[0], u[4]]; }
+function zoomDe(zs, ts, ap) {
+  const [vw, vh, sw, sh] = VP[ap], k = sw / vw;
+  for (const [a, b, [x, y, w, h]] of zs) {
+    if (ts < a - 0.01 || ts > (b ?? 99)) continue;
+    const zi = E((ts - a) / 0.7) * (1 - E((ts - (b ?? 99) + 0.6) / 0.6));
+    const zf = Math.max(1, Math.min(2.3, sw / (w * k * 1.08), sh / (h * k * 1.08)));
+    const z = 1 + (zf - 1) * EIO(zi);
+    const cx = (x + w / 2) * k, cy = (y + h / 2) * k;
+    let tx = sw / 2 - z * cx, ty = sh / 2 - z * cy;
+    tx = Math.min(0, Math.max(sw - z * sw, tx)); ty = Math.min(0, Math.max(sh - z * sh, ty));
+    return [z, tx, ty];
+  }
+  return [1, 0, 0];
+}
+const espera = (v, tempo) => new Promise((ok) => {
+  if (Math.abs(v.currentTime - tempo) < 0.004 && v.readyState >= 2) return ok();
+  let feito = false; const fim = () => { if (!feito) { feito = true; ok(); } };
+  v.addEventListener('seeked', () => { if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(() => fim()); setTimeout(fim, 120); }, { once: true });
+  setTimeout(fim, 1500); v.currentTime = tempo;
+});
+let ultimo = {};
+async function render(t) {
+  let k = 0; while (k < CENAS.length - 1 && t >= INICIO[k + 1]) k++;
+  const c = CENAS[k], ts = t - INICIO[k];
+  $('kicker').textContent = c.kicker; $('titulo').textContent = c.titulo;
+  const kt = k === 0 ? 1 : E(ts / 0.4); $('titulo').style.opacity = $('kicker').style.opacity = c.cta ? 0 : kt;
+  $('titulo').style.transform = `translateY(${(1 - kt) * 16}px)`;
+  const promessas = [];
+  for (const [ap, ch, zid, zs] of [['computador', 'c', 'zc', c.zc], ['celular', 'p', 'zp', c.zp]]) {
+    const [m, vt] = mapa(c[ch], ts), id = `v-${ap}-${m}`;
+    if (ultimo[ap] !== id) { if (ultimo[ap]) $(ultimo[ap]).style.display = 'none'; $(id).style.display = 'block'; ultimo[ap] = id; }
+    promessas.push(espera($(id), vt));
+    const [z, tx, ty] = zoomDe(zs || [], ts, ap);
+    $(zid).style.transform = `translate(${tx}px,${ty}px) scale(${z})`;
+    // anel de toque
+    const [vw, vh, sw, sh] = VP[ap], kk = sw / vw, anel = $(ap === 'computador' ? 'anel-c' : 'anel-p');
+    let a = 0; for (const [ap2, tq, cx] of (c.tq || [])) { const d = ts - tq; if (ap2 === ap && d > -0.05 && d < 0.6) {
+      a = 1 - cl(d / 0.6); const r = (ap === 'celular' ? 34 : 30) * (1 + 0.6 * cl(d / 0.6));
+      anel.style.left = ((cx.x + cx.w / 2) * kk - r) + 'px'; anel.style.top = ((cx.y + cx.h / 2) * kk - r) + 'px';
+      anel.style.width = anel.style.height = 2 * r + 'px'; } }
+    anel.style.opacity = a;
+  }
+  // véu entre cenas (sai do escuro no começo, entra no fim)
+  const vela = Math.max(1 - E(ts / 0.3), k < CENAS.length - 1 ? E((ts - c.dur + 0.25) / 0.25) : 0);
+  $('vela-c').style.opacity = $('vela-p').style.opacity = k === 0 ? Math.max(0, E((ts - c.dur + 0.25) / 0.25)) : vela;
+  // celular em destaque no agendamento
+  const foco = c.foco === 'celular' ? EIO(ts / 0.6) * (1 - EIO((ts - c.dur + 0.6) / 0.6)) : 0;
+  $('cel').style.transform = `translate(${-150 * foco}px, ${-12 * foco}px) scale(${1 + 0.17 * foco})`;
+  $('tc').style.filter = $('note').style.filter = `brightness(${1 - 0.35 * foco})`;
+  // legendas
+  FALAS.forEach(([a, f, d], i) => { const l = $('leg' + i); if (!l) return; const kk2 = E((t - a + 0.15) / 0.25) * (1 - E((t - a - d - 0.35) / 0.25)); l.style.opacity = kk2; });
+  // final
+  if (c.cta) {
+    const kc = E(ts / 0.5); $('cta').style.opacity = kc;
+    const mx = ts - 0.9, mola = mx <= 0 ? 0 : Math.exp(-3.2 * mx);
+    $('cta-topete').style.transform = `rotate(${7 * mola * Math.sin(11 * mx)}deg) scaleY(${1 + 0.22 * mola * Math.sin(9 * mx + 1.2)})`;
+  } else $('cta').style.opacity = 0;
+  await Promise.all(promessas);
+}
+window.render = render; window.DURACAO = D; window.EVENTOS = EVENTOS;
+window.PRONTO = Promise.all([...document.querySelectorAll('video')].map((v) => v.readyState >= 2 ? 1 : new Promise((ok) => { v.addEventListener('loadeddata', ok, { once: true }); setTimeout(ok, 20000); })));
+if (!navigator.webdriver) { const t0 = performance.now(); const loop = async () => { await render(((performance.now() - t0) / 1000) % D); requestAnimationFrame(loop); }; requestAnimationFrame(loop); }
+</script></body></html>

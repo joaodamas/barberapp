@@ -2,7 +2,7 @@
 import pathlib
 AQUI = pathlib.Path(__file__).parent
 M = "../../marca/topete-mascote.svg"
-MARCA = f'<div class="marca"><img src="../../marca/topete-icone-app.svg" alt="">topete</div>'
+MARCA = f'<div class="marca"><img src="../../marca/topete-mascote.svg" alt="">topete</div>'
 def pagina(nome, w, h, corpo):
     (AQUI/f"{nome}.html").write_text(f'''<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><link rel="stylesheet" href="base.css"></head>
 <body style="width:{w}px;height:{h}px">{corpo}<div class="poste"></div></body></html>''')
@@ -36,7 +36,7 @@ pagina("03-encaixe", 1080, 1350, f'''<div class="peca"><div class="topo">{MARCA}
 pagina("04-mensalistas", 1080, 1350, f'''<div class="glow" style="width:800px;height:800px;left:-200px;top:260px"></div>
 <div class="peca"><div class="topo">{MARCA}<span class="tag">Mensalistas</span></div>
 <div><p style="font-family:Outfit;font-size:300px;line-height:.85;letter-spacing:-12px"><em style="font-style:normal;background:linear-gradient(135deg,#FFE3A3,#E0AE58 45%,#A8752A);-webkit-background-clip:text;color:transparent">40</em></p>
-<h1 style="font-size:84px;margin-top:10px">mensalistas =<br>R$ 5.960 garantidos <em>todo mês.</em></h1></div>
+<h1 style="font-size:84px;margin-top:10px">mensalistas =<br>R$ 5.960 previstos <em>todo mês.</em></h1></div>
 <div><p class="sub">Crie seu clube de assinatura, veja quem pagou e quem está em aberto, e deixe o mensalista marcar primeiro.</p>
 <p style="margin-top:22px;font-size:20px;color:#6E675B">Exemplo com plano de R$ 149/mês.</p></div></div>''')
 

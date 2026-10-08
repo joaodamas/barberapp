@@ -1,0 +1,126 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><link rel="stylesheet" href="base.css"><style>
+body{width:1080px;height:1920px;background:#0E0D0B;overflow:hidden;position:relative;font-family:Manrope;color:#F4EFE4}
+.fundo{position:absolute;inset:0;background:radial-gradient(circle at 50% 38%,#2A2017 0,#0E0D0B 62%)}
+.grade{position:absolute;inset:0;opacity:.07;background-image:linear-gradient(#E0AE58 1px,transparent 1px),linear-gradient(90deg,#E0AE58 1px,transparent 1px);background-size:90px 90px}
+.ov{position:absolute;will-change:transform,opacity}
+.logo{left:0;right:0;top:60px;display:flex;justify-content:center;align-items:center;gap:14px;font:700 46px Outfit;letter-spacing:-1.2px}
+.logo img{width:60px;height:60px}
+.pill{left:50%;top:150px;transform:translateX(-50%);border-radius:999px;padding:16px 32px;font:800 28px/1 Manrope;letter-spacing:.16em;text-transform:uppercase;white-space:nowrap;background:linear-gradient(135deg,#FFE3A3,#E0AE58 50%,#A8752A);color:#0E0D0B}
+#gancho{left:70px;right:70px;text-align:center;font:700 128px/0.98 Outfit;letter-spacing:-4px;transform-origin:50% 0}
+#gancho em{font-style:normal;color:#E0AE58}
+.linha{left:0;right:0;display:flex;justify-content:center;align-items:center;gap:26px}
+.num{font:700 120px/1 Outfit;letter-spacing:-4px;white-space:nowrap}
+.num small{font:700 42px Manrope;letter-spacing:0;color:#CFC6B4;margin-left:10px}
+.op{font:700 110px/1 Outfit;color:#E0AE58;width:90px;text-align:center}
+.rot{left:0;right:0;text-align:center;font:700 36px Manrope;color:#9C927E}
+.res{font:700 170px/1 Outfit;letter-spacing:-6px;color:#E0AE58;white-space:nowrap;text-shadow:0 20px 60px #E0AE5833}
+.res small{font:700 48px Manrope;letter-spacing:0;color:#CFC6B4;margin-left:12px}
+.selo{border:5px solid #E0AE58;color:#E0AE58;border-radius:16px;padding:12px 22px;font:800 26px Manrope;letter-spacing:.14em;text-transform:uppercase;transform:rotate(-8deg)}
+.cartao{background:#F4EFE4;color:#16140F;border-radius:34px;box-shadow:0 40px 90px -30px #000c;overflow:hidden}
+.cartao .cab{background:#16140F;color:#F4EFE4;padding:22px 30px;font:800 26px Manrope;letter-spacing:.12em;text-transform:uppercase;display:flex;align-items:center;gap:14px}
+.cartao .cab img{width:44px;height:44px}
+.lin{position:relative;display:flex;justify-content:space-between;align-items:center;padding:24px 30px;border-bottom:2px solid #E6DDCB;font:700 34px Manrope}
+.lin span:last-child{color:#6B6252}
+.luz{position:absolute;inset:0;box-shadow:inset 0 0 0 6px #E0AE58;background:#E0AE5822;pointer-events:none}
+.luz.verde{box-shadow:inset 0 0 0 6px #4CC38A;background:#4CC38A22}
+.lin.alvo{background:#FBF3E4;box-shadow:inset 8px 0 0 #C9963F}
+.lin.alvo span:last-child{color:#C2410C}
+.chip{border-radius:999px;padding:18px 32px;font:700 30px Manrope;background:#1C1A16;border:2px solid #3A342A;color:#F4EFE4;white-space:nowrap}
+.chip.ouro{background:#E0AE58;border-color:#E0AE58;color:#0E0D0B}
+.leg{left:150px;right:175px;top:1392px;text-align:center;font:800 44px/1.14 Outfit;letter-spacing:-1px}
+/* zona segura do Reels: o conteúdo (y 60–1500) cabe entre a barra do Instagram (~270) e o perfil/legenda do post (~1560) */
+#palco{position:absolute;left:0;top:0;width:1080px;height:1920px;transform-origin:540px 0;transform:translateY(235px) scale(.757)}
+.leg em{font-style:normal;color:#E0AE58}
+.cta{inset:0;background:radial-gradient(circle at 50% 40%,#2A2017,#0E0D0B 70%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;color:#F4EFE4;text-align:center}
+.cta .chip{background:#1C1A16}
+</style></head><body>
+<div class="fundo"></div><div class="grade"></div>
+<div id="palco"><div class="ov logo" id="logo"><img src="../../marca/topete-mascote.svg">topete</div>
+<div class="ov pill" id="pill">Quanto custa?</div>
+<div class="ov" id="gancho" style="top:520px">Quanto custa um <em>cliente que sumiu?</em></div>
+<div class="ov linha" style="top:500px" data-in="2.8" data-a="sobe" data-out="9.0" data-som="pop" data-v="0.5"><span class="num">✂️ R$ 50</span></div><div class="ov rot" style="top:640px" data-in="3.6" data-a="sobe" data-out="9.0">a cada 15 dias</div><div class="ov linha" style="top:710px" data-in="5.7" data-a="sobe" data-out="9.0" data-som="swish" data-v="0.4"><span class="op">×</span><span class="num">26<small>visitas/ano</small></span></div><div class="ov" style="left:205px;top:830px;width:38px;height:38px;border-radius:10px;background:#E0AE58" data-in="5.9" data-a="pop" data-out="9.0" data-som="tick" data-v="0.3"></div><div class="ov" style="left:257px;top:830px;width:38px;height:38px;border-radius:10px;background:#E0AE58" data-in="5.95" data-a="pop" data-out="9.0"></div><div class="ov" style="left:309px;top:830px;width:38px;height:38px;border-radius:10px;background:#E0AE58" data-in="6.0" data-a="pop" data-out="9.0"></div><div class="ov" style="left:361px;top:830px;width:38px;height:38px;border-radius:10px;background:#E0AE58" data-in="6.05" data-a="pop" data-out="9.0"></div><div class="ov" style="left:413px;top:830px;width:38px;height:38px;border-radius:10px;background:#E0AE58" data-in="6.1" data-a="pop" data-out="9.0" data-som="tick" data-v="0.3"></div><div class="ov" style="left:465px;top:830px;width:38px;height:38px;border-radius:10px;background:#E0AE58" data-in="6.15" data-a="pop" data-out="9.0"></div><div class="ov" style="left:517px;top:830px;width:38px;height:38px;border-radius:10px;background:#E0AE58" data-in="6.2" data-a="pop" data-out="9.0"></div><div class="ov" style="left:569px;top:830px;width:38px;height:38px;border-radius:10px;background:#E0AE58" data-in="6.25" data-a="pop" data-out="9.0"></div><div class="ov" style="left:621px;top:830px;width:38px;height:38px;border-radius:10px;background:#E0AE58" data-in="6.3" data-a="pop" data-out="9.0" data-som="tick" data-v="0.3"></div><div class="ov" style="left:673px;top:830px;width:38px;height:38px;border-radius:10px;background:#E0AE58" data-in="6.35" data-a="pop" data-out="9.0"></div><div class="ov" style="left:725px;top:830px;width:38px;height:38px;border-radius:10px;background:#E0AE58" data-in="6.4" data-a="pop" data-out="9.0"></div><div class="ov" style="left:777px;top:830px;width:38px;height:38px;border-radius:10px;background:#E0AE58" data-in="6.45" data-a="pop" data-out="9.0"></div><div class="ov" style="left:829px;top:830px;width:38px;height:38px;border-radius:10px;background:#E0AE58" data-in="6.5" data-a="pop" data-out="9.0" data-som="tick" data-v="0.3"></div><div class="ov" style="left:205px;top:882px;width:38px;height:38px;border-radius:10px;background:#E0AE58" data-in="6.55" data-a="pop" data-out="9.0"></div><div class="ov" style="left:257px;top:882px;width:38px;height:38px;border-radius:10px;background:#E0AE58" data-in="6.6" data-a="pop" data-out="9.0"></div><div class="ov" style="left:309px;top:882px;width:38px;height:38px;border-radius:10px;background:#E0AE58" data-in="6.65" data-a="pop" data-out="9.0"></div><div class="ov" style="left:361px;top:882px;width:38px;height:38px;border-radius:10px;background:#E0AE58" data-in="6.7" data-a="pop" data-out="9.0" data-som="tick" data-v="0.3"></div><div class="ov" style="left:413px;top:882px;width:38px;height:38px;border-radius:10px;background:#E0AE58" data-in="6.75" data-a="pop" data-out="9.0"></div><div class="ov" style="left:465px;top:882px;width:38px;height:38px;border-radius:10px;background:#E0AE58" data-in="6.8" data-a="pop" data-out="9.0"></div><div class="ov" style="left:517px;top:882px;width:38px;height:38px;border-radius:10px;background:#E0AE58" data-in="6.85" data-a="pop" data-out="9.0"></div><div class="ov" style="left:569px;top:882px;width:38px;height:38px;border-radius:10px;background:#E0AE58" data-in="6.9" data-a="pop" data-out="9.0" data-som="tick" data-v="0.3"></div><div class="ov" style="left:621px;top:882px;width:38px;height:38px;border-radius:10px;background:#E0AE58" data-in="6.95" data-a="pop" data-out="9.0"></div><div class="ov" style="left:673px;top:882px;width:38px;height:38px;border-radius:10px;background:#E0AE58" data-in="7.0" data-a="pop" data-out="9.0"></div><div class="ov" style="left:725px;top:882px;width:38px;height:38px;border-radius:10px;background:#E0AE58" data-in="7.05" data-a="pop" data-out="9.0"></div><div class="ov" style="left:777px;top:882px;width:38px;height:38px;border-radius:10px;background:#E0AE58" data-in="7.1" data-a="pop" data-out="9.0" data-som="tick" data-v="0.3"></div><div class="ov" style="left:829px;top:882px;width:38px;height:38px;border-radius:10px;background:#E0AE58" data-in="7.15" data-a="pop" data-out="9.0"></div><div class="ov linha" style="top:1000px" data-in="7.2" data-a="sobe" data-out="9.0"><span class="op">=</span></div><div class="ov res" style="left:0;right:0;top:1100px;text-align:center" data-in="7.2" data-a="conta" data-out="9.0" data-de="0" data-ate="1300" data-pre="R$ " data-dur="1.1"><b>R$ 0</b><small>/ano</small></div><div class="ov rot" style="top:1290px" data-in="8.4" data-a="sobe" data-out="9.0">por cliente</div><div class="ov linha" style="top:520px" data-in="9.2" data-a="sobe" data-out="12.0" data-som="swish" data-v="0.4"><span class="num" style="font-size:96px">R$ 1.300</span><span class="op">×</span><span class="num" style="font-size:96px">5<small>clientes</small></span></div><div class="ov" style="left:250px;top:690px;width:96px;height:96px;border-radius:50%;background:#2A2722;border:4px solid #E0AE58;display:grid;place-items:center;font:800 44px Outfit;color:#E0AE58" data-in="9.35" data-a="pop" data-out="12.0" data-som="pop" data-v="0.3">T</div><div class="ov" style="left:375px;top:690px;width:96px;height:96px;border-radius:50%;background:#2A2722;border:4px solid #E0AE58;display:grid;place-items:center;font:800 44px Outfit;color:#E0AE58" data-in="9.47" data-a="pop" data-out="12.0" data-som="pop" data-v="0.3">H</div><div class="ov" style="left:500px;top:690px;width:96px;height:96px;border-radius:50%;background:#2A2722;border:4px solid #E0AE58;display:grid;place-items:center;font:800 44px Outfit;color:#E0AE58" data-in="9.59" data-a="pop" data-out="12.0" data-som="pop" data-v="0.3">M</div><div class="ov" style="left:625px;top:690px;width:96px;height:96px;border-radius:50%;background:#2A2722;border:4px solid #E0AE58;display:grid;place-items:center;font:800 44px Outfit;color:#E0AE58" data-in="9.71" data-a="pop" data-out="12.0" data-som="pop" data-v="0.3">C</div><div class="ov" style="left:750px;top:690px;width:96px;height:96px;border-radius:50%;background:#2A2722;border:4px solid #E0AE58;display:grid;place-items:center;font:800 44px Outfit;color:#E0AE58" data-in="9.83" data-a="pop" data-out="12.0" data-som="pop" data-v="0.3">B</div><div class="ov linha" style="top:850px" data-in="10.0" data-a="sobe" data-out="12.0"><span class="op">=</span></div><div class="ov res" style="left:0;right:0;top:950px;text-align:center;font-size:200px" data-in="10.0" data-a="conta" data-out="12.0" data-de="0" data-ate="6500" data-pre="R$ " data-dur="1.0"><b>R$ 0</b></div><div class="ov" style="top:1200px;left:50%;margin-left:-180px;width:360px;display:flex;justify-content:center" data-in="11.1" data-a="pop" data-out="12.0" data-som="tap" data-v="0.4"><span class="selo">Conta de exemplo</span></div><div class="ov" style="left:70px;top:1310px;width:70px;height:70px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#FFE9B3,#E0AE58 55%,#A8752A);box-shadow:0 8px 18px #0008;display:grid;place-items:center;font:800 30px Outfit;color:#7E5820" data-in="11.2" data-a="cai" data-out="12.0" data-som="tick" data-v="0.35" data-r="-25">$</div><div class="ov" style="left:170px;top:1346px;width:70px;height:70px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#FFE9B3,#E0AE58 55%,#A8752A);box-shadow:0 8px 18px #0008;display:grid;place-items:center;font:800 30px Outfit;color:#7E5820" data-in="11.26" data-a="cai" data-out="12.0" data-r="25">$</div><div class="ov" style="left:270px;top:1382px;width:70px;height:70px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#FFE9B3,#E0AE58 55%,#A8752A);box-shadow:0 8px 18px #0008;display:grid;place-items:center;font:800 30px Outfit;color:#7E5820" data-in="11.32" data-a="cai" data-out="12.0" data-r="-25">$</div><div class="ov" style="left:740px;top:1310px;width:70px;height:70px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#FFE9B3,#E0AE58 55%,#A8752A);box-shadow:0 8px 18px #0008;display:grid;place-items:center;font:800 30px Outfit;color:#7E5820" data-in="11.38" data-a="cai" data-out="12.0" data-som="tick" data-v="0.35" data-r="25">$</div><div class="ov" style="left:840px;top:1346px;width:70px;height:70px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#FFE9B3,#E0AE58 55%,#A8752A);box-shadow:0 8px 18px #0008;display:grid;place-items:center;font:800 30px Outfit;color:#7E5820" data-in="11.44" data-a="cai" data-out="12.0" data-r="-25">$</div><div class="ov" style="left:940px;top:1382px;width:70px;height:70px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#FFE9B3,#E0AE58 55%,#A8752A);box-shadow:0 8px 18px #0008;display:grid;place-items:center;font:800 30px Outfit;color:#7E5820" data-in="11.5" data-a="cai" data-out="12.0" data-r="25">$</div><div class="ov" style="left:120px;top:1310px;width:70px;height:70px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#FFE9B3,#E0AE58 55%,#A8752A);box-shadow:0 8px 18px #0008;display:grid;place-items:center;font:800 30px Outfit;color:#7E5820" data-in="11.56" data-a="cai" data-out="12.0" data-som="tick" data-v="0.35" data-r="-25">$</div><div class="ov" style="left:890px;top:1346px;width:70px;height:70px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#FFE9B3,#E0AE58 55%,#A8752A);box-shadow:0 8px 18px #0008;display:grid;place-items:center;font:800 30px Outfit;color:#7E5820" data-in="11.62" data-a="cai" data-out="12.0" data-r="25">$</div><div class="ov" style="left:220px;top:1382px;width:70px;height:70px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#FFE9B3,#E0AE58 55%,#A8752A);box-shadow:0 8px 18px #0008;display:grid;place-items:center;font:800 30px Outfit;color:#7E5820" data-in="11.68" data-a="cai" data-out="12.0" data-r="-25">$</div><div class="ov linha" style="top:470px" data-in="12.3" data-a="pop" data-som="pop"><span class="chip ouro">No Topete</span></div><div class="ov cartao" style="left:140px;width:800px;top:560px" data-in="12.5" data-a="sobe" data-som="swish" data-v="0.4"><div class="cab"><img src="../../marca/topete-mascote.svg">Clientes</div><div class="lin" data-in="12.8" data-a="sobe"><span>Henrique</span><span>há 9 dias</span></div><div class="lin" data-in="13.05" data-a="sobe"><span>Samuel</span><span>há 12 dias</span></div><div class="lin" data-in="13.3" data-a="sobe"><span>Breno</span><span>há 20 dias</span></div><div class="lin" data-in="13.55" data-a="sobe"><span>Thiago</span><span>há 47 dias</span><span class="luz" data-in="13.9" data-a="pop" data-som="ding" data-v="0.5"></span></div></div><div class="ov linha" style="top:1150px" data-in="14.6" data-a="pop" data-som="pop"><span class="chip">Você vê quem sumiu. E chama.</span></div></div>
+<div class="ov leg" id="leg0">Quanto custa um <em>cliente que sumiu?</em></div><div class="ov leg" id="leg1">Ele cortava a cada 15 dias, <em>a R$ 50.</em></div><div class="ov leg" id="leg2">São 26 visitas por ano. <em>R$ 1.300.</em></div><div class="ov leg" id="leg3">Cinco clientes assim? <em>R$ 6.500.</em></div><div class="ov leg" id="leg4">No Topete, você vê <em>há quantos dias</em> cada cliente não vem.</div>
+<div class="ov cta" id="cta"><div id="cta-masc" style="width:330px;height:330px"><svg viewBox="0 0 512 512" style="width:330px;height:330px;overflow:visible"><defs>
+<linearGradient id="l1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFE9B3"/><stop offset="1" stop-color="#E4B25C"/></linearGradient>
+<linearGradient id="l2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#E9BB68"/><stop offset="1" stop-color="#B98534"/></linearGradient>
+<linearGradient id="l3" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B98534"/><stop offset="1" stop-color="#7E5820"/></linearGradient>
+<linearGradient id="fade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9C7128"/><stop offset=".5" stop-color="#B98A45"/><stop offset="1" stop-color="#F3E9D6"/></linearGradient>
+<linearGradient id="barba" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9C7128"/><stop offset="1" stop-color="#6E4D1B"/></linearGradient>
+<linearGradient id="fundo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1B1915"/><stop offset="1" stop-color="#0B0A08"/></linearGradient>
+<clipPath id="rostoClip"><path d="M150,230 C150,352 196,432 256,434 C316,432 362,352 362,236 Z"/></clipPath></defs><g transform="translate(0,6)">
+<!-- orelhas -->
+<ellipse cx="148" cy="300" rx="20" ry="30" fill="#E2D3B8"/><ellipse cx="364" cy="300" rx="20" ry="30" fill="#E2D3B8"/>
+<!-- rosto -->
+<path d="M150,236 C150,200 196,180 256,180 C316,180 362,200 362,236 C362,352 316,432 256,434 C196,432 150,352 150,236 Z" fill="#F3E9D6"/>
+<!-- base do cabelo: linha do cabelo arredondada e costeletas em degradê -->
+<path d="M144,290 C136,184 196,126 262,124 C330,124 376,180 368,290 C362,262 350,244 330,236 C306,226 280,224 256,224 C232,224 206,226 182,236 C162,244 150,262 144,290 Z" fill="url(#l3)"/>
+<g clip-path="url(#rostoClip)"><path d="M146,262 C146,300 150,326 158,346 C166,344 170,340 172,334 C168,306 168,282 174,256 C164,254 154,256 146,262 Z" fill="url(#fade)"/>
+<path d="M366,262 C366,300 362,326 354,346 C346,344 342,340 340,334 C344,306 344,282 338,256 C348,254 358,256 366,262 Z" fill="url(#fade)"/></g>
+<!-- barba aparada -->
+<path d="M152,320 C160,400 204,440 256,442 C308,440 352,400 360,320 C348,356 324,372 300,370 C288,356 272,352 256,356 C240,352 224,356 212,370 C188,372 164,356 152,320 Z" fill="url(#barba)"/>
+<path d="M234,392 C246,398 266,398 278,392" fill="none" stroke="#F3E9D6" stroke-width="8" stroke-linecap="round"/>
+<!-- sobrancelhas e olhos -->
+<path d="M196,282 C208,272 224,270 236,274" fill="none" stroke="#6E4D1B" stroke-width="10" stroke-linecap="round"/>
+<path d="M276,274 C288,270 304,272 316,282" fill="none" stroke="#6E4D1B" stroke-width="10" stroke-linecap="round"/>
+<circle cx="218" cy="306" r="8" fill="#0E0D0B"/><circle cx="294" cy="306" r="8" fill="#0E0D0B"/>
+<path d="M256,312 C252,328 250,338 260,342" fill="none" stroke="#E2D3B8" stroke-width="7" stroke-linecap="round"/>
+<g id="cta-topete" style="transform-origin:256px 226px"><!-- TOPETE: três camadas, de trás para a frente -->
+<path d="M150,232 C136,168 180,112 246,104 C296,98 334,118 346,150 C318,136 280,138 254,156 C224,176 206,200 206,222 C186,220 164,224 150,232 Z" fill="url(#l3)"/>
+<path d="M180,226 C172,162 222,96 294,88 C352,82 398,112 402,160 C404,190 384,208 360,206 C372,190 370,170 354,156 C334,138 298,138 272,156 C246,174 236,200 238,222 C216,218 196,220 180,226 Z" fill="url(#l2)"/>
+<path d="M230,224 C230,168 270,114 330,110 C384,106 422,146 414,192 C408,224 380,238 354,230 C374,218 382,196 370,178 C356,158 326,158 306,176 C288,194 284,208 288,224 C270,220 250,220 230,224 Z" fill="url(#l1)"/>
+<path d="M246,196 C258,156 288,132 326,128" fill="none" stroke="#FFF6DA" stroke-width="8" stroke-linecap="round" opacity=".7"/></g></g></svg></div>
+<p id="cta1" style="font:700 120px/0.9 Outfit;letter-spacing:-5px">topete<span style="color:#E0AE58">.</span></p>
+<p id="cta2" style="font:700 52px/1.15 Outfit;letter-spacing:-1px;max-width:880px">Veja quem está sumindo <span style="color:#E0AE58">antes de perder.</span></p>
+<div id="cta3" style="display:flex;gap:16px;flex-wrap:wrap;justify-content:center;max-width:900px;margin-top:10px"><span class="chip">Lista de clientes</span><span class="chip">Há quantos dias não vem</span></div>
+<p id="cta4" style="margin-top:26px;font:800 40px Manrope;color:#E0AE58">@usetopete</p></div>
+<script>
+const D = 20.5, CTA = 16.9, GANCHO_Y = 520, GANCHO_SOBE = 2.55, FALAS = [[0.3, "fala0.wav", 1.9], [2.55, "fala1.wav", 2.78], [5.7, "fala2.wav", 3.07], [9.15, "fala3.wav", 2.65], [12.2, "fala4.wav", 4.36], [17.3, "fala5.wav", 2.0]];
+
+const cl = (x) => Math.max(0, Math.min(1, x)), E = (x) => 1 - Math.pow(1 - cl(x), 3);
+const $ = (id) => document.getElementById(id);
+const pulo = (x) => x <= 0 ? 0 : Math.exp(-4 * x) * Math.sin(14 * x);
+const fmt = (n) => Math.round(n).toLocaleString('pt-BR');
+const ANIM = [...document.querySelectorAll('[data-in]')];
+function render(t) {
+  // gancho: grande na capa, depois sobe e encolhe para virar título
+  const g = $('gancho'), kg = E((t - GANCHO_SOBE) / 0.6);
+  g.style.top = (GANCHO_Y - (GANCHO_Y - 250) * kg) + 'px';
+  g.style.transform = `scale(${1 - 0.56 * kg})`;
+  g.style.opacity = t < CTA ? 1 : 0;
+  ANIM.forEach((e) => {
+    const a = +e.dataset.in, o = e.dataset.out ? +e.dataset.out : 1e9, tipo = e.dataset.a || 'sobe';
+    const k = E((t - a) / (tipo === 'pop' ? 0.3 : 0.4)), s = E((t - o) / 0.4);
+    let op = (t < a ? 0 : k) * (1 - s), tr = '';
+    if (tipo === 'pop') tr = `scale(${0.5 + 0.5 * k + 0.18 * pulo(t - a)})`;
+    else if (tipo === 'aparece') tr = '';
+    else if (tipo === 'cai') { const y = t < a ? -500 : -500 * (1 - E((t - a) / 0.5)); tr = `translateY(${y + Math.abs(pulo(t - a - 0.4)) * -30}px) rotate(${(+e.dataset.r || 0) * k}deg)`; }
+    else if (tipo === 'risca') { e.style.setProperty('--r', (E((t - a) / 0.35) * 100) + '%'); op = (t < a ? 0 : 1) * (1 - s); }
+    else tr = `translateY(${(1 - k) * 50 - s * 40}px)`;
+    if (tipo === 'conta') {
+      const d = +(e.dataset.dur || 1), kk = E((t - a) / d);
+      e.querySelector('b').textContent = (e.dataset.pre || '') + fmt(+e.dataset.de + (+e.dataset.ate - +e.dataset.de) * kk);
+      op = (t < a ? 0 : E((t - a) / 0.25)) * (1 - s);
+      const p = +(e.dataset.pop || (a + d));
+      tr = `scale(${1 + 0.16 * pulo(t - p)}) translateY(${-s * 40}px)`;
+    }
+    if (e.dataset.rot) tr += ` rotate(${e.dataset.rot}deg)`;
+    e.style.opacity = op; e.style.transform = tr;
+  });
+  FALAS.forEach(([a, f, d], i) => { const l = $('leg' + i); if (!l) return; const k = E((t - a + 0.1) / 0.25) * (1 - E((t - a - d - 0.2) / 0.25)); l.style.opacity = k; l.style.transform = `translateY(${(1 - k) * 20}px)`; });
+  // final (mesmo do cartoon_base)
+  const kk = E((t - CTA) / 0.5);
+  $('cta').style.clipPath = `inset(${(1 - kk) * 100}% 0 0 0)`; $('cta').style.opacity = t >= CTA ? 1 : 0;
+  ['cta1', 'cta2', 'cta3', 'cta4'].forEach((id, i) => { const k = E((t - CTA - 0.5 - i * 0.3) / 0.4); $(id).style.opacity = k; $(id).style.transform = `translateY(${(1 - k) * 40}px)`; });
+  const mx = t - CTA - 0.7, mola = mx <= 0 ? 0 : Math.exp(-3.2 * mx);
+  $('cta-topete').style.transform = `rotate(${7 * mola * Math.sin(11 * mx)}deg) scaleY(${1 + 0.22 * mola * Math.sin(9 * mx + 1.2)})`;
+  $('cta-masc').style.transform = `scale(${E((t - CTA - 0.2) / 0.4)})`;
+  $('logo').style.opacity = $('pill').style.opacity = t < CTA ? 1 : 0;
+}
+const EVENTOS = ANIM.filter((e) => e.dataset.som).map((e) => ({ t: +(e.dataset.st || e.dataset.in), som: e.dataset.som, v: +(e.dataset.v || 0.45) }));
+ANIM.filter((e) => e.dataset.a === 'conta').forEach((e) => EVENTOS.push({ t: +(e.dataset.pop || (+e.dataset.in + +(e.dataset.dur || 1))), som: 'pop', v: 0.6 }));
+EVENTOS.push({ t: GANCHO_SOBE, som: 'whoosh', v: 0.35 }, { t: CTA - 0.1, som: 'whoosh', v: 0.5 }, { t: CTA + 0.7, som: 'boing', v: 0.6 }, { t: CTA + 1.3, som: 'brilho', v: 0.45 });
+
+window.render = render; window.DURACAO = D; window.EVENTOS = EVENTOS; window.FALAS = FALAS;
+if (!navigator.webdriver) { const t0 = performance.now(); const loop = () => { render(((performance.now() - t0) / 1000) % D); requestAnimationFrame(loop); }; requestAnimationFrame(loop); }
+else render(0);
+</script></body></html>

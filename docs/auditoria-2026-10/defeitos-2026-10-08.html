@@ -1,0 +1,296 @@
+<title>Pente fino do Topete</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: relatório de uma coluna (máx. 960px); cada achado é uma linha com faixa de gravidade; P2 recolhidos. Paleta da marca Topete. */
+:root{
+ --bg:#F7F4EE; --surface:#FFFFFF; --ink:#16140F; --muted:#5E574A; --line:#E4DCCB;
+ --brass:#9A7430; --brass-soft:#F1E6CC; --good:#2F7A4F; --good-soft:#E3F1E8; --warn:#9A6A0B; --warn-soft:#FBEFD4; --bad:#B23A2E; --bad-soft:#F8E1DD;
+ --display:"Outfit",system-ui,sans-serif; --body:"Manrope",system-ui,sans-serif; --mono:"JetBrains Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+ --bg:#12110E; --surface:#1B1915; --ink:#F2EDE2; --muted:#AFA690; --line:#332F27;
+ --brass:#E0AE58; --brass-soft:#2E2617; --good:#6CC08E; --good-soft:#18291F; --warn:#E5B55A; --warn-soft:#2D2412; --bad:#F08A7D; --bad-soft:#331A17; color-scheme:dark}}
+:root[data-theme="dark"]{
+ --bg:#12110E; --surface:#1B1915; --ink:#F2EDE2; --muted:#AFA690; --line:#332F27;
+ --brass:#E0AE58; --brass-soft:#2E2617; --good:#6CC08E; --good-soft:#18291F; --warn:#E5B55A; --warn-soft:#2D2412; --bad:#F08A7D; --bad-soft:#331A17; color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font:15px/1.6 var(--body)}
+.wrap{max-width:960px;margin:0 auto;padding-inline:20px;padding-block:40px 64px;display:flex;flex-direction:column;gap:44px}
+h1,h2,h3{font-family:var(--display);line-height:1.2;text-wrap:balance;margin:0}
+h1{font-size:clamp(28px,5vw,40px);letter-spacing:-.02em}
+h2{font-size:24px;letter-spacing:-.01em}
+h3{font-size:16px;font-weight:600}
+p{margin:0;max-width:70ch}
+.eyebrow{font:600 12px var(--body);letter-spacing:.14em;text-transform:uppercase;color:var(--brass)}
+.muted{color:var(--muted)} .small{font-size:13px}
+.hero{display:flex;flex-direction:column;gap:14px;border-bottom:1px solid var(--line);padding-bottom:28px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.card b{font:700 26px var(--display);font-variant-numeric:tabular-nums}
+.sec{display:flex;flex-direction:column;gap:14px}
+.sec>header{display:flex;flex-direction:column;gap:6px}
+.list{display:flex;flex-direction:column;gap:10px}
+.f{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--warn);border-radius:10px;padding:13px 16px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.f.p0{border-left-color:var(--bad)} .f.p2{border-left-color:var(--line)}
+.f h3{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.f p{font-size:14px}
+.meta{display:flex;gap:8px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
+.tag{font:500 11px var(--mono);padding:1px 6px;border-radius:4px;white-space:nowrap}
+.t0{background:var(--bad-soft);color:var(--bad)} .t1{background:var(--warn-soft);color:var(--warn)} .t2{background:var(--brass-soft);color:var(--brass)}
+.c-exec{background:var(--good-soft);color:var(--good)} .c-lido{background:var(--brass-soft);color:var(--brass)} .c-prov{background:var(--bg);color:var(--muted);border:1px solid var(--line)}
+code{font:12px var(--mono);background:var(--bg);padding:1px 5px;border-radius:4px;word-break:break-all}
+.callout{background:var(--brass-soft);border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:8px}
+.scroll{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:600 11px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);background:var(--bg);white-space:nowrap}
+tr:last-child td{border-bottom:0}
+details{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 16px}
+details[open] summary{margin-bottom:10px}
+summary{cursor:pointer;font-weight:600}
+summary:focus-visible,a:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+ol.steps{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:10px}
+ul.ok{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px;font-size:14px}
+a{color:var(--brass)}
+</style>
+
+<div class="wrap">
+
+<header class="hero">
+ <span class="eyebrow">Topete · caça a defeitos · 08/10/2026 · main em 5de729d</span>
+ <h1>69 defeitos, 1 grave já em produção, e o painel do barbeiro ainda não pode ir para PRD</h1>
+ <p>Seis frentes varreram o código em paralelo: financeiro, agenda, segurança, telas, integrações e esteira. Os achados que aparecem em mais de uma frente foram juntados. Oito deles foram provados rodando a lógica e três eu reconferi no código. O resto foi confirmado lendo de ponta a ponta, e os marcados como “provável” dependem de condição externa.</p>
+ <p class="muted small">Ficaram de fora os pontos já registrados na auditoria de 05/10 (aviso ao cliente, retry do financeiro no #135, DRY_RUN do billing e do expurgo, App Check, IAM, ficha pública e outros).</p>
+ <div class="cards">
+  <div class="card"><span class="eyebrow">Grave em PRD</span><b>1</b><span class="small muted">mudar o horário fixo apaga as semanas do mensalista</span></div>
+  <div class="card"><span class="eyebrow">Corrigir já</span><b>15</b><span class="small muted">afetam o que está no ar hoje</span></div>
+  <div class="card"><span class="eyebrow">Barram o #137</span><b>11</b><span class="small muted">acesso e dinheiro no painel do barbeiro</span></div>
+  <div class="card"><span class="eyebrow">Esteira</span><b>9</b><span class="small muted">regras combinadas que a esteira não impõe</span></div>
+  <div class="card"><span class="eyebrow">Menores</span><b>34</b><span class="small muted">números que discordam e casos raros</span></div>
+ </div>
+</header>
+
+<section class="sec" id="ja">
+ <header><span class="eyebrow">1 · Afeta produção hoje</span><h2>Corrigir já</h2></header>
+ <div class="list">
+
+  <article class="f p0">
+   <h3><span class="tag t0">P0</span>Mudar o horário fixo do mensalista apaga as 8 semanas e não recria nenhuma</h3>
+   <p>O dono troca o fixo de sábado 10h para 11h, ou troca o barbeiro ou o serviço. As reservas antigas viram <code>cancelled_by_shop</code>. Logo depois, a rotina que recria as semanas trata qualquer reserva cancelada como “semana já resolvida” e pula todas. A rotina da madrugada pula de novo toda noite. A tela diz “0 semanas reservadas” e o cliente fica 8 semanas sem vaga. Com o Siqueira usando 96 reservas de fixo, isso pode já ter acontecido.</p>
+   <p>Na mesma família: remover e recolocar o mesmo fixo não reserva nada, e a prévia diz “já reservado”. E mudar o fixo à tarde cancela o atendimento da manhã que ainda não foi fechado, que depois não pode mais ser concluído.</p>
+   <div class="meta"><code>functions/src/horario-fixo.ts:153</code><code>:185</code><code>:353</code><code>:399</code><span class="tag c-exec">provado rodando</span></div>
+  </article>
+
+  <article class="f">
+   <h3><span class="tag t1">P1</span>A tela do cliente confirma um horário e a agenda grava outro</h3>
+   <p>O cliente confirma 15h, a resposta se perde e a tela mostra erro. Ele escolhe 16h e confirma de novo. Como a chave de repetição é a mesma, o servidor devolve a reserva das 15h como sucesso, e a tela mostra “Reserva confirmada! 16h”.</p>
+   <div class="meta"><code>web/src/app/(cliente)/agendar/page.tsx:252</code><code>functions/src/booking.ts:1145</code><span class="tag c-lido">confirmado lendo</span></div>
+  </article>
+
+  <article class="f">
+   <h3><span class="tag t1">P1</span>“+ Adicionar serviço” recalcula o atendimento inteiro pela tabela de hoje</h3>
+   <p>Se o preço do corte subiu depois da reserva, ou se o serviço foi excluído do catálogo, somar uma barba muda o valor do corte também. Um corte apagado passa a valer R$ 0, e pagamento e comissão saem sobre o valor errado.</p>
+   <div class="meta"><code>functions/src/servicos-extras.ts:35</code><code>functions/src/combos.ts:33</code><span class="tag c-exec">provado rodando</span></div>
+  </article>
+
+  <article class="f">
+   <h3><span class="tag t1">P1</span>“1.500” vira R$ 1,50 em despesa, salário e livro-caixa</h3>
+   <p>Os campos são <code>type="number"</code> lidos com <code>Number()</code>, que entende o ponto como vírgula decimal. Um aluguel de 1.500 entra como R$ 1,50. No salário, um valor que o navegador recusa vira 0 e é gravado por cima do salário real quando o campo perde o foco.</p>
+   <div class="meta"><code>financeiro/despesas/page.tsx:117</code><code>equipe/page.tsx:250</code><code>components/livro-caixa.tsx:84</code><span class="tag c-prov">provável (depende do teclado)</span></div>
+  </article>
+
+  <article class="f">
+   <h3><span class="tag t1">P1</span>O DRE, o PDF da agenda e a projeção contam dinheiro que não existe</h3>
+   <p><b>Folha retroativa:</b> o DRE de agosto usa o salário de quem está na equipe hoje. Contratar em outubro piora agosto, e quem saiu some dos meses em que trabalhou.<br>
+   <b>PDF da agenda:</b> “Realizado” ignora desconto e cortesia (R$ 100 no PDF contra R$ 40 no Financeiro).<br>
+   <b>Projeção:</b> soma a mensalidade pelo cadastro, então conta de novo uma fatura já paga, projeta a que foi marcada “Não cobrar” e esquece a que está atrasada.</p>
+   <div class="meta"><code>web/src/lib/db/use-financeiro.ts:121</code><code>web/src/lib/relatorio-da-agenda.ts:197</code><code>web/src/lib/analytics.ts:1225</code><span class="tag c-exec">PDF provado rodando</span></div>
+  </article>
+
+  <article class="f">
+   <h3><span class="tag t1">P1</span>Uma barbearia com problema derruba a agenda das 7h, o fechamento e a expiração de encaixes de todas as outras</h3>
+   <p>Os três laços das agendadas não têm proteção por barbearia. Um fuso inválido em <code>locale.timeZone</code>, que o dono consegue gravar porque a regra não trava esse campo, ou uma falha passageira numa loja interrompe a rodada para todas as que vêm depois.</p>
+   <div class="meta"><code>functions/src/telegram/gatilhos.ts:118</code><code>functions/src/booking.ts:1816</code><code>firestore.rules:222</code><span class="tag c-exec">provado rodando</span></div>
+  </article>
+
+  <article class="f">
+   <h3><span class="tag t1">P1</span>Quem cria conta com o e-mail do dono antes do provisionamento vira dono da barbearia</h3>
+   <p>O provisionamento (Hub e manual) reaproveita a conta que já existe com aquele e-mail sem conferir se o e-mail foi confirmado. Como criar conta com e-mail e senha não exige confirmação, quem souber o e-mail de um prospect pode chegar antes.</p>
+   <div class="meta"><code>functions/src/hub/plataforma.ts:136</code><code>functions/src/provisioning.ts:94</code><span class="tag c-lido">reconferido no código</span></div>
+  </article>
+
+  <article class="f">
+   <h3><span class="tag t1">P1</span>Next 16.3.6 tem falha de segurança alta (SSRF no otimizador de imagem)</h3>
+   <p>A rota <code>/_next/image</code> responde em produção. A correção está na 16.3.8. A mesma faixa corrige quatro falhas moderadas de cache.</p>
+   <div class="meta"><code>web/package.json</code><code>npm audit</code><span class="tag c-lido">confirmado</span></div>
+  </article>
+
+  <article class="f">
+   <h3><span class="tag t1">P1</span>Produção é publicada sem o WhatsApp de contato da plataforma</h3>
+   <p>O ambiente <code>producao</code> do GitHub tem só as variáveis do Firebase. Sem <code>NEXT_PUBLIC_PLATFORM_WHATSAPP</code>, todo “falar com a gente” (subir de plano, cadastro pausado) some do site. Sem <code>NEXT_PUBLIC_RECAPTCHA_SITE_KEY</code>, o App Check nem é iniciado no navegador, então nunca vai haver métrica para ligá-lo. Pode ser intencional depois do incidente de 28/09; confirme.</p>
+   <div class="meta"><code>.github/workflows/deploy.yml:315</code><code>web/src/lib/platform.ts:23</code><span class="tag c-lido">confirmado</span></div>
+  </article>
+
+  <article class="f">
+   <h3><span class="tag t1">P1</span>Falha de leitura aparece como “não tem nada”</h3>
+   <p><b>Reservas do cliente:</b> com a rede ruim, a tela diz “Você não tem reserva futura” e oferece “Agendar horário”, e o cliente marca de novo.<br>
+   <b>Login:</b> uma falha de rede vira “Esta conta não está ligada a nenhuma barbearia” com o botão “Quero conhecer o Topete”.<br>
+   <b>Escuta compartilhada:</b> depois de um erro, quem volta à mesma tela em menos de 30 s fica em “carregando” para sempre.</p>
+   <div class="meta"><code>(cliente)/reservas/page.tsx:70</code><code>login/page.tsx:155</code><code>lib/db/repository.ts:129</code><span class="tag c-exec">escuta provada rodando</span></div>
+  </article>
+
+  <article class="f">
+   <h3><span class="tag t1">P1</span>Vincular cadastros pelo número digitado entrega o histórico de outro cliente</h3>
+   <p>Uma conta que agenda digitando o WhatsApp de um cliente de balcão ganha a sugestão “Vincular” na tela Clientes. Um clique da equipe transfere reservas, pagamentos, mensalidade e carimbos, e marca o telefone como confirmado sem que ele tenha sido provado.</p>
+   <div class="meta"><code>functions/src/vinculo-de-cadastro.ts:235</code><code>functions/src/clients.ts:220</code><span class="tag c-prov">provável (depende do clique)</span></div>
+  </article>
+
+  <article class="f">
+   <h3><span class="tag t1">P1</span>Em modo leitura, a barbearia aceita pedido de encaixe que ninguém consegue responder</h3>
+   <p>Com teste vencido ou conta suspensa, o cliente ainda pede encaixe e vê “pedido enviado”. A equipe recebe o aviso, mas o Telegram e o painel recusam a resposta. O pedido expira sem resposta.</p>
+   <div class="meta"><code>functions/src/booking.ts:236</code><code>:1721</code><span class="tag c-lido">confirmado lendo</span></div>
+  </article>
+
+  <article class="f">
+   <h3><span class="tag t1">P1</span>Sair da conta não desliga as notificações do aparelho</h3>
+   <p>No tablet do salão, o dono sai e outra pessoa entra, e o aparelho continua recebendo “Novo agendamento: nome do cliente”. O botão “desligar” mostra “desligado” mesmo quando a remoção falhou.</p>
+   <div class="meta"><code>web/src/components/sign-out-button.tsx:17</code><code>web/src/lib/notificacoes.ts:70</code><span class="tag c-lido">confirmado lendo</span></div>
+  </article>
+
+  <article class="f">
+   <h3><span class="tag t1">P1</span>No fim do onboarding, o dono pode voltar ao passo 1</h3>
+   <p>O último passo manda para <code>/painel</code> e conta que o servidor releia a ficha, mas ela fica em cache por 300 s. O AuthGuard vê a ficha antiga e devolve o dono para <code>/comecar</code>. Pode acontecer no primeiro acesso de toda barbearia nova. A suíte não pega porque o emulador roda sem cache.</p>
+   <div class="meta"><code>web/src/app/comecar/page.tsx:102</code><code>web/src/lib/tenant-server.ts:256</code><span class="tag c-prov">provável (corrida)</span></div>
+  </article>
+
+  <article class="f">
+   <h3><span class="tag t1">P1</span>O #135 precisa de um ajuste antes de ser mesclado</h3>
+   <p>O gatilho de conclusão regrava o pagamento com os valores do evento original. Se o Firebase entregar o evento de novo depois de uma edição de cobrança, a edição é desfeita. Ligar o retry, como o #135 faz, aumenta essa janela. Ajuste: não regravar quando o pagamento já existe e a reserva foi editada.</p>
+   <div class="meta"><code>functions/src/financial-events.ts:967</code><span class="tag c-prov">provável</span></div>
+  </article>
+ </div>
+</section>
+
+<section class="sec" id="barbeiro">
+ <header><span class="eyebrow">2 · Painel do barbeiro (#137, hoje só no DEV)</span><h2>O que barra o #137 em produção</h2>
+ <p class="muted">O padrão é um só: as funções e as regras foram escritas quando o único “staff” era o próprio dono. Os itens 1 a 3 também já valem em produção para qualquer barbeiro que tenha login.</p></header>
+ <div class="scroll"><table>
+  <thead><tr><th>#</th><th>Defeito</th><th>Onde</th></tr></thead>
+  <tbody>
+   <tr><td>1</td><td><b>“Remover” na tela Equipe não tira o acesso.</b> Só a ficha é apagada. O ex-barbeiro segue lendo clientes com telefone, mensalistas e o histórico da cadeira. <span class="tag c-lido">reconferido</span></td><td><code>equipe/page.tsx:95</code></td></tr>
+   <tr><td>2</td><td><b>O convite já usado devolve o acesso que o dono tirou</b>, a qualquer momento e sem checar o vencimento. <span class="tag c-lido">reconferido</span></td><td><code>convite-equipe.ts:247</code></td></tr>
+   <tr><td>3</td><td><b>As funções abertas ao barbeiro não conferem a cadeira dele.</b> Ele dispensa ou dá baixa na mensalidade de qualquer cliente, registra venda em nome de colega, lança compra de estoque, apaga a semana do fixo de outro barbeiro, resgata fidelidade, junta cadastros e tira o desconto que o dono deu (e com isso ganha mais comissão).</td><td><code>mensalistas.ts:367</code> <code>inventory.ts:636</code> <code>horario-fixo.ts:470</code> <code>edicao-de-cobranca.ts:412</code></td></tr>
+   <tr><td>4</td><td><b>O push manda a agenda da casa inteira para todo barbeiro</b> e continua depois que o acesso é tirado. O Telegram dele também segue, com os botões de encaixe funcionando.</td><td><code>push/push.ts:77</code> <code>convite-equipe.ts:315</code></td></tr>
+   <tr><td>5</td><td><b>Em /barbeiro dá para Concluir e marcar “Não veio” em dia futuro.</b> Isso gera pagamento e comissão de atendimento que não aconteceu e gasta a cota do mensalista.</td><td><code>barbeiro/page.tsx:110</code></td></tr>
+   <tr><td>6</td><td><b>/barbeiro fecha atendimento com as 4 formas padrão</b>, não com as da barbearia, e a taxa pode sair errada. A trava do modo leitura também não vale ali.</td><td><code>barbeiro/layout.tsx</code></td></tr>
+   <tr><td>7</td><td><b>Pelo ícone do app, o barbeiro cai no app do cliente</b> e não tem caminho para a agenda dele.</td><td><code>manifest.ts:22</code></td></tr>
+   <tr><td>8</td><td><b>O barbeiro lê mais que a própria agenda:</b> e-mails da equipe e do dono, custo dos produtos e todos os mensalistas com valor.</td><td><code>firestore.rules:318</code> <code>:371</code> <code>:589</code></td></tr>
+   <tr><td>9</td><td><b>O convite por e-mail aceita conta com e-mail não confirmado</b>, e tirar o acesso leva até 1 hora para valer.</td><td><code>convite-equipe.ts:64</code></td></tr>
+   <tr><td>10</td><td><b>“Minha comissão” conta o atendimento em dobro</b> depois de uma edição de cobrança. O total sai certo.</td><td><code>lib/barbeiro.ts:54</code></td></tr>
+   <tr><td>11</td><td><b>Login sem resposta vira “Sua conta não tem acesso de barbeiro”.</b></td><td><code>area-do-barbeiro.tsx:42</code></td></tr>
+  </tbody>
+ </table></div>
+</section>
+
+<section class="sec" id="esteira">
+ <header><span class="eyebrow">3 · Esteira e infraestrutura</span><h2>Regras combinadas que a esteira não impõe</h2></header>
+ <div class="scroll"><table>
+  <thead><tr><th>Gravidade</th><th>Defeito</th></tr></thead>
+  <tbody>
+   <tr><td><span class="tag t1">P1</span></td><td><b>A janela das 20h é conferida no disparo, não na hora do deploy.</b> Um disparo às 23h aprovado às 10h publica no meio do expediente.</td></tr>
+   <tr><td><span class="tag t1">P1</span></td><td><b>“DEV antes de PRD” não é garantido.</b> Nos commits 705c8de e 8f85cf5, a produção terminou antes de a fumaça do DEV acabar.</td></tr>
+   <tr><td><span class="tag t1">P1</span></td><td><b>A volta automática só desfaz o site.</b> Functions e regras novas ficam no ar, e se o próprio passo do site falha, elas nem passam pela fumaça.</td></tr>
+   <tr><td><span class="tag t1">P1</span></td><td><b>A fumaça não reproduz o incidente de 28/09</b> (service worker antigo) e não abre login nem painel.</td></tr>
+   <tr><td><span class="tag t1">P1</span></td><td><b>As regras do Storage saíram da esteira.</b> A tela de logo existe desde 03/10, e uma mudança nas regras passa no CI sem chegar à produção.</td></tr>
+   <tr><td><span class="tag t2">P2</span></td><td>O ambiente <code>dev</code> aceita deploy de qualquer branch e expõe os segredos do DEV.</td></tr>
+   <tr><td><span class="tag t2">P2</span></td><td>O repositório é público, então os logs e prints da fumaça de produção também são.</td></tr>
+   <tr><td><span class="tag t2">P2</span></td><td>Functions: 1 vulnerabilidade crítica (baixo impacto aqui) e 2 altas no <code>npm audit</code>, todas corrigíveis sem mudar de versão maior.</td></tr>
+   <tr><td><span class="tag t2">P2</span></td><td>Pequenos: o DEV está indexável pelo Google; <code>www.topete.com.br</code> não redireciona para a raiz; uma ação sem versão fixa; a credencial de PRD fica em disco durante o build; o “uma publicação por dia” não é imposto (4 em 03/10).</td></tr>
+  </tbody>
+ </table></div>
+</section>
+
+<section class="sec" id="menores">
+ <header><span class="eyebrow">4 · P2</span><h2>Menores</h2></header>
+ <details>
+  <summary>Números que discordam entre telas (10)</summary>
+  <ul class="ok">
+   <li>No DRE, os encaixes aparecem dentro de “Serviços avulsos” e a árvore não fecha. <code>analytics.ts:947</code> <span class="tag c-exec">provado</span></li>
+   <li>O “Total gasto” do cliente usa o preço de tabela, com cortesia, desconto e plano. <code>(cliente)/reservas/page.tsx:208</code></li>
+   <li>A ficha do cliente soma corte coberto pelo plano como gasto e não desconta devolução de produto. <code>ficha-do-cliente.ts:68</code></li>
+   <li>A tela de mensalistas diz “Recebido” para fatura devolvida. <code>mensalidade.ts:90</code></li>
+   <li>Editar a cobrança recongela a taxa da maquininha com a tabela de hoje. <code>edicao-de-cobranca.ts:423</code></li>
+   <li>A comissão estimada arredonda em reais (R$ 21,00 em vez de R$ 21,15). <code>analytics.ts:527</code> <span class="tag c-exec">provado</span></li>
+   <li>A média por dia da semana da projeção ignora os dias sem receita e superestima loja fraca. <code>analytics.ts:1155</code></li>
+   <li>O fechamento das 21h no Telegram não desconta os estornos do dia. <code>telegram/gatilhos.ts:160</code></li>
+   <li>Duas conclusões ao mesmo tempo podem estourar a cota do plano (5 de 4). <code>financial-events.ts:565</code> <span class="tag c-prov">provável</span></li>
+   <li>Despesas recorrentes com descrições diferentes (“Aluguel out”, “Aluguel nov”) somam em dobro. <code>analytics.ts:578</code></li>
+  </ul>
+ </details>
+ <details>
+  <summary>Agenda (4)</summary>
+  <ul class="ok">
+   <li>A reserva pelo app grava os serviços separados com o nome do combo, e o balcão grava o combo; os mais vendidos contam diferente. <code>booking.ts:349</code></li>
+   <li>Ao remarcar, a própria reserva do cliente bloqueia o horário vizinho. <code>(cliente)/reservas/page.tsx:184</code></li>
+   <li>O mensalista pode ver menos agenda que o cliente avulso quando o barbeiro libera além da janela dele. <code>janela.ts:41</code></li>
+   <li>Na “Ordem de preferência”, a ordem mostrada na tela pode ser diferente da que o servidor usa depois de remover alguém. <code>equipe/page.tsx:68</code></li>
+  </ul>
+ </details>
+ <details>
+  <summary>Telas (7)</summary>
+  <ul class="ok">
+   <li>Logo, nome e cor salvos podem não aparecer até o próximo deploy (cache do service worker), embora a tela diga “salva”. <code>public/sw.js:18</code></li>
+   <li>No balcão, falha de rede aparece como “Nenhum horário livre” e convida a encaixar. <code>marcar-no-balcao.tsx:176</code></li>
+   <li>Ao trocar de mês ou de dia, a tela mostra o recorte anterior com o rótulo novo. <code>use-collection.ts:61</code></li>
+   <li>No Perfil, uma falha de leitura abre o formulário em branco, e salvar apaga o WhatsApp. <code>perfil/page.tsx:75</code></li>
+   <li>O WhatsApp aberto depois de esperar o servidor (cancelamento, convite) tende a ser bloqueado no iPhone. <code>acoes-do-atendimento.tsx:266</code></li>
+   <li>Uma despesa salva sem rede fica em “Salvando…” e convida a lançar de novo; quando a rede volta, ficam duas. <code>repository.ts:184</code></li>
+   <li>O papel antigo <code>role: owner</code> ainda abre o painel na tela. <code>auth-guard.tsx:43</code></li>
+  </ul>
+ </details>
+ <details>
+  <summary>Integrações e segurança (13)</summary>
+  <ul class="ok">
+   <li>As agendadas do Telegram são sequenciais e devem passar do tempo limite a partir de cerca de 100 lojas. <code>telegram/gatilhos.ts:97</code></li>
+   <li>A agenda do dia não desliga quem bloqueou o bot, e um contato apagado no meio da rodada corta o aviso dos demais. <code>telegram/gatilhos.ts:132</code></li>
+   <li>O toque no botão do Telegram mostra “já tinha sido respondido” para qualquer erro, inclusive pedido expirado. <code>telegram/webhook.ts:166</code></li>
+   <li>Ligar o Telegram numa 2ª barbearia desliga a 1ª sem avisar ninguém. <code>telegram/webhook.ts:96</code></li>
+   <li>Provisionamento pelo Hub pode deixar o dono sem o e-mail de acesso numa nova tentativa. <code>hub/plataforma.ts:114</code></li>
+   <li>As retentativas ao Hub travam com mais de 200 pendentes. <code>hub/saida.ts:227</code></li>
+   <li>O horário fixo segue gerando reservas em barbearia encerrada. <code>horario-fixo.ts:420</code></li>
+   <li>Latente: <code>revisarAssinaturas</code> ignora o <code>isento</code>, e vai suspender o Siqueira quando o billing sair do DRY_RUN. <code>billing.ts:47</code></li>
+   <li>Latente: o expurgo LGPD deixa restos em 5 coleções da raiz. <code>data-deletion.ts:121</code></li>
+   <li>Latente: o webhook do WhatsApp responde antes de processar, e o botão muda o status sem transação. <code>whatsapp/webhook.ts:125</code></li>
+   <li>Excluir a conta usa telefones que o próprio cliente digitou para apagar dados de terceiros. <code>titular.ts:441</code></li>
+   <li>O Storage ignora a trava da senha provisória e aceita SVG. <code>storage.rules:14</code></li>
+   <li>O onboarding grava a marca sem validação, e a função legada <code>setOwnerRole</code> ainda existe. <code>signup.ts:259</code> <code>index.ts:117</code></li>
+  </ul>
+ </details>
+</section>
+
+<section class="sec" id="ok">
+ <header><span class="eyebrow">5 · Conferido e sem defeito</span><h2>O que está sólido</h2></header>
+ <ul class="ok">
+  <li>Nenhuma barbearia lê ou grava dado de outra. As funções conferem o papel pelo vínculo, e o padrão das regras é negar.</li>
+  <li>Os webhooks do Telegram, do WhatsApp e do Hub conferem o segredo em tempo constante.</li>
+  <li>A trava de horário roda dentro da transação nos três caminhos (app, balcão e remarcação). “Qualquer barbeiro” escolhe dentro da transação, entre quem faz o serviço e trabalha no dia.</li>
+  <li>O fuso é tratado de forma coerente, e as agendadas rodam em America/Sao_Paulo.</li>
+  <li>A atualização do service worker cobre o incidente de 28/09.</li>
+  <li>Não falta nenhum índice do Firestore para as consultas do código.</li>
+  <li>Os cabeçalhos de segurança estão completos e os certificados são válidos. CI e esteira estão verdes desde 02/10.</li>
+ </ul>
+</section>
+
+<section class="sec" id="plano">
+ <header><span class="eyebrow">6 · Proposta</span><h2>Ordem de correção</h2></header>
+ <ol class="steps">
+  <li><b>Horário fixo, hoje.</b> Corrigir as três falhas do fixo e rodar uma contagem em PRD (sem nomes) para saber quantos mensalistas ficaram sem as semanas depois de uma mudança. Se houver casos, recriar as semanas pelo próprio “salvar fixo”.</li>
+  <li><b>Pacote rápido.</b> Next 16.3.8+, variável do WhatsApp da plataforma em produção, chave de repetição da reserva, campos de valor em reais, proteção por loja nas agendadas com <code>locale</code> travado na regra, preço congelado no “adicionar serviço”, e confirmação de e-mail no provisionamento.</li>
+  <li><b>Ajustar o #135</b> para não desfazer edição de cobrança, e só depois mesclar.</li>
+  <li><b>Barbeiro antes da produção:</b> os 11 itens da seção 2, num PR só, antes de levar o #137 para PRD.</li>
+  <li><b>Esteira:</b> conferir a hora depois da aprovação, exigir o DEV verde do mesmo commit e devolver as regras do Storage à esteira.</li>
+  <li><b>Financeiro e telas P1/P2:</b> folha por competência, projeção pelas faturas, PDF pelo valor cobrado e tratamento de erro nas leituras.</li>
+ </ol>
+</section>
+
+</div>

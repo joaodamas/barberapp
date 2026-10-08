@@ -1,0 +1,127 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><link rel="stylesheet" href="base.css"><style>
+body{width:1080px;height:1920px;background:#F4EFE4;overflow:hidden;position:relative;color:#16140F}
+.cena{position:absolute;inset:0;overflow:hidden;display:none}
+.claro{background:#F4EFE4;color:#16140F}
+.ouro{background:linear-gradient(160deg,#E7BE6E,#C9963F 55%,#A8752A);color:#0E0D0B}
+.escuro{background:radial-gradient(circle at 50% 42%,#2A2017,#0E0D0B 70%);color:#F4EFE4}
+.topo{position:absolute;left:0;right:0;display:flex;flex-direction:column;align-items:center;gap:26px}
+.logo{display:flex;align-items:center;gap:16px;font-family:Outfit;font-weight:700;font-size:54px;letter-spacing:-1.5px}
+.logo img{width:72px;height:72px}
+.etq{font:800 24px/1 Manrope;letter-spacing:.18em;text-transform:uppercase;color:#A8752A}.ouro .etq{color:#0E0D0B;opacity:.8}.escuro .etq{color:#E0AE58}
+h1{position:absolute;left:0;right:0;font-family:Outfit;font-weight:700;letter-spacing:-3px;line-height:1.02;text-align:center;font-size:118px}
+h1 span{display:inline-block}
+.cor{color:#A8752A}.ouro .cor{color:#0E0D0B}.escuro .cor{color:#E0AE58}
+.chip{position:absolute;background:#fff;color:#16140F;border-radius:999px;padding:16px 30px;font:700 30px Manrope;box-shadow:0 14px 30px -12px #0006;white-space:nowrap}
+.chip.esc{background:#16140F;color:#F4EFE4}.chip.dou{background:#C9963F;color:#16140F}.chip.azul{background:#1d4ed8;color:#fff}.chip.verde{background:#047857;color:#fff}
+.cartao{position:absolute;background:#fff;border-radius:40px;box-shadow:0 40px 80px -30px #0007;overflow:hidden;color:#16140F}
+.tesoura{position:absolute;left:110px;top:230px;width:170px;height:170px}.tesoura .lam{transform-origin:85px 85px}
+.leg{position:absolute;left:60px;right:60px;text-align:center;font:600 34px/1.35 Manrope;opacity:.8}
+.linha{display:flex;justify-content:space-between;align-items:center;padding:22px 26px;border-radius:18px;background:#F7F3EA;font:600 28px Manrope}
+svg{position:absolute;left:0;top:0;overflow:visible}
+</style></head>
+<body><section class="cena claro">
+<div class="topo" style="top:150px"><div class="logo"><img src="../../marca/topete-mascote.svg">topete</div><div class="etq">Encaixe</div></div>
+<h1 style="top:470px"><span>Horário cheio</span><br><span class="cor" data-in="0.5" data-a="sobe">não é não.</span></h1>
+
+<div class="cartao" style="left:170px;top:900px;width:740px;" data-in="0.9" data-a="sobe"><div style="padding:34px 38px;display:grid;grid-template-columns:repeat(3,1fr);gap:16px;font:800 34px Outfit;text-align:center"><span style="border-radius:18px;padding:24px 0;border:2px solid #E3DED3">09:00</span><span style="border-radius:18px;padding:24px 0;border:2px solid #E3DED3;color:#B8B0A0;text-decoration:line-through">09:30</span><span style="border-radius:18px;padding:24px 0;border:2px solid #E3DED3;color:#B8B0A0;text-decoration:line-through">10:00</span><span style="border-radius:18px;padding:24px 0;border:2px solid #E3DED3;color:#B8B0A0;text-decoration:line-through">10:30</span><span style="border-radius:18px;padding:24px 0;background:#1d4ed8;color:#fff">11:00</span><span style="border-radius:18px;padding:24px 0;border:2px solid #E3DED3;color:#B8B0A0;text-decoration:line-through">11:30</span></div></div>
+<span class="chip azul" style="left:640px;top:860px" data-in="1.6" data-a="pop">ENCAIXE</span>
+<p class="leg" style="top:1400px" data-in="2.0" data-a="sobe">O horário ocupado vira pedido de encaixe.</p></section><section class="cena ouro"><div class="topo" style="top:300px"><div class="etq" data-in="0.05" data-a="sobe">O cliente pede</div></div><h1 style="top:430px"><span data-in="0.15" data-a="sobe">Ele pede</span><br><span class="cor" data-in="0.55" data-a="sobe">o encaixe.</span></h1>
+<div class="cartao" style="left:170px;top:820px;width:740px;" data-in="0.9" data-a="sobe"><div style="background:#16140F;color:#F4EFE4;padding:30px 38px;font:800 30px Manrope">Barbearia do Zé</div><div style="padding:34px 38px;display:grid;grid-template-columns:repeat(3,1fr);gap:16px;font:800 34px Outfit;text-align:center"><span style="border-radius:18px;padding:24px 0;border:2px solid #E3DED3;color:#B8B0A0;text-decoration:line-through">10:30</span><span style="border-radius:18px;padding:24px 0;border:3px dashed #1d4ed8;color:#1d4ed8">11:00</span><span style="border-radius:18px;padding:24px 0;border:2px solid #E3DED3;color:#B8B0A0;text-decoration:line-through">11:30</span></div><div style="margin:0 38px 34px;background:#1d4ed8;color:#fff;border-radius:20px;padding:24px;text-align:center;font:800 28px Manrope">Pedir encaixe às 11:00</div></div>
+<span class="chip esc" style="left:110px;top:760px" data-in="1.5" data-a="pop">Corte + barba</span><span class="chip " style="left:700px;top:1330px" data-in="1.8" data-a="pop">sáb · 11:00</span>
+<p class="leg" style="top:1560px" data-in="2.1" data-a="sobe">O Topete mostra se cabe pelo tempo do serviço.</p></section><section class="cena claro"><svg class="tesoura" viewBox="0 0 170 170" data-in="0.0" data-a="tesoura"><g class="lam" style="transform:rotate(0deg)"><path d="M85 85 L160 70 Q166 72 160 78 Z" fill="#C9963F"/><circle cx="45" cy="120" r="22" fill="none" stroke="#C9963F" stroke-width="10"/><path d="M85 85 L58 106" stroke="#C9963F" stroke-width="10" stroke-linecap="round"/></g><g style="transform:scaleY(-1);transform-origin:85px 85px"><g class="lam" style="transform:rotate(0deg)"><path d="M85 85 L160 70 Q166 72 160 78 Z" fill="#C9963F"/><circle cx="45" cy="120" r="22" fill="none" stroke="#C9963F" stroke-width="10"/><path d="M85 85 L58 106" stroke="#C9963F" stroke-width="10" stroke-linecap="round"/></g></g><circle cx="85" cy="85" r="7" fill="#0E0D0B"/></svg><div class="topo" style="top:300px"><div class="etq" data-in="0.05" data-a="sobe">Você aprova</div></div><h1 style="top:430px"><span data-in="0.15" data-a="sobe">Um toque,</span><br><span class="cor" data-in="0.55" data-a="sobe">no Telegram.</span></h1>
+<div class="cartao" style="left:170px;top:800px;width:740px;" data-in="0.9" data-a="sobe"><div style="background:#0E1621;padding:34px 30px 38px;color:#fff;font:500 30px/1.45 Manrope">
+<div style="display:flex;align-items:center;gap:16px;margin-bottom:22px"><span style="width:64px;height:64px;border-radius:50%;background:#E0AE58;display:grid;place-items:center"><img src="../../marca/topete-mascote.svg" style="width:46px"></span><div><b style="font-size:30px">Topete Avisos</b><span style="display:block;font-size:22px;color:#7D8B99">bot</span></div></div>
+<div style="background:#182533;border-radius:22px;padding:24px 26px 14px">🔔 <b>Pedido de encaixe</b><br>Igor · Corte + barba<br>sáb 04/10 às 11:00<span style="display:block;text-align:right;font-size:20px;color:#7D8B99;margin-top:8px">14:32</span></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px"><span style="background:#2B3A4A;color:#fff;border-radius:16px;padding:20px 0;text-align:center;font:700 28px Manrope">✅ Aprovar</span><span style="background:#2B3A4A;color:#fff;border-radius:16px;padding:20px 0;text-align:center;font:700 28px Manrope">✖️ Recusar</span></div></div></div>
+<span class="chip verde" style="left:600px;top:1410px" data-in="2.0" data-a="pop">✅ Aprovado</span>
+<p class="leg" style="top:1580px" data-in="2.3" data-a="sobe">Sem largar a máquina, sem abrir o painel.</p></section><section class="cena claro"><svg class="tesoura" viewBox="0 0 170 170" data-in="0.0" data-a="tesoura"><g class="lam" style="transform:rotate(0deg)"><path d="M85 85 L160 70 Q166 72 160 78 Z" fill="#C9963F"/><circle cx="45" cy="120" r="22" fill="none" stroke="#C9963F" stroke-width="10"/><path d="M85 85 L58 106" stroke="#C9963F" stroke-width="10" stroke-linecap="round"/></g><g style="transform:scaleY(-1);transform-origin:85px 85px"><g class="lam" style="transform:rotate(0deg)"><path d="M85 85 L160 70 Q166 72 160 78 Z" fill="#C9963F"/><circle cx="45" cy="120" r="22" fill="none" stroke="#C9963F" stroke-width="10"/><path d="M85 85 L58 106" stroke="#C9963F" stroke-width="10" stroke-linecap="round"/></g></g><circle cx="85" cy="85" r="7" fill="#0E0D0B"/></svg><div class="topo" style="top:300px"><div class="etq" data-in="0.05" data-a="sobe">O cliente vê na hora</div></div><h1 style="top:430px"><span data-in="0.15" data-a="sobe">Ninguém fica</span><br><span class="cor" data-in="0.55" data-a="sobe">sem resposta.</span></h1>
+<div class="cartao" style="left:150px;top:860px;width:780px;" data-in="0.9" data-a="sobe"><div style="padding:44px 46px;display:grid;gap:18px;font:600 30px Manrope"><b style="font:800 40px Outfit">Seus horários</b><div class="linha"><span><b>sáb 11:00</b> · Corte + barba</span><span style="color:#1d4ed8;font-weight:800">ENCAIXE</span></div><div class="linha"><span>Situação</span><span style="color:#047857;font-weight:800">Confirmado</span></div></div></div>
+<p class="leg" style="top:1420px" data-in="1.8" data-a="sobe">Aprovou, aparece confirmado no app da barbearia.</p></section><section class="cena escuro">
+<div class="topo" style="top:560px"><div class="etq" style="color:#E0AE58;opacity:1" data-in="0.05" data-a="sobe">Sistema para barbearias</div></div>
+<div style="position:absolute;left:0;right:0;top:680px;display:flex;flex-direction:column;align-items:center;gap:30px">
+<svg viewBox="0 0 512 512" style="width:320px;height:320px;overflow:visible" data-in="0.15" data-a="pop"><defs>
+<linearGradient id="l1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFE9B3"/><stop offset="1" stop-color="#E4B25C"/></linearGradient>
+<linearGradient id="l2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#E9BB68"/><stop offset="1" stop-color="#B98534"/></linearGradient>
+<linearGradient id="l3" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B98534"/><stop offset="1" stop-color="#7E5820"/></linearGradient>
+<linearGradient id="fade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9C7128"/><stop offset=".5" stop-color="#B98A45"/><stop offset="1" stop-color="#F3E9D6"/></linearGradient>
+<linearGradient id="barba" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9C7128"/><stop offset="1" stop-color="#6E4D1B"/></linearGradient>
+<linearGradient id="fundo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1B1915"/><stop offset="1" stop-color="#0B0A08"/></linearGradient>
+<clipPath id="rostoClip"><path d="M150,230 C150,352 196,432 256,434 C316,432 362,352 362,236 Z"/></clipPath><linearGradient id="brilho" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".85"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient><clipPath id="cTopete">
+<path d="M150,232 C136,168 180,112 246,104 C296,98 334,118 346,150 C318,136 280,138 254,156 C224,176 206,200 206,222 C186,220 164,224 150,232 Z" />
+<path d="M180,226 C172,162 222,96 294,88 C352,82 398,112 402,160 C404,190 384,208 360,206 C372,190 370,170 354,156 C334,138 298,138 272,156 C246,174 236,200 238,222 C216,218 196,220 180,226 Z" />
+<path d="M230,224 C230,168 270,114 330,110 C384,106 422,146 414,192 C408,224 380,238 354,230 C374,218 382,196 370,178 C356,158 326,158 306,176 C288,194 284,208 288,224 C270,220 250,220 230,224 Z" />
+</clipPath></defs><g transform="translate(0,6)">
+<!-- orelhas -->
+<ellipse cx="148" cy="300" rx="20" ry="30" fill="#E2D3B8"/><ellipse cx="364" cy="300" rx="20" ry="30" fill="#E2D3B8"/>
+<!-- rosto -->
+<path d="M150,236 C150,200 196,180 256,180 C316,180 362,200 362,236 C362,352 316,432 256,434 C196,432 150,352 150,236 Z" fill="#F3E9D6"/>
+<!-- base do cabelo: linha do cabelo arredondada e costeletas em degradê -->
+<path d="M144,290 C136,184 196,126 262,124 C330,124 376,180 368,290 C362,262 350,244 330,236 C306,226 280,224 256,224 C232,224 206,226 182,236 C162,244 150,262 144,290 Z" fill="url(#l3)"/>
+<g clip-path="url(#rostoClip)"><path d="M146,262 C146,300 150,326 158,346 C166,344 170,340 172,334 C168,306 168,282 174,256 C164,254 154,256 146,262 Z" fill="url(#fade)"/>
+<path d="M366,262 C366,300 362,326 354,346 C346,344 342,340 340,334 C344,306 344,282 338,256 C348,254 358,256 366,262 Z" fill="url(#fade)"/></g>
+<!-- barba aparada -->
+<path d="M152,320 C160,400 204,440 256,442 C308,440 352,400 360,320 C348,356 324,372 300,370 C288,356 272,352 256,356 C240,352 224,356 212,370 C188,372 164,356 152,320 Z" fill="url(#barba)"/>
+<path d="M234,392 C246,398 266,398 278,392" fill="none" stroke="#F3E9D6" stroke-width="8" stroke-linecap="round"/>
+<!-- sobrancelhas e olhos -->
+<path d="M196,282 C208,272 224,270 236,274" fill="none" stroke="#6E4D1B" stroke-width="10" stroke-linecap="round"/>
+<path d="M276,274 C288,270 304,272 316,282" fill="none" stroke="#6E4D1B" stroke-width="10" stroke-linecap="round"/>
+<circle cx="218" cy="306" r="8" fill="#0E0D0B"/><circle cx="294" cy="306" r="8" fill="#0E0D0B"/>
+<path d="M256,312 C252,328 250,338 260,342" fill="none" stroke="#E2D3B8" stroke-width="7" stroke-linecap="round"/>
+<g class="topete" style="transform-origin:256px 226px"><!-- TOPETE: três camadas, de trás para a frente -->
+<path d="M150,232 C136,168 180,112 246,104 C296,98 334,118 346,150 C318,136 280,138 254,156 C224,176 206,200 206,222 C186,220 164,224 150,232 Z" fill="url(#l3)"/>
+<path d="M180,226 C172,162 222,96 294,88 C352,82 398,112 402,160 C404,190 384,208 360,206 C372,190 370,170 354,156 C334,138 298,138 272,156 C246,174 236,200 238,222 C216,218 196,220 180,226 Z" fill="url(#l2)"/>
+<path d="M230,224 C230,168 270,114 330,110 C384,106 422,146 414,192 C408,224 380,238 354,230 C374,218 382,196 370,178 C356,158 326,158 306,176 C288,194 284,208 288,224 C270,220 250,220 230,224 Z" fill="url(#l1)"/>
+<path d="M246,196 C258,156 288,132 326,128" fill="none" stroke="#FFF6DA" stroke-width="8" stroke-linecap="round" opacity=".7"/><g clip-path="url(#cTopete)"><rect class="brilho" x="-220" y="60" width="120" height="200" fill="url(#brilho)" transform="skewX(-20)"/></g></g><path class="faisca1" d="M420,102 L425,115 L438,120 L425,125 L420,138 L415,125 L402,120 L415,115 Z" fill="#FFE9B3" opacity="0"/><path class="faisca2" d="M190,74 L195,87 L208,92 L195,97 L190,110 L185,97 L172,92 L185,87 Z" fill="#FFE9B3" opacity="0"/></g></svg>
+<p style="font:600 48px Manrope;opacity:.85" data-in="0.4" data-a="sobe">Conheça o</p>
+<p style="font:700 170px/0.9 Outfit;letter-spacing:-6px" data-in="0.6" data-a="sobe">topete<span style="color:#E0AE58">.</span></p>
+<p style="font:600 36px Manrope;color:#CFC6B4" data-in="1.0" data-a="sobe">Encaixe sem bagunça.</p>
+<span style="margin-top:30px;background:#F4EFE4;color:#0E0D0B;border-radius:999px;padding:30px 56px;font:800 34px Manrope" data-in="1.35" data-a="pop">Manda FUNDADOR no direct ↗</span>
+<p style="margin-top:20px;font:700 30px Manrope;color:#9C927E" data-in="1.55" data-a="sobe">topete.com.br</p>
+</div></section><script>
+const CENA = 3.8, CORT = 0.4, FIM = 3.6;
+const E = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : 1 - Math.pow(1 - x, 3));
+const cenas = [...document.querySelectorAll('.cena')];
+const D = (cenas.length - 1) * CENA + FIM;
+var render = function (t) {
+  cenas.forEach((c, i) => {
+    const ini = i * CENA, fim = i === cenas.length - 1 ? D + 1 : ini + CENA + CORT;
+    if (t < ini || t > fim) { c.style.display = 'none'; return; }
+    c.style.display = 'block'; c.style.zIndex = i + 1;
+    c.style.clipPath = i === 0 ? 'none' : `inset(${(1 - E((t - ini) / CORT)) * 100}% 0 0 0)`;
+    const tl = t - ini - (i === 0 ? 0 : CORT);
+    c.querySelectorAll('[data-in]').forEach((e) => {
+      const a = +e.dataset.in, tipo = e.dataset.a || 'sobe';
+      if (tipo === 'linha') {
+        const L = e.getTotalLength(), k = E((tl - a) / 0.8);
+        e.setAttribute('stroke-dasharray', `${L * k} ${L}`); e.style.opacity = tl < a ? 0 : 1; return;
+      }
+      if (tipo === 'tesoura') {
+        const k = E((tl - a) / 0.35); e.style.opacity = k; e.style.transform = `scale(${0.6 + 0.4 * k})`;
+        const x = Math.max(0, Math.min(1, (tl - a - 0.2) / 0.9));
+        const ang = 22 * Math.abs(Math.sin(Math.PI * 2 * x)) * (1 - x * 0.2);
+        const [l1, l2] = e.querySelectorAll('.lam'); if (l1) l1.style.transform = `rotate(${-ang}deg)`; if (l2) l2.style.transform = `rotate(${-ang}deg)`;
+        return;
+      }
+      const k = E((tl - a) / (tipo === 'pop' ? 0.35 : 0.45));
+      e.style.opacity = k;
+      e.style.transform = tipo === 'pop' ? `scale(${0.6 + 0.4 * k})` : tipo === 'aparece' ? 'none' : `translateY(${(1 - k) * 60}px)`;
+    });
+  });
+};
+/* final: o topete dá um "boing", passa um brilho e duas faíscas */
+const _render = render;
+render = function (t) {
+  _render(t);
+  const ult = cenas[cenas.length - 1]; const ini = (cenas.length - 1) * CENA + CORT;
+  const x = t - ini - 0.45;
+  const tp = ult.querySelector('.topete');
+  if (tp) {
+    const mola = x <= 0 ? 0 : Math.exp(-3.2 * x);
+    tp.style.transform = `rotate(${7 * mola * Math.sin(11 * x)}deg) scaleY(${1 + 0.22 * mola * Math.sin(9 * x + 1.2)})`;
+    const b = ult.querySelector('.brilho'); if (b) b.setAttribute('x', -220 + 760 * E((x - 0.6) / 0.7));
+    [['.faisca1', 1.25], ['.faisca2', 1.45]].forEach(([q, a]) => { const f = ult.querySelector(q); if (!f) return; const k = Math.max(0, Math.min(1, (x - a) / 0.5)); f.setAttribute('opacity', k <= 0 || k >= 1 ? 0 : Math.sin(Math.PI * k)); });
+  }
+};
+window.render = render; window.DURACAO = D;
+if (!navigator.webdriver) { const t0 = performance.now(); const loop = () => { render(((performance.now() - t0) / 1000) % D); requestAnimationFrame(loop); }; requestAnimationFrame(loop); }
+else render(0);
+</script></body></html>

@@ -1,0 +1,208 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><link rel="stylesheet" href="base.css"><style>
+body{width:1080px;height:1920px;background:#0E0D0B;overflow:hidden;position:relative;font-family:Manrope}
+#cena{position:absolute;left:0;top:0;width:1080px;height:1920px}
+#palco{position:absolute;left:0;top:0;width:1080px;height:1920px;transform-origin:540px 915px;transform:translateY(-15px) scale(.764)}
+.ov{position:absolute;will-change:transform,opacity}
+.pill{left:50%;top:352px;transform:translateX(-50%);border-radius:999px;padding:18px 34px;font:800 30px/1 Manrope;letter-spacing:.14em;text-transform:uppercase;white-space:nowrap}
+.sem{background:#2A2722;color:#E9E3D6;border:2px solid #4A453C}
+.com{background:linear-gradient(135deg,#FFE3A3,#E0AE58 50%,#A8752A);color:#0E0D0B}
+.logo{left:0;right:0;top:276px;display:flex;justify-content:center;align-items:center;gap:14px;font:700 46px Outfit;letter-spacing:-1.2px;color:#F4EFE4}
+.logo img{width:60px;height:60px}
+.leg{left:150px;right:175px;top:1392px;text-align:center;font:800 44px/1.14 Outfit;letter-spacing:-1px;color:#F4EFE4}
+.leg em{font-style:normal;color:#E0AE58}
+.fone{left:290px;top:430px;width:500px;height:1010px;background:#0E0D0B;border-radius:70px;padding:16px;box-shadow:0 60px 120px -30px #000c}
+.fone .tela{position:relative;width:100%;height:100%;background:#F4EFE4;border-radius:56px;overflow:hidden;color:#16140F}
+.tl{position:absolute;inset:0;padding:70px 34px 30px}
+.rot{font:800 22px Manrope;letter-spacing:.12em;color:#A8752A;text-transform:uppercase}
+.lin{display:flex;justify-content:space-between;align-items:center;background:#fff;border:2.5px solid #E6DDCB;border-radius:22px;padding:20px 22px;font:700 26px Manrope;margin-top:12px}
+.exemplo{position:absolute;left:0;right:0;bottom:22px;text-align:center;font:800 16px Manrope;letter-spacing:.14em;color:#9C927E;text-transform:uppercase}
+.cartao{background:#fff;color:#16140F;border-radius:26px;padding:20px 26px;font:700 30px/1.25 Manrope;box-shadow:0 18px 36px -14px #0008;white-space:nowrap}
+.cta{inset:0;background:radial-gradient(circle at 50% 40%,#2A2017,#0E0D0B 70%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;color:#F4EFE4;text-align:center}
+.chip{border-radius:999px;padding:18px 32px;font:700 30px Manrope;background:#1C1A16;border:2px solid #3A342A;color:#F4EFE4}
+</style></head><body>
+<div id="palco"><svg id="cena" viewBox="0 0 1080 1920" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<linearGradient id="l1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFE9B3"/><stop offset="1" stop-color="#E4B25C"/></linearGradient>
+<linearGradient id="l2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#E9BB68"/><stop offset="1" stop-color="#B98534"/></linearGradient>
+<linearGradient id="l3" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B98534"/><stop offset="1" stop-color="#7E5820"/></linearGradient>
+<linearGradient id="fade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9C7128"/><stop offset=".5" stop-color="#B98A45"/><stop offset="1" stop-color="#F3E9D6"/></linearGradient>
+<linearGradient id="barba" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9C7128"/><stop offset="1" stop-color="#6E4D1B"/></linearGradient>
+<linearGradient id="fundo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1B1915"/><stop offset="1" stop-color="#0B0A08"/></linearGradient>
+<clipPath id="rostoClip"><path d="M150,230 C150,352 196,432 256,434 C316,432 362,352 362,236 Z"/></clipPath><pattern id="listra" width="60" height="60" patternUnits="userSpaceOnUse" patternTransform="rotate(35)">
+<rect width="60" height="60" fill="#F4EFE4"/><rect width="20" height="60" fill="#C9963F"/><rect x="30" width="10" height="60" fill="#0E0D0B"/></pattern></defs>
+<g id="mundo"><rect width="1080" height="1920" fill="#0E0D0B"/>
+<rect x="0" y="300" width="1080" height="1230" fill="#EADFCB" id="parede"/>
+<rect x="0" y="1180" width="1080" height="350" fill="#3B2F22"/><rect x="0" y="1170" width="1080" height="14" fill="#A8752A"/>
+<rect x="56" y="470" width="64" height="360" rx="32" fill="url(#listra)"/>
+<rect x="46" y="452" width="84" height="26" rx="10" fill="#A8752A"/><rect x="46" y="822" width="84" height="26" rx="10" fill="#A8752A"/>
+<g id="janela"><rect x="170" y="440" width="260" height="300" rx="18" fill="#BFE0EC" id="ceu" stroke="#A8752A" stroke-width="14"/>
+<path d="M300 440 L300 740 M170 590 L430 590" stroke="#A8752A" stroke-width="10"/></g>
+<g transform="translate(900,500)"><circle r="78" fill="#fff" stroke="#16140F" stroke-width="10"/>
+<g fill="#16140F"><rect x="-3" y="-66" width="6" height="14" transform="rotate(0)"/><rect x="-3" y="-66" width="6" height="14" transform="rotate(30)"/><rect x="-3" y="-66" width="6" height="14" transform="rotate(60)"/><rect x="-3" y="-66" width="6" height="14" transform="rotate(90)"/><rect x="-3" y="-66" width="6" height="14" transform="rotate(120)"/><rect x="-3" y="-66" width="6" height="14" transform="rotate(150)"/><rect x="-3" y="-66" width="6" height="14" transform="rotate(180)"/><rect x="-3" y="-66" width="6" height="14" transform="rotate(210)"/><rect x="-3" y="-66" width="6" height="14" transform="rotate(240)"/><rect x="-3" y="-66" width="6" height="14" transform="rotate(270)"/><rect x="-3" y="-66" width="6" height="14" transform="rotate(300)"/><rect x="-3" y="-66" width="6" height="14" transform="rotate(330)"/></g>
+<rect id="pont-h" x="-5" y="-40" width="10" height="44" rx="5" fill="#16140F"/>
+<rect id="pont-m" x="-3.5" y="-60" width="7" height="64" rx="3.5" fill="#C9963F"/><circle r="9" fill="#16140F"/></g><g id="calend"><rect x="600" y="380" width="200" height="230" rx="14" fill="#fff" stroke="#16140F" stroke-width="6"/>
+<rect x="600" y="380" width="200" height="60" rx="14" fill="#C2410C" id="cal-topo"/><rect x="600" y="420" width="200" height="20" fill="#C2410C" id="cal-topo2"/>
+<text x="700" y="422" text-anchor="middle" font-family="Manrope" font-weight="800" font-size="26" fill="#fff">OUTUBRO</text>
+<text x="700" y="560" text-anchor="middle" font-family="Outfit" font-weight="700" font-size="110" fill="#16140F">28</text>
+<path id="cal-circ" d="M700 470 C760 470 780 520 778 540 C776 590 740 600 700 600 C650 600 622 580 622 538 C622 496 650 470 704 474" fill="none" stroke="#C2410C" stroke-width="9" stroke-linecap="round" stroke-dasharray="520" stroke-dashoffset="520"/>
+<g id="cal-ok" opacity="0"><circle cx="782" cy="400" r="34" fill="#047857"/><path d="M766 400 L778 412 L800 388" stroke="#fff" stroke-width="8" fill="none" stroke-linecap="round"/></g></g><g id="barbeiro">
+<path d="M420 1000 C420 955 460 935 540 935 C620 935 660 955 660 1000 L670 1120 L410 1120 Z" fill="#F4EFE4"/>
+<path d="M460 1010 L620 1010 L630 1120 L450 1120 Z" fill="#16140F"/>
+<g id="bE"><path d="M430 990 C380 1030 370 1070 420 1090" stroke="#F4EFE4" stroke-width="44" fill="none" stroke-linecap="round"/><circle cx="428" cy="1092" r="24" fill="#F3E9D6"/></g>
+<g id="bD"><path d="M650 990 C700 1030 710 1070 660 1090" stroke="#F4EFE4" stroke-width="44" fill="none" stroke-linecap="round"/><circle cx="652" cy="1092" r="24" fill="#F3E9D6"/></g>
+<g id="cab"><g transform="translate(381.28,634.0) scale(0.62)">
+<!-- orelhas -->
+<ellipse cx="148" cy="300" rx="20" ry="30" fill="#E2D3B8"/><ellipse cx="364" cy="300" rx="20" ry="30" fill="#E2D3B8"/>
+<!-- rosto -->
+<path d="M150,236 C150,200 196,180 256,180 C316,180 362,200 362,236 C362,352 316,432 256,434 C196,432 150,352 150,236 Z" fill="#F3E9D6"/>
+<!-- base do cabelo: linha do cabelo arredondada e costeletas em degradê -->
+<path d="M144,290 C136,184 196,126 262,124 C330,124 376,180 368,290 C362,262 350,244 330,236 C306,226 280,224 256,224 C232,224 206,226 182,236 C162,244 150,262 144,290 Z" fill="url(#l3)"/>
+<g clip-path="url(#rostoClip)"><path d="M146,262 C146,300 150,326 158,346 C166,344 170,340 172,334 C168,306 168,282 174,256 C164,254 154,256 146,262 Z" fill="url(#fade)"/>
+<path d="M366,262 C366,300 362,326 354,346 C346,344 342,340 340,334 C344,306 344,282 338,256 C348,254 358,256 366,262 Z" fill="url(#fade)"/></g>
+<!-- barba aparada -->
+<path d="M152,320 C160,400 204,440 256,442 C308,440 352,400 360,320 C348,356 324,372 300,370 C288,356 272,352 256,356 C240,352 224,356 212,370 C188,372 164,356 152,320 Z" fill="url(#barba)"/>
+<path d="M234,392 C246,398 266,398 278,392" fill="none" stroke="#F3E9D6" stroke-width="8" stroke-linecap="round"/>
+<!-- sobrancelhas e olhos -->
+<path d="M196,282 C208,272 224,270 236,274" fill="none" stroke="#6E4D1B" stroke-width="10" stroke-linecap="round"/>
+<path d="M276,274 C288,270 304,272 316,282" fill="none" stroke="#6E4D1B" stroke-width="10" stroke-linecap="round"/>
+<circle cx="218" cy="306" r="8" fill="#0E0D0B"/><circle cx="294" cy="306" r="8" fill="#0E0D0B"/>
+<path d="M256,312 C252,328 250,338 260,342" fill="none" stroke="#E2D3B8" stroke-width="7" stroke-linecap="round"/>
+<!-- TOPETE: três camadas, de trás para a frente -->
+<path d="M150,232 C136,168 180,112 246,104 C296,98 334,118 346,150 C318,136 280,138 254,156 C224,176 206,200 206,222 C186,220 164,224 150,232 Z" fill="url(#l3)"/>
+<path d="M180,226 C172,162 222,96 294,88 C352,82 398,112 402,160 C404,190 384,208 360,206 C372,190 370,170 354,156 C334,138 298,138 272,156 C246,174 236,200 238,222 C216,218 196,220 180,226 Z" fill="url(#l2)"/>
+<path d="M230,224 C230,168 270,114 330,110 C384,106 422,146 414,192 C408,224 380,238 354,230 C374,218 382,196 370,178 C356,158 326,158 306,176 C288,194 284,208 288,224 C270,220 250,220 230,224 Z" fill="url(#l1)"/>
+<path d="M246,196 C258,156 288,132 326,128" fill="none" stroke="#FFF6DA" stroke-width="8" stroke-linecap="round" opacity=".7"/></g></g>
+<path id="suor" d="M660 730 C652 746 648 756 656 764 C664 772 676 764 672 752 C670 744 664 738 660 730 Z" fill="#7FC4E8" opacity="0"/>
+</g><g id="balcao"><rect x="120" y="1100" width="840" height="400" rx="10" fill="#5A4027"/>
+<rect x="100" y="1080" width="880" height="34" rx="10" fill="#7A5733"/><rect x="120" y="1114" width="840" height="10" fill="#4A341F"/>
+<rect x="470" y="1200" width="140" height="140" rx="70" fill="none" stroke="#A8752A" stroke-width="10"/>
+<text x="540" y="1290" text-anchor="middle" font-family="Outfit" font-weight="700" font-size="76" fill="#A8752A">Z</text></g></g>
+<rect id="escurece" width="1080" height="1920" fill="#0E0D0B" opacity="0"/></svg>
+<div class="ov cartao" id="bol0" style="left:60px;top:640px;border-left:12px solid #C2410C">🧾 Aluguel · <b>R$ 1.800</b></div><div class="ov cartao" id="bol1" style="left:740px;top:700px;border-left:12px solid #C2410C">🧾 Luz · <b>R$ 320</b></div><div class="ov cartao" id="bol2" style="left:40px;top:820px;border-left:12px solid #C2410C">🧾 Produtos · <b>R$ 540</b></div><div class="ov cartao" id="bol3" style="left:770px;top:830px;border-left:12px solid #C2410C">🧾 Água · <b>R$ 90</b></div><div class="ov cartao" id="bol4" style="left:90px;top:960px;border-left:12px solid #C2410C">🧾 Internet · <b>R$ 120</b></div><div class="ov" id="interroga" style="left:470px;top:440px;width:140px;text-align:center;font:800 180px/1 Outfit;color:#C2410C">?</div><div class="ov cartao" id="k6-alivio" style="left:300px;top:1000px;background:#047857;color:#fff">✓ Mês sob controle</div>
+<div class="ov fone" id="fone"><div class="tela"><div class="tl">
+<p class="rot">Projeção · outubro</p>
+<p style="font:700 26px Manrope;color:#5A554C;margin-top:18px">Previsão de fechamento</p>
+<p id="k6-total" style="font:700 92px/1 Outfit;letter-spacing:-3px;margin-top:6px;color:#047857">R$ 0</p>
+<div id="k6-b1" style="margin-top:26px"><div style="display:flex;justify-content:space-between;font:700 24px Manrope"><span>Já entrou</span><span>R$ 9.420</span></div>
+<div style="height:22px;background:#E6DDCB;border-radius:11px;margin-top:8px"><div id="k6-w1" style="height:100%;width:0;background:#047857;border-radius:11px"></div></div></div>
+<div id="k6-b2" style="margin-top:20px"><div style="display:flex;justify-content:space-between;font:700 24px Manrope"><span>Agendado até o dia 31</span><span>R$ 3.150</span></div>
+<div style="height:22px;background:#E6DDCB;border-radius:11px;margin-top:8px"><div id="k6-w2" style="height:100%;width:0;background:#C9963F;border-radius:11px"></div></div></div>
+<div id="k6-b3" style="margin-top:20px"><div style="display:flex;justify-content:space-between;font:700 24px Manrope"><span>Despesas do mês</span><span>− R$ 4.300</span></div>
+<div style="height:22px;background:#E6DDCB;border-radius:11px;margin-top:8px"><div id="k6-w3" style="height:100%;width:0;background:#5A554C;border-radius:11px"></div></div></div>
+<div id="k6-ok" style="margin-top:34px;display:inline-block;background:#047857;color:#fff;border-radius:999px;padding:14px 26px;font:800 26px Manrope">✓ Aluguel coberto</div>
+</div><div class="exemplo">Valores de exemplo</div></div></div>
+<svg class="ov" id="corte" viewBox="0 0 1080 1920" style="left:0;top:0;width:1080px;height:1920px;pointer-events:none">
+<path id="corte-linha" d="M-40 980 L1120 900" stroke="#F4EFE4" stroke-width="10" stroke-dasharray="1200" stroke-dashoffset="1200" fill="none"/>
+<g id="corte-tes"><g id="ct1"><path d="M0 0 L-110 -44 Q-118 -40 -110 -32 Z" fill="#E0AE58"/><circle cx="28" cy="24" r="20" fill="none" stroke="#E0AE58" stroke-width="10"/></g>
+<g id="ct2"><path d="M0 0 L-110 44 Q-118 40 -110 32 Z" fill="#E0AE58"/><circle cx="28" cy="-24" r="20" fill="none" stroke="#E0AE58" stroke-width="10"/></g><circle r="8" fill="#0E0D0B"/></g></svg></div>
+<div class="ov logo" id="logo"><img src="../../marca/topete-mascote.svg">topete</div>
+<div class="ov pill sem" id="p-sem">✕ Sem Topete</div><div class="ov pill com" id="p-com">✓ Com Topete</div>
+<div class="ov leg" id="leg0">Fim do mês chegando… e a <em>dúvida de sempre:</em></div><div class="ov leg" id="leg1">Será que dá pra pagar <em>o aluguel?</em></div><div class="ov leg" id="leg2">Com o Topete, você vê <em>a projeção do mês.</em></div><div class="ov leg" id="leg3">E sabe quanto vai fechar, <em>antes do mês acabar.</em></div>
+<div class="ov cta" id="cta"><div id="cta-masc" style="width:330px;height:330px"><svg viewBox="0 0 512 512" style="width:330px;height:330px;overflow:visible"><defs>
+<linearGradient id="l1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFE9B3"/><stop offset="1" stop-color="#E4B25C"/></linearGradient>
+<linearGradient id="l2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#E9BB68"/><stop offset="1" stop-color="#B98534"/></linearGradient>
+<linearGradient id="l3" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B98534"/><stop offset="1" stop-color="#7E5820"/></linearGradient>
+<linearGradient id="fade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9C7128"/><stop offset=".5" stop-color="#B98A45"/><stop offset="1" stop-color="#F3E9D6"/></linearGradient>
+<linearGradient id="barba" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9C7128"/><stop offset="1" stop-color="#6E4D1B"/></linearGradient>
+<linearGradient id="fundo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1B1915"/><stop offset="1" stop-color="#0B0A08"/></linearGradient>
+<clipPath id="rostoClip"><path d="M150,230 C150,352 196,432 256,434 C316,432 362,352 362,236 Z"/></clipPath></defs><g transform="translate(0,6)">
+<!-- orelhas -->
+<ellipse cx="148" cy="300" rx="20" ry="30" fill="#E2D3B8"/><ellipse cx="364" cy="300" rx="20" ry="30" fill="#E2D3B8"/>
+<!-- rosto -->
+<path d="M150,236 C150,200 196,180 256,180 C316,180 362,200 362,236 C362,352 316,432 256,434 C196,432 150,352 150,236 Z" fill="#F3E9D6"/>
+<!-- base do cabelo: linha do cabelo arredondada e costeletas em degradê -->
+<path d="M144,290 C136,184 196,126 262,124 C330,124 376,180 368,290 C362,262 350,244 330,236 C306,226 280,224 256,224 C232,224 206,226 182,236 C162,244 150,262 144,290 Z" fill="url(#l3)"/>
+<g clip-path="url(#rostoClip)"><path d="M146,262 C146,300 150,326 158,346 C166,344 170,340 172,334 C168,306 168,282 174,256 C164,254 154,256 146,262 Z" fill="url(#fade)"/>
+<path d="M366,262 C366,300 362,326 354,346 C346,344 342,340 340,334 C344,306 344,282 338,256 C348,254 358,256 366,262 Z" fill="url(#fade)"/></g>
+<!-- barba aparada -->
+<path d="M152,320 C160,400 204,440 256,442 C308,440 352,400 360,320 C348,356 324,372 300,370 C288,356 272,352 256,356 C240,352 224,356 212,370 C188,372 164,356 152,320 Z" fill="url(#barba)"/>
+<path d="M234,392 C246,398 266,398 278,392" fill="none" stroke="#F3E9D6" stroke-width="8" stroke-linecap="round"/>
+<!-- sobrancelhas e olhos -->
+<path d="M196,282 C208,272 224,270 236,274" fill="none" stroke="#6E4D1B" stroke-width="10" stroke-linecap="round"/>
+<path d="M276,274 C288,270 304,272 316,282" fill="none" stroke="#6E4D1B" stroke-width="10" stroke-linecap="round"/>
+<circle cx="218" cy="306" r="8" fill="#0E0D0B"/><circle cx="294" cy="306" r="8" fill="#0E0D0B"/>
+<path d="M256,312 C252,328 250,338 260,342" fill="none" stroke="#E2D3B8" stroke-width="7" stroke-linecap="round"/>
+<g id="cta-topete" style="transform-origin:256px 226px"><!-- TOPETE: três camadas, de trás para a frente -->
+<path d="M150,232 C136,168 180,112 246,104 C296,98 334,118 346,150 C318,136 280,138 254,156 C224,176 206,200 206,222 C186,220 164,224 150,232 Z" fill="url(#l3)"/>
+<path d="M180,226 C172,162 222,96 294,88 C352,82 398,112 402,160 C404,190 384,208 360,206 C372,190 370,170 354,156 C334,138 298,138 272,156 C246,174 236,200 238,222 C216,218 196,220 180,226 Z" fill="url(#l2)"/>
+<path d="M230,224 C230,168 270,114 330,110 C384,106 422,146 414,192 C408,224 380,238 354,230 C374,218 382,196 370,178 C356,158 326,158 306,176 C288,194 284,208 288,224 C270,220 250,220 230,224 Z" fill="url(#l1)"/>
+<path d="M246,196 C258,156 288,132 326,128" fill="none" stroke="#FFF6DA" stroke-width="8" stroke-linecap="round" opacity=".7"/></g></g></svg></div>
+<p id="cta1" style="font:700 120px/0.9 Outfit;letter-spacing:-5px">topete<span style="color:#E0AE58">.</span></p>
+<p id="cta2" style="font:700 52px/1.15 Outfit;letter-spacing:-1px;max-width:880px">O financeiro da barbearia, <span style="color:#E0AE58">sem susto.</span></p>
+<div id="cta3" style="display:flex;gap:16px;flex-wrap:wrap;justify-content:center;max-width:900px;margin-top:10px"><span class="chip">Projeção do mês</span><span class="chip">Despesas e DRE</span></div>
+<p id="cta4" style="margin-top:26px;font:800 40px Manrope;color:#E0AE58">@usetopete</p></div>
+<script>
+const D = 22.5, VIRA = 6.6, FONE = [7.7, 14.3], CTA = 17.6, FALAS = [[0.5, "fala0.wav", 2.6], [3.6, "fala1.wav", 1.76], [7.9, "fala2.wav", 5.69], [14.6, "fala3.wav", 2.37], [18.2, "fala4.wav", 2.79]];
+
+const cl = (x) => Math.max(0, Math.min(1, x)), E = (x) => 1 - Math.pow(1 - cl(x), 3), EI = (x) => { x = cl(x); return x < .5 ? 4*x*x*x : 1 - Math.pow(-2*x + 2, 3)/2; };
+const $ = (id) => document.getElementById(id);
+const pulo = (x) => x <= 0 ? 0 : Math.exp(-4 * x) * Math.sin(14 * x);
+const conta = (a, b, k) => Math.round(a + (b - a) * E(k)).toLocaleString('pt-BR');
+function comum(t) {
+  const cor = E((t - VIRA - 0.3) / 0.7);
+  $('mundo').style.filter = `grayscale(${0.85 * (1 - cor)}) brightness(${0.92 + 0.08 * cor})`;
+  $('p-sem').style.opacity = t < VIRA + 0.2 ? 1 : 0;
+  $('p-sem').style.transform = `translateX(-50%) scale(${1 + 0.15 * pulo(t - 0.1)})`;
+  $('p-com').style.opacity = t >= VIRA + 0.45 ? E((t - VIRA - 0.5) / 0.4) : 0;
+  $('p-com').style.transform = `translateX(-50%) scale(${1 + 0.18 * pulo(t - VIRA - 0.5)})`;
+  $('logo').style.opacity = t < CTA ? 1 : 0;
+  const kx = (t - VIRA) / 0.7;
+  $('corte').style.opacity = kx > 0 && kx < 1.5 ? 1 - cl((kx - 1) / 0.5) : 0;
+  $('corte-linha').setAttribute('stroke-dashoffset', 1200 * (1 - E(kx)));
+  const x = -120 + 1320 * EI(kx), y = 990 - 80 * EI(kx), ab = Math.abs(Math.sin(kx * Math.PI * 3)) * 26;
+  $('corte-tes').setAttribute('transform', `translate(${x},${y}) rotate(-4)`);
+  $('ct1').setAttribute('transform', `rotate(${-ab})`); $('ct2').setAttribute('transform', `rotate(${ab})`);
+  const kf = E((t - FONE[0]) / 0.5) * (1 - E((t - FONE[1]) / 0.45));
+  $('fone').style.opacity = cl(kf * 1.2); $('fone').style.transform = `translateY(${(1 - kf) * 900}px)`;
+  $('escurece').setAttribute('opacity', 0.45 * kf);
+  FALAS.forEach(([a, f, d], i) => { const l = $('leg' + i); if (!l) return; const k = E((t - a + 0.1) / 0.25) * (1 - E((t - a - d - 0.2) / 0.25)); l.style.opacity = k; l.style.transform = `translateY(${(1 - k) * 20}px)`; });
+  const kk = E((t - CTA) / 0.5);
+  $('cta').style.clipPath = `inset(${(1 - kk) * 100}% 0 0 0)`; $('cta').style.opacity = t >= CTA ? 1 : 0;
+  ['cta1', 'cta2', 'cta3', 'cta4'].forEach((id, i) => { const k = E((t - CTA - 0.5 - i * 0.3) / 0.4); $(id).style.opacity = k; $(id).style.transform = `translateY(${(1 - k) * 40}px)`; });
+  const mx = t - CTA - 0.7, mola = mx <= 0 ? 0 : Math.exp(-3.2 * mx);
+  $('cta-topete').style.transform = `rotate(${7 * mola * Math.sin(11 * mx)}deg) scaleY(${1 + 0.22 * mola * Math.sin(9 * mx + 1.2)})`;
+  $('cta-masc').style.transform = `scale(${E((t - CTA - 0.2) / 0.4)})`;
+}
+const EVENTOS = [];
+function eventosComuns() {
+  EVENTOS.push({ t: VIRA - 0.15, som: 'whoosh', v: 0.55 }, { t: VIRA + 0.15, som: 'snip', v: 0.9 }, { t: VIRA + 0.42, som: 'snip', v: 0.9 });
+  EVENTOS.push({ t: FONE[0], som: 'swish', v: 0.5 }, { t: FONE[1], som: 'swish', v: 0.35 });
+  EVENTOS.push({ t: CTA - 0.1, som: 'whoosh', v: 0.5 }, { t: CTA + 0.7, som: 'boing', v: 0.6 }, { t: CTA + 1.3, som: 'brilho', v: 0.45 });
+}
+
+
+const BOL = [1.1, 1.6, 2.1, 2.6, 3.0];
+function ep(t) {
+  const antes = t < VIRA + 0.3;
+  $('pont-m').setAttribute('transform', `rotate(${(10 + t) * 6})`); $('pont-h').setAttribute('transform', `rotate(${120 + t * 0.5})`);
+  $('cal-circ').setAttribute('stroke-dashoffset', 520 * (1 - E((t - 0.6) / 0.8)));
+  const ok = E((t - 14.8) / 0.35);
+  $('cal-circ').setAttribute('stroke', t > 14.8 ? '#047857' : '#C2410C'); $('cal-ok').setAttribute('opacity', ok);
+  $('cal-ok').setAttribute('transform', `translate(782,400) scale(${0.4 + 0.6 * ok + 0.2 * pulo(t - 14.8)}) translate(-782,-400)`);
+  BOL.forEach((a, i) => { const b = $('bol' + i), k = E((t - a) / 0.3), s = E((t - VIRA) / 0.5);
+    b.style.opacity = t < a ? 0 : k * (1 - s); b.style.transform = `translateY(${s * -500}px) rotate(${(i % 2 ? 4 : -4) + Math.sin(t * 5 + i) * 3}deg) scale(${0.6 + 0.4 * k + 0.12 * pulo(t - a)})`; });
+  const kq = E((t - 3.6) / 0.25) * (1 - E((t - VIRA) / 0.3));
+  $('interroga').style.opacity = kq; $('interroga').style.transform = `rotate(${Math.sin(t * 7) * 12}deg) scale(${0.5 + 0.5 * kq + 0.2 * pulo(t - 3.6)})`;
+  $('cab').setAttribute('transform', antes ? `rotate(${t > 1.2 ? Math.sin(t * 5) * 5 : 0} 540 940)` : `rotate(${t > 14.6 ? -4 * E((t - 14.6) / 0.4) : 0} 540 940)`);
+  $('suor').setAttribute('opacity', t > 2.4 && antes ? 1 : 0);
+  // mãos na cabeça antes; depois, joinha
+  const maos = antes && t > 3.4 ? E((t - 3.4) / 0.3) : 0;
+  
+  const ka = E((t - 15.0) / 0.35) * (1 - E((t - CTA + 0.2) / 0.3)); $('k6-alivio').style.opacity = ka; $('k6-alivio').style.transform = `scale(${0.7 + 0.3 * ka + 0.1 * pulo(t - 15.0)})`;
+  // tela da projeção
+  $('k6-total').textContent = 'R$ ' + conta(0, 8270, (t - 8.6) / 1.4);
+  [['k6-b1', 9.4, 'k6-w1', 100], ['k6-b2', 10.2, 'k6-w2', 33], ['k6-b3', 11.0, 'k6-w3', 46]].forEach(([id, a, w, pct]) => {
+    const k = E((t - a) / 0.35); $(id).style.opacity = k; $(w).style.width = (pct * E((t - a - 0.15) / 0.8)) + '%'; });
+  const ko = E((t - 12.2) / 0.35); $('k6-ok').style.opacity = ko; $('k6-ok').style.transform = `scale(${0.7 + 0.3 * ko + 0.15 * pulo(t - 12.2)})`;
+}
+function render(t) { comum(t); ep(t); }
+eventosComuns();
+
+BOL.forEach((a) => { EVENTOS.push({ t: a, som: 'pop', v: 0.45 }); EVENTOS.push({ t: a, som: 'swish', v: 0.25 }); });
+EVENTOS.push({ t: 0.6, som: 'swish', v: 0.3 }, { t: 3.6, som: 'boing', v: 0.35 });
+[9.4, 10.2, 11.0].forEach((a) => EVENTOS.push({ t: a, som: 'tap', v: 0.45 }));
+EVENTOS.push({ t: 12.2, som: 'ding', v: 0.5 }, { t: 14.8, som: 'pop', v: 0.45 }, { t: 15.0, som: 'brilho', v: 0.35 });
+window.render = render; window.DURACAO = D; window.EVENTOS = EVENTOS; window.FALAS = FALAS;
+if (!navigator.webdriver) { const t0 = performance.now(); const loop = () => { render(((performance.now() - t0) / 1000) % D); requestAnimationFrame(loop); }; requestAnimationFrame(loop); }
+else render(0);
+</script></body></html>
