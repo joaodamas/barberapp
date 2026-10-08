@@ -4,6 +4,7 @@ import { staffIdDeQuemChamou } from "./convite-equipe";
 import { exigirEdicao, idSeguro, vinculosDe } from "./acesso";
 import { ehMensalistaAtivo, limiteDoCliente } from "./janela";
 import { onSchedule } from "firebase-functions/v2/scheduler";
+import * as logger from "firebase-functions/logger";
 import { FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
 import { diaDaSemanaNoFuso, hojeNoFuso, instanteNoFuso, localeDoDocumento } from "./locale";
 import { aplicarCombos, type ServicoDoCatalogo } from "./combos";
@@ -1814,21 +1815,35 @@ export const expirarEncaixes = onSchedule(
     const agora = Date.now();
     const barbearias = await db.collection("barbershops").get();
     for (const shop of barbearias.docs) {
-      const pedidos = await shop.ref
-        .collection("bookings")
-        .where("status", "==", "fit_in_requested")
-        .get();
-      if (pedidos.empty) continue;
-      const { timeZone } = localeDoDocumento(shop.data());
-      for (const d of pedidos.docs) {
-        const inicio = instanteNoFuso(String(d.get("date")), String(d.get("time")), timeZone);
-        if (inicio.getTime() > agora) continue;
-        /* Transação: o barbeiro pode estar aprovando neste instante, e
-         * aprovado não volta a expirado. */
-        await db.runTransaction(async (tx) => {
-          const atual = await tx.get(d.ref);
-          if (atual.get("status") !== "fit_in_requested") return;
-          tx.update(d.ref, { status: "expired", expiradoEm: FieldValue.serverTimestamp() });
+      /* Encerrada não recebe pedido novo e vai ser expurgada: varrê-la a cada
+       * 15 minutos é leitura paga para nada. */
+      if (shop.get("status") === "encerrada") continue;
+      /* Uma loja com dado torto (data ilegível, fuso inválido) lançava aqui e
+       * parava a rotina: as lojas seguintes ficavam com pedido vencido
+       * pendurado até alguém consertar a primeira. Agora o erro fica no log
+       * com o id da loja, e a rotina segue. */
+      try {
+        const pedidos = await shop.ref
+          .collection("bookings")
+          .where("status", "==", "fit_in_requested")
+          .get();
+        if (pedidos.empty) continue;
+        const { timeZone } = localeDoDocumento(shop.data(), shop.id);
+        for (const d of pedidos.docs) {
+          const inicio = instanteNoFuso(String(d.get("date")), String(d.get("time")), timeZone);
+          if (inicio.getTime() > agora) continue;
+          /* Transação: o barbeiro pode estar aprovando neste instante, e
+           * aprovado não volta a expirado. */
+          await db.runTransaction(async (tx) => {
+            const atual = await tx.get(d.ref);
+            if (atual.get("status") !== "fit_in_requested") return;
+            tx.update(d.ref, { status: "expired", expiradoEm: FieldValue.serverTimestamp() });
+          });
+        }
+      } catch (e) {
+        logger.error("[encaixe] expirar pedidos falhou numa loja; as demais seguem", {
+          barbershopId: shop.id,
+          erro: e instanceof Error ? e.message : String(e),
         });
       }
     }

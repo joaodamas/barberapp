@@ -6,7 +6,14 @@ import { motivoDeLeitura } from "../acesso";
 import { aplicarRespostaDoEncaixe } from "../booking";
 import { editar, enviar, responderToque, TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET } from "./api";
 import { AVISOS_PADRAO, contatosRef, lojaDaConversa, type Contato } from "./contatos";
-import { lerDadoDoBotao, textoDoEncaixeRespondido, esc } from "./mensagens";
+import {
+  avisoDoToque,
+  desfechoPeloStatusAtual,
+  lerDadoDoBotao,
+  textoDaConexao,
+  textoDoEncaixeRespondido,
+  type DesfechoDoToque,
+} from "./mensagens";
 
 /**
  * O que o Telegram manda para o Topete: mensagens para o bot e toques nos
@@ -92,10 +99,35 @@ async function tratarMensagem(m: NonNullable<Atualizacao["message"]>) {
     const anterior = idx.get("barbershopId");
     const shopRef = db.doc(`barbershops/${barbershopId}`);
     const shop = await tx.get(shopRef);
+    const trocouDeLoja = !!anterior && anterior !== barbershopId;
+    const lojaAnteriorRef = trocouDeLoja ? db.doc(`barbershops/${anterior}`) : null;
+    /* Leitura antes de qualquer escrita (regra da transação): o nome entra
+     * na confirmação para a pessoa saber de ONDE saiu. */
+    const lojaAnterior = lojaAnteriorRef ? await tx.get(lojaAnteriorRef) : null;
 
-    /* Uma conversa, uma barbearia: ligar de novo em outra desliga a antiga. */
-    if (anterior && anterior !== barbershopId) {
-      tx.delete(contatosRef(db.doc(`barbershops/${anterior}`)).doc(chatId));
+    /* Uma conversa, uma barbearia: ligar de novo em outra desliga a antiga.
+     *
+     * Era um `delete` calado: o dono da loja antiga perdia os avisos daquele
+     * barbeiro e nada dizia por quê. Agora o contato fica DESLIGADO com o
+     * motivo (a tela de Avisos lê esta coleção) e o fato vai para o
+     * `audit_log` da loja antiga, que o dono também lê. */
+    if (lojaAnteriorRef) {
+      tx.set(
+        contatosRef(lojaAnteriorRef).doc(chatId),
+        {
+          ativo: false,
+          desligadoPor: "ligado em outra barbearia",
+          desligadoEm: FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+      tx.set(lojaAnteriorRef.collection("audit_log").doc(), {
+        action: "telegram.desligado_por_outra_loja",
+        by: `telegram:${chatId}`,
+        at: FieldValue.serverTimestamp(),
+        /* O id da outra loja não entra: é de outro controlador. */
+        detail: { chatId, nome: String(c.get("nome") ?? "Equipe") },
+      });
     }
     const contato: Contato & Record<string, unknown> = {
       chatId,
@@ -110,7 +142,11 @@ async function tratarMensagem(m: NonNullable<Atualizacao["message"]>) {
     tx.set(contatosRef(shopRef).doc(chatId), contato);
     tx.set(idxRef, { barbershopId });
     tx.update(conviteRef, { usadoEm: FieldValue.serverTimestamp(), chatId });
-    return { contato, loja: String(shop.get("brand.name") ?? "sua barbearia") };
+    return {
+      contato,
+      loja: String(shop.get("brand.name") ?? "sua barbearia"),
+      lojaDesligada: lojaAnterior ? String(lojaAnterior.get("brand.name") ?? "outra barbearia") : null,
+    };
   });
 
   if (!ligado) {
@@ -121,10 +157,7 @@ async function tratarMensagem(m: NonNullable<Atualizacao["message"]>) {
     ligado.contato.alvo === "dono"
       ? "pedidos de encaixe (com botão para aprovar), cancelamentos, novos agendamentos, a agenda do dia às 7h e o fechamento às 21h"
       : "os pedidos de encaixe da sua cadeira (com botão para aprovar), cancelamentos, novos agendamentos e a sua agenda do dia às 7h";
-  await enviar(
-    chatId,
-    `✅ Pronto, ${esc(ligado.contato.nome)}! Este Telegram está ligado à <b>${esc(ligado.loja)}</b>.\n\nVocê vai receber aqui ${doQue}.\n\nPara pausar, mande /parar.`
-  );
+  await enviar(chatId, textoDaConexao({ ...ligado, doQue }));
 }
 
 async function tratarToque(cq: NonNullable<Atualizacao["callback_query"]>) {
@@ -162,27 +195,36 @@ async function tratarToque(cq: NonNullable<Atualizacao["callback_query"]>) {
     return;
   }
 
-  let desfecho: "confirmed" | "cancelled_by_shop" | "expired" | "ja_respondido";
+  /* `responderToque` num `finally`: sem resposta, o Telegram deixa o botão
+   * girando por segundos e o barbeiro toca de novo. Se algo abaixo lançar, a
+   * resposta é a genérica — e o erro segue para o log do webhook. */
+  let aviso = "Não consegui registrar agora. Responda pelo painel.";
   try {
-    desfecho = (
-      await aplicarRespostaDoEncaixe({
-        barbershopId,
-        bookingId: pedido.bookingId,
-        aprovar: pedido.aprovar,
-        por: `telegram:${chatId}`,
-      })
-    ).status;
-  } catch (e) {
-    if (e instanceof HttpsError) desfecho = "ja_respondido";
-    else throw e;
-  }
+    let desfecho: DesfechoDoToque;
+    try {
+      desfecho = (
+        await aplicarRespostaDoEncaixe({
+          barbershopId,
+          bookingId: pedido.bookingId,
+          aprovar: pedido.aprovar,
+          por: `telegram:${chatId}`,
+        })
+      ).status;
+    } catch (e) {
+      if (!(e instanceof HttpsError)) throw e;
+      /* O pedido não estava mais aberto. Relê para dizer POR QUÊ: "já tinha
+       * sido respondido" num pedido que o cliente cancelou ou que venceu
+       * deixava o barbeiro achando que um colega já tinha falado com ele. */
+      const agora = await shopRef.collection("bookings").doc(pedido.bookingId).get();
+      desfecho = desfechoPeloStatusAtual(agora.get("status"));
+    }
+    aviso = avisoDoToque(desfecho);
 
-  const loja = String(shopSnap.get("brand.name") ?? "Barbearia");
-  if (cq.message?.message_id) {
-    await editar(chatId, cq.message.message_id, textoDoEncaixeRespondido(reserva as never, loja, desfecho, contato.nome));
+    const loja = String(shopSnap.get("brand.name") ?? "Barbearia");
+    if (cq.message?.message_id) {
+      await editar(chatId, cq.message.message_id, textoDoEncaixeRespondido(reserva as never, loja, desfecho, contato.nome));
+    }
+  } finally {
+    await responderToque(cq.id, aviso);
   }
-  await responderToque(
-    cq.id,
-    desfecho === "confirmed" ? "Encaixe aprovado." : desfecho === "cancelled_by_shop" ? "Encaixe recusado." : "Esse pedido não está mais aberto."
-  );
 }
