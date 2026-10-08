@@ -38,15 +38,22 @@ export function limiteDoCliente(params: {
   const teto = somarDias(params.hoje, HORIZONTE_MAXIMO_DIAS);
   const janela = params.janela ?? {};
 
-  if (params.ehMensalista) {
-    const dias = Number(janela.diasMensalista);
-    const limite = somarDias(params.hoje, Number.isFinite(dias) && dias > 0 ? dias : padrao);
-    return limite < teto ? limite : teto;
-  }
-
   const aberta = typeof janela.abertaAte === "string" && /^\d{4}-\d{2}-\d{2}$/.test(janela.abertaAte)
     ? janela.abertaAte
     : null;
+
+  if (params.ehMensalista) {
+    const dias = Number(janela.diasMensalista);
+    const doPlano = somarDias(params.hoje, Number.isFinite(dias) && dias > 0 ? dias : padrao);
+    /* O plano é VANTAGEM, nunca desvantagem: se o barbeiro liberou os avulsos
+     * até mais longe do que os dias do mensalista, o mensalista vê pelo menos
+     * isso. Antes valia só `hoje + diasMensalista`, e um barbeiro que empurrava
+     * a agenda para daqui a 45 dias com mensalista em 30 deixava quem paga o
+     * plano enxergando MENOS que o cliente avulso. */
+    const limite = aberta && aberta > doPlano ? aberta : doPlano;
+    return limite < teto ? limite : teto;
+  }
+
   if (!aberta) return somarDias(params.hoje, padrao);
   return aberta < teto ? aberta : teto;
 }
