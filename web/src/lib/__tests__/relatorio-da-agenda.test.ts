@@ -267,3 +267,53 @@ describe("parte coberta pelo plano", () => {
     expect(r.resumo.valorCobertoPeloPlano).toBe(50);
   });
 });
+
+/** Revisão financeira de 08/10: o realizado é o cobrado, como no Financeiro. */
+describe("realizado pela régua do Financeiro", () => {
+  it("desconto no fechamento sai do realizado (valorCobrado)", () => {
+    const r = montarRelatorio(
+      [reserva({ date: "2026-10-05", time: "10:00", status: "completed", value: 50, discountAmount: 10 })],
+      "2026-10",
+      ctx
+    );
+    expect(r.resumo.valorRealizado).toBe(40);
+    expect(r.dias[0].linhas[0].valor).toBe(40);
+  });
+  it("cortesia vale zero", () => {
+    const r = montarRelatorio(
+      [
+        reserva({ date: "2026-10-05", time: "10:00", status: "completed", value: 50, discountAmount: 50 }),
+        reserva({ date: "2026-10-05", time: "11:00", status: "completed", value: 30 }),
+      ],
+      "2026-10",
+      ctx
+    );
+    expect(r.resumo.valorRealizado).toBe(30);
+  });
+  it("coberto pelo plano: zero no realizado, valor do serviço no coberto", () => {
+    const r = montarRelatorio(
+      [
+        reserva({
+          date: "2026-10-05",
+          time: "10:00",
+          status: "completed",
+          value: 50,
+          cobertura: {
+            tipo: "plano",
+            subscriptionId: "x",
+            planId: "p",
+            planName: "4 cortes",
+            competencia: "2026-10",
+            valorCoberto: 30,
+            usoNaCompetencia: 1,
+            cota: 4,
+          },
+        }),
+      ],
+      "2026-10",
+      ctx
+    );
+    expect(r.resumo.valorRealizado).toBe(0);
+    expect(r.resumo.valorCobertoPeloPlano).toBe(50);
+  });
+});

@@ -1,9 +1,10 @@
-import { EM_ABERTO, isRevenue } from "@/lib/domain";
+import { cobertoPeloPlano, EM_ABERTO, isRevenue } from "@/lib/domain";
 import { valorCobrado } from "@/lib/desconto";
 import type {
   BookingDoc,
   ClientDoc,
   InventoryMovementDoc,
+  RefundDoc,
   SubscriberDoc,
 } from "@/lib/domain";
 import type { Doc } from "@/lib/db/repository";
@@ -45,6 +46,31 @@ export type FichaDoCliente = {
   mensalista: Doc<SubscriberDoc> | null;
 };
 
+/**
+ * O que o cliente PAGOU por um atendimento — a régua única do "total gasto"
+ * (08/10).
+ *
+ * Três telas somavam o gasto do cliente, cada uma de um jeito: a ficha do
+ * painel com `valorCobrado` (mas contando o corte coberto pelo plano), e o
+ * "Total gasto" do app do cliente em Reservas e em Perfil com `b.value` — o
+ * preço, com desconto e plano dentro. O mensalista via no app um gasto que
+ * nunca saiu do bolso dele naquele atendimento, e o dono via outro número na
+ * ficha. A régua é a de `recorrenciaDeClientes`: coberto pelo plano vale zero
+ * (quem paga é a mensalidade); o resto vale o cobrado (cortesia = zero).
+ */
+export function gastoDoAtendimento(
+  b: Pick<BookingDoc, "value" | "discountAmount" | "cobertura">
+): number {
+  return cobertoPeloPlano(b) ? 0 : valorCobrado(b);
+}
+
+/** Soma de `gastoDoAtendimento`, ao centavo. */
+export function totalGasto(
+  bookings: readonly Pick<BookingDoc, "value" | "discountAmount" | "cobertura">[]
+): number {
+  return Math.round(bookings.reduce((s, b) => s + gastoDoAtendimento(b), 0) * 100) / 100;
+}
+
 function diasEntre(iso: string, hoje: Date): number {
   return Math.floor((hoje.getTime() - new Date(`${iso}T00:00:00`).getTime()) / 86_400_000);
 }
@@ -54,6 +80,11 @@ export function fichaDoCliente(params: {
   bookings: Doc<BookingDoc>[];
   movements: Doc<InventoryMovementDoc>[];
   subscribers: Doc<SubscriberDoc>[];
+  /**
+   * Devoluções (D22). Presentes, abatem o gasto: o dinheiro que voltou ao
+   * cliente não foi gasto. Ausentes (sem acesso a `refunds`), nada é abatido.
+   */
+  refunds?: Doc<RefundDoc>[];
   hoje: Date;
   hojeISO: string;
 }): FichaDoCliente {
@@ -64,14 +95,32 @@ export function fichaDoCliente(params: {
   const ultimaVisita = datas.length > 0 ? datas[datas.length - 1] : null;
 
   /* O que o cliente PAGOU: com desconto no fechamento (28/09), o preço da
-   * agenda é maior do que o que entrou — e a cortesia entra como zero. */
-  const gastoEmServicos = atendidos.reduce((s, b) => s + valorCobrado(b), 0);
+   * agenda é maior do que o que entrou — e a cortesia entra como zero. O
+   * coberto pelo plano também é zero (08/10): quem pagou foi a mensalidade. */
+  const idsAtendidos = new Set(atendidos.map((b) => b.id));
+  const devolvido = (origem: RefundDoc["origin"], pertence: (r: Doc<RefundDoc>) => boolean) =>
+    (params.refunds ?? [])
+      .filter((r) => r.origin === origem && pertence(r))
+      .reduce((s, r) => s + (Number(r.grossAmount) || 0), 0);
+  const pagos = atendidos.filter((b) => !cobertoPeloPlano(b)).length;
+  const gastoEmServicos = Math.max(
+    0,
+    totalGasto(atendidos) - devolvido("servico", (r) => !!r.bookingId && idsAtendidos.has(r.bookingId))
+  );
 
   /* Compras do cliente. Venda avulsa tem `clientId: null` e não entra em ficha
-   * nenhuma — é o caso normal do balcão, e atribuí-la a alguém seria inventar. */
-  const gastoEmProdutos = params.movements
-    .filter((m) => m.kind === "venda" && m.clientId === params.cliente.id)
-    .reduce((s, m) => s + m.value, 0);
+   * nenhuma — é o caso normal do balcão, e atribuí-la a alguém seria inventar.
+   * A devolução de produto abate (08/10): o produto que voltou não foi gasto. */
+  const vendas = params.movements.filter((m) => m.kind === "venda" && m.clientId === params.cliente.id);
+  const idsVendas = new Set(vendas.map((m) => m.id));
+  const gastoEmProdutos = Math.max(
+    0,
+    Math.round(
+      (vendas.reduce((s, m) => s + m.value, 0) -
+        devolvido("produto", (r) => !!r.movementId && idsVendas.has(r.movementId))) *
+        100
+    ) / 100
+  );
 
   /* Futuro = a partir de hoje, e só o que ainda vai acontecer (`EM_ABERTO`).
    * "Não cancelado" deixava passar concluído, falta e expirado: o corte das
@@ -89,10 +138,11 @@ export function fichaDoCliente(params: {
     diasSemVir: ultimaVisita ? diasEntre(ultimaVisita, params.hoje) : null,
     gastoEmServicos,
     gastoEmProdutos,
-    /* Ticket do ATENDIMENTO: serviço ÷ visitas. Somar produto aqui repetiria
-     * exatamente o erro de D2 — numerador de uma grandeza sobre denominador de
-     * outra. */
-    ticketMedio: atendidos.length > 0 ? Math.round(gastoEmServicos / atendidos.length) : 0,
+    /* Ticket do ATENDIMENTO: serviço ÷ visitas PAGAS. Somar produto aqui
+     * repetiria exatamente o erro de D2 — numerador de uma grandeza sobre
+     * denominador de outra. E com o coberto pelo plano valendo zero no gasto
+     * (08/10), ele sai do denominador também, como em `receitaDeServico`. */
+    ticketMedio: pagos > 0 ? Math.round(gastoEmServicos / pagos) : 0,
     proximoAtendimento: futuros[0] ?? null,
     mensalista:
       params.subscribers.find(
@@ -116,6 +166,7 @@ export function listaDeClientes(params: {
   bookings: Doc<BookingDoc>[];
   movements: Doc<InventoryMovementDoc>[];
   subscribers: Doc<SubscriberDoc>[];
+  refunds?: Doc<RefundDoc>[];
   hoje: Date;
   hojeISO: string;
 }): FichaDoCliente[] {

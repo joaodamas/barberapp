@@ -47,7 +47,8 @@ import { politicasDe } from "./politicas-financeiras";
  *   apontar para a nova, e a próxima reversão nega a certa.
  * - **Pagamento: `update`** de bruto, desconto, taxa e líquido no MESMO
  *   documento, com a conta de `calcularEventoFinanceiro` (a do gatilho) — sem
- *   terceira cópia da fórmula. A taxa é a de hoje, como no R1.
+ *   terceira cópia da fórmula. Forma igual mantém a taxa congelada no
+ *   pagamento (`comTaxaCongelada`); forma trocada usa a de hoje, como no R1.
  * - **Reserva**: serviços, valor, duração, desconto, forma e o histórico
  *   `edicoesDeCobranca`; e o `audit_log` com antes e depois.
  *
@@ -239,7 +240,11 @@ export function motivoDaRecusaDaEdicao(params: {
   ehDoBarbeiro: boolean;
   dataDoPagamento: string;
   hoje: string;
-  pediuDescontoNovo: boolean;
+  /**
+   * O pedido mexe no desconto? Só importa para o barbeiro — ver
+   * `barbeiroMexeuNoDesconto`.
+   */
+  mexeuNoDesconto: boolean;
   viraCortesia: boolean;
   mudouAlgo: boolean;
 }): MotivoDaRecusaDaEdicao | null {
@@ -254,7 +259,7 @@ export function motivoDaRecusaDaEdicao(params: {
   if (params.papel === "staff") {
     if (!params.ehDoBarbeiro) return "barbeiro_de_outro";
     if (params.dataDoPagamento !== params.hoje) return "barbeiro_outro_dia";
-    if (params.pediuDescontoNovo) return "desconto_so_dono";
+    if (params.mexeuNoDesconto) return "desconto_so_dono";
   } else if (!dentroDaJanela(params.dataDoPagamento, params.hoje)) {
     return "fora_da_janela";
   }
@@ -274,7 +279,7 @@ export const FRASE_DA_RECUSA_DA_EDICAO: Record<MotivoDaRecusaDaEdicao, string> =
   barbeiro_outro_dia:
     "O barbeiro edita a cobrança só no mesmo dia do atendimento. Para dias anteriores, peça ao dono.",
   barbeiro_de_outro: "Você só edita a cobrança dos seus atendimentos.",
-  desconto_so_dono: "Só o dono dá ou muda desconto.",
+  desconto_so_dono: "Só o dono dá, muda ou tira desconto.",
   vira_cortesia:
     "Com esse desconto o atendimento sairia de graça. Para cortesia, peça ao dono para tratar à parte.",
   nada_mudou: "Nada mudou na cobrança — confira os serviços, o desconto e a forma.",
@@ -292,6 +297,62 @@ const CODIGO: Record<MotivoDaRecusaDaEdicao, "not-found" | "failed-precondition"
   vira_cortesia: "failed-precondition",
   nada_mudou: "failed-precondition",
 };
+
+/**
+ * O pedido do barbeiro mexe no desconto? (revisão financeira de 08/10)
+ *
+ * Só "desconto novo" era recusado: mandar `desconto: null` TIRAVA o desconto
+ * que o dono deu, e a cobrança subia sem o dono saber. Para o barbeiro, o
+ * desconto é do dono — ele só pode mantê-lo (ausente), que é também o que a
+ * edição de serviço faz: em %, o desconto acompanha o bruto novo; em reais,
+ * fica o mesmo valor. `null` só passa quando não havia desconto (não muda
+ * nada); objeto é sempre desconto novo, mesmo que repita o valor.
+ */
+export function barbeiroMexeuNoDesconto(pedido: PedidoDeDesconto, descontoAtual: number): boolean {
+  if (pedido === undefined) return false;
+  if (pedido === null) return centavos(descontoAtual) > 0;
+  return true;
+}
+
+/**
+ * A taxa CONGELADA do pagamento, quando a forma não mudou (revisão de 08/10).
+ *
+ * A edição recalculava a taxa com a tabela de HOJE mesmo quando só o serviço
+ * mudava: o dono subiu o crédito de 3,49% para 4,99% em outubro, corrigiu um
+ * serviço de setembro e o pagamento passou a dizer que a maquininha cobrou a
+ * taxa nova. A taxa é fato do dia em que o cliente pagou — mesma regra de
+ * `feePct` congelado no pagamento. Só quando a forma muda é que vale a taxa da
+ * forma escolhida agora (é um pagamento diferente).
+ */
+export function comTaxaCongelada<
+  P extends {
+    paymentMethod: PaymentMethod | null;
+    paymentFormId: string | null;
+    paymentFormLabel: string | null;
+    grossAmount: number;
+    feePct: number;
+    feeAmount: number;
+    netAmount: number;
+  },
+>(
+  payment: P,
+  atual: { paymentMethod: PaymentMethod | null; paymentFormId: string | null; paymentFormLabel: string | null; feePct: unknown },
+  pedido: { metodo: PaymentMethod; formaId: string | null | undefined }
+): P {
+  const mesmaForma =
+    atual.paymentMethod === pedido.metodo && (pedido.formaId == null || pedido.formaId === atual.paymentFormId);
+  const congelada = Number(atual.feePct);
+  if (!mesmaForma || atual.feePct == null || !Number.isFinite(congelada)) return payment;
+  const feeAmount = centavos((payment.grossAmount * congelada) / 100);
+  return {
+    ...payment,
+    paymentFormId: atual.paymentFormId,
+    paymentFormLabel: atual.paymentFormLabel,
+    feePct: congelada,
+    feeAmount,
+    netAmount: centavos(payment.grossAmount - feeAmount),
+  };
+}
 
 /** Id DERIVADO do evento de auditoria — idempotência por construção. */
 export function idDaEdicao(bookingId: string, chave: string): string {
@@ -409,7 +470,7 @@ export async function gravarEdicao(params: {
       ehDoBarbeiro: Boolean(params.staffIdDoAutor) && String(reserva.staffId ?? "") === params.staffIdDoAutor,
       dataDoPagamento: String(pagamentoSnap.get("date") ?? ""),
       hoje: params.hoje,
-      pediuDescontoNovo: params.desconto !== undefined && params.desconto !== null,
+      mexeuNoDesconto: barbeiroMexeuNoDesconto(params.desconto, descontoAtual),
       viraCortesia: ehCortesia({ valor: novo.value, desconto: desconto.amount }),
       mudouAlgo,
     });
@@ -420,7 +481,7 @@ export async function gravarEdicao(params: {
      * correção de serviço. Sem linha vigente (dado antigo), vale o padrão. */
     const pct = comissaoSnap?.exists ? Number(comissaoSnap.get("commissionPct")) : null;
 
-    const { commission, payment } = calcularEventoFinanceiro({
+    const evento = calcularEventoFinanceiro({
       valor: novo.value,
       metodo: params.metodo,
       origem: (pagamentoSnap.get("paymentOrigin") ?? null) as PaymentOrigin | null,
@@ -431,6 +492,18 @@ export async function gravarEdicao(params: {
       formaId: params.formaId ?? null,
       desconto: desconto.amount,
     });
+    const { commission } = evento;
+    /* Forma igual: a taxa do dia em que o cliente pagou, não a de hoje. */
+    const payment = comTaxaCongelada(
+      evento.payment,
+      {
+        paymentMethod: metodoAtual,
+        paymentFormId: formaAtual,
+        paymentFormLabel: (pagamentoSnap.get("paymentFormLabel") ?? null) as string | null,
+        feePct: pagamentoSnap.get("feePct"),
+      },
+      { metodo: params.metodo, formaId: params.formaId }
+    );
 
     const antes: ResumoDaCobranca = {
       serviceIds: (Array.isArray(reserva.serviceIds) ? reserva.serviceIds : []).map(String),
