@@ -115,7 +115,12 @@ beforeEach(async () => {
 
       // Um documento em CADA subcoleção, com id previsível.
       await setDoc(doc(db, `barbershops/${bid}/members`, "membro-1"), { role: "owner" });
-      await setDoc(doc(db, `barbershops/${bid}/staff`, "staff-1"), { name: "Barbeiro", uid: null });
+      /* A cadeira do barbeiro da Alfa é DELE na ficha (08/10): as regras
+       * conferem `staff.uid` além do claim, para o acesso tirado parar na hora. */
+      await setDoc(doc(db, `barbershops/${bid}/staff`, "staff-1"), {
+        name: "Barbeiro",
+        uid: bid === ALFA ? BARBEIRO_ALFA.sub : null,
+      });
       await setDoc(doc(db, `barbershops/${bid}/services`, "corte"), { name: "Corte", price: 60 });
       await setDoc(doc(db, `barbershops/${bid}/plans`, "plano-1"), { name: "Ilimitado", price: 149 });
       await setDoc(doc(db, `barbershops/${bid}/products`, "pomada"), { name: "Pomada", cost: 18 });
