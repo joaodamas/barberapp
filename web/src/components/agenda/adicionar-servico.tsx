@@ -7,12 +7,12 @@ import { useServices } from "@/lib/db/use-shop-data";
 import { mensagemDoErro } from "@/lib/direitos-do-titular";
 import { formatBRL } from "@/lib/format";
 import { useTenant } from "@/lib/tenant-context";
-import { aplicarCombos } from "@/lib/combos";
+import { aplicarCombosComCongelados } from "@/lib/combos";
 
 /**
  * "+ Adicionar serviço" no fechamento (pedido do dono, 01/10): o cliente
  * marcou corte e saiu com corte e barba. Quem soma é o servidor
- * (`adicionarServicosAoAtendimento`), com o preço do catálogo; a tela só
+ * (`adicionarServicosAoAtendimento`), com o preço do catálogo para o extra; a tela só
  * escolhe e mostra o total novo antes da forma de pagamento.
  */
 export function AdicionarServico({
@@ -40,8 +40,14 @@ export function AdicionarServico({
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
-  /* Mesma conta do servidor: com combo, Corte + Barba vira "Corte + barba". */
-  const previa = aplicarCombos([...idsAtuais, ...escolhidos], servicos.map((s) => ({ ...s, id: s.id })));
+  /* Mesma conta do servidor (`aplicarCombosComCongelados`): o que já está no
+   * atendimento fica com o preço gravado nele; só o extra entra pelo catálogo,
+   * e o combo vale quando sai mais barato. "Fica R$ X" é o que o servidor grava. */
+  const previa = aplicarCombosComCongelados(
+    { serviceIds: idsAtuais, serviceNames: servicosAtuais, value: valorAtual },
+    escolhidos,
+    servicos.map((s) => ({ ...s, id: s.id }))
+  );
   const extra = previa.valor - valorAtual;
 
   async function adicionar() {
