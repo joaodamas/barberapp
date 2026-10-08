@@ -9,6 +9,8 @@ import { toTenant } from "@/lib/tenant-shape";
 import { acessoDaBarbearia, type Tenant } from "@/lib/tenant";
 import { definirTravaDeEscrita } from "@/lib/db/trava-de-escrita";
 import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
+import type { EstadoDaFichaAoVivo } from "@/lib/onboarding-concluido";
+import { FichaAoVivoContext } from "@/lib/ficha-ao-vivo";
 
 /**
  * A ficha da barbearia em tempo real, **dentro do painel**.
@@ -56,6 +58,9 @@ export function useEstadoDoFinanceiro(): EstadoDoFinanceiro {
   return useContext(FinanceiroConfirmadoContext);
 }
 
+/** Quanto esperar a confirmação do servidor antes de seguir com o que há. */
+const PRAZO_DA_FICHA_MS = 8000;
+
 export function TenantLive({
   inicial,
   indisponivel = false,
@@ -82,6 +87,7 @@ export function TenantLive({
   children: React.ReactNode;
 }) {
   const [ficha, setFicha] = useState<{ id: string; data: Record<string, unknown> } | null>(null);
+  const [estadoDaFicha, setEstadoDaFicha] = useState<EstadoDaFichaAoVivo>("aguardando");
   /* Taxas, formas e comissão moram em `private/financeiro` desde 28/09 — a
    * ficha pública era legível sem login. O painel junta as duas: o privado por
    * cima do público, que é a mesma regra do servidor (`politicasDe`). */
@@ -125,6 +131,12 @@ export function TenantLive({
      * e um snapshot vindo dali entraria como se fosse a barbearia dele. */
     if (indisponivel) return;
 
+    /* Offline, a escuta só entrega o cache e o servidor nunca confirma: sem
+     * prazo, quem espera a confirmação (o `AuthGuard`) esperaria para sempre. */
+    const prazo = setTimeout(() => {
+      if (!cancelado) setEstadoDaFicha((e) => (e === "aguardando" ? "sem-confirmacao" : e));
+    }, PRAZO_DA_FICHA_MS);
+
     getDb()
       .then((db) => {
         if (cancelado) return;
@@ -137,6 +149,7 @@ export function TenantLive({
             const data = snap.data();
             if (data) {
               setFicha({ id: snap.id, data });
+              if (!snap.metadata.fromCache) setEstadoDaFicha("confirmada");
               return;
             }
             /* Sem dados: pergunta ao servidor uma vez, venha o "não existe" do
@@ -150,9 +163,15 @@ export function TenantLive({
               getDocFromServer(ref)
                 .then((s) => {
                   const d = s.data();
-                  if (!cancelado && d) setFicha({ id: s.id, data: d });
+                  if (!cancelado && d) {
+                    setFicha({ id: s.id, data: d });
+                    setEstadoDaFicha("confirmada");
+                  }
                 })
-                .catch((erro) => console.error("[tenant-live] servidor não confirmou a barbearia", erro));
+                .catch((erro) => {
+                  console.error("[tenant-live] servidor não confirmou a barbearia", erro);
+                  if (!cancelado) setEstadoDaFicha("sem-confirmacao");
+                });
             }
           },
           (erro) => {
@@ -160,13 +179,18 @@ export function TenantLive({
              * sem rede, a ficha de cinco minutos atrás é melhor que tela
              * nenhuma. */
             console.error("[tenant-live] falha ao escutar a barbearia", erro);
+            setEstadoDaFicha("sem-confirmacao");
           }
         );
       })
-      .catch((erro) => console.error("[tenant-live] Firestore indisponível", erro));
+      .catch((erro) => {
+        console.error("[tenant-live] Firestore indisponível", erro);
+        if (!cancelado) setEstadoDaFicha("sem-confirmacao");
+      });
 
     return () => {
       cancelado = true;
+      clearTimeout(prazo);
       parar();
     };
   }, [inicial.id, indisponivel]);
@@ -251,7 +275,9 @@ export function TenantLive({
    * interno vence para tudo que estiver abaixo dele. */
   return (
     <FinanceiroConfirmadoContext.Provider value={estadoDoFinanceiro}>
-      <TenantProvider tenant={tenant}>{children}</TenantProvider>
+      <FichaAoVivoContext.Provider value={estadoDaFicha}>
+        <TenantProvider tenant={tenant}>{children}</TenantProvider>
+      </FichaAoVivoContext.Provider>
     </FinanceiroConfirmadoContext.Provider>
   );
 }
