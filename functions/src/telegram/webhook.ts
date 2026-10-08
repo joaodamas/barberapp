@@ -190,6 +190,17 @@ async function tratarToque(cq: NonNullable<Atualizacao["callback_query"]>) {
     await responderToque(cq.id, "Esse encaixe é de outro barbeiro.");
     return;
   }
+  /* A cadeira do barbeiro ainda existe e está atendendo? (08/10) Remover ou
+   * desligar o barbeiro desliga também o Telegram dele, mas a mensagem com o
+   * botão continua na conversa — e o toque aprovaria um encaixe em nome de
+   * quem já saiu. */
+  if (contato.alvo !== "dono") {
+    const cadeira = contato.staffId ? await shopRef.collection("staff").doc(String(contato.staffId)).get() : null;
+    if (!cadeira?.exists || cadeira.get("active") === false) {
+      await responderToque(cq.id, "Este Telegram não responde mais pela barbearia. Fale com o dono.");
+      return;
+    }
+  }
   if (motivoDeLeitura(shopSnap.data())) {
     await responderToque(cq.id, "A barbearia está em modo leitura. Responda pelo painel.");
     return;

@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { auth } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
 import { mensagemDaFuncao } from "@/lib/mensagem-da-funcao";
+import { ConfirmeSeuEmail } from "@/components/confirme-seu-email";
 
 type Leitura =
   | { valido: true; barbearia: string; barbeiro: string; porEmail: boolean }
@@ -28,6 +29,7 @@ export default function ConvitePage() {
   const [leitura, setLeitura] = useState<Leitura | null>(null);
   const [aceitando, setAceitando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [emailConfirmadoAgora, setEmailConfirmadoAgora] = useState(false);
 
   useEffect(() => {
     let cancelado = false;
@@ -63,6 +65,17 @@ export default function ConvitePage() {
   }
 
   const voltarAqui = `/login?next=${encodeURIComponent(`/convite/${token}`)}`;
+  /* Convite por e-mail exige o e-mail CONFIRMADO (08/10): sem isso, quem só
+   * soubesse o endereço criava uma conta com ele e aceitava. O servidor recusa;
+   * aqui a tela pede a confirmação ANTES do toque, e não depois do erro. Conta
+   * do Google já chega confirmada. */
+  const precisaConfirmarEmail =
+    leitura?.valido === true &&
+    leitura.porEmail &&
+    !!user?.email &&
+    !user.emailVerified &&
+    !user.providerData.some((p) => p.providerId === "google.com") &&
+    !emailConfirmadoAgora;
 
   return (
     <main className="flex min-h-full flex-1 items-center justify-center overflow-y-auto px-4 py-10">
@@ -91,7 +104,13 @@ export default function ConvitePage() {
               </p>
             </div>
 
-            {loading ? null : user ? (
+            {loading ? null : user && precisaConfirmarEmail ? (
+              <ConfirmeSeuEmail
+                user={user}
+                explicacao="O convite foi enviado para um e-mail: confirmar mostra que este e-mail é seu."
+                aoConfirmar={() => setEmailConfirmadoAgora(true)}
+              />
+            ) : user ? (
               <div className="flex flex-col gap-2">
                 <Button onClick={aceitar} disabled={aceitando}>
                   {aceitando ? "Ativando…" : "Aceitar e abrir minha agenda"}
