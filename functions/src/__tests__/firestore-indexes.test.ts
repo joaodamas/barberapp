@@ -60,6 +60,11 @@ const CONSULTAS_COMPOSTAS = [
     collectionGroup: "commissions",
     campos: ["staffId", "date"],
   },
+  {
+    onde: "reenvio ao Hub — pendentes já na hora, os mais antigos primeiro (08/10)",
+    collectionGroup: "plataforma_saida",
+    campos: ["estado", "proximaTentativaEmMs"],
+  },
 ];
 
 describe("índices do Firestore", () => {

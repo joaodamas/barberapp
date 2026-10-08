@@ -55,6 +55,14 @@
         { "fieldPath": "staffId", "order": "ASCENDING" },
         { "fieldPath": "date", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "plataforma_saida",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "estado", "order": "ASCENDING" },
+        { "fieldPath": "proximaTentativaEmMs", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": [
