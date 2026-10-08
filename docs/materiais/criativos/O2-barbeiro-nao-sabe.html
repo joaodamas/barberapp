@@ -1,0 +1,150 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><link rel="stylesheet" href="base.css"><style>
+body{width:1080px;height:1920px;background:#0E0D0B;overflow:hidden;position:relative;font-family:Manrope}
+.ov{position:absolute;will-change:transform,opacity}
+#fundo-claro{inset:0;background:#F4EFE4}
+.logo{left:0;right:0;top:60px;display:flex;justify-content:center;align-items:center;gap:14px;font:700 46px Outfit;letter-spacing:-1.2px;color:#F4EFE4}
+.logo img{width:60px;height:60px}
+.rotulo{left:0;right:0;top:170px;text-align:center;font:800 26px Manrope;letter-spacing:.2em;text-transform:uppercase;color:#E0AE58}
+#quote{left:80px;right:80px;top:560px;transform-origin:50% 0}
+#quote .aspas{font:700 220px/0.6 Outfit;color:#E0AE58;height:110px}
+#quote .txt{font:700 92px/1.06 Outfit;letter-spacing:-3px;color:#F4EFE4;min-height:300px}
+#quote .cur{display:inline-block;width:8px;height:84px;background:#E0AE58;margin-left:6px;vertical-align:-10px}
+#quote .quem{margin-top:34px;display:flex;align-items:center;gap:18px;font:700 30px Manrope;color:#9C927E}
+#quote .quem i{width:58px;height:58px;border-radius:50%;background:#2A2722;display:inline-block;position:relative}
+#quote .quem i::after{content:"";position:absolute;left:17px;top:10px;width:24px;height:24px;border-radius:50%;background:#5A554C;box-shadow:0 26px 0 6px #5A554C}
+#carimbo{left:50%;top:860px;border:10px solid #E0AE58;color:#E0AE58;border-radius:28px;padding:22px 44px;font:800 76px/1 Outfit;letter-spacing:-1px;white-space:nowrap;background:#0E0D0B}
+.leg{left:150px;right:175px;top:1392px;text-align:center;font:800 44px/1.14 Outfit;letter-spacing:-1px;color:#16140F}
+/* zona segura do Reels: conteúdo (y 60–1520) entre a barra do Instagram (~270) e o perfil/legenda do post (~1560) */
+#zona{position:absolute;left:0;top:0;width:1080px;height:1920px;transform-origin:540px 0;transform:translateY(235px) scale(.747)}
+.leg em{font-style:normal;color:#A8752A}
+.leg.esc{color:#F4EFE4}.leg.esc em{color:#E0AE58}
+.fone{left:290px;top:500px;width:500px;height:1010px;background:#0E0D0B;border-radius:70px;padding:16px;box-shadow:0 60px 120px -40px #0008}
+.fone .tela{position:relative;width:100%;height:100%;background:#F4EFE4;border-radius:56px;overflow:hidden;color:#16140F}
+.tl{position:absolute;inset:0;padding:70px 30px 30px}
+.exemplo{position:absolute;left:0;right:0;bottom:22px;text-align:center;font:800 16px Manrope;letter-spacing:.14em;color:#9C927E;text-transform:uppercase}
+.toque{width:90px;height:90px;border-radius:50%;background:#E0AE58;opacity:0;margin:-45px 0 0 -45px}
+.chip-l{background:#16140F;color:#F4EFE4;border-radius:999px;padding:16px 28px;font:800 28px Manrope;white-space:nowrap;box-shadow:0 18px 36px -16px #0007}
+.chip-l b{color:#E0AE58}
+.cta{inset:0;background:radial-gradient(circle at 50% 40%,#2A2017,#0E0D0B 70%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;color:#F4EFE4;text-align:center}
+.chip{border-radius:999px;padding:18px 32px;font:700 30px Manrope;background:#1C1A16;border:2px solid #3A342A;color:#F4EFE4}
+</style></head><body>
+<div class="ov" id="fundo-claro" style="opacity:0"></div>
+<div id="zona"><div class="ov logo" id="logo"><img src="../../marca/topete-mascote.svg">topete</div>
+<div class="ov rotulo" id="rotulo">Dúvida nº 2</div>
+<div class="ov" id="quote"><div class="aspas">“</div><div class="txt"><span id="obj">Meu barbeiro não sabe mexer em sistema.</span><span class="cur" id="cur"></span></div>
+<div class="quem" id="quem"><i></i>dono de barbearia</div></div>
+<div class="ov fone" id="fone" style="opacity:0"><div class="tela" style="background:#0E1621">
+<div style="position:absolute;left:0;right:0;top:0;padding:56px 24px 18px;background:#17212B;display:flex;gap:14px;align-items:center;color:#fff">
+<span style="width:58px;height:58px;border-radius:50%;background:#E0AE58;display:grid;place-items:center"><img src="../../marca/topete-mascote.svg" style="width:42px"></span>
+<div><b style="font:700 24px Manrope">Topete Avisos</b><span style="display:block;font:500 16px Manrope;color:#7D8B99">bot</span></div></div>
+<div style="position:absolute;left:20px;right:20px;top:150px;bottom:150px;display:flex;flex-direction:column;justify-content:flex-end"><div id="m1" style="max-height:0;overflow:hidden;opacity:0"><div style="background:#182533;border-radius:20px;padding:16px 18px 10px;font:500 22px/1.42 Manrope;color:#fff;margin-top:12px">✅ <b>Pronto, Davi!</b> Você vai receber os pedidos de encaixe da sua cadeira, cancelamentos, novos agendamentos e a sua agenda do dia às 7h.<span style="display:block;text-align:right;font-size:15px;color:#7D8B99">agora</span></div></div><div id="m2" style="max-height:0;overflow:hidden;opacity:0"><div style="background:#182533;border-radius:20px;padding:16px 18px 10px;font:500 22px/1.42 Manrope;color:#fff;margin-top:12px">☀️ <b>Sua agenda de hoje</b> · sáb 04/10<br><b>09:00</b> Thiago · Corte<br><b>10:30</b> Murilo · Barba<br><b>14:00</b> Caio · Corte + barba<span style="display:block;text-align:right;font-size:15px;color:#7D8B99">07:00</span></div></div><div id="m3" style="max-height:0;overflow:hidden;opacity:0"><div style="background:#182533;border-radius:20px;padding:16px 18px 10px;font:500 22px/1.42 Manrope;color:#fff;margin-top:12px">🔔 <b>Pedido de encaixe</b><br>Vítor · Corte<br>sáb 04/10 às 11:30<span style="display:block;text-align:right;font-size:15px;color:#7D8B99">10:12</span></div></div>
+<div id="m3b" style="max-height:0;overflow:hidden;opacity:0"><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+<span id="b-apr" style="background:#2B3A4A;color:#fff;border-radius:14px;padding:16px 0;text-align:center;font:700 22px Manrope">✅ Aprovar</span>
+<span style="background:#2B3A4A;color:#fff;border-radius:14px;padding:16px 0;text-align:center;font:700 22px Manrope">✖️ Recusar</span></div></div>
+<div id="m4" style="max-height:0;overflow:hidden;opacity:0"><div style="margin-top:10px;font:700 22px Manrope;color:#4CC38A">✅ Aprovado — já está na agenda</div></div>
+</div>
+<div id="iniciar" style="position:absolute;left:20px;right:20px;bottom:70px;background:#2AABEE;color:#fff;border-radius:18px;padding:22px 0;text-align:center;font:800 26px Manrope;letter-spacing:.06em">INICIAR</div>
+<div class="ov toque" id="toque"></div><div class="exemplo">Exemplo</div></div></div>
+<div class="ov chip-l" id="o2-c1" style="left:540px;top:425px;opacity:0">Só a cadeira <b>dele</b></div>
+<div class="ov chip-l" id="o2-c2" style="left:540px;top:425px;opacity:0"><b>Dois toques.</b> Só isso.</div>
+<div class="ov" id="carimbo" style="opacity:0">Nem precisa mexer.</div></div>
+<div class="ov leg" id="leg1">Ele abre um link no Telegram e toca em <em>Iniciar.</em></div><div class="ov leg" id="leg2">Recebe a agenda dele às 7h e <em>aprova encaixe com um toque.</em></div>
+<div class="ov cta" id="cta"><div id="cta-masc" style="width:330px;height:330px"><svg viewBox="0 0 512 512" style="width:330px;height:330px;overflow:visible"><defs>
+<linearGradient id="l1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFE9B3"/><stop offset="1" stop-color="#E4B25C"/></linearGradient>
+<linearGradient id="l2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#E9BB68"/><stop offset="1" stop-color="#B98534"/></linearGradient>
+<linearGradient id="l3" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B98534"/><stop offset="1" stop-color="#7E5820"/></linearGradient>
+<linearGradient id="fade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9C7128"/><stop offset=".5" stop-color="#B98A45"/><stop offset="1" stop-color="#F3E9D6"/></linearGradient>
+<linearGradient id="barba" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9C7128"/><stop offset="1" stop-color="#6E4D1B"/></linearGradient>
+<linearGradient id="fundo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1B1915"/><stop offset="1" stop-color="#0B0A08"/></linearGradient>
+<clipPath id="rostoClip"><path d="M150,230 C150,352 196,432 256,434 C316,432 362,352 362,236 Z"/></clipPath></defs><g transform="translate(0,6)">
+<!-- orelhas -->
+<ellipse cx="148" cy="300" rx="20" ry="30" fill="#E2D3B8"/><ellipse cx="364" cy="300" rx="20" ry="30" fill="#E2D3B8"/>
+<!-- rosto -->
+<path d="M150,236 C150,200 196,180 256,180 C316,180 362,200 362,236 C362,352 316,432 256,434 C196,432 150,352 150,236 Z" fill="#F3E9D6"/>
+<!-- base do cabelo: linha do cabelo arredondada e costeletas em degradê -->
+<path d="M144,290 C136,184 196,126 262,124 C330,124 376,180 368,290 C362,262 350,244 330,236 C306,226 280,224 256,224 C232,224 206,226 182,236 C162,244 150,262 144,290 Z" fill="url(#l3)"/>
+<g clip-path="url(#rostoClip)"><path d="M146,262 C146,300 150,326 158,346 C166,344 170,340 172,334 C168,306 168,282 174,256 C164,254 154,256 146,262 Z" fill="url(#fade)"/>
+<path d="M366,262 C366,300 362,326 354,346 C346,344 342,340 340,334 C344,306 344,282 338,256 C348,254 358,256 366,262 Z" fill="url(#fade)"/></g>
+<!-- barba aparada -->
+<path d="M152,320 C160,400 204,440 256,442 C308,440 352,400 360,320 C348,356 324,372 300,370 C288,356 272,352 256,356 C240,352 224,356 212,370 C188,372 164,356 152,320 Z" fill="url(#barba)"/>
+<path d="M234,392 C246,398 266,398 278,392" fill="none" stroke="#F3E9D6" stroke-width="8" stroke-linecap="round"/>
+<!-- sobrancelhas e olhos -->
+<path d="M196,282 C208,272 224,270 236,274" fill="none" stroke="#6E4D1B" stroke-width="10" stroke-linecap="round"/>
+<path d="M276,274 C288,270 304,272 316,282" fill="none" stroke="#6E4D1B" stroke-width="10" stroke-linecap="round"/>
+<circle cx="218" cy="306" r="8" fill="#0E0D0B"/><circle cx="294" cy="306" r="8" fill="#0E0D0B"/>
+<path d="M256,312 C252,328 250,338 260,342" fill="none" stroke="#E2D3B8" stroke-width="7" stroke-linecap="round"/>
+<g id="cta-topete" style="transform-origin:256px 226px"><!-- TOPETE: três camadas, de trás para a frente -->
+<path d="M150,232 C136,168 180,112 246,104 C296,98 334,118 346,150 C318,136 280,138 254,156 C224,176 206,200 206,222 C186,220 164,224 150,232 Z" fill="url(#l3)"/>
+<path d="M180,226 C172,162 222,96 294,88 C352,82 398,112 402,160 C404,190 384,208 360,206 C372,190 370,170 354,156 C334,138 298,138 272,156 C246,174 236,200 238,222 C216,218 196,220 180,226 Z" fill="url(#l2)"/>
+<path d="M230,224 C230,168 270,114 330,110 C384,106 422,146 414,192 C408,224 380,238 354,230 C374,218 382,196 370,178 C356,158 326,158 306,176 C288,194 284,208 288,224 C270,220 250,220 230,224 Z" fill="url(#l1)"/>
+<path d="M246,196 C258,156 288,132 326,128" fill="none" stroke="#FFF6DA" stroke-width="8" stroke-linecap="round" opacity=".7"/></g></g></svg></div>
+<p id="cta1" style="font:700 120px/0.9 Outfit;letter-spacing:-5px">topete<span style="color:#E0AE58">.</span></p>
+<p id="cta2" style="font:700 52px/1.15 Outfit;letter-spacing:-1px;max-width:880px">Ficou alguma dúvida? <span style="color:#E0AE58">Fale com a gente.</span></p>
+<div id="cta3" style="display:flex;gap:16px;flex-wrap:wrap;justify-content:center;max-width:900px;margin-top:10px"><span class="chip">Chama no direct</span></div>
+<p id="cta4" style="margin-top:26px;font:800 40px Manrope;color:#E0AE58">@usetopete</p></div>
+<script>
+const D = 16.2, VIRA = 3.0, CTA = 13.0, OBJ = "Meu barbeiro n\u00e3o sabe mexer em sistema.", FALAS = [[0.3, "fala0.wav", 2.27], [3.4, "fala1.wav", 4.64], [8.4, "fala2.wav", 4.15], [13.4, "fala3.wav", 1.45]];
+
+const cl = (x) => Math.max(0, Math.min(1, x)), E = (x) => 1 - Math.pow(1 - cl(x), 3);
+const $ = (id) => document.getElementById(id);
+const pulo = (x) => x <= 0 ? 0 : Math.exp(-4 * x) * Math.sin(14 * x);
+function toque(t, lista) {
+  let k = 0, x = 0, y = 0; lista.forEach(([a, px, py]) => { const d = t - a; if (d > -0.05 && d < 0.45) { k = 1 - cl(d / 0.45); x = px; y = py; } });
+  const e = $('toque'); if (!e) return; e.style.opacity = k * 0.55; e.style.left = x + 'px'; e.style.top = y + 'px'; e.style.transform = `scale(${0.6 + 0.6 * (1 - k)})`;
+}
+function comum(t) {
+  // objeção sendo digitada, com cursor
+  const [a0, , d0] = FALAS[0];
+  const n = Math.round(OBJ.length * cl((t - a0 + 0.1) / (d0 * 0.85)));
+  $('obj').textContent = t < 0.05 ? OBJ : OBJ.slice(0, Math.max(n, 0));  // quadro 0 = capa completa
+  $('cur').style.opacity = t < VIRA && Math.floor(t * 2.4) % 2 === 0 ? 1 : 0;
+  // virada: objeção sobe e encolhe; fundo clareia
+  const kv = E((t - VIRA) / 0.6);
+  $('quote').style.transform = `translateY(${-430 * kv}px) scale(${1 - 0.42 * kv})`;
+  $('quote').style.opacity = 1 - 0.25 * kv;
+  $('fundo-claro').style.opacity = E((t - VIRA - 0.2) / 0.5);
+  $('obj').style.color = kv > 0.5 ? '#5A554C' : '#F4EFE4';
+  $('quem').style.opacity = 1 - kv;
+  $('rotulo').style.opacity = 1 - kv;
+  $('logo').style.color = kv > 0.5 ? '#16140F' : '#F4EFE4';
+  const kc = E((t - VIRA) / 0.25) * (1 - E((t - VIRA - 1.3) / 0.3));
+  $('carimbo').style.opacity = kc; $('carimbo').style.transform = `translateX(-50%) rotate(-6deg) scale(${1.6 - 0.6 * E((t - VIRA) / 0.25) + 0.08 * pulo(t - VIRA - 0.2)})`;
+  FALAS.forEach(([a, f, d], i) => { const l = $('leg' + i); if (!l) return; const k = E((t - a + 0.1) / 0.25) * (1 - E((t - a - d - 0.2) / 0.25)); l.style.opacity = k; l.style.transform = `translateY(${(1 - k) * 20}px)`; });
+  const kk = E((t - CTA) / 0.5);
+  $('cta').style.clipPath = `inset(${(1 - kk) * 100}% 0 0 0)`; $('cta').style.opacity = t >= CTA ? 1 : 0;
+  ['cta1', 'cta2', 'cta3', 'cta4'].forEach((id, i) => { const k = E((t - CTA - 0.4 - i * 0.25) / 0.4); $(id).style.opacity = k; $(id).style.transform = `translateY(${(1 - k) * 40}px)`; });
+  const mx = t - CTA - 0.6, mola = mx <= 0 ? 0 : Math.exp(-3.2 * mx);
+  $('cta-topete').style.transform = `rotate(${7 * mola * Math.sin(11 * mx)}deg) scaleY(${1 + 0.22 * mola * Math.sin(9 * mx + 1.2)})`;
+  $('cta-masc').style.transform = `scale(${E((t - CTA - 0.15) / 0.4)})`;
+}
+const EVENTOS = [];
+function eventosComuns() {
+  const [a0, , d0] = FALAS[0];
+  for (let x = a0; x < a0 + d0 * 0.85; x += 0.09) EVENTOS.push({ t: x, som: 'tick', v: 0.18 });
+  EVENTOS.push({ t: VIRA - 0.1, som: 'whoosh', v: 0.5 }, { t: VIRA + 0.05, som: 'pop', v: 0.6 }, { t: VIRA + 0.12, som: 'snip', v: 0.7 });
+  EVENTOS.push({ t: CTA - 0.1, som: 'whoosh', v: 0.5 }, { t: CTA + 0.6, som: 'boing', v: 0.6 }, { t: CTA + 1.2, som: 'brilho', v: 0.45 });
+}
+
+
+const MSG = [['m1', 6.0], ['m2', 8.5], ['m3', 10.0], ['m3b', 10.15], ['m4', 11.9]];
+function ep(t) {
+  const kf = E((t - VIRA - 0.3) / 0.5);
+  $('fone').style.opacity = kf; $('fone').style.transform = `translateY(${(1 - kf) * 700}px)`;
+  MSG.forEach(([id, a]) => { const k = E((t - a) / 0.4); $(id).style.maxHeight = (k * 400) + 'px'; $(id).style.opacity = k; });
+  const ki = 1 - E((t - 5.8) / 0.3); $('iniciar').style.opacity = ki;
+  $('iniciar').style.transform = `scale(${1 + 0.05 * Math.sin(t * 6) * (t > 4.2 && t < 5.6 ? 1 : 0)})`;
+  $('b-apr').style.background = t > 11.6 && t < 11.9 ? '#3E5468' : '#2B3A4A';
+  toque(t, [[5.6, 234, 920], [11.6, 120, 790]]);
+  const c1 = E((t - 6.6) / 0.3) * (1 - E((t - 8.3) / 0.3)), c2 = E((t - 12.1) / 0.3) * (1 - E((t - CTA) / 0.3));
+  $('o2-c1').style.opacity = c1; $('o2-c1').style.transform = `translateX(-50%) scale(${0.7 + 0.3 * c1 + 0.1 * pulo(t - 6.6)})`;
+  $('o2-c2').style.opacity = c2; $('o2-c2').style.transform = `translateX(-50%) scale(${0.7 + 0.3 * c2 + 0.1 * pulo(t - 12.1)})`;
+}
+function render(t) { comum(t); ep(t); }
+eventosComuns();
+
+EVENTOS.push({ t: VIRA + 0.3, som: 'swish', v: 0.45 }, { t: 5.6, som: 'tap', v: 0.6 }, { t: 6.0, som: 'ding', v: 0.4 }, { t: 6.6, som: 'pop', v: 0.35 },
+  { t: 8.5, som: 'notif', v: 0.45 }, { t: 10.0, som: 'notif', v: 0.45 }, { t: 11.6, som: 'tap', v: 0.6 }, { t: 11.9, som: 'ding', v: 0.45 }, { t: 12.1, som: 'pop', v: 0.4 });
+window.render = render; window.DURACAO = D; window.EVENTOS = EVENTOS; window.FALAS = FALAS;
+if (!navigator.webdriver) { const t0 = performance.now(); const loop = () => { render(((performance.now() - t0) / 1000) % D); requestAnimationFrame(loop); }; requestAnimationFrame(loop); }
+else render(0);
+</script></body></html>

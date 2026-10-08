@@ -1,0 +1,61 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><link rel="stylesheet" href="base.css"><style>
+body{width:1080px;height:1080px;overflow:hidden;position:relative;background:#F4EFE4;color:#16140F;font-family:Manrope}
+.palco{position:absolute;inset:0}
+.cel{position:absolute;left:300px;top:60px;width:480px;height:960px;border-radius:64px;background:#000;padding:14px;box-shadow:0 50px 100px -40px #0008}
+.cel .tela{width:100%;height:100%;border-radius:52px;overflow:hidden;background:#F7F6F2;position:relative}
+.nav{position:absolute;left:90px;top:90px;width:900px;height:900px;border-radius:28px;background:#fff;box-shadow:0 50px 100px -40px #0007;overflow:hidden}
+.nav .barra{background:#EDE7DA;padding:16px 24px;font:600 20px Manrope;color:#8A8170;display:flex;gap:10px;align-items:center}
+.nav .barra i{width:13px;height:13px;border-radius:50%;background:#D9CDB4;display:inline-block}
+.topo-loja{background:#16140F;color:#F4EFE4;padding:46px 30px 26px;display:flex;gap:16px;align-items:center}
+.topo-loja b{font:800 26px Manrope;display:block}.topo-loja span{font:500 16px Manrope;opacity:.7}
+.mono{width:58px;height:58px;border-radius:16px;background:#C9963F;color:#16140F;display:grid;place-items:center;font:800 22px Manrope}
+.rot{font:800 15px Manrope;letter-spacing:.14em;text-transform:uppercase;color:#8A8170;margin:22px 26px 10px}
+.opc{margin:0 22px 12px;padding:18px 20px;border-radius:18px;border:2px solid #E3DED3;background:#fff;display:flex;justify-content:space-between;font:700 22px Manrope;transition:none}
+.opc.on{border-color:#16140F;background:#E9E3D3}
+.horas{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:0 22px}
+.h{border:2px solid #E3DED3;border-radius:14px;padding:16px 0;text-align:center;font:800 22px Outfit;background:#fff}
+.h.x{color:#B8B0A0;text-decoration:line-through}.h.on{background:#C9963F;border-color:#C9963F}.h.enc{border:2px dashed #1d4ed8;color:#1d4ed8}
+.btn{margin:18px 22px;background:#16140F;color:#fff;border-radius:18px;padding:20px;text-align:center;font:800 22px Manrope}
+.btn.on{background:#047857}
+.ok{position:absolute;inset:0;background:#F7F6F2;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;text-align:center;padding:40px}
+.ok .sel{width:120px;height:120px;border-radius:50%;background:#047857;color:#fff;display:grid;place-items:center;font:800 64px Manrope}
+.lin{display:flex;justify-content:space-between;align-items:center;padding:18px 22px;border-radius:16px;background:#F7F3EA;font:600 22px Manrope;margin-bottom:12px}
+.tag{font:800 16px Manrope;letter-spacing:.06em;padding:6px 12px;border-radius:999px}
+.toque{position:absolute;width:70px;height:70px;border-radius:50%;background:#16140F33;border:3px solid #16140F66;pointer-events:none}
+.legenda{position:absolute;right:28px;bottom:18px;font:700 16px Manrope;color:#A89F8C;letter-spacing:.06em;text-transform:uppercase}
+</style></head>
+<body><div class="palco"><div class="nav"><div class="barra"><i></i><i></i><i></i><span style="margin-left:14px">barbeariadoze.topete.com.br/painel</span></div>
+<div style="padding:34px 40px;display:grid;grid-template-columns:1.6fr 1fr;gap:30px">
+<div><b style="font:800 34px Outfit">Hoje · sábado</b><div style="height:18px"></div>
+<div class="lin"><span><b>09:00</b> Murilo · Corte + barba</span><span class="tag" style="background:#E6F2EC;color:#047857">Concluído</span></div>
+<div class="lin"><span><b>10:00</b> Caio · Corte adulto</span><span class="tag" style="background:#E6F2EC;color:#047857" data-in="1.9" data-a="pop">Concluído · Pix</span></div>
+<div class="lin"><span><b>11:00</b> Davi · Corte</span><span class="tag" style="background:#E8EEFC;color:#1d4ed8">Encaixe</span></div>
+<div class="lin"><span><b>14:00</b> Thiago · Corte</span><span class="tag" style="background:#FBF3E4;color:#8F6B22">Mensalista</span></div>
+<div style="position:absolute;left:150px;top:420px;width:420px;background:#fff;border-radius:22px;box-shadow:0 30px 60px -20px #0006;padding:26px" data-in="0.6" data-a="pop" data-sai="1.65"><b style="font:800 24px Manrope">Como o cliente pagou?</b><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px;font:700 20px Manrope;text-align:center"><span class="pix" style="border:2px solid #E3DED3;border-radius:14px;padding:16px 0">Pix</span><span style="border:2px solid #E3DED3;border-radius:14px;padding:16px 0">Dinheiro</span><span style="border:2px solid #E3DED3;border-radius:14px;padding:16px 0">Débito</span><span style="border:2px solid #E3DED3;border-radius:14px;padding:16px 0">Crédito</span></div></div>
+</div>
+<div style="background:#F7F3EA;border-radius:22px;padding:26px"><b style="font:800 22px Manrope;color:#8A8170">CAIXA DE HOJE</b>
+<div style="font:800 54px Outfit;margin:10px 0 18px;position:relative;height:66px"><span style="position:absolute" data-in="1.9" data-a="some">R$ 150</span><span style="position:absolute;color:#047857" data-in="1.95" data-a="pop">R$ 210</span></div>
+<div class="lin" style="background:#fff"><span>Pix</span><b>R$ 90 <span style="color:#047857" data-in="2.0" data-a="pop">+ 60</span></b></div>
+<div class="lin" style="background:#fff"><span>Dinheiro</span><b>R$ 60</b></div>
+<div class="lin" style="background:#fff"><span>Comissão Igor</span><b>R$ 54 <span style="color:#047857" data-in="2.3" data-a="pop">+ 24</span></b></div>
+</div></div></div>
+<span class="toque" style="left:282px;top:600px" data-in="1.4" data-a="toque"></span></div><p class="legenda">Dados fictícios</p><script>
+const E = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : 1 - Math.pow(1 - x, 3));
+const els = [...document.querySelectorAll('[data-in]')];
+const D = Math.max(...els.map((e) => +e.dataset.in)) + 1.8;
+function render(t) {
+  els.forEach((e) => {
+    const a = +e.dataset.in, tipo = e.dataset.a || 'sobe';
+    if (tipo === 'liga') { e.classList.toggle('on', t >= a); return; }
+    if (tipo === 'some') { const k = E((t - a) / 0.3); e.style.opacity = 1 - k; e.style.transform = `scale(${1 - 0.06 * k})`; return; }
+    if (tipo === 'toque') { const k = (t - a) / 0.5; e.style.opacity = k < 0 || k > 1 ? 0 : 1 - k; e.style.transform = `scale(${0.5 + k})`; return; }
+    let k = E((t - a) / (tipo === 'pop' ? 0.3 : 0.4));
+    if (e.dataset.sai) k *= 1 - E((t - +e.dataset.sai) / 0.3);
+    e.style.opacity = k;
+    e.style.transform = tipo === 'pop' ? `scale(${0.7 + 0.3 * k})` : tipo === 'aparece' ? 'none' : `translateY(${(1 - k) * 40}px)`;
+  });
+}
+window.render = render; window.DURACAO = D;
+if (!navigator.webdriver) { const t0 = performance.now(); const loop = () => { render(((performance.now() - t0) / 1000) % D); requestAnimationFrame(loop); }; requestAnimationFrame(loop); }
+else render(0);
+</script></body></html>

@@ -1,0 +1,233 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><link rel="stylesheet" href="base.css"><style>
+body{width:1080px;height:1920px;background:#0E0D0B;overflow:hidden;position:relative;font-family:Manrope}
+#cena{position:absolute;left:0;top:0;width:1080px;height:1920px}
+#palco{position:absolute;left:0;top:0;width:1080px;height:1920px;transform-origin:540px 915px;transform:translateY(-15px) scale(.764)}
+.ov{position:absolute;will-change:transform,opacity}
+.pill{left:50%;top:352px;transform:translateX(-50%);border-radius:999px;padding:18px 34px;font:800 30px/1 Manrope;letter-spacing:.14em;text-transform:uppercase;white-space:nowrap}
+.sem{background:#2A2722;color:#E9E3D6;border:2px solid #4A453C}
+.com{background:linear-gradient(135deg,#FFE3A3,#E0AE58 50%,#A8752A);color:#0E0D0B}
+.logo{left:0;right:0;top:276px;display:flex;justify-content:center;align-items:center;gap:14px;font:700 46px Outfit;letter-spacing:-1.2px;color:#F4EFE4}
+.logo img{width:60px;height:60px}
+.leg{left:150px;right:175px;top:1392px;text-align:center;font:800 44px/1.14 Outfit;letter-spacing:-1px;color:#F4EFE4}
+.leg em{font-style:normal;color:#E0AE58}
+.fone{left:290px;top:430px;width:500px;height:1010px;background:#0E0D0B;border-radius:70px;padding:16px;box-shadow:0 60px 120px -30px #000c}
+.fone .tela{position:relative;width:100%;height:100%;background:#F4EFE4;border-radius:56px;overflow:hidden;color:#16140F}
+.tl{position:absolute;inset:0;padding:70px 34px 30px}
+.rot{font:800 22px Manrope;letter-spacing:.12em;color:#A8752A;text-transform:uppercase}
+.lin{display:flex;justify-content:space-between;align-items:center;background:#fff;border:2.5px solid #E6DDCB;border-radius:22px;padding:20px 22px;font:700 26px Manrope;margin-top:12px}
+.exemplo{position:absolute;left:0;right:0;bottom:22px;text-align:center;font:800 16px Manrope;letter-spacing:.14em;color:#9C927E;text-transform:uppercase}
+.cartao{background:#fff;color:#16140F;border-radius:26px;padding:20px 26px;font:700 30px/1.25 Manrope;box-shadow:0 18px 36px -14px #0008;white-space:nowrap}
+.cta{inset:0;background:radial-gradient(circle at 50% 40%,#2A2017,#0E0D0B 70%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;color:#F4EFE4;text-align:center}
+.chip{border-radius:999px;padding:18px 32px;font:700 30px Manrope;background:#1C1A16;border:2px solid #3A342A;color:#F4EFE4}
+</style></head><body>
+<div id="palco"><svg id="cena" viewBox="0 0 1080 1920" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<linearGradient id="l1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFE9B3"/><stop offset="1" stop-color="#E4B25C"/></linearGradient>
+<linearGradient id="l2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#E9BB68"/><stop offset="1" stop-color="#B98534"/></linearGradient>
+<linearGradient id="l3" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B98534"/><stop offset="1" stop-color="#7E5820"/></linearGradient>
+<linearGradient id="fade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9C7128"/><stop offset=".5" stop-color="#B98A45"/><stop offset="1" stop-color="#F3E9D6"/></linearGradient>
+<linearGradient id="barba" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9C7128"/><stop offset="1" stop-color="#6E4D1B"/></linearGradient>
+<linearGradient id="fundo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1B1915"/><stop offset="1" stop-color="#0B0A08"/></linearGradient>
+<clipPath id="rostoClip"><path d="M150,230 C150,352 196,432 256,434 C316,432 362,352 362,236 Z"/></clipPath><pattern id="listra" width="60" height="60" patternUnits="userSpaceOnUse" patternTransform="rotate(35)">
+<rect width="60" height="60" fill="#F4EFE4"/><rect width="20" height="60" fill="#C9963F"/><rect x="30" width="10" height="60" fill="#0E0D0B"/></pattern></defs>
+<g id="mundo"><rect width="1080" height="1920" fill="#0E0D0B"/>
+<rect x="0" y="300" width="1080" height="1000" fill="#BFE0EC" id="ceu"/>
+<circle cx="930" cy="380" r="44" fill="#FFE9B3" id="sol"/>
+<rect x="40" y="420" width="1000" height="900" fill="#EADFCB"/>
+<rect x="40" y="420" width="1000" height="22" fill="#A8752A"/>
+<rect x="150" y="462" width="780" height="96" rx="14" fill="#16140F"/>
+<text x="540" y="527" text-anchor="middle" font-family="Outfit" font-weight="700" font-size="54" letter-spacing="2" fill="#E0AE58">BARBEARIA DO ZÉ</text>
+<rect x="80" y="580" width="920" height="60" fill="url(#listra)"/><path d="M80 640 Q 103 668 126 640 Q 149 668 172 640 Q 195 668 218 640 Q 241 668 264 640 Q 287 668 310 640 Q 333 668 356 640 Q 379 668 402 640 Q 425 668 448 640 Q 471 668 494 640 Q 517 668 540 640 Q 563 668 586 640 Q 609 668 632 640 Q 655 668 678 640 Q 701 668 724 640 Q 747 668 770 640 Q 793 668 816 640 Q 839 668 862 640 Q 885 668 908 640 Q 931 668 954 640 Q 977 668 1000 640 Z" fill="#C9963F"/>
+<g id="vitrine"><rect x="100" y="700" width="560" height="460" rx="12" fill="#C9D7D6" stroke="#6E4D1B" stroke-width="14"/>
+<rect x="190" y="1030" width="150" height="26" rx="10" fill="#16140F"/><rect x="258" y="1056" width="16" height="80" fill="#9C927E"/>
+<path d="M265 930 C220 936 196 966 186 1030 L344 1030 C334 966 310 936 265 930 Z" fill="#F7F5F0"/>
+<ellipse cx="265" cy="900" rx="34" ry="38" fill="#8D5A3B"/><path d="M231 894 C229 862 248 852 266 852 C286 852 302 864 299 894 C292 878 280 874 265 874 C250 874 238 878 231 894 Z" fill="#16140F"/>
+<g id="barb-dentro"><path d="M370 940 C370 920 386 910 410 910 C434 910 450 920 450 940 L456 1120 L364 1120 Z" fill="#F4EFE4"/><path d="M380 960 L440 960 L446 1120 L374 1120 Z" fill="#16140F"/>
+<g transform="translate(333.2,768.0) scale(0.3)">
+<!-- orelhas -->
+<ellipse cx="148" cy="300" rx="20" ry="30" fill="#E2D3B8"/><ellipse cx="364" cy="300" rx="20" ry="30" fill="#E2D3B8"/>
+<!-- rosto -->
+<path d="M150,236 C150,200 196,180 256,180 C316,180 362,200 362,236 C362,352 316,432 256,434 C196,432 150,352 150,236 Z" fill="#F3E9D6"/>
+<!-- base do cabelo: linha do cabelo arredondada e costeletas em degradê -->
+<path d="M144,290 C136,184 196,126 262,124 C330,124 376,180 368,290 C362,262 350,244 330,236 C306,226 280,224 256,224 C232,224 206,226 182,236 C162,244 150,262 144,290 Z" fill="url(#l3)"/>
+<g clip-path="url(#rostoClip)"><path d="M146,262 C146,300 150,326 158,346 C166,344 170,340 172,334 C168,306 168,282 174,256 C164,254 154,256 146,262 Z" fill="url(#fade)"/>
+<path d="M366,262 C366,300 362,326 354,346 C346,344 342,340 340,334 C344,306 344,282 338,256 C348,254 358,256 366,262 Z" fill="url(#fade)"/></g>
+<!-- barba aparada -->
+<path d="M152,320 C160,400 204,440 256,442 C308,440 352,400 360,320 C348,356 324,372 300,370 C288,356 272,352 256,356 C240,352 224,356 212,370 C188,372 164,356 152,320 Z" fill="url(#barba)"/>
+<path d="M234,392 C246,398 266,398 278,392" fill="none" stroke="#F3E9D6" stroke-width="8" stroke-linecap="round"/>
+<!-- sobrancelhas e olhos -->
+<path d="M196,282 C208,272 224,270 236,274" fill="none" stroke="#6E4D1B" stroke-width="10" stroke-linecap="round"/>
+<path d="M276,274 C288,270 304,272 316,282" fill="none" stroke="#6E4D1B" stroke-width="10" stroke-linecap="round"/>
+<circle cx="218" cy="306" r="8" fill="#0E0D0B"/><circle cx="294" cy="306" r="8" fill="#0E0D0B"/>
+<path d="M256,312 C252,328 250,338 260,342" fill="none" stroke="#E2D3B8" stroke-width="7" stroke-linecap="round"/>
+<!-- TOPETE: três camadas, de trás para a frente -->
+<path d="M150,232 C136,168 180,112 246,104 C296,98 334,118 346,150 C318,136 280,138 254,156 C224,176 206,200 206,222 C186,220 164,224 150,232 Z" fill="url(#l3)"/>
+<path d="M180,226 C172,162 222,96 294,88 C352,82 398,112 402,160 C404,190 384,208 360,206 C372,190 370,170 354,156 C334,138 298,138 272,156 C246,174 236,200 238,222 C216,218 196,220 180,226 Z" fill="url(#l2)"/>
+<path d="M230,224 C230,168 270,114 330,110 C384,106 422,146 414,192 C408,224 380,238 354,230 C374,218 382,196 370,178 C356,158 326,158 306,176 C288,194 284,208 288,224 C270,220 250,220 230,224 Z" fill="url(#l1)"/>
+<path d="M246,196 C258,156 288,132 326,128" fill="none" stroke="#FFF6DA" stroke-width="8" stroke-linecap="round" opacity=".7"/></g>
+<g id="tes-dentro" transform="translate(320,912)"><path d="M0 0 L-34 -14 L-34 -8 Z" fill="#5A554C"/><path d="M0 0 L-34 14 L-34 8 Z" fill="#5A554C"/><path d="M0 0 L42 10" stroke="#F4EFE4" stroke-width="16" stroke-linecap="round"/></g></g>
+<path d="M140 740 L260 740 M140 770 L210 770" stroke="#fff" stroke-width="10" opacity=".5" stroke-linecap="round"/></g>
+<rect x="720" y="700" width="220" height="600" rx="10" fill="#6E4D1B"/><rect x="742" y="722" width="176" height="300" rx="8" fill="#C9D7D6" opacity=".8"/>
+<circle cx="900" cy="1080" r="10" fill="#C9963F"/>
+<g id="placa"><rect x="760" y="1040" width="120" height="44" rx="8" fill="#16140F"/><text x="820" y="1070" text-anchor="middle" font-family="Manrope" font-weight="800" font-size="20" fill="#4CC38A">ABERTO</text></g>
+<rect x="968" y="720" width="44" height="260" rx="22" fill="url(#listra)"/>
+<rect x="0" y="1300" width="1080" height="230" fill="#9C927E"/><rect x="0" y="1300" width="1080" height="16" fill="#7A7262"/>
+<g id="folha" opacity="0"><path d="M0 0 C14 -12 30 -8 34 6 C22 16 6 14 0 0 Z" fill="#A8752A"/></g>
+<g id="th-g"><g id="thiago">
+<g id="pe1"><rect x="-26" y="0" width="24" height="96" rx="11" fill="#2A2722"/><rect x="-34" y="88" width="40" height="16" rx="8" fill="#16140F"/></g>
+<g id="pe2"><rect x="2" y="0" width="24" height="96" rx="11" fill="#3A342A"/><rect x="-2" y="88" width="40" height="16" rx="8" fill="#16140F"/></g>
+<path d="M-56 -120 C-56 -150 -30 -164 0 -164 C30 -164 56 -150 56 -120 L60 8 L-60 8 Z" fill="#2B4A6B"/>
+<path d="M0 -164 L0 6" stroke="#1F3550" stroke-width="5"/>
+<ellipse cx="0" cy="-218" rx="48" ry="54" fill="#C98F5E"/>
+<path d="M-50 -228 C-54 -276 -22 -290 4 -290 C36 -290 58 -270 50 -228 C42 -250 24 -258 2 -258 C-22 -258 -42 -250 -50 -228 Z" fill="#16140F"/>
+<circle cx="-16" cy="-214" r="5.5" fill="#16140F"/><circle cx="16" cy="-214" r="5.5" fill="#16140F"/>
+<path d="M-16 -190 C-6 -180 6 -180 16 -190" stroke="#7A4A2A" stroke-width="6" fill="none" stroke-linecap="round"/>
+</g></g></g>
+<rect id="escurece" width="1080" height="1920" fill="#0E0D0B" opacity="0"/></svg>
+<div class="ov" id="datas" style="left:40px;right:40px;top:320px;display:flex;gap:12px;justify-content:center"><div class="cartao" id="dt0" style="padding:12px 14px;font:800 22px/1.25 Manrope;text-align:center;min-width:140px">01/08<br><span style="font-size:20px;color:#047857">✓ Thiago</span></div><div class="cartao" id="dt1" style="padding:12px 14px;font:800 22px/1.25 Manrope;text-align:center;min-width:140px">15/08<br><span style="font-size:20px;color:#047857">✓ Thiago</span></div><div class="cartao" id="dt2" style="padding:12px 14px;font:800 22px/1.25 Manrope;text-align:center;min-width:140px">29/08<br><span style="font-size:20px;color:#047857">✓ Thiago</span></div><div class="cartao" id="dt3" style="padding:12px 14px;font:800 22px/1.25 Manrope;text-align:center;min-width:140px">12/09<br><span style="font-size:20px;color:#9C927E">—</span></div><div class="cartao" id="dt4" style="padding:12px 14px;font:800 22px/1.25 Manrope;text-align:center;min-width:140px">26/09<br><span style="font-size:20px;color:#9C927E">—</span></div><div class="cartao" id="dt5" style="padding:12px 14px;font:800 22px/1.25 Manrope;text-align:center;min-width:140px">10/10<br><span style="font-size:20px;color:#9C927E">—</span></div></div>
+<div class="ov" id="interroga" style="left:790px;top:740px;font:800 150px/1 Outfit;color:#C2410C">?</div>
+<div class="ov cartao" id="ninguem" style="left:110px;top:1180px">lá dentro: ninguém percebeu</div>
+<div class="ov cartao" id="ligando" style="left:250px;top:1190px;background:#16140F;color:#F4EFE4">📞 Chamando o Thiago…</div>
+<div class="ov cartao" id="voltei" style="left:560px;top:860px;border-radius:30px 30px 8px 30px">Voltei! 😄</div>
+<div class="ov cartao" id="volta-dt" style="left:340px;top:330px;background:#047857;color:#fff">17/10 · ✓ Thiago voltou</div>
+<div class="ov fone" id="fone"><div class="tela"><div class="tl" style="overflow:hidden">
+<p class="rot">38 cadastrados</p>
+<p style="font:800 46px Outfit;letter-spacing:-1px;margin-top:6px">Clientes</p>
+<div style="position:absolute;left:34px;right:34px;top:200px;bottom:70px;overflow:hidden"><div id="k7-lista"><div class="lin" id="cl0" style="margin-top:12px"><span>Murilo</span><span style="text-align:right;font:700 22px/1.25 Manrope;color:#6B6252">veio hoje<br><span style="font-size:17px">8 visitas</span></span></div><div class="lin" id="cl1" style="margin-top:12px"><span>Caio</span><span style="text-align:right;font:700 22px/1.25 Manrope;color:#6B6252">há 3 dias<br><span style="font-size:17px">5 visitas</span></span></div><div class="lin" id="cl2" style="margin-top:12px"><span>Henrique</span><span style="text-align:right;font:700 22px/1.25 Manrope;color:#6B6252">há 9 dias<br><span style="font-size:17px">11 visitas</span></span></div><div class="lin" id="cl3" style="margin-top:12px"><span>Samuel</span><span style="text-align:right;font:700 22px/1.25 Manrope;color:#6B6252">há 12 dias<br><span style="font-size:17px">6 visitas</span></span></div><div class="lin" id="cl4" style="margin-top:12px"><span>Breno</span><span style="text-align:right;font:700 22px/1.25 Manrope;color:#6B6252">há 20 dias<br><span style="font-size:17px">3 visitas</span></span></div><div class="lin" id="cl5" style="margin-top:12px"><span>Vítor</span><span style="text-align:right;font:700 22px/1.25 Manrope;color:#6B6252">há 26 dias<br><span style="font-size:17px">2 visitas</span></span></div><div class="lin" id="cl6" style="margin-top:12px"><span>Thiago</span><span style="text-align:right;font:700 22px/1.25 Manrope;color:#6B6252">há 47 dias<br><span style="font-size:17px">14 visitas</span></span></div></div></div>
+</div><div class="exemplo">Valores de exemplo</div></div></div>
+<svg class="ov" id="corte" viewBox="0 0 1080 1920" style="left:0;top:0;width:1080px;height:1920px;pointer-events:none">
+<path id="corte-linha" d="M-40 980 L1120 900" stroke="#F4EFE4" stroke-width="10" stroke-dasharray="1200" stroke-dashoffset="1200" fill="none"/>
+<g id="corte-tes"><g id="ct1"><path d="M0 0 L-110 -44 Q-118 -40 -110 -32 Z" fill="#E0AE58"/><circle cx="28" cy="24" r="20" fill="none" stroke="#E0AE58" stroke-width="10"/></g>
+<g id="ct2"><path d="M0 0 L-110 44 Q-118 40 -110 32 Z" fill="#E0AE58"/><circle cx="28" cy="-24" r="20" fill="none" stroke="#E0AE58" stroke-width="10"/></g><circle r="8" fill="#0E0D0B"/></g></svg></div>
+<div class="ov logo" id="logo"><img src="../../marca/topete-mascote.svg">topete</div>
+<div class="ov pill sem" id="p-sem">✕ Sem Topete</div><div class="ov pill com" id="p-com">✓ Com Topete</div>
+<div class="ov leg" id="leg0">O Thiago cortava aqui <em>de quinze em quinze dias.</em></div><div class="ov leg" id="leg1">Um dia, sumiu. <em>E ninguém percebeu.</em></div><div class="ov leg" id="leg2">Com o Topete, a lista mostra <em>há quantos dias cada um não vem.</em></div><div class="ov leg" id="leg3">Você vê, chama… <em>e ele volta.</em></div>
+<div class="ov cta" id="cta"><div id="cta-masc" style="width:330px;height:330px"><svg viewBox="0 0 512 512" style="width:330px;height:330px;overflow:visible"><defs>
+<linearGradient id="l1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFE9B3"/><stop offset="1" stop-color="#E4B25C"/></linearGradient>
+<linearGradient id="l2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#E9BB68"/><stop offset="1" stop-color="#B98534"/></linearGradient>
+<linearGradient id="l3" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B98534"/><stop offset="1" stop-color="#7E5820"/></linearGradient>
+<linearGradient id="fade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9C7128"/><stop offset=".5" stop-color="#B98A45"/><stop offset="1" stop-color="#F3E9D6"/></linearGradient>
+<linearGradient id="barba" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9C7128"/><stop offset="1" stop-color="#6E4D1B"/></linearGradient>
+<linearGradient id="fundo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1B1915"/><stop offset="1" stop-color="#0B0A08"/></linearGradient>
+<clipPath id="rostoClip"><path d="M150,230 C150,352 196,432 256,434 C316,432 362,352 362,236 Z"/></clipPath></defs><g transform="translate(0,6)">
+<!-- orelhas -->
+<ellipse cx="148" cy="300" rx="20" ry="30" fill="#E2D3B8"/><ellipse cx="364" cy="300" rx="20" ry="30" fill="#E2D3B8"/>
+<!-- rosto -->
+<path d="M150,236 C150,200 196,180 256,180 C316,180 362,200 362,236 C362,352 316,432 256,434 C196,432 150,352 150,236 Z" fill="#F3E9D6"/>
+<!-- base do cabelo: linha do cabelo arredondada e costeletas em degradê -->
+<path d="M144,290 C136,184 196,126 262,124 C330,124 376,180 368,290 C362,262 350,244 330,236 C306,226 280,224 256,224 C232,224 206,226 182,236 C162,244 150,262 144,290 Z" fill="url(#l3)"/>
+<g clip-path="url(#rostoClip)"><path d="M146,262 C146,300 150,326 158,346 C166,344 170,340 172,334 C168,306 168,282 174,256 C164,254 154,256 146,262 Z" fill="url(#fade)"/>
+<path d="M366,262 C366,300 362,326 354,346 C346,344 342,340 340,334 C344,306 344,282 338,256 C348,254 358,256 366,262 Z" fill="url(#fade)"/></g>
+<!-- barba aparada -->
+<path d="M152,320 C160,400 204,440 256,442 C308,440 352,400 360,320 C348,356 324,372 300,370 C288,356 272,352 256,356 C240,352 224,356 212,370 C188,372 164,356 152,320 Z" fill="url(#barba)"/>
+<path d="M234,392 C246,398 266,398 278,392" fill="none" stroke="#F3E9D6" stroke-width="8" stroke-linecap="round"/>
+<!-- sobrancelhas e olhos -->
+<path d="M196,282 C208,272 224,270 236,274" fill="none" stroke="#6E4D1B" stroke-width="10" stroke-linecap="round"/>
+<path d="M276,274 C288,270 304,272 316,282" fill="none" stroke="#6E4D1B" stroke-width="10" stroke-linecap="round"/>
+<circle cx="218" cy="306" r="8" fill="#0E0D0B"/><circle cx="294" cy="306" r="8" fill="#0E0D0B"/>
+<path d="M256,312 C252,328 250,338 260,342" fill="none" stroke="#E2D3B8" stroke-width="7" stroke-linecap="round"/>
+<g id="cta-topete" style="transform-origin:256px 226px"><!-- TOPETE: três camadas, de trás para a frente -->
+<path d="M150,232 C136,168 180,112 246,104 C296,98 334,118 346,150 C318,136 280,138 254,156 C224,176 206,200 206,222 C186,220 164,224 150,232 Z" fill="url(#l3)"/>
+<path d="M180,226 C172,162 222,96 294,88 C352,82 398,112 402,160 C404,190 384,208 360,206 C372,190 370,170 354,156 C334,138 298,138 272,156 C246,174 236,200 238,222 C216,218 196,220 180,226 Z" fill="url(#l2)"/>
+<path d="M230,224 C230,168 270,114 330,110 C384,106 422,146 414,192 C408,224 380,238 354,230 C374,218 382,196 370,178 C356,158 326,158 306,176 C288,194 284,208 288,224 C270,220 250,220 230,224 Z" fill="url(#l1)"/>
+<path d="M246,196 C258,156 288,132 326,128" fill="none" stroke="#FFF6DA" stroke-width="8" stroke-linecap="round" opacity=".7"/></g></g></svg></div>
+<p id="cta1" style="font:700 120px/0.9 Outfit;letter-spacing:-5px">topete<span style="color:#E0AE58">.</span></p>
+<p id="cta2" style="font:700 52px/1.15 Outfit;letter-spacing:-1px;max-width:880px">Nenhum cliente fiel some <span style="color:#E0AE58">sem você saber.</span></p>
+<div id="cta3" style="display:flex;gap:16px;flex-wrap:wrap;justify-content:center;max-width:900px;margin-top:10px"><span class="chip">Há quantos dias não vem</span><span class="chip">Histórico de visitas</span></div>
+<p id="cta4" style="margin-top:26px;font:800 40px Manrope;color:#E0AE58">@usetopete</p></div>
+<script>
+const D = 22.0, VIRA = 7.5, FONE = [8.6, 13.6], CTA = 17.0, FALAS = [[0.5, "fala0.wav", 2.36], [4.6, "fala1.wav", 2.18], [8.8, "fala2.wav", 3.81], [14.2, "fala3.wav", 1.67], [17.6, "fala4.wav", 2.84]];
+
+const cl = (x) => Math.max(0, Math.min(1, x)), E = (x) => 1 - Math.pow(1 - cl(x), 3), EI = (x) => { x = cl(x); return x < .5 ? 4*x*x*x : 1 - Math.pow(-2*x + 2, 3)/2; };
+const $ = (id) => document.getElementById(id);
+const pulo = (x) => x <= 0 ? 0 : Math.exp(-4 * x) * Math.sin(14 * x);
+const conta = (a, b, k) => Math.round(a + (b - a) * E(k)).toLocaleString('pt-BR');
+function comum(t) {
+  const cor = E((t - VIRA - 0.3) / 0.7);
+  $('mundo').style.filter = `grayscale(${0.85 * (1 - cor)}) brightness(${0.92 + 0.08 * cor})`;
+  $('p-sem').style.opacity = t < VIRA + 0.2 ? 1 : 0;
+  $('p-sem').style.transform = `translateX(-50%) scale(${1 + 0.15 * pulo(t - 0.1)})`;
+  $('p-com').style.opacity = t >= VIRA + 0.45 ? E((t - VIRA - 0.5) / 0.4) : 0;
+  $('p-com').style.transform = `translateX(-50%) scale(${1 + 0.18 * pulo(t - VIRA - 0.5)})`;
+  $('logo').style.opacity = t < CTA ? 1 : 0;
+  const kx = (t - VIRA) / 0.7;
+  $('corte').style.opacity = kx > 0 && kx < 1.5 ? 1 - cl((kx - 1) / 0.5) : 0;
+  $('corte-linha').setAttribute('stroke-dashoffset', 1200 * (1 - E(kx)));
+  const x = -120 + 1320 * EI(kx), y = 990 - 80 * EI(kx), ab = Math.abs(Math.sin(kx * Math.PI * 3)) * 26;
+  $('corte-tes').setAttribute('transform', `translate(${x},${y}) rotate(-4)`);
+  $('ct1').setAttribute('transform', `rotate(${-ab})`); $('ct2').setAttribute('transform', `rotate(${ab})`);
+  const kf = E((t - FONE[0]) / 0.5) * (1 - E((t - FONE[1]) / 0.45));
+  $('fone').style.opacity = cl(kf * 1.2); $('fone').style.transform = `translateY(${(1 - kf) * 900}px)`;
+  $('escurece').setAttribute('opacity', 0.45 * kf);
+  FALAS.forEach(([a, f, d], i) => { const l = $('leg' + i); if (!l) return; const k = E((t - a + 0.1) / 0.25) * (1 - E((t - a - d - 0.2) / 0.25)); l.style.opacity = k; l.style.transform = `translateY(${(1 - k) * 20}px)`; });
+  const kk = E((t - CTA) / 0.5);
+  $('cta').style.clipPath = `inset(${(1 - kk) * 100}% 0 0 0)`; $('cta').style.opacity = t >= CTA ? 1 : 0;
+  ['cta1', 'cta2', 'cta3', 'cta4'].forEach((id, i) => { const k = E((t - CTA - 0.5 - i * 0.3) / 0.4); $(id).style.opacity = k; $(id).style.transform = `translateY(${(1 - k) * 40}px)`; });
+  const mx = t - CTA - 0.7, mola = mx <= 0 ? 0 : Math.exp(-3.2 * mx);
+  $('cta-topete').style.transform = `rotate(${7 * mola * Math.sin(11 * mx)}deg) scaleY(${1 + 0.22 * mola * Math.sin(9 * mx + 1.2)})`;
+  $('cta-masc').style.transform = `scale(${E((t - CTA - 0.2) / 0.4)})`;
+}
+const EVENTOS = [];
+function eventosComuns() {
+  EVENTOS.push({ t: VIRA - 0.15, som: 'whoosh', v: 0.55 }, { t: VIRA + 0.15, som: 'snip', v: 0.9 }, { t: VIRA + 0.42, som: 'snip', v: 0.9 });
+  EVENTOS.push({ t: FONE[0], som: 'swish', v: 0.5 }, { t: FONE[1], som: 'swish', v: 0.35 });
+  EVENTOS.push({ t: CTA - 0.1, som: 'whoosh', v: 0.5 }, { t: CTA + 0.7, som: 'boing', v: 0.6 }, { t: CTA + 1.3, som: 'brilho', v: 0.45 });
+}
+
+
+const VISITAS = [[0.15, 1.15], [1.25, 2.25], [2.35, 3.3]], VOLTA = [14.5, 16.2], DT = [1.2, 2.3, 3.4, 4.2, 5.0, 5.8];
+function andar(t, a, b) { return -150 + 940 * cl((t - a) / (b - a)); }
+function ep(t) {
+  const antes = t < VIRA + 0.3;
+  $('ceu').setAttribute('fill', antes && t > 4.0 ? '#C7D3DA' : '#BFE0EC'); $('sol').setAttribute('opacity', antes && t > 4.0 ? 0.35 : 1);
+  // Thiago vindo de 15 em 15 dias; depois some
+  let x = null;
+  VISITAS.forEach(([a, b]) => { if (t >= a && t < b + 0.15) x = andar(t, a, b); });
+  if (t >= VOLTA[0] && t < CTA) x = Math.min(780, andar(t, VOLTA[0], VOLTA[1]));
+  const g = $('th-g');
+  if (x === null) g.setAttribute('opacity', 0);
+  else {
+    const passo = x < 780 ? Math.sin(t * 16) : 0;
+    const somePorta = t < VIRA ? 1 - cl((x - 700) / 80) : 1;
+    g.setAttribute('opacity', somePorta);
+    g.setAttribute('transform', `translate(${x},${1330 - Math.abs(passo) * 6})`);
+    $('pe1').setAttribute('transform', `rotate(${passo * 22} 0 0)`); $('pe2').setAttribute('transform', `rotate(${-passo * 22} 0 0)`);
+  }
+  // barbeiro lá dentro, cortando sem parar
+  $('tes-dentro').setAttribute('transform', `translate(320,912) rotate(${Math.sin(t * 9) * 8})`);
+  // datas passando no alto
+  DT.forEach((a, i) => { const d = $('dt' + i), k = E((t - a) / 0.3), s = E((t - VIRA) / 0.3);
+    d.style.opacity = t < a ? 0 : k * (1 - s); d.style.transform = `translateY(${(1 - k) * -20}px) scale(${1 + 0.1 * pulo(t - a)})`; });
+  // folha passando na calçada vazia
+  const kf = cl((t - 4.4) / 2.4);
+  $('folha').setAttribute('opacity', antes && kf > 0 && kf < 1 ? 1 : 0);
+  $('folha').setAttribute('transform', `translate(${-60 + 1200 * kf},${1420 - Math.abs(Math.sin(kf * 12)) * 40}) rotate(${kf * 720})`);
+  const kq = E((t - 6.1) / 0.3) * (1 - E((t - VIRA) / 0.3));
+  $('interroga').style.opacity = kq; $('interroga').style.transform = `rotate(${Math.sin(t * 6) * 10}deg) scale(${0.5 + 0.5 * kq + 0.2 * pulo(t - 6.1)})`;
+  const kn = E((t - 5.4) / 0.3) * (1 - E((t - VIRA) / 0.3)); $('ninguem').style.opacity = kn;
+  // depois: o dono chama, Thiago volta
+  const kl = E((t - 13.8) / 0.3) * (1 - E((t - 15.0) / 0.3)); $('ligando').style.opacity = kl; $('ligando').style.transform = `scale(${0.7 + 0.3 * kl + 0.08 * Math.sin(t * 20) * kl})`;
+  const kv = E((t - 15.9) / 0.3) * (1 - E((t - CTA + 0.2) / 0.3)); $('voltei').style.opacity = kv; $('voltei').style.transform = `scale(${0.6 + 0.4 * kv + 0.12 * pulo(t - 15.9)})`;
+  const kd = E((t - 16.2) / 0.3) * (1 - E((t - CTA + 0.2) / 0.3)); $('volta-dt').style.opacity = kd; $('volta-dt').style.transform = `scale(${0.6 + 0.4 * kd + 0.12 * pulo(t - 16.2)})`;
+  // tela: a lista rola até o Thiago, que fica em destaque
+  [0, 1, 2, 3, 4, 5, 6].forEach((i) => { const k = E((t - 9.0 - i * 0.12) / 0.3); $('cl' + i).style.opacity = k; });
+  $('k7-lista').style.transform = `translateY(${-210 * EI((t - 10.2) / 1.0)}px)`;
+  const kt = E((t - 11.4) / 0.3), th = $('cl6');
+  th.style.borderColor = kt > 0 ? '#C9963F' : '#E6DDCB'; th.style.background = kt > 0 ? '#FBF3E4' : '#fff';
+  th.style.transform = `scale(${1 + 0.06 * kt + 0.06 * pulo(t - 11.4)})`;
+}
+function render(t) { comum(t); ep(t); }
+eventosComuns();
+
+VISITAS.forEach(([a, b]) => { for (let x = a + 0.1; x < b; x += 0.19) EVENTOS.push({ t: x, som: 'tick', v: 0.22 }); EVENTOS.push({ t: b, som: 'ding', v: 0.3 }); });
+DT.forEach((a) => EVENTOS.push({ t: a, som: 'pop', v: 0.35 }));
+EVENTOS.push({ t: 4.4, som: 'swish', v: 0.3 }, { t: 6.1, som: 'boing', v: 0.3 });
+[9.0, 9.4].forEach((a) => EVENTOS.push({ t: a, som: 'tap', v: 0.35 }));
+EVENTOS.push({ t: 10.2, som: 'swish', v: 0.3 }, { t: 11.4, som: 'ding', v: 0.5 });
+for (let x = 13.8; x < 14.9; x += 0.35) EVENTOS.push({ t: x, som: 'buzz', v: 0.3 });
+for (let x = VOLTA[0] + 0.1; x < VOLTA[1]; x += 0.19) EVENTOS.push({ t: x, som: 'tick', v: 0.22 });
+EVENTOS.push({ t: 15.9, som: 'pop', v: 0.45 }, { t: 16.2, som: 'brilho', v: 0.35 });
+window.render = render; window.DURACAO = D; window.EVENTOS = EVENTOS; window.FALAS = FALAS;
+if (!navigator.webdriver) { const t0 = performance.now(); const loop = () => { render(((performance.now() - t0) / 1000) % D); requestAnimationFrame(loop); }; requestAnimationFrame(loop); }
+else render(0);
+</script></body></html>

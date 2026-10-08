@@ -1,0 +1,341 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><link rel="stylesheet" href="base.css"><style>
+body{width:1080px;height:1920px;background:#0E0D0B;overflow:hidden;position:relative;font-family:Manrope}
+#cena{position:absolute;left:0;top:0;width:1080px;height:1920px}
+#palco{position:absolute;left:0;top:0;width:1080px;height:1920px;transform-origin:540px 915px;transform:translateY(-15px) scale(.764)}
+.ov{position:absolute;will-change:transform,opacity}
+.pill{left:50%;top:352px;transform:translateX(-50%);border-radius:999px;padding:18px 34px;font:800 30px/1 Manrope;letter-spacing:.14em;text-transform:uppercase;white-space:nowrap}
+.sem{background:#2A2722;color:#E9E3D6;border:2px solid #4A453C}
+.com{background:linear-gradient(135deg,#FFE3A3,#E0AE58 50%,#A8752A);color:#0E0D0B}
+.logo{left:0;right:0;top:276px;display:flex;justify-content:center;align-items:center;gap:14px;font:700 46px Outfit;letter-spacing:-1.2px;color:#F4EFE4}
+.logo img{width:60px;height:60px}
+.leg{left:150px;right:175px;top:1392px;text-align:center;font:800 44px/1.14 Outfit;letter-spacing:-1px;color:#F4EFE4}
+.leg em{font-style:normal;color:#E0AE58}
+.fone{left:290px;top:430px;width:500px;height:1010px;background:#0E0D0B;border-radius:70px;padding:16px;box-shadow:0 60px 120px -30px #000c}
+.fone .tela{position:relative;width:100%;height:100%;background:#F4EFE4;border-radius:56px;overflow:hidden;color:#16140F}
+.tl{position:absolute;inset:0;padding:70px 34px 30px}
+.rot{font:800 22px Manrope;letter-spacing:.12em;color:#A8752A;text-transform:uppercase}
+.lin{display:flex;justify-content:space-between;align-items:center;background:#fff;border:2.5px solid #E6DDCB;border-radius:22px;padding:20px 22px;font:700 26px Manrope;margin-top:12px}
+.exemplo{position:absolute;left:0;right:0;bottom:22px;text-align:center;font:800 16px Manrope;letter-spacing:.14em;color:#9C927E;text-transform:uppercase}
+.cartao{background:#fff;color:#16140F;border-radius:26px;padding:20px 26px;font:700 30px/1.25 Manrope;box-shadow:0 18px 36px -14px #0008;white-space:nowrap}
+.cta{inset:0;background:radial-gradient(circle at 50% 40%,#2A2017,#0E0D0B 70%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;color:#F4EFE4;text-align:center}
+.chip{border-radius:999px;padding:18px 32px;font:700 30px Manrope;background:#1C1A16;border:2px solid #3A342A;color:#F4EFE4}
+</style></head><body>
+<div id="palco"><svg id="cena" viewBox="0 0 1080 1920" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<linearGradient id="l1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFE9B3"/><stop offset="1" stop-color="#E4B25C"/></linearGradient>
+<linearGradient id="l2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#E9BB68"/><stop offset="1" stop-color="#B98534"/></linearGradient>
+<linearGradient id="l3" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B98534"/><stop offset="1" stop-color="#7E5820"/></linearGradient>
+<linearGradient id="fade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9C7128"/><stop offset=".5" stop-color="#B98A45"/><stop offset="1" stop-color="#F3E9D6"/></linearGradient>
+<linearGradient id="barba" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9C7128"/><stop offset="1" stop-color="#6E4D1B"/></linearGradient>
+<linearGradient id="fundo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1B1915"/><stop offset="1" stop-color="#0B0A08"/></linearGradient>
+<clipPath id="rostoClip"><path d="M150,230 C150,352 196,432 256,434 C316,432 362,352 362,236 Z"/></clipPath><pattern id="listra" width="60" height="60" patternUnits="userSpaceOnUse" patternTransform="rotate(35)">
+<rect width="60" height="60" fill="#F4EFE4"/><rect width="20" height="60" fill="#C9963F"/><rect x="30" width="10" height="60" fill="#0E0D0B"/></pattern></defs>
+<g id="mundo"><rect width="1080" height="1920" fill="#0E0D0B"/>
+<rect x="0" y="300" width="1080" height="200" fill="#BFE0EC"/>
+<circle cx="140" cy="360" r="40" fill="#FFE9B3"/>
+<rect x="60" y="380" width="960" height="830" fill="#EADFCB"/><rect x="40" y="370" width="1000" height="28" fill="#A8752A"/>
+<rect x="250" y="418" width="580" height="96" rx="16" fill="#16140F"/>
+<text x="540" y="483" text-anchor="middle" font-family="Outfit" font-weight="700" font-size="50" fill="#E0AE58" letter-spacing="2">BARBEARIA DO ZÉ</text>
+<rect x="100" y="540" width="880" height="64" fill="url(#listra)"/>
+<circle cx="110" cy="604" r="20" fill="#C9963F"/><circle cx="150" cy="604" r="20" fill="#C9963F"/><circle cx="190" cy="604" r="20" fill="#C9963F"/><circle cx="230" cy="604" r="20" fill="#C9963F"/><circle cx="270" cy="604" r="20" fill="#C9963F"/><circle cx="310" cy="604" r="20" fill="#C9963F"/><circle cx="350" cy="604" r="20" fill="#C9963F"/><circle cx="390" cy="604" r="20" fill="#C9963F"/><circle cx="430" cy="604" r="20" fill="#C9963F"/><circle cx="470" cy="604" r="20" fill="#C9963F"/><circle cx="510" cy="604" r="20" fill="#C9963F"/><circle cx="550" cy="604" r="20" fill="#C9963F"/><circle cx="590" cy="604" r="20" fill="#C9963F"/><circle cx="630" cy="604" r="20" fill="#C9963F"/><circle cx="670" cy="604" r="20" fill="#C9963F"/><circle cx="710" cy="604" r="20" fill="#C9963F"/><circle cx="750" cy="604" r="20" fill="#C9963F"/><circle cx="790" cy="604" r="20" fill="#C9963F"/><circle cx="830" cy="604" r="20" fill="#C9963F"/><circle cx="870" cy="604" r="20" fill="#C9963F"/><circle cx="910" cy="604" r="20" fill="#C9963F"/><circle cx="950" cy="604" r="20" fill="#C9963F"/>
+<g id="vitrine"><rect x="110" y="660" width="400" height="430" rx="12" fill="#CFE0E3" stroke="#6E4D1B" stroke-width="14"/>
+<g opacity=".8"><g id="vc" transform="translate(270,1060) scale(0.36) translate(-380,-1450)">
+<rect x="270" y="1000" width="220" height="250" rx="30" fill="#16140F"/><rect x="250" y="1250" width="260" height="40" rx="16" fill="#16140F"/>
+<rect x="232" y="1150" width="40" height="110" rx="14" fill="#2A2722"/><rect x="488" y="1150" width="40" height="110" rx="14" fill="#2A2722"/>
+<rect x="362" y="1288" width="36" height="150" fill="#9C927E"/><ellipse cx="380" cy="1450" rx="130" ry="24" fill="#16140F"/>
+<path d="M380 920 C300 930 240 980 220 1080 L190 1290 L570 1290 L540 1080 C520 980 460 930 380 920 Z" fill="#F7F5F0" stroke="#D9D1C1" stroke-width="6"/>
+<path d="M330 930 L380 990 L430 930" fill="none" stroke="#D9D1C1" stroke-width="6"/>
+<ellipse cx="380" cy="860" rx="72" ry="80" fill="#C98F5E"/>
+<path d="M306 846 C300 780 340 752 384 752 C430 752 462 784 456 846 C446 812 420 800 384 800 C346 800 318 812 306 846 Z" fill="#2B1E14"/>
+<ellipse cx="308" cy="868" rx="12" ry="18" fill="#C98F5E"/><ellipse cx="452" cy="868" rx="12" ry="18" fill="#C98F5E"/>
+<circle cx="356" cy="868" r="7" fill="#16140F"/><circle cx="404" cy="868" r="7" fill="#16140F"/>
+<g id="vc-b" opacity="0"><path d="M336 844 L370 854" stroke="#2B1E14" stroke-width="8" stroke-linecap="round"/><path d="M424 844 L390 854" stroke="#2B1E14" stroke-width="8" stroke-linecap="round"/>
+<path d="M362 906 L398 906" stroke="#7A4A2A" stroke-width="7" stroke-linecap="round"/></g>
+<g id="vc-f"><path d="M338 846 C348 840 360 840 368 844" stroke="#2B1E14" stroke-width="7" fill="none" stroke-linecap="round"/>
+<path d="M392 844 C400 840 412 840 422 846" stroke="#2B1E14" stroke-width="7" fill="none" stroke-linecap="round"/>
+<path d="M356 898 C368 914 392 914 404 898" stroke="#7A4A2A" stroke-width="7" fill="none" stroke-linecap="round"/></g></g><g id="vb" transform="translate(400,1078) scale(0.36) translate(-660,-1470)">
+<rect x="612" y="1240" width="40" height="230" rx="18" fill="#16140F"/><rect x="672" y="1240" width="40" height="230" rx="18" fill="#16140F"/>
+<path d="M585 960 C585 925 615 905 662 905 C709 905 740 925 740 960 L748 1260 L577 1260 Z" fill="#F4EFE4"/>
+<path d="M606 990 L718 990 L730 1262 L594 1262 Z" fill="#16140F"/><rect x="636" y="1060" width="52" height="40" rx="8" fill="#2A2722"/>
+<g id="vb-bE"><path d="M598 960 C578 1030 572 1100 580 1160" stroke="#F4EFE4" stroke-width="40" fill="none" stroke-linecap="round"/><circle cx="580" cy="1166" r="22" fill="#F3E9D6"/></g>
+<g id="vb-bD"><path d="M726 960 C746 1030 752 1100 744 1160" stroke="#F4EFE4" stroke-width="40" fill="none" stroke-linecap="round"/><circle cx="744" cy="1166" r="22" fill="#F3E9D6"/></g>
+<g id="vb-cab"><g transform="translate(516.64,632.0) scale(0.56)">
+<!-- orelhas -->
+<ellipse cx="148" cy="300" rx="20" ry="30" fill="#E2D3B8"/><ellipse cx="364" cy="300" rx="20" ry="30" fill="#E2D3B8"/>
+<!-- rosto -->
+<path d="M150,236 C150,200 196,180 256,180 C316,180 362,200 362,236 C362,352 316,432 256,434 C196,432 150,352 150,236 Z" fill="#F3E9D6"/>
+<!-- base do cabelo: linha do cabelo arredondada e costeletas em degradê -->
+<path d="M144,290 C136,184 196,126 262,124 C330,124 376,180 368,290 C362,262 350,244 330,236 C306,226 280,224 256,224 C232,224 206,226 182,236 C162,244 150,262 144,290 Z" fill="url(#l3)"/>
+<g clip-path="url(#rostoClip)"><path d="M146,262 C146,300 150,326 158,346 C166,344 170,340 172,334 C168,306 168,282 174,256 C164,254 154,256 146,262 Z" fill="url(#fade)"/>
+<path d="M366,262 C366,300 362,326 354,346 C346,344 342,340 340,334 C344,306 344,282 338,256 C348,254 358,256 366,262 Z" fill="url(#fade)"/></g>
+<!-- barba aparada -->
+<path d="M152,320 C160,400 204,440 256,442 C308,440 352,400 360,320 C348,356 324,372 300,370 C288,356 272,352 256,356 C240,352 224,356 212,370 C188,372 164,356 152,320 Z" fill="url(#barba)"/>
+<path d="M234,392 C246,398 266,398 278,392" fill="none" stroke="#F3E9D6" stroke-width="8" stroke-linecap="round"/>
+<!-- sobrancelhas e olhos -->
+<path d="M196,282 C208,272 224,270 236,274" fill="none" stroke="#6E4D1B" stroke-width="10" stroke-linecap="round"/>
+<path d="M276,274 C288,270 304,272 316,282" fill="none" stroke="#6E4D1B" stroke-width="10" stroke-linecap="round"/>
+<circle cx="218" cy="306" r="8" fill="#0E0D0B"/><circle cx="294" cy="306" r="8" fill="#0E0D0B"/>
+<path d="M256,312 C252,328 250,338 260,342" fill="none" stroke="#E2D3B8" stroke-width="7" stroke-linecap="round"/>
+<!-- TOPETE: três camadas, de trás para a frente -->
+<path d="M150,232 C136,168 180,112 246,104 C296,98 334,118 346,150 C318,136 280,138 254,156 C224,176 206,200 206,222 C186,220 164,224 150,232 Z" fill="url(#l3)"/>
+<path d="M180,226 C172,162 222,96 294,88 C352,82 398,112 402,160 C404,190 384,208 360,206 C372,190 370,170 354,156 C334,138 298,138 272,156 C246,174 236,200 238,222 C216,218 196,220 180,226 Z" fill="url(#l2)"/>
+<path d="M230,224 C230,168 270,114 330,110 C384,106 422,146 414,192 C408,224 380,238 354,230 C374,218 382,196 370,178 C356,158 326,158 306,176 C288,194 284,208 288,224 C270,220 250,220 230,224 Z" fill="url(#l1)"/>
+<path d="M246,196 C258,156 288,132 326,128" fill="none" stroke="#FFF6DA" stroke-width="8" stroke-linecap="round" opacity=".7"/></g></g>
+<path id="vb-suor" d="M790 730 C782 746 778 756 786 764 C794 772 806 764 802 752 C800 744 794 738 790 730 Z" fill="#7FC4E8" opacity="0"/>
+</g></g>
+<path d="M150 700 L230 700 M150 724 L190 724" stroke="#fff" stroke-width="10" stroke-linecap="round" opacity=".7"/></g>
+<rect x="560" y="650" width="230" height="560" fill="#2A2017" stroke="#6E4D1B" stroke-width="14"/>
+<rect x="830" y="680" width="44" height="300" rx="22" fill="url(#listra)"/><rect x="822" y="668" width="60" height="20" rx="8" fill="#A8752A"/><rect x="822" y="972" width="60" height="20" rx="8" fill="#A8752A"/>
+<rect x="0" y="1200" width="1080" height="250" fill="#CFC6B4"/>
+<path d="M120 1200 L80 1450" stroke="#B8AE9A" stroke-width="4"/><path d="M240 1200 L200 1450" stroke="#B8AE9A" stroke-width="4"/><path d="M360 1200 L320 1450" stroke="#B8AE9A" stroke-width="4"/><path d="M480 1200 L440 1450" stroke="#B8AE9A" stroke-width="4"/><path d="M600 1200 L560 1450" stroke="#B8AE9A" stroke-width="4"/><path d="M720 1200 L680 1450" stroke="#B8AE9A" stroke-width="4"/><path d="M840 1200 L800 1450" stroke="#B8AE9A" stroke-width="4"/><path d="M960 1200 L920 1450" stroke="#B8AE9A" stroke-width="4"/><path d="M1080 1200 L1040 1450" stroke="#B8AE9A" stroke-width="4"/>
+<rect x="0" y="1440" width="1080" height="22" fill="#9C927E"/><rect x="0" y="1462" width="1080" height="70" fill="#3A3732"/>
+<g id="f3" transform="translate(1020,1330) scale(0.48)"><g id="f3-corpo">
+<rect x="-62" y="-230" width="48" height="230" rx="20" fill="#2A2722"/><rect x="14" y="-230" width="48" height="230" rx="20" fill="#2A2722"/>
+<path d="M-92 -420 C-92 -470 -60 -490 0 -490 C60 -490 92 -470 92 -420 L84 -200 L-84 -200 Z" fill="#047857"/>
+<path d="M-88 -440 C-118 -380 -120 -320 -108 -262" stroke="#047857" stroke-width="40" fill="none" stroke-linecap="round"/><circle cx="-108" cy="-256" r="20" fill="#E8C9A6"/>
+<path d="M88 -440 C118 -380 120 -320 108 -262" stroke="#047857" stroke-width="40" fill="none" stroke-linecap="round"/><circle cx="108" cy="-256" r="20" fill="#E8C9A6"/>
+<rect x="-18" y="-510" width="36" height="34" fill="#E8C9A6"/>
+<ellipse cx="0" cy="-570" rx="68" ry="76" fill="#E8C9A6"/>
+<path d="M-70 -584 C-76 -650 -36 -676 4 -676 C46 -676 78 -648 70 -584 C60 -616 34 -628 4 -628 C-30 -628 -58 -616 -70 -584 Z" fill="#6E4D1B"/>
+<ellipse cx="-68" cy="-562" rx="12" ry="18" fill="#E8C9A6"/><ellipse cx="68" cy="-562" rx="12" ry="18" fill="#E8C9A6"/>
+<circle cx="-24" cy="-564" r="7" fill="#16140F"/><circle cx="24" cy="-564" r="7" fill="#16140F"/>
+<g id="f3-b" opacity="0"><path d="M-44 -588 L-10 -578" stroke="#6E4D1B" stroke-width="8" stroke-linecap="round"/><path d="M44 -588 L10 -578" stroke="#6E4D1B" stroke-width="8" stroke-linecap="round"/>
+<path d="M-18 -526 L18 -526" stroke="#7A4A2A" stroke-width="7" stroke-linecap="round"/></g>
+<g id="f3-f"><path d="M-42 -586 C-32 -592 -20 -592 -12 -588" stroke="#6E4D1B" stroke-width="7" fill="none" stroke-linecap="round"/>
+<path d="M12 -588 C20 -592 32 -592 42 -586" stroke="#6E4D1B" stroke-width="7" fill="none" stroke-linecap="round"/>
+<path d="M-24 -534 C-12 -518 12 -518 24 -534" stroke="#7A4A2A" stroke-width="7" fill="none" stroke-linecap="round"/></g></g></g>
+<g id="f2" transform="translate(940,1370) scale(0.52)"><g id="f2-corpo">
+<rect x="-62" y="-230" width="48" height="230" rx="20" fill="#2A2722"/><rect x="14" y="-230" width="48" height="230" rx="20" fill="#2A2722"/>
+<path d="M-92 -420 C-92 -470 -60 -490 0 -490 C60 -490 92 -470 92 -420 L84 -200 L-84 -200 Z" fill="#C2410C"/>
+<path d="M-88 -440 C-118 -380 -120 -320 -108 -262" stroke="#C2410C" stroke-width="40" fill="none" stroke-linecap="round"/><circle cx="-108" cy="-256" r="20" fill="#8D5A3B"/>
+<path d="M88 -440 C118 -380 120 -320 108 -262" stroke="#C2410C" stroke-width="40" fill="none" stroke-linecap="round"/><circle cx="108" cy="-256" r="20" fill="#8D5A3B"/>
+<rect x="-18" y="-510" width="36" height="34" fill="#8D5A3B"/>
+<ellipse cx="0" cy="-570" rx="68" ry="76" fill="#8D5A3B"/>
+<path d="M-70 -584 C-76 -650 -36 -676 4 -676 C46 -676 78 -648 70 -584 C60 -616 34 -628 4 -628 C-30 -628 -58 -616 -70 -584 Z" fill="#16140F"/>
+<ellipse cx="-68" cy="-562" rx="12" ry="18" fill="#8D5A3B"/><ellipse cx="68" cy="-562" rx="12" ry="18" fill="#8D5A3B"/>
+<circle cx="-24" cy="-564" r="7" fill="#16140F"/><circle cx="24" cy="-564" r="7" fill="#16140F"/>
+<g id="f2-b" opacity="0"><path d="M-44 -588 L-10 -578" stroke="#16140F" stroke-width="8" stroke-linecap="round"/><path d="M44 -588 L10 -578" stroke="#16140F" stroke-width="8" stroke-linecap="round"/>
+<path d="M-18 -526 L18 -526" stroke="#7A4A2A" stroke-width="7" stroke-linecap="round"/></g>
+<g id="f2-f"><path d="M-42 -586 C-32 -592 -20 -592 -12 -588" stroke="#16140F" stroke-width="7" fill="none" stroke-linecap="round"/>
+<path d="M12 -588 C20 -592 32 -592 42 -586" stroke="#16140F" stroke-width="7" fill="none" stroke-linecap="round"/>
+<path d="M-24 -534 C-12 -518 12 -518 24 -534" stroke="#7A4A2A" stroke-width="7" fill="none" stroke-linecap="round"/></g></g></g>
+<g id="barb" transform="translate(675,1250) scale(0.6) translate(-660,-1470)">
+<rect x="612" y="1240" width="40" height="230" rx="18" fill="#16140F"/><rect x="672" y="1240" width="40" height="230" rx="18" fill="#16140F"/>
+<path d="M585 960 C585 925 615 905 662 905 C709 905 740 925 740 960 L748 1260 L577 1260 Z" fill="#F4EFE4"/>
+<path d="M606 990 L718 990 L730 1262 L594 1262 Z" fill="#16140F"/><rect x="636" y="1060" width="52" height="40" rx="8" fill="#2A2722"/>
+<g id="barb-bE"><path d="M598 960 C578 1030 572 1100 580 1160" stroke="#F4EFE4" stroke-width="40" fill="none" stroke-linecap="round"/><circle cx="580" cy="1166" r="22" fill="#F3E9D6"/></g>
+<g id="barb-bD"><path d="M726 960 C746 1030 752 1100 744 1160" stroke="#F4EFE4" stroke-width="40" fill="none" stroke-linecap="round"/><circle cx="744" cy="1166" r="22" fill="#F3E9D6"/><g id="prancheta"><rect x="712" y="1050" width="120" height="160" rx="10" fill="#fff" stroke="#6E4D1B" stroke-width="8"/>
+<rect x="745" y="1040" width="54" height="22" rx="6" fill="#6E4D1B"/>
+<path d="M728 1090 C750 1080 770 1100 812 1086 M728 1120 C760 1132 780 1110 814 1124 M728 1150 C752 1140 790 1162 812 1150" stroke="#16140F" stroke-width="5" fill="none"/>
+<path d="M730 1170 L800 1196 M800 1170 L730 1196" stroke="#C2410C" stroke-width="7" stroke-linecap="round"/></g></g>
+<g id="barb-cab"><g transform="translate(516.64,632.0) scale(0.56)">
+<!-- orelhas -->
+<ellipse cx="148" cy="300" rx="20" ry="30" fill="#E2D3B8"/><ellipse cx="364" cy="300" rx="20" ry="30" fill="#E2D3B8"/>
+<!-- rosto -->
+<path d="M150,236 C150,200 196,180 256,180 C316,180 362,200 362,236 C362,352 316,432 256,434 C196,432 150,352 150,236 Z" fill="#F3E9D6"/>
+<!-- base do cabelo: linha do cabelo arredondada e costeletas em degradê -->
+<path d="M144,290 C136,184 196,126 262,124 C330,124 376,180 368,290 C362,262 350,244 330,236 C306,226 280,224 256,224 C232,224 206,226 182,236 C162,244 150,262 144,290 Z" fill="url(#l3)"/>
+<g clip-path="url(#rostoClip)"><path d="M146,262 C146,300 150,326 158,346 C166,344 170,340 172,334 C168,306 168,282 174,256 C164,254 154,256 146,262 Z" fill="url(#fade)"/>
+<path d="M366,262 C366,300 362,326 354,346 C346,344 342,340 340,334 C344,306 344,282 338,256 C348,254 358,256 366,262 Z" fill="url(#fade)"/></g>
+<!-- barba aparada -->
+<path d="M152,320 C160,400 204,440 256,442 C308,440 352,400 360,320 C348,356 324,372 300,370 C288,356 272,352 256,356 C240,352 224,356 212,370 C188,372 164,356 152,320 Z" fill="url(#barba)"/>
+<path d="M234,392 C246,398 266,398 278,392" fill="none" stroke="#F3E9D6" stroke-width="8" stroke-linecap="round"/>
+<!-- sobrancelhas e olhos -->
+<path d="M196,282 C208,272 224,270 236,274" fill="none" stroke="#6E4D1B" stroke-width="10" stroke-linecap="round"/>
+<path d="M276,274 C288,270 304,272 316,282" fill="none" stroke="#6E4D1B" stroke-width="10" stroke-linecap="round"/>
+<circle cx="218" cy="306" r="8" fill="#0E0D0B"/><circle cx="294" cy="306" r="8" fill="#0E0D0B"/>
+<path d="M256,312 C252,328 250,338 260,342" fill="none" stroke="#E2D3B8" stroke-width="7" stroke-linecap="round"/>
+<!-- TOPETE: três camadas, de trás para a frente -->
+<path d="M150,232 C136,168 180,112 246,104 C296,98 334,118 346,150 C318,136 280,138 254,156 C224,176 206,200 206,222 C186,220 164,224 150,232 Z" fill="url(#l3)"/>
+<path d="M180,226 C172,162 222,96 294,88 C352,82 398,112 402,160 C404,190 384,208 360,206 C372,190 370,170 354,156 C334,138 298,138 272,156 C246,174 236,200 238,222 C216,218 196,220 180,226 Z" fill="url(#l2)"/>
+<path d="M230,224 C230,168 270,114 330,110 C384,106 422,146 414,192 C408,224 380,238 354,230 C374,218 382,196 370,178 C356,158 326,158 306,176 C288,194 284,208 288,224 C270,220 250,220 230,224 Z" fill="url(#l1)"/>
+<path d="M246,196 C258,156 288,132 326,128" fill="none" stroke="#FFF6DA" stroke-width="8" stroke-linecap="round" opacity=".7"/></g></g>
+<path id="barb-suor" d="M790 730 C782 746 778 756 786 764 C794 772 806 764 802 752 C800 744 794 738 790 730 Z" fill="#7FC4E8" opacity="0"/>
+</g>
+<g id="cliB" transform="translate(230,1440) scale(0.6)"><g id="cliB-corpo">
+<rect x="-62" y="-230" width="48" height="230" rx="20" fill="#2A2722"/><rect x="14" y="-230" width="48" height="230" rx="20" fill="#2A2722"/>
+<path d="M-92 -420 C-92 -470 -60 -490 0 -490 C60 -490 92 -470 92 -420 L84 -200 L-84 -200 Z" fill="#5A554C"/>
+<path d="M-88 -440 C-118 -380 -120 -320 -108 -262" stroke="#5A554C" stroke-width="40" fill="none" stroke-linecap="round"/><circle cx="-108" cy="-256" r="20" fill="#E8C9A6"/>
+<path d="M88 -440 C118 -380 120 -320 108 -262" stroke="#5A554C" stroke-width="40" fill="none" stroke-linecap="round"/><circle cx="108" cy="-256" r="20" fill="#E8C9A6"/>
+<rect x="-18" y="-510" width="36" height="34" fill="#E8C9A6"/>
+<ellipse cx="0" cy="-570" rx="68" ry="76" fill="#E8C9A6"/>
+<path d="M-70 -584 C-76 -650 -36 -676 4 -676 C46 -676 78 -648 70 -584 C60 -616 34 -628 4 -628 C-30 -628 -58 -616 -70 -584 Z" fill="#3B2F22"/>
+<ellipse cx="-68" cy="-562" rx="12" ry="18" fill="#E8C9A6"/><ellipse cx="68" cy="-562" rx="12" ry="18" fill="#E8C9A6"/>
+<circle cx="-24" cy="-564" r="7" fill="#16140F"/><circle cx="24" cy="-564" r="7" fill="#16140F"/>
+<g id="cliB-b" opacity="0"><path d="M-44 -588 L-10 -578" stroke="#3B2F22" stroke-width="8" stroke-linecap="round"/><path d="M44 -588 L10 -578" stroke="#3B2F22" stroke-width="8" stroke-linecap="round"/>
+<path d="M-18 -526 L18 -526" stroke="#7A4A2A" stroke-width="7" stroke-linecap="round"/></g>
+<g id="cliB-f"><path d="M-42 -586 C-32 -592 -20 -592 -12 -588" stroke="#3B2F22" stroke-width="7" fill="none" stroke-linecap="round"/>
+<path d="M12 -588 C20 -592 32 -592 42 -586" stroke="#3B2F22" stroke-width="7" fill="none" stroke-linecap="round"/>
+<path d="M-24 -534 C-12 -518 12 -518 24 -534" stroke="#7A4A2A" stroke-width="7" fill="none" stroke-linecap="round"/></g></g></g>
+<g id="cliA" transform="translate(450,1440) scale(0.6)"><g id="cliA-corpo">
+<rect x="-62" y="-230" width="48" height="230" rx="20" fill="#2A2722"/><rect x="14" y="-230" width="48" height="230" rx="20" fill="#2A2722"/>
+<path d="M-92 -420 C-92 -470 -60 -490 0 -490 C60 -490 92 -470 92 -420 L84 -200 L-84 -200 Z" fill="#1d4ed8"/>
+<path d="M-88 -440 C-118 -380 -120 -320 -108 -262" stroke="#1d4ed8" stroke-width="40" fill="none" stroke-linecap="round"/><circle cx="-108" cy="-256" r="20" fill="#C98F5E"/>
+<path d="M88 -440 C118 -380 120 -320 108 -262" stroke="#1d4ed8" stroke-width="40" fill="none" stroke-linecap="round"/><circle cx="108" cy="-256" r="20" fill="#C98F5E"/>
+<rect x="-18" y="-510" width="36" height="34" fill="#C98F5E"/>
+<ellipse cx="0" cy="-570" rx="68" ry="76" fill="#C98F5E"/>
+<path d="M-70 -584 C-76 -650 -36 -676 4 -676 C46 -676 78 -648 70 -584 C60 -616 34 -628 4 -628 C-30 -628 -58 -616 -70 -584 Z" fill="#2B1E14"/>
+<ellipse cx="-68" cy="-562" rx="12" ry="18" fill="#C98F5E"/><ellipse cx="68" cy="-562" rx="12" ry="18" fill="#C98F5E"/>
+<circle cx="-24" cy="-564" r="7" fill="#16140F"/><circle cx="24" cy="-564" r="7" fill="#16140F"/>
+<g id="cliA-b" opacity="0"><path d="M-44 -588 L-10 -578" stroke="#2B1E14" stroke-width="8" stroke-linecap="round"/><path d="M44 -588 L10 -578" stroke="#2B1E14" stroke-width="8" stroke-linecap="round"/>
+<path d="M-18 -526 L18 -526" stroke="#7A4A2A" stroke-width="7" stroke-linecap="round"/></g>
+<g id="cliA-f"><path d="M-42 -586 C-32 -592 -20 -592 -12 -588" stroke="#2B1E14" stroke-width="7" fill="none" stroke-linecap="round"/>
+<path d="M12 -588 C20 -592 32 -592 42 -586" stroke="#2B1E14" stroke-width="7" fill="none" stroke-linecap="round"/>
+<path d="M-24 -534 C-12 -518 12 -518 24 -534" stroke="#7A4A2A" stroke-width="7" fill="none" stroke-linecap="round"/></g></g></g></g>
+<rect id="escurece" width="1080" height="1920" fill="#0E0D0B" opacity="0"/></svg>
+<div class="ov cartao" id="balA" style="left:330px;top:860px;border-radius:30px 30px 30px 8px">Dá pra encaixar? 🙏</div>
+<div class="ov cartao" id="balF" style="left:690px;top:900px;border-radius:30px 30px 8px 30px">Tem vaga hoje?</div>
+<div class="ov cartao" id="balA2" style="left:330px;top:860px;border-radius:30px 30px 30px 8px">Eu marquei às 10h!</div>
+<div class="ov cartao" id="balB" style="left:40px;top:760px;border-radius:30px 30px 30px 8px">Eu também! 😤</div>
+<div class="ov" id="bum" style="left:300px;top:930px;font:800 110px/1 Outfit">💥</div>
+<div class="ov cartao" id="ok-enc" style="left:250px;top:880px;background:#047857;color:#fff">✓ Encaixe aprovado · 10:30</div>
+<div class="ov fone" id="fone"><div class="tela"><div class="tl" id="tA">
+<div style="display:flex;align-items:center;gap:14px"><span style="width:64px;height:64px;border-radius:18px;background:#16140F;color:#E0AE58;display:grid;place-items:center;font:800 32px Outfit">Z</span>
+<div><b style="font:800 32px Outfit;letter-spacing:-.5px">Barbearia do Zé</b><br><span style="display:inline-block;background:#E9E1D0;border-radius:999px;padding:8px 18px;font:700 19px Manrope;color:#6B6252">barbeariadoze.topete.com.br</span></div></div>
+<p class="rot" style="margin-top:34px">Sábado, 04/10 · Corte</p>
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:14px;font:800 26px Manrope;text-align:center">
+<span style="border-radius:18px;padding:16px 0;background:#E6DDCB;color:#9C927E;text-decoration:line-through">09:30</span>
+<span style="border-radius:18px;padding:16px 0;background:#E6DDCB;color:#9C927E;text-decoration:line-through">10:00</span>
+<span id="h1030" style="border-radius:18px;padding:16px 0;background:#E6DDCB;color:#9C927E;border:3px solid transparent">10:30</span></div>
+<p style="font:700 22px/1.4 Manrope;color:#6B6252;margin-top:22px">Horário ocupado? Você pode pedir um encaixe. O barbeiro responde.</p>
+<div id="pedir" style="position:absolute;left:34px;right:34px;bottom:70px;border-radius:24px;padding:26px 0;text-align:center;font:800 30px Manrope;background:#D9D1C1;color:#fff">Pedir encaixe</div>
+<div id="enviado" style="position:absolute;left:34px;right:34px;top:560px;border-radius:22px;padding:22px;background:#16140F;color:#F4EFE4;font:700 24px/1.4 Manrope;text-align:center">✓ Pedido enviado<br><span style="color:#E0AE58">A resposta aparece em Reservas</span></div>
+</div>
+<div class="tl" id="tB" style="background:#0E1621;color:#fff;padding-top:80px">
+<p style="font:800 22px Manrope;letter-spacing:.12em;color:#7D8B99">CELULAR DO BARBEIRO</p>
+<div id="notifB" style="margin-top:22px;background:#182533;border-radius:26px;padding:26px;font:500 28px/1.45 Manrope">
+<div style="display:flex;align-items:center;gap:14px;margin-bottom:12px"><img src="../../marca/topete-mascote.svg" style="width:56px;border-radius:14px"><b>Topete</b></div>
+🔔 <b>Pedido de encaixe</b><br>Vítor · Corte<br>sáb 04/10 às 10:30</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px">
+<span id="aprovar" style="background:#2B3A4A;border-radius:18px;padding:22px 0;text-align:center;font:800 26px Manrope">✅ Aprovar</span>
+<span style="background:#2B3A4A;border-radius:18px;padding:22px 0;text-align:center;font:800 26px Manrope">✖️ Recusar</span></div>
+<div id="aprovado" style="margin-top:22px;background:#047857;border-radius:22px;padding:22px;font:700 26px/1.4 Manrope">✓ Encaixe aprovado: Vítor, 10:30. Já está na agenda.</div>
+<p id="reservas" style="margin-top:18px;font:600 22px/1.4 Manrope;color:#9FB0C0">O cliente vê a resposta em Reservas.</p>
+</div>
+<div class="ov" id="toque" style="width:90px;height:90px;border-radius:50%;background:#E0AE58;opacity:0;margin:-45px 0 0 -45px"></div><div class="exemplo">Valores de exemplo</div></div></div>
+<svg class="ov" id="corte" viewBox="0 0 1080 1920" style="left:0;top:0;width:1080px;height:1920px;pointer-events:none">
+<path id="corte-linha" d="M-40 980 L1120 900" stroke="#F4EFE4" stroke-width="10" stroke-dasharray="1200" stroke-dashoffset="1200" fill="none"/>
+<g id="corte-tes"><g id="ct1"><path d="M0 0 L-110 -44 Q-118 -40 -110 -32 Z" fill="#E0AE58"/><circle cx="28" cy="24" r="20" fill="none" stroke="#E0AE58" stroke-width="10"/></g>
+<g id="ct2"><path d="M0 0 L-110 44 Q-118 40 -110 32 Z" fill="#E0AE58"/><circle cx="28" cy="-24" r="20" fill="none" stroke="#E0AE58" stroke-width="10"/></g><circle r="8" fill="#0E0D0B"/></g></svg></div>
+<div class="ov logo" id="logo"><img src="../../marca/topete-mascote.svg">topete</div>
+<div class="ov pill sem" id="p-sem">✕ Sem Topete</div><div class="ov pill com" id="p-com">✓ Com Topete</div>
+<div class="ov leg" id="leg0">Sábado lotado, fila na porta… e todo mundo <em>pedindo encaixe.</em></div><div class="ov leg" id="leg1">Agenda de papel rabiscada, e <em>dois clientes no mesmo horário.</em></div><div class="ov leg" id="leg2">Com o Topete, o cliente <em>pede o encaixe pelo link</em>, e o pedido chega no celular do barbeiro.</div><div class="ov leg" id="leg3">Um toque, e o encaixe <em>está aprovado.</em></div>
+<div class="ov cta" id="cta"><div id="cta-masc" style="width:330px;height:330px"><svg viewBox="0 0 512 512" style="width:330px;height:330px;overflow:visible"><defs>
+<linearGradient id="l1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFE9B3"/><stop offset="1" stop-color="#E4B25C"/></linearGradient>
+<linearGradient id="l2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#E9BB68"/><stop offset="1" stop-color="#B98534"/></linearGradient>
+<linearGradient id="l3" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B98534"/><stop offset="1" stop-color="#7E5820"/></linearGradient>
+<linearGradient id="fade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9C7128"/><stop offset=".5" stop-color="#B98A45"/><stop offset="1" stop-color="#F3E9D6"/></linearGradient>
+<linearGradient id="barba" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9C7128"/><stop offset="1" stop-color="#6E4D1B"/></linearGradient>
+<linearGradient id="fundo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1B1915"/><stop offset="1" stop-color="#0B0A08"/></linearGradient>
+<clipPath id="rostoClip"><path d="M150,230 C150,352 196,432 256,434 C316,432 362,352 362,236 Z"/></clipPath></defs><g transform="translate(0,6)">
+<!-- orelhas -->
+<ellipse cx="148" cy="300" rx="20" ry="30" fill="#E2D3B8"/><ellipse cx="364" cy="300" rx="20" ry="30" fill="#E2D3B8"/>
+<!-- rosto -->
+<path d="M150,236 C150,200 196,180 256,180 C316,180 362,200 362,236 C362,352 316,432 256,434 C196,432 150,352 150,236 Z" fill="#F3E9D6"/>
+<!-- base do cabelo: linha do cabelo arredondada e costeletas em degradê -->
+<path d="M144,290 C136,184 196,126 262,124 C330,124 376,180 368,290 C362,262 350,244 330,236 C306,226 280,224 256,224 C232,224 206,226 182,236 C162,244 150,262 144,290 Z" fill="url(#l3)"/>
+<g clip-path="url(#rostoClip)"><path d="M146,262 C146,300 150,326 158,346 C166,344 170,340 172,334 C168,306 168,282 174,256 C164,254 154,256 146,262 Z" fill="url(#fade)"/>
+<path d="M366,262 C366,300 362,326 354,346 C346,344 342,340 340,334 C344,306 344,282 338,256 C348,254 358,256 366,262 Z" fill="url(#fade)"/></g>
+<!-- barba aparada -->
+<path d="M152,320 C160,400 204,440 256,442 C308,440 352,400 360,320 C348,356 324,372 300,370 C288,356 272,352 256,356 C240,352 224,356 212,370 C188,372 164,356 152,320 Z" fill="url(#barba)"/>
+<path d="M234,392 C246,398 266,398 278,392" fill="none" stroke="#F3E9D6" stroke-width="8" stroke-linecap="round"/>
+<!-- sobrancelhas e olhos -->
+<path d="M196,282 C208,272 224,270 236,274" fill="none" stroke="#6E4D1B" stroke-width="10" stroke-linecap="round"/>
+<path d="M276,274 C288,270 304,272 316,282" fill="none" stroke="#6E4D1B" stroke-width="10" stroke-linecap="round"/>
+<circle cx="218" cy="306" r="8" fill="#0E0D0B"/><circle cx="294" cy="306" r="8" fill="#0E0D0B"/>
+<path d="M256,312 C252,328 250,338 260,342" fill="none" stroke="#E2D3B8" stroke-width="7" stroke-linecap="round"/>
+<g id="cta-topete" style="transform-origin:256px 226px"><!-- TOPETE: três camadas, de trás para a frente -->
+<path d="M150,232 C136,168 180,112 246,104 C296,98 334,118 346,150 C318,136 280,138 254,156 C224,176 206,200 206,222 C186,220 164,224 150,232 Z" fill="url(#l3)"/>
+<path d="M180,226 C172,162 222,96 294,88 C352,82 398,112 402,160 C404,190 384,208 360,206 C372,190 370,170 354,156 C334,138 298,138 272,156 C246,174 236,200 238,222 C216,218 196,220 180,226 Z" fill="url(#l2)"/>
+<path d="M230,224 C230,168 270,114 330,110 C384,106 422,146 414,192 C408,224 380,238 354,230 C374,218 382,196 370,178 C356,158 326,158 306,176 C288,194 284,208 288,224 C270,220 250,220 230,224 Z" fill="url(#l1)"/>
+<path d="M246,196 C258,156 288,132 326,128" fill="none" stroke="#FFF6DA" stroke-width="8" stroke-linecap="round" opacity=".7"/></g></g></svg></div>
+<p id="cta1" style="font:700 120px/0.9 Outfit;letter-spacing:-5px">topete<span style="color:#E0AE58">.</span></p>
+<p id="cta2" style="font:700 52px/1.15 Outfit;letter-spacing:-1px;max-width:880px">Encaixe <span style="color:#E0AE58">sem bagunça.</span></p>
+<div id="cta3" style="display:flex;gap:16px;flex-wrap:wrap;justify-content:center;max-width:900px;margin-top:10px"><span class="chip">O cliente pede pelo link</span><span class="chip">O barbeiro aprova com 1 toque</span></div>
+<p id="cta4" style="margin-top:26px;font:800 40px Manrope;color:#E0AE58">@usetopete</p></div>
+<script>
+const D = 21.5, VIRA = 8.0, FONE = [9.0, 16.4], CTA = 17.8, FALAS = [[0.4, "fala0.wav", 3.48], [4.3, "fala1.wav", 3.16], [9.3, "fala2.wav", 4.78], [14.3, "fala3.wav", 2.18], [18.4, "fala4.wav", 1.54]];
+
+const cl = (x) => Math.max(0, Math.min(1, x)), E = (x) => 1 - Math.pow(1 - cl(x), 3), EI = (x) => { x = cl(x); return x < .5 ? 4*x*x*x : 1 - Math.pow(-2*x + 2, 3)/2; };
+const $ = (id) => document.getElementById(id);
+const pulo = (x) => x <= 0 ? 0 : Math.exp(-4 * x) * Math.sin(14 * x);
+const conta = (a, b, k) => Math.round(a + (b - a) * E(k)).toLocaleString('pt-BR');
+function comum(t) {
+  const cor = E((t - VIRA - 0.3) / 0.7);
+  $('mundo').style.filter = `grayscale(${0.85 * (1 - cor)}) brightness(${0.92 + 0.08 * cor})`;
+  $('p-sem').style.opacity = t < VIRA + 0.2 ? 1 : 0;
+  $('p-sem').style.transform = `translateX(-50%) scale(${1 + 0.15 * pulo(t - 0.1)})`;
+  $('p-com').style.opacity = t >= VIRA + 0.45 ? E((t - VIRA - 0.5) / 0.4) : 0;
+  $('p-com').style.transform = `translateX(-50%) scale(${1 + 0.18 * pulo(t - VIRA - 0.5)})`;
+  $('logo').style.opacity = t < CTA ? 1 : 0;
+  const kx = (t - VIRA) / 0.7;
+  $('corte').style.opacity = kx > 0 && kx < 1.5 ? 1 - cl((kx - 1) / 0.5) : 0;
+  $('corte-linha').setAttribute('stroke-dashoffset', 1200 * (1 - E(kx)));
+  const x = -120 + 1320 * EI(kx), y = 990 - 80 * EI(kx), ab = Math.abs(Math.sin(kx * Math.PI * 3)) * 26;
+  $('corte-tes').setAttribute('transform', `translate(${x},${y}) rotate(-4)`);
+  $('ct1').setAttribute('transform', `rotate(${-ab})`); $('ct2').setAttribute('transform', `rotate(${ab})`);
+  const kf = E((t - FONE[0]) / 0.5) * (1 - E((t - FONE[1]) / 0.45));
+  $('fone').style.opacity = cl(kf * 1.2); $('fone').style.transform = `translateY(${(1 - kf) * 900}px)`;
+  $('escurece').setAttribute('opacity', 0.45 * kf);
+  FALAS.forEach(([a, f, d], i) => { const l = $('leg' + i); if (!l) return; const k = E((t - a + 0.1) / 0.25) * (1 - E((t - a - d - 0.2) / 0.25)); l.style.opacity = k; l.style.transform = `translateY(${(1 - k) * 20}px)`; });
+  const kk = E((t - CTA) / 0.5);
+  $('cta').style.clipPath = `inset(${(1 - kk) * 100}% 0 0 0)`; $('cta').style.opacity = t >= CTA ? 1 : 0;
+  ['cta1', 'cta2', 'cta3', 'cta4'].forEach((id, i) => { const k = E((t - CTA - 0.5 - i * 0.3) / 0.4); $(id).style.opacity = k; $(id).style.transform = `translateY(${(1 - k) * 40}px)`; });
+  const mx = t - CTA - 0.7, mola = mx <= 0 ? 0 : Math.exp(-3.2 * mx);
+  $('cta-topete').style.transform = `rotate(${7 * mola * Math.sin(11 * mx)}deg) scaleY(${1 + 0.22 * mola * Math.sin(9 * mx + 1.2)})`;
+  $('cta-masc').style.transform = `scale(${E((t - CTA - 0.2) / 0.4)})`;
+}
+const EVENTOS = [];
+function eventosComuns() {
+  EVENTOS.push({ t: VIRA - 0.15, som: 'whoosh', v: 0.55 }, { t: VIRA + 0.15, som: 'snip', v: 0.9 }, { t: VIRA + 0.42, som: 'snip', v: 0.9 });
+  EVENTOS.push({ t: FONE[0], som: 'swish', v: 0.5 }, { t: FONE[1], som: 'swish', v: 0.35 });
+  EVENTOS.push({ t: CTA - 0.1, som: 'whoosh', v: 0.5 }, { t: CTA + 0.7, som: 'boing', v: 0.6 }, { t: CTA + 1.3, som: 'brilho', v: 0.45 });
+}
+
+
+function face(id, bravo) { $(id + '-b').setAttribute('opacity', bravo ? 1 : 0); $(id + '-f').setAttribute('opacity', bravo ? 0 : 1); }
+function bal(id, a, b) { const k = E((t_ - a) / 0.3) * (1 - E((t_ - b) / 0.3)); $(id).style.opacity = k; $(id).style.transform = `scale(${0.6 + 0.4 * k + 0.12 * pulo(t_ - a)})`; }
+let t_ = 0;
+function ep(t) {
+  t_ = t; const antes = t < VIRA + 0.3;
+  // cliente B entra pela esquerda na hora da confusão; sai no corte
+  const kb = E((t - 4.4) / 0.6), sb = E((t - VIRA) / 0.6);
+  $('cliB').setAttribute('transform', `translate(${-200 + 430 * kb - 500 * sb},1440) scale(0.6)`);
+  face('cliA', t > 4.9 && antes); face('cliB', t > 5.3 && antes); face('f2', t > 2.8 && antes); face('f3', t > 3.2 && antes);
+  // fila impaciente: balança
+  ['f2', 'f3'].forEach((id, i) => $(id + '-corpo').setAttribute('transform', antes && t > 2.8 ? `translate(0,${Math.abs(Math.sin(t * 6 + i)) * -14})` : ''));
+  $('cliA-corpo').setAttribute('transform', t > 4.9 && antes ? `rotate(${Math.sin(t * 9) * 3} 0 -300)` : '');
+  bal('balA', 1.0, 4.6); bal('balF', 2.4, 4.4); bal('balA2', 4.9, VIRA); bal('balB', 5.4, VIRA);
+  const kz = E((t - 6.0) / 0.25) * (1 - E((t - VIRA) / 0.3)); $('bum').style.opacity = kz; $('bum').style.transform = `scale(${0.5 + 0.5 * kz + 0.3 * pulo(t - 6.0)}) rotate(${Math.sin(t * 20) * 6}deg)`;
+  // barbeiro com a prancheta rabiscada, olhando de um lado pro outro
+  $('prancheta').setAttribute('opacity', antes ? 1 : 0);
+  $('barb-cab').setAttribute('transform', antes && t > 4.6 ? `rotate(${Math.sin(t * 4) * 12} 660 905)` : `rotate(${Math.sin(t * 1.4) * 2} 660 905)`);
+  $('barb-suor').setAttribute('opacity', antes && t > 5.0 ? 1 : 0);
+  $('barb-bD').setAttribute('transform', antes && t > 1.0 ? `rotate(${-18 + Math.sin(t * 3) * 3} 726 960)` : '');
+  // celular: tela do cliente, depois a do barbeiro
+  const kB = E((t - 12.5) / 0.4);
+  $('tA').style.opacity = 1 - kB; $('tB').style.opacity = kB;
+  const sel = t >= 10.4; $('h1030').style.borderColor = sel ? '#C9963F' : 'transparent'; $('h1030').style.color = sel ? '#16140F' : '#9C927E'; $('h1030').style.background = sel ? '#FBF3E4' : '#E6DDCB';
+  $('pedir').style.background = sel ? '#16140F' : '#D9D1C1';
+  const ke = E((t - 11.4) / 0.3); $('enviado').style.opacity = ke; $('enviado').style.transform = `translateY(${(1 - ke) * 30}px)`;
+  const kn = E((t - 12.8) / 0.35); $('notifB').style.opacity = kn; $('notifB').style.transform = `translateY(${(1 - kn) * -40}px)`;
+  $('aprovar').style.background = t >= 14.6 ? '#047857' : '#2B3A4A';
+  const ka = E((t - 14.8) / 0.3); $('aprovado').style.opacity = ka; $('aprovado').style.transform = `scale(${0.8 + 0.2 * ka + 0.08 * pulo(t - 14.8)})`;
+  $('reservas').style.opacity = E((t - 15.4) / 0.3);
+  const toques = [[10.4, 360, 330], [11.2, 234, 870], [14.6, 117, 520]];
+  let tq = 0, tx = 0, ty = 0; toques.forEach(([a, px, py]) => { const d = t - a; if (d > -0.05 && d < 0.45) { tq = 1 - cl(d / 0.45); tx = px; ty = py; } });
+  $('toque').style.opacity = tq * 0.55; $('toque').style.left = tx + 'px'; $('toque').style.top = ty + 'px'; $('toque').style.transform = `scale(${0.6 + 0.6 * (1 - tq)})`;
+  // desfecho: o cliente recebe a resposta
+  const ko = E((t - 16.7) / 0.3) * (1 - E((t - CTA + 0.2) / 0.3)); $('ok-enc').style.opacity = ko; $('ok-enc').style.transform = `scale(${0.7 + 0.3 * ko + 0.12 * pulo(t - 16.7)})`;
+}
+function render(t) { comum(t); ep(t); }
+eventosComuns();
+
+[1.0, 2.4, 4.9, 5.4].forEach((a) => EVENTOS.push({ t: a, som: 'pop', v: 0.45 }));
+EVENTOS.push({ t: 4.4, som: 'swish', v: 0.35 }, { t: 6.0, som: 'boing', v: 0.4 }, { t: 6.02, som: 'buzz', v: 0.25 });
+[10.4, 11.2, 14.6].forEach((a) => EVENTOS.push({ t: a, som: 'tap', v: 0.55 }));
+EVENTOS.push({ t: 11.4, som: 'pop', v: 0.4 }, { t: 12.8, som: 'notif', v: 0.55 }, { t: 14.8, som: 'ding', v: 0.5 }, { t: 16.7, som: 'pop', v: 0.45 }, { t: 16.75, som: 'brilho', v: 0.3 });
+window.render = render; window.DURACAO = D; window.EVENTOS = EVENTOS; window.FALAS = FALAS;
+if (!navigator.webdriver) { const t0 = performance.now(); const loop = () => { render(((performance.now() - t0) / 1000) % D); requestAnimationFrame(loop); }; requestAnimationFrame(loop); }
+else render(0);
+</script></body></html>

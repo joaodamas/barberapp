@@ -1,0 +1,29 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><style>
+@font-face{font-family:"Outfit";src:url("../../marca/fontes/outfit.woff2") format("woff2");font-weight:700}
+@font-face{font-family:"Manrope";src:url("../../../web/src/assets/fontes/manrope-latin-var.woff2") format("woff2");font-weight:400 800}
+*{margin:0;padding:0;box-sizing:border-box}
+body{width:1080px;height:1920px;overflow:hidden;background:radial-gradient(circle at 50% 34%,#2A2017 0%,#14120E 48%,#0E0D0B 75%);color:#F4EFE4;font-family:Manrope;position:relative}
+/* Coluna entre y=286 e y=1500 (topo e base do story patrocinado ficam cobertos) */
+.coluna{position:absolute;left:0;right:0;top:286px;height:1214px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.marca{display:flex;align-items:center;gap:14px;font:700 50px Outfit;letter-spacing:-1.4px}
+.marca img{width:64px;height:64px}
+/* iPhone 17 Pro Max: borda fina de titânio, ilha dentro da tela, Safari embaixo */
+.fone{position:relative;margin-top:34px;width:290px;height:604px;border-radius:50px;padding:7px;
+  background:linear-gradient(145deg,#8f8a80,#3b3833 35%,#1d1b18 60%,#6f6a61);box-shadow:0 50px 90px -30px #000,0 0 0 1px #00000080}
+.fone::before,.fone::after{content:"";position:absolute;background:#5a564f;border-radius:3px}
+.fone::before{left:-3px;top:140px;width:3px;height:58px;box-shadow:0 74px 0 #5a564f}
+.fone::after{right:-3px;top:180px;width:3px;height:86px}
+.tela{position:relative;width:100%;height:100%;border-radius:44px;overflow:hidden;background:#F8F6F1;display:flex;flex-direction:column}
+.status{height:40px;flex:none;display:flex;justify-content:space-between;align-items:center;padding:4px 24px 0;font:700 13px Manrope;color:#16140F}
+.ilha{position:absolute;left:50%;top:9px;width:86px;height:25px;margin-left:-43px;border-radius:13px;background:#000}
+.tela img.app{width:100%;flex:none}
+.safari{margin-top:auto;flex:none;padding:10px 12px 18px;background:#F8F6F1;border-top:1px solid #E6DDCB}
+.url{background:#ECE6DA;border-radius:12px;padding:8px 10px;font:600 11px Manrope;color:#3B3833;display:flex;justify-content:space-between}
+.home{width:96px;height:4px;border-radius:2px;background:#16140F;margin:10px auto 0}
+.etq{margin-top:46px;font:800 25px Manrope;letter-spacing:.2em;text-transform:uppercase;color:#E0AE58}
+h1{margin-top:14px;padding:0 70px;font:700 74px/1.04 Outfit;letter-spacing:-2.6px}
+h1 em{font-style:normal;color:#E0AE58}
+.sub{margin-top:20px;padding:0 116px;font:600 30px/1.4 Manrope;color:#D8D0C0}
+.cta{margin-top:40px;background:linear-gradient(135deg,#FFE3A3,#E0AE58 55%,#A8752A);color:#0E0D0B;border-radius:999px;padding:24px 56px;font:800 30px Manrope;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
+.nota{margin-top:26px;padding:0 80px;font:600 22px/1.4 Manrope;color:#9C927E}
+</style></head><body><div class="coluna"><div class="marca"><img src="../../marca/topete-mascote.svg">topete</div><div class="fone"><div class="tela"><div class="status"><span>9:41</span><span>●●● ▮</span></div><div class="ilha"></div><img class="app" src="telas/hoje-0.8.jpg"><div class="safari"><div class="url"><span>aA</span><span>🔒 navalha.topete.com.br</span><span>↻</span></div><div class="home"></div></div></div></div><p class="etq">Para donos de barbearia</p><h1>Chega de responder <em>“tem horário?”</em></h1><p class="sub">O cliente marca sozinho pelo link. Você abre o Topete e vê o dia inteiro — e aprova encaixe num toque.</p><span class="cta">Fale com a gente</span><p class="nota">Planos a partir de R$ 97/mês · sem taxa de implantação<br>Telas reais, dados de exemplo</p></div></body></html>

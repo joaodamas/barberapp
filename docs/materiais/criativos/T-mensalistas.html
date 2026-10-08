@@ -1,0 +1,57 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><link rel="stylesheet" href="base.css"><style>
+body{width:1080px;height:1080px;overflow:hidden;position:relative;background:#F4EFE4;color:#16140F;font-family:Manrope}
+.palco{position:absolute;inset:0}
+.cel{position:absolute;left:300px;top:60px;width:480px;height:960px;border-radius:64px;background:#000;padding:14px;box-shadow:0 50px 100px -40px #0008}
+.cel .tela{width:100%;height:100%;border-radius:52px;overflow:hidden;background:#F7F6F2;position:relative}
+.nav{position:absolute;left:90px;top:90px;width:900px;height:900px;border-radius:28px;background:#fff;box-shadow:0 50px 100px -40px #0007;overflow:hidden}
+.nav .barra{background:#EDE7DA;padding:16px 24px;font:600 20px Manrope;color:#8A8170;display:flex;gap:10px;align-items:center}
+.nav .barra i{width:13px;height:13px;border-radius:50%;background:#D9CDB4;display:inline-block}
+.topo-loja{background:#16140F;color:#F4EFE4;padding:46px 30px 26px;display:flex;gap:16px;align-items:center}
+.topo-loja b{font:800 26px Manrope;display:block}.topo-loja span{font:500 16px Manrope;opacity:.7}
+.mono{width:58px;height:58px;border-radius:16px;background:#C9963F;color:#16140F;display:grid;place-items:center;font:800 22px Manrope}
+.rot{font:800 15px Manrope;letter-spacing:.14em;text-transform:uppercase;color:#8A8170;margin:22px 26px 10px}
+.opc{margin:0 22px 12px;padding:18px 20px;border-radius:18px;border:2px solid #E3DED3;background:#fff;display:flex;justify-content:space-between;font:700 22px Manrope;transition:none}
+.opc.on{border-color:#16140F;background:#E9E3D3}
+.horas{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:0 22px}
+.h{border:2px solid #E3DED3;border-radius:14px;padding:16px 0;text-align:center;font:800 22px Outfit;background:#fff}
+.h.x{color:#B8B0A0;text-decoration:line-through}.h.on{background:#C9963F;border-color:#C9963F}.h.enc{border:2px dashed #1d4ed8;color:#1d4ed8}
+.btn{margin:18px 22px;background:#16140F;color:#fff;border-radius:18px;padding:20px;text-align:center;font:800 22px Manrope}
+.btn.on{background:#047857}
+.ok{position:absolute;inset:0;background:#F7F6F2;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;text-align:center;padding:40px}
+.ok .sel{width:120px;height:120px;border-radius:50%;background:#047857;color:#fff;display:grid;place-items:center;font:800 64px Manrope}
+.lin{display:flex;justify-content:space-between;align-items:center;padding:18px 22px;border-radius:16px;background:#F7F3EA;font:600 22px Manrope;margin-bottom:12px}
+.tag{font:800 16px Manrope;letter-spacing:.06em;padding:6px 12px;border-radius:999px}
+.toque{position:absolute;width:70px;height:70px;border-radius:50%;background:#16140F33;border:3px solid #16140F66;pointer-events:none}
+.legenda{position:absolute;right:28px;bottom:18px;font:700 16px Manrope;color:#A89F8C;letter-spacing:.06em;text-transform:uppercase}
+</style></head>
+<body><div class="palco"><div class="nav"><div class="barra"><i></i><i></i><i></i><span style="margin-left:14px">barbeariadoze.topete.com.br/painel/mensal</span></div>
+<div style="padding:34px 40px;display:grid;grid-template-columns:1fr 1fr;gap:30px">
+<div><b style="font:800 30px Outfit">Thiago · horário fixo</b><p style="font:600 20px Manrope;color:#8A8170;margin:6px 0 18px">Sexta, 17:00 · Corte adulto</p>
+<div class="lin" data-in="0.5" data-a="pop"><span><b>sex 03/10</b> · 17:00</span><span class="tag" style="background:#FBF3E4;color:#8F6B22">fixo</span></div><div class="lin" data-in="0.8" data-a="pop"><span><b>sex 10/10</b> · 17:00</span><span class="tag" style="background:#FBF3E4;color:#8F6B22">fixo</span></div><div class="lin" data-in="1.1" data-a="pop"><span><b>sex 17/10</b> · 17:00</span><span class="tag" style="background:#FBF3E4;color:#8F6B22">fixo</span></div><div class="lin" data-in="1.4" data-a="pop"><span><b>sex 24/10</b> · 17:00</span><span class="tag" style="background:#FBF3E4;color:#8F6B22">fixo</span></div><div class="lin" data-in="1.7" data-a="pop"><span><b>sex 31/10</b> · 17:00</span><span class="tag" style="background:#FBF3E4;color:#8F6B22">fixo</span></div>
+<div class="lin" style="background:#C9963F" data-in="3.3" data-a="pop"><span><b>qui 02/10</b> · 18:00</span><span class="tag" style="background:#16140F;color:#F4EFE4">remarcado</span></div>
+</div>
+<div><b style="font:800 30px Outfit">Mensalidades · outubro</b><div style="height:18px"></div>
+<div class="lin" data-in="2.0" data-a="sobe"><span>Thiago · 4x cortes</span><span class="tag" style="background:#E6F2EC;color:#047857">Paga · Pix</span></div>
+<div class="lin" data-in="2.2" data-a="sobe"><span>Henrique · 4x cortes</span><span class="tag" style="background:#E6F2EC;color:#047857">Paga · dinheiro</span></div>
+<div class="lin" data-in="2.4" data-a="sobe"><span>Rodrigo · ilimitado</span><span class="tag" style="background:#FBF3E4;color:#8F6B22">Em aberto</span></div>
+<div class="lin" data-in="2.6" data-a="sobe"><span>Samuel · 4x cortes</span><span class="tag" style="background:#FBF3E4;color:#8F6B22">Em aberto</span></div>
+</div></div></div></div><p class="legenda">Dados fictícios</p><script>
+const E = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : 1 - Math.pow(1 - x, 3));
+const els = [...document.querySelectorAll('[data-in]')];
+const D = Math.max(...els.map((e) => +e.dataset.in)) + 1.8;
+function render(t) {
+  els.forEach((e) => {
+    const a = +e.dataset.in, tipo = e.dataset.a || 'sobe';
+    if (tipo === 'liga') { e.classList.toggle('on', t >= a); return; }
+    if (tipo === 'some') { const k = E((t - a) / 0.3); e.style.opacity = 1 - k; e.style.transform = `scale(${1 - 0.06 * k})`; return; }
+    if (tipo === 'toque') { const k = (t - a) / 0.5; e.style.opacity = k < 0 || k > 1 ? 0 : 1 - k; e.style.transform = `scale(${0.5 + k})`; return; }
+    let k = E((t - a) / (tipo === 'pop' ? 0.3 : 0.4));
+    if (e.dataset.sai) k *= 1 - E((t - +e.dataset.sai) / 0.3);
+    e.style.opacity = k;
+    e.style.transform = tipo === 'pop' ? `scale(${0.7 + 0.3 * k})` : tipo === 'aparece' ? 'none' : `translateY(${(1 - k) * 40}px)`;
+  });
+}
+window.render = render; window.DURACAO = D;
+if (!navigator.webdriver) { const t0 = performance.now(); const loop = () => { render(((performance.now() - t0) / 1000) % D); requestAnimationFrame(loop); }; requestAnimationFrame(loop); }
+else render(0);
+</script></body></html>
