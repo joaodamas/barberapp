@@ -218,3 +218,43 @@ describe("negar por padrão", () => {
     );
   });
 });
+
+describe("formatos e senha provisória (08/10)", () => {
+  /** O dono da Alfa, ainda com a senha provisória que foi pelo WhatsApp. */
+  const DONO_PROVISORIO = { sub: "dono-provisorio", barbershops: { [ALFA]: "owner" }, mustChangePassword: true };
+
+  it("🔒 SVG não sobe nas fotos nem no avatar", async () => {
+    const svg = { contentType: "image/svg+xml" };
+    await assertFails(uploadBytes(ref(as(DONO_ALFA), `barbershops/${ALFA}/photos/fachada.svg`), PNG, svg));
+    await assertFails(uploadBytes(ref(as(CLIENTE), `users/${CLIENTE.sub}/avatar/foto.svg`), PNG, svg));
+  });
+
+  it("🔒 formato fora da lista não sobe, mesmo começando com image/", async () => {
+    await assertFails(
+      uploadBytes(ref(as(DONO_ALFA), `barbershops/${ALFA}/photos/x.bmp`), PNG, { contentType: "image/bmp" })
+    );
+  });
+
+  it("PNG, JPEG e WebP sobem nas fotos", async () => {
+    for (const contentType of ["image/png", "image/jpeg", "image/webp"]) {
+      await assertSucceeds(
+        uploadBytes(ref(as(DONO_ALFA), `barbershops/${ALFA}/photos/f.${contentType.slice(6)}`), PNG, { contentType })
+      );
+    }
+  });
+
+  it("🔒 conta com senha provisória não publica nada na barbearia", async () => {
+    await assertFails(
+      uploadBytes(ref(as(DONO_PROVISORIO), `barbershops/${ALFA}/photos/f.png`), PNG, imagem)
+    );
+    await assertFails(
+      uploadBytes(ref(as(DONO_PROVISORIO), `barbershops/${ALFA}/brand/1727000000001/logo.png`), PNG, imagem)
+    );
+    await assertFails(getBytes(ref(as(DONO_PROVISORIO), `barbershops/${ALFA}/reports/fechamento-julho.pdf`)));
+  });
+
+  it("mustChangePassword falso não atrapalha o dono", async () => {
+    const dono = { ...DONO_ALFA, mustChangePassword: false };
+    await assertSucceeds(uploadBytes(ref(as(dono), `barbershops/${ALFA}/photos/g.png`), PNG, imagem));
+  });
+});
