@@ -2,14 +2,21 @@
 
 import { useState } from "react";
 import { Check, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Modal } from "@/components/ui/modal";
 import { PassoHorarios } from "@/components/comecar/passo-horarios";
 import { ExcecoesDeAgenda } from "@/components/excecoes-de-agenda";
 import { useTenant } from "@/lib/tenant-context";
 import { patchTenant } from "@/lib/db/repository";
-import { capacidadeDaData } from "@/lib/jornada";
+import { useServices, useStaff, useSubscribers } from "@/lib/db/use-shop-data";
+import { useShopCollection } from "@/lib/db/use-collection";
+import { aplicarCombos } from "@/lib/combos";
+import { impactoDaJornada } from "@/lib/impacto-da-jornada";
+import { capacidadeDaData, type EntradaDeJornada } from "@/lib/jornada";
 import { toISODate } from "@/lib/format";
 import { contar, plural } from "@/lib/plural";
+import type { BookingDoc } from "@/lib/domain";
 
 /**
  * A jornada da barbearia — quando ela abre, e de quanto em quanto tempo.
@@ -40,6 +47,60 @@ export default function HorariosPage() {
   const [erro, setErro] = useState<string | null>(null);
 
   const hoje = toISODate(new Date());
+
+  /* Quem já marcou, para avisar ANTES de salvar uma jornada que os deixa fora
+   * do expediente (09/10) — o mesmo padrão das exceções de agenda. Só as datas
+   * de hoje em diante: o passado não tem o que avisar. */
+  const { items: futuras } = useShopCollection<BookingDoc>("bookings", {
+    range: { field: "date", from: hoje },
+  });
+  const { items: mensalistas } = useSubscribers();
+  const { items: servicos } = useServices();
+  const { items: equipe } = useStaff();
+  const [pendente, setPendente] = useState<{
+    dados: Record<string, unknown>;
+    reservas: number;
+    fixos: number;
+  } | null>(null);
+
+  /** A jornada como ficaria depois de gravar `dados` (caminhos pontilhados). */
+  function jornadaComo(dados: Record<string, unknown>): EntradaDeJornada {
+    const atual = tenant.schedule;
+    return {
+      weekdays: (dados["schedule.weekdays"] as number[] | undefined) ?? atual.weekdays,
+      opensAt: (dados["schedule.opensAt"] as string | undefined) ?? atual.opensAt,
+      closesAt: (dados["schedule.closesAt"] as string | undefined) ?? atual.closesAt,
+      slotMinutes: (dados["schedule.slotMinutes"] as number | undefined) ?? atual.slotMinutes,
+      breaks: (dados["schedule.breaks"] as EntradaDeJornada["breaks"] | undefined) ?? atual.breaks,
+      perDay: (dados["schedule.perDay"] as EntradaDeJornada["perDay"] | undefined) ?? atual.perDay,
+      exceptions: atual.exceptions,
+    };
+  }
+
+  function pedirParaSalvar(dados: Record<string, unknown>) {
+    const comJornadaPropria = new Set(equipe.filter((s) => s.schedule).map((s) => s.id));
+    const { reservas, fixos } = impactoDaJornada({
+      antes: tenant.schedule,
+      depois: jornadaComo(dados),
+      hoje,
+      temJornadaPropria: (id) => !!id && comJornadaPropria.has(id),
+      reservas: futuras,
+      fixos: mensalistas
+        .filter((m) => m.status === "ativo" && m.horarioFixo)
+        .map((m) => ({
+          staffId: m.horarioFixo!.staffId,
+          diaDaSemana: m.horarioFixo!.diaDaSemana,
+          hora: m.horarioFixo!.hora,
+          duracao: aplicarCombos(m.horarioFixo!.serviceIds, servicos.map((s) => ({ ...s, id: s.id }))).duracao,
+        })),
+    });
+    if (reservas + fixos > 0) {
+      setPendente({ dados, reservas, fixos });
+      return;
+    }
+    void salvar(dados);
+  }
+
   const horariosDeHoje = capacidadeDaData({
     schedule: tenant.schedule,
     weekday: new Date().getDay(),
@@ -87,10 +148,49 @@ export default function HorariosPage() {
         <PassoHorarios
           key={JSON.stringify(tenant.schedule)}
           tenant={tenant}
-          onSubmit={salvar}
+          onSubmit={pedirParaSalvar}
           saving={salvando}
           rotuloAcao="Salvar horários"
         />
+
+        <Modal
+          open={!!pendente}
+          onClose={() => setPendente(null)}
+          title="Isto deixa gente fora do expediente"
+        >
+          {pendente && (
+            <div className="flex flex-col gap-3">
+              <p className="text-sm text-ink">
+                Com esta jornada,{" "}
+                {[
+                  pendente.reservas > 0 && contar(pendente.reservas, "horário já marcado", "horários já marcados"),
+                  pendente.fixos > 0 && contar(pendente.fixos, "horário fixo", "horários fixos"),
+                ]
+                  .filter(Boolean)
+                  .join(" e ")}{" "}
+                {pendente.reservas + pendente.fixos === 1 ? "fica" : "ficam"} fora do expediente.
+              </p>
+              <p className="text-xs text-ink-muted">
+                Mudar a jornada <strong>não cancela</strong> nem remarca ninguém: quem já marcou continua com o
+                horário de pé. Ajuste na agenda o que você não vai atender.
+              </p>
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button variant="secondary" onClick={() => setPendente(null)}>
+                  Voltar
+                </Button>
+                <Button
+                  onClick={() => {
+                    const dados = pendente.dados;
+                    setPendente(null);
+                    void salvar(dados);
+                  }}
+                >
+                  Salvar mesmo assim
+                </Button>
+              </div>
+            </div>
+          )}
+        </Modal>
 
         {erro && <p className="text-sm text-danger">{erro}</p>}
         {salvo && !erro && (

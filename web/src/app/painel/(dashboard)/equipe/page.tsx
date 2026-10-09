@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Plus, Trash2, UserPlus, Users } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { AcessoDoBarbeiro } from "@/components/equipe/acesso-do-barbeiro";
+import { ConfirmarSaidaDoBarbeiro, type Acao } from "@/components/equipe/confirmar-saida-do-barbeiro";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
 import { useServices, useStaffComRemuneracao } from "@/lib/db/use-shop-data";
@@ -113,6 +114,9 @@ export default function EquipePage() {
    * acesso e só então apaga. As regras só deixam apagar direto a ficha sem
    * conta, e nem essa a tela usa: um caminho só. */
   const [removendo, setRemovendo] = useState<string | null>(null);
+  /* Desligar e remover pedem confirmação, com o número de horários presos
+   * (09/10): eram um toque, sem pergunta. */
+  const [aConfirmar, setAConfirmar] = useState<{ id: string; acao: Acao } | null>(null);
   async function remover(id: string) {
     if (soloRestante || removendo) return;
     setErro(null);
@@ -126,6 +130,14 @@ export default function EquipePage() {
     } finally {
       setRemovendo(null);
     }
+  }
+
+  async function confirmarSaida() {
+    if (!aConfirmar) return;
+    const { id, acao } = aConfirmar;
+    if (acao === "remover") await remover(id);
+    else await salvar(id, "active", false);
+    setAConfirmar(null);
   }
 
   function alternarServico(id: string, atuais: string[], serviceId: string) {
@@ -204,7 +216,11 @@ export default function EquipePage() {
                   type="checkbox"
                   checked={b.active !== false}
                   disabled={ehOUltimoAtivo}
-                  onChange={(e) => salvar(b.id, "active", e.target.checked)}
+                  onChange={(e) =>
+                    e.target.checked
+                      ? salvar(b.id, "active", true)
+                      : setAConfirmar({ id: b.id, acao: "desligar" })
+                  }
                   className="h-4 w-4 accent-[var(--color-gold)]"
                 />
                 Atendendo
@@ -213,7 +229,7 @@ export default function EquipePage() {
               <button
                 type="button"
                 aria-label={`Remover ${b.name || "barbeiro"}`}
-                onClick={() => remover(b.id)}
+                onClick={() => setAConfirmar({ id: b.id, acao: "remover" })}
                 disabled={soloRestante || removendo === b.id}
                 title={
                   soloRestante
@@ -358,6 +374,16 @@ export default function EquipePage() {
         <p role="alert" className="text-sm text-danger">
           {erro}
         </p>
+      )}
+
+      {aConfirmar && equipe.some((s) => s.id === aConfirmar.id) && (
+        <ConfirmarSaidaDoBarbeiro
+          barbeiro={equipe.find((s) => s.id === aConfirmar.id)!}
+          acao={aConfirmar.acao}
+          trabalhando={removendo === aConfirmar.id}
+          onConfirmar={() => void confirmarSaida()}
+          onClose={() => setAConfirmar(null)}
+        />
       )}
 
       {ativos.length > 1 && (

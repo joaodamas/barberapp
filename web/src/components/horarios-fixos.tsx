@@ -10,11 +10,13 @@ import { SemanasDoMensalista, ValorDoMensal } from "@/components/mensalista-acoe
 import { useTenant } from "@/lib/tenant-context";
 import { useServices, useStaff, useSubscribers } from "@/lib/db/use-shop-data";
 import { useShopCollection } from "@/lib/db/use-collection";
-import { horariosDaJornada, jornadaDoDia } from "@/lib/jornada";
+import { aplicarCombos } from "@/lib/combos";
+import { contarLiberaveis, horasDoFixo, inicioDoFixo } from "@/lib/horas-do-fixo";
+import { mensagemDaFuncao } from "@/lib/mensagem-da-funcao";
 import { formatBRL, formatDatePtBR, toISODate } from "@/lib/format";
 import { contar } from "@/lib/plural";
 import type { Doc } from "@/lib/db/repository";
-import type { ConflitoHorarioFixoDoc, HorarioFixo, SubscriberDoc } from "@/lib/domain";
+import type { BookingDoc, ConflitoHorarioFixoDoc, HorarioFixo, SubscriberDoc } from "@/lib/domain";
 
 /**
  * Horário fixo dos mensalistas (29/09).
@@ -31,9 +33,9 @@ import type { ConflitoHorarioFixoDoc, HorarioFixo, SubscriberDoc } from "@/lib/d
 const DIAS = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
 const DIAS_CURTOS = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
 
-type Ocorrencia = { data: string; resultado: string; motivo?: string };
+type Ocorrencia = { data: string; resultado: string; motivo?: string; liberou?: number };
 
-/** A próxima data (a partir de hoje) que cai no dia da semana. */
+/** Uma data qualquer (a próxima) que cai no dia da semana — só para a conta da jornada. */
 function proximaData(diaDaSemana: number, hoje = new Date()): string {
   const d = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
   while (d.getDay() !== diaDaSemana) d.setDate(d.getDate() + 1);
@@ -65,13 +67,37 @@ export function HorariosFixos() {
   const [aviso, setAviso] = useState<string | null>(null);
   const [noValor, setNoValor] = useState<Doc<SubscriberDoc> | null>(null);
   const [nasSemanas, setNasSemanas] = useState<Doc<SubscriberDoc> | null>(null);
+  const [tirando, setTirando] = useState(false);
 
-  const horas = useMemo(() => {
-    const inicio = proximaData(dia);
-    const jornada = jornadaDoDia({ schedule: tenant.schedule, weekday: dia, date: inicio });
-    if (!jornada.aberto) return [];
-    return horariosDaJornada({ jornada, slotMinutes: Number(tenant.schedule?.slotMinutes) || 30 });
-  }, [dia, tenant.schedule]);
+  /* "Semana sem reserva" é aviso de semana que ainda vem: a de ontem não tem
+   * mais o que resolver, e sem este corte o aviso nunca saía da tela (09/10). */
+  const hoje = toISODate(new Date());
+  const conflitosAbertos = useMemo(() => conflitos.filter((c) => c.date >= hoje), [conflitos, hoje]);
+
+  /* O que a remoção vai liberar, contado só com o modal de confirmação aberto. */
+  const { items: doFixo, status: statusDoFixo } = useShopCollection<BookingDoc>("bookings", {
+    equals: { horarioFixoId: editando?.id },
+    enabled: tirando && !!editando,
+  });
+  const aLiberar = useMemo(() => contarLiberaveis(doFixo), [doFixo]);
+
+  /* Só o que o servidor aceita: a jornada do BARBEIRO escolhido, a duração dos
+   * serviços (combos incluídos) e o dia da semana sem as exceções de uma data. */
+  const duracao = useMemo(
+    () => aplicarCombos(serviceIds, servicos.map((s) => ({ ...s, id: s.id }))).duracao,
+    [serviceIds, servicos]
+  );
+  const horas = useMemo(
+    () =>
+      horasDoFixo({
+        schedule: tenant.schedule,
+        barbeiro: barbeiros.find((b) => b.id === staffId),
+        weekday: dia,
+        date: proximaData(dia),
+        duracao,
+      }),
+    [dia, tenant.schedule, barbeiros, staffId, duracao]
+  );
 
   function abrir(a: Doc<SubscriberDoc>) {
     const h = a.horarioFixo;
@@ -86,7 +112,16 @@ export function HorariosFixos() {
   }
 
   function montar(): HorarioFixo {
-    return { diaDaSemana: dia, hora, staffId, serviceIds, frequencia, inicio: proximaData(dia) };
+    /* Editar mantém a âncora gravada (09/10): refazê-la a cada salvamento
+     * trocava a fase da quinzena e o cliente vinha duas vezes no mesmo mês.
+     * Só um fixo novo, ou outro dia da semana, ganha âncora nova — e ela começa
+     * no primeiro instante futuro, não no horário de hoje que já passou. */
+    const gravado = editando?.horarioFixo;
+    const inicio =
+      gravado && gravado.diaDaSemana === dia && gravado.inicio
+        ? gravado.inicio
+        : inicioDoFixo({ diaDaSemana: dia, hora });
+    return { diaDaSemana: dia, hora, staffId, serviceIds, frequencia, inicio };
   }
 
   async function chamar(horarioFixo: HorarioFixo | null, simular: boolean) {
@@ -110,7 +145,7 @@ export function HorariosFixos() {
       const r = await chamar(montar(), true);
       setPrevia(r?.ocorrencias ?? []);
     } catch (e) {
-      setErro(e instanceof Error ? e.message : "Não foi possível conferir as datas.");
+      setErro(mensagemDaFuncao(e, "Não foi possível conferir as datas."));
     } finally {
       setSalvando(false);
     }
@@ -131,7 +166,7 @@ export function HorariosFixos() {
       );
       setEditando(null);
     } catch (e) {
-      setErro(e instanceof Error ? e.message : "Não foi possível salvar.");
+      setErro(mensagemDaFuncao(e, "Não foi possível salvar."));
     } finally {
       setSalvando(false);
     }
@@ -145,15 +180,18 @@ export function HorariosFixos() {
       setAviso(
         `${editando?.name}: horário fixo removido. ${contar(r?.liberadas ?? 0, "horário liberado", "horários liberados")}.`
       );
+      setTirando(false);
       setEditando(null);
     } catch (e) {
-      setErro(e instanceof Error ? e.message : "Não foi possível remover.");
+      setErro(mensagemDaFuncao(e, "Não foi possível remover."));
     } finally {
       setSalvando(false);
     }
   }
 
-  const podeSalvar = !!hora && !!staffId && serviceIds.length > 0;
+  /* A hora escolhida tem de existir na lista de agora: trocar barbeiro ou
+   * serviço pode tirá-la (almoço, fim do expediente). */
+  const podeSalvar = !!hora && horas.includes(hora) && !!staffId && serviceIds.length > 0;
 
   return (
     <Card className="flex flex-col gap-3 md:p-6">
@@ -173,13 +211,13 @@ export function HorariosFixos() {
         </p>
       )}
 
-      {conflitos.length > 0 && (
+      {conflitosAbertos.length > 0 && (
         <div className="rounded-lg border border-danger/30 bg-danger/5 p-3">
           <p className="text-xs font-semibold text-danger">
-            {contar(conflitos.length, "semana sem reserva", "semanas sem reserva")} — resolva na agenda
+            {contar(conflitosAbertos.length, "semana sem reserva", "semanas sem reserva")} — resolva na agenda
           </p>
           <ul className="mt-1 flex flex-col gap-0.5 text-xs text-ink">
-            {conflitos.slice(0, 6).map((c) => (
+            {conflitosAbertos.slice(0, 6).map((c) => (
               <li key={c.id}>
                 {c.clientName} · {formatDatePtBR(c.date)} às {c.time} — {c.motivo}
               </li>
@@ -360,7 +398,9 @@ export function HorariosFixos() {
                   <li key={o.data} className={o.resultado === "conflito" ? "text-danger" : "text-ink"}>
                     {formatDatePtBR(o.data)} às {hora} —{" "}
                     {o.resultado === "criada" || o.resultado === "reativada"
-                      ? "será reservado"
+                      ? o.liberou
+                        ? "será reservado, no lugar do horário de antes"
+                        : "será reservado"
                       : o.resultado === "ja-existe"
                         ? "já reservado"
                         : o.resultado === "desmarcada"
@@ -382,7 +422,7 @@ export function HorariosFixos() {
 
           <div className="flex flex-wrap justify-between gap-2">
             {editando?.horarioFixo ? (
-              <Button variant="ghost" onClick={remover} disabled={salvando}>
+              <Button variant="ghost" onClick={() => setTirando(true)} disabled={salvando}>
                 Tirar horário fixo
               </Button>
             ) : (
@@ -397,6 +437,42 @@ export function HorariosFixos() {
                 {salvando ? "Conferindo…" : "Ver próximas datas"}
               </Button>
             )}
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={tirando && !!editando}
+        onClose={() => !salvando && setTirando(false)}
+        title="Tirar horário fixo?"
+        description={editando ? `${editando.name} · ${editando.planName}` : undefined}
+      >
+        <div className="flex flex-col gap-3">
+          <p className="text-sm text-ink">
+            {statusDoFixo === "carregando"
+              ? "Conferindo os horários…"
+              : statusDoFixo === "erro"
+                ? "Não deu para conferir quantos horários serão liberados."
+                : aLiberar > 0
+                ? `${contar(aLiberar, "horário será liberado", "horários serão liberados")} na agenda.`
+                : "Nenhum horário em aberto será liberado."}
+          </p>
+          <p className="text-xs text-ink-muted">
+            As semanas já feitas, as canceladas e as que o cliente remarcou ficam como estão. Isto não é um
+            cancelamento: não entra nos números do mês.
+          </p>
+          {erro && (
+            <p role="alert" className="text-xs text-danger">
+              {erro}
+            </p>
+          )}
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button variant="secondary" onClick={() => setTirando(false)} disabled={salvando}>
+              Voltar
+            </Button>
+            <Button onClick={remover} disabled={salvando || statusDoFixo === "carregando"}>
+              {salvando ? "Liberando…" : "Tirar horário fixo"}
+            </Button>
           </div>
         </div>
       </Modal>
