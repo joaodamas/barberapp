@@ -31,6 +31,7 @@ const rotasDoPainel = [
   "/painel/financeiro/dre",
   "/painel/financeiro/fluxo-caixa",
   "/painel/financeiro/projecao",
+  "/painel/financeiro/receitas",
   "/painel/horarios",
   "/painel/loja",
   "/painel/marca",
@@ -114,6 +115,7 @@ describe("cadeado — o menu não promete o que a tela nega", () => {
     // Projeção de caixa desde 29/09 no Crescimento: recurso próprio.
     expect(porRota["/painel/financeiro/projecao"]).toBe("projection");
     expect(porRota["/painel/financeiro/despesas"]).toBe("advancedFinance");
+    expect(porRota["/painel/financeiro/receitas"]).toBe("advancedFinance");
   });
 
   it("Loja e Mensalistas continuam marcadas pelo recurso que exigem", () => {

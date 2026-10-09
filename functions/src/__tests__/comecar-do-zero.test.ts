@@ -62,7 +62,7 @@ describe("o que a lista contém", () => {
     /* Se `payments` sair e `bookings` ficar, o dono zera a agenda e continua
      * com a receita do teste no DRE — o pior resultado possível, porque a tela
      * diria que deu certo. */
-    for (const colecao of ["bookings", "payments", "commissions", "refunds", "cash_entries"]) {
+    for (const colecao of ["bookings", "payments", "commissions", "refunds", "cash_entries", "expenses", "other_incomes"]) {
       expect(COLECOES_DE_MOVIMENTO).toContain(colecao);
     }
   });

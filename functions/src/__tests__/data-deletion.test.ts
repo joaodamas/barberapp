@@ -134,6 +134,7 @@ describe("retenção fiscal — o que a Política §6 promete", () => {
       "commissions",
       "cash_entries",
       "expenses",
+      "other_incomes",
       "subscription_invoices",
       "audit_log",
     ]) {
