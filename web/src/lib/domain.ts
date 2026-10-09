@@ -1,4 +1,5 @@
 import type { BookingStatus, PaymentMethod, PaymentOrigin } from "@/lib/types";
+import type { ParcelaInfo } from "@/lib/parcelamento";
 
 /**
  * Documentos do Firestore, como eles vivem sob `/barbershops/{id}/`.
@@ -646,6 +647,31 @@ export type ExpenseDoc = {
   payment: "Pix" | "Boleto" | "Cartão" | "Transferência";
   recurring: boolean;
   observations?: string;
+  /**
+   * Presente quando a despesa é UMA PARCELA de um lançamento parcelado.
+   * `value` é o valor da parcela e `date` o vencimento (= competência).
+   * Ausente nos documentos antigos e nas despesas únicas/recorrentes.
+   */
+  parcela?: ParcelaInfo;
+};
+
+/**
+ * Receita avulsa — dinheiro que entra e não é atendimento, venda de produto nem
+ * mensalidade (venda de equipamento, aluguel de cadeira, parceria).
+ *
+ * Mesmo desenho e mesma dívida de `ExpenseDoc` (D24): o dono grava direto,
+ * sem congelamento. Pode ser parcelada (`parcela`), como a despesa.
+ */
+export type OtherIncomeDoc = {
+  category: string;
+  description: string;
+  /** Quem pagou. */
+  payer: string;
+  value: number;
+  date: string;
+  payment: "Pix" | "Boleto" | "Cartão" | "Transferência";
+  observations?: string;
+  parcela?: ParcelaInfo;
 };
 
 /**

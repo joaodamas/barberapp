@@ -186,6 +186,7 @@ export const painelNavItems: NavItem[] = [
        * mesmo caixa à frente. E é o título que a própria tela já usa. */
       { href: "/painel/financeiro/projecao", label: "Projeção de caixa", feature: "projection", icon: LineChart },
       { href: "/painel/financeiro/despesas", label: "Despesas", feature: "advancedFinance", icon: Receipt },
+      { href: "/painel/financeiro/receitas", label: "Outras receitas", feature: "advancedFinance", icon: Wallet },
     ],
   },
   /* Subiu de oitavo para quarto — o único item que mudou de faixa.

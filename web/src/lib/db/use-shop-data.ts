@@ -6,7 +6,7 @@ import { separarAPartirDe } from "@/lib/a-partir-de";
 import { saldoDeFidelidade } from "@/lib/domain";
 import { useTenant } from "@/lib/tenant-context";
 import type {
-  BookingDoc, ClientDoc, CommissionDoc, ExpenseDoc, InventoryMovementDoc,
+  BookingDoc, ClientDoc, CommissionDoc, ExpenseDoc, InventoryMovementDoc, OtherIncomeDoc,
   CashEntryDoc,
   LoyaltyTransactionDoc, PaymentDoc, PlanDoc, ProductDoc, RefundDoc, ServiceDoc,
   SubscriptionInvoiceDoc,
@@ -141,6 +141,9 @@ export function useBookings() {
  */
 export const useClients = () =>
   useShopCollection<ClientDoc>("clients", { orderByField: "name" });
+
+export const useOtherIncomes = () =>
+  useShopCollection<OtherIncomeDoc>("otherIncomes", { orderByField: "date", direction: "desc" });
 
 export const useExpenses = () =>
   useShopCollection<ExpenseDoc>("expenses", { orderByField: "date", direction: "desc" });

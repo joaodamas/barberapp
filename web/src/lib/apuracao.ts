@@ -70,7 +70,8 @@ export type FonteFinanceira =
   | "subscribers"
   | "staff"
   | "commissions"
-  | "cashEntries";
+  | "cashEntries"
+  | "otherIncomes";
 
 /** O nome da coleção em linguagem de dono, para entrar numa frase. */
 const NOME_DA_FONTE: Record<FonteFinanceira, string> = {
@@ -84,6 +85,7 @@ const NOME_DA_FONTE: Record<FonteFinanceira, string> = {
   staff: "a equipe",
   commissions: "as comissões",
   cashEntries: "o livro caixa",
+  otherIncomes: "as receitas avulsas",
 };
 
 /* As três receitas que compõem a bruta. Nomeadas porque entram em quase toda
@@ -110,18 +112,20 @@ const CUSTO_VARIAVEL: readonly FonteFinanceira[] = [
 const CUSTO_FIXO: readonly FonteFinanceira[] = ["expenses", "staff"];
 
 const RESULTADO: readonly FonteFinanceira[] = [
+  "otherIncomes", // "Outras receitas" entra no resultado, fora da receita bruta
   ...RECEITA,
   ...CUSTO_VARIAVEL,
   ...CUSTO_FIXO,
 ];
 
-/* O caixa é o dinheiro que se moveu, e ele se move por seis portas. */
+/* O caixa é o dinheiro que se moveu, e ele se move por sete portas. */
 const CAIXA: readonly FonteFinanceira[] = [
   "payments",
   "refunds",
   "expenses",
   "movements",
   "cashEntries",
+  "otherIncomes",
 ];
 
 /**
@@ -170,7 +174,8 @@ export const FONTES_DA_GRANDEZA = {
   taxaDeFalta: ["bookings"],
 
   /* --- futuro --- */
-  projecao: ["bookings", "expenses", "subscribers", "payments"],
+  projecao: ["bookings", "expenses", "otherIncomes", "subscribers", "payments"],
+  outrasReceitas: ["otherIncomes"],
   mensalistas: ["subscribers", "invoices"],
 } as const satisfies Record<string, readonly FonteFinanceira[]>;
 

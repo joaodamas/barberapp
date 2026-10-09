@@ -589,6 +589,9 @@ service cloud.firestore {
       /* -------- financeiro: só quem é do time -------- */
 
       match /expenses/{expenseId}         { allow read, write: if isOwnerOf(barbershopId); }
+      /* Receita avulsa (venda de equipamento, aluguel de cadeira, parceria),
+       * inclusive as parcelas. Mesma dívida e mesma regra de `expenses`. */
+      match /other_incomes/{incomeId}     { allow read, write: if isOwnerOf(barbershopId); }
       /* Livro caixa — escrito SÓ pelo servidor desde a Rodada 3.1 (D25).
        *
        * Era `write: if isOwnerOf`, herdado de quando a coleção não tinha

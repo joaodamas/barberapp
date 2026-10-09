@@ -17,6 +17,7 @@ import {
   OCCUPIES_SLOT,
   type BookingDoc,
   type ExpenseDoc,
+  type OtherIncomeDoc,
   type InventoryMovementDoc,
   type CommissionDoc,
   type PaymentDoc,
@@ -680,6 +681,14 @@ export type ResultadoDoMes = ReturnType<typeof resultadoDoMes>;
 export function resultadoDoMes(params: {
   receita: ReceitaDoMes;
   expenses: Doc<ExpenseDoc>[];
+  /**
+   * Receitas avulsas (venda de equipamento, aluguel de cadeira, parceria),
+   * pela data de cada uma — para a parcelada, a competência da parcela.
+   * Linha "Outras receitas": soma ao resultado, mas FORA da receita bruta —
+   * não é base do Simples, não gera comissão e não entra em ticket nem em
+   * ponto de equilíbrio. Ver `docs/CONTRATO-DO-DRE.md`.
+   */
+  otherIncomes?: Doc<OtherIncomeDoc>[];
   movements: Doc<InventoryMovementDoc>[];
   periodo: Periodo;
   policies: TenantPolicies;
@@ -803,7 +812,13 @@ export function resultadoDoMes(params: {
   const payroll = params.payroll ?? 0;
   const fixedCost = fixedExpenses + variableOperatingExpenses + payroll;
 
-  const resultBeforeTax = contributionMargin - fixedCost;
+  const outrasReceitas = centavos(
+    (params.otherIncomes ?? [])
+      .filter((i) => dentroDoPeriodo(i.date, periodo))
+      .reduce((s, i) => s + (Number(i.value) || 0), 0)
+  );
+
+  const resultBeforeTax = contributionMargin - fixedCost + outrasReceitas;
   const result = resultBeforeTax - tax;
 
   const totalCost = variableCost + fixedCost + tax;
@@ -828,6 +843,8 @@ export function resultadoDoMes(params: {
     variableOperatingExpenses,
     payroll,
     fixedCost,
+    /** Fora da receita bruta e do imposto; soma ao resultado. */
+    outrasReceitas,
     resultBeforeTax,
     tax,
     result,
@@ -873,6 +890,8 @@ export function cenarioDeCrescimento(params: {
   grossRevenue: number;
   variableCost: number;
   fixedCost: number;
+  /** "Outras receitas" do mês: soma ao resultado e não escala com o faturamento. */
+  outrasReceitas?: number;
   /** Alíquota do Simples desta barbearia, em pontos percentuais. */
   taxRatePct: number;
   /** Variação de faturamento, em pontos percentuais. `0` reproduz o mês. */
@@ -891,7 +910,7 @@ export function cenarioDeCrescimento(params: {
     fixedCost: params.fixedCost,
     tax,
     /* A MESMA escada de `resultadoDoMes`: margem − fixo − imposto. */
-    result: centavos(contributionMargin - params.fixedCost - tax),
+    result: centavos(contributionMargin - params.fixedCost + (params.outrasReceitas ?? 0) - tax),
   };
 }
 
@@ -1184,6 +1203,14 @@ export type DiaProjetado = {
    */
   mensalidadeAtrasada: number;
   fixedExpense: number;
+  /**
+   * Parcelas de despesa que vencem neste dia (e ainda estão por vir: o modelo
+   * não guarda "paga", então o que tem data de hoje em diante é "a vencer").
+   * Campo próprio, e não somado em `fixedExpense`: parcela tem fim, recorrente não.
+   */
+  parcelaAPagar: number;
+  /** Parcelas de receita avulsa que vencem neste dia. */
+  parcelaAReceber: number;
   net: number;
   cumulative: number;
 };
@@ -1191,6 +1218,8 @@ export type DiaProjetado = {
 export function projecaoDeCaixa(params: {
   bookings: Doc<BookingDoc>[];
   expenses: Doc<ExpenseDoc>[];
+  /** Receitas avulsas — só as PARCELADAS com data futura entram na projeção. */
+  otherIncomes?: Doc<OtherIncomeDoc>[];
   subscribers: Doc<SubscriberDoc>[];
   /**
    * Faturas de mensalidade (08/10). Presentes, mandam: a fatura aberta entra
@@ -1301,6 +1330,20 @@ export function projecaoDeCaixa(params: {
     abertas.filter((f) => f.dueDate < inicioISO).reduce((t, f) => t + (Number(f.amount) || 0), 0)
   );
 
+  /* Parcelas por vencer, indexadas pelo dia. Só documento com `parcela` e a
+   * partir de hoje: despesa e receita avulsas de data única não são projetadas
+   * (já aconteceram, ou são o que o dono lançou como fato). */
+  const parcelasPorDia = (itens: Array<{ date: string; value: number; parcela?: unknown; recurring?: boolean }>) => {
+    const mapa = new Map<string, number>();
+    for (const i of itens) {
+      if (!i.parcela || i.recurring || i.date < inicioISO) continue;
+      mapa.set(i.date, (mapa.get(i.date) ?? 0) + (Number(i.value) || 0));
+    }
+    return mapa;
+  };
+  const parcelasAPagar = parcelasPorDia(params.expenses);
+  const parcelasAReceber = parcelasPorDia(params.otherIncomes ?? []);
+
   const resultado: DiaProjetado[] = [];
   let cumulative = 0;
 
@@ -1365,7 +1408,12 @@ export function projecaoDeCaixa(params: {
       .filter((e) => Math.min(Number(e.date.slice(-2)), ultimoDiaDoMes) === d.getDate())
       .reduce((s, e) => s + e.value, 0);
 
-    const net = bookingRevenue + subscriptionCharge + mensalidadeAtrasada - fixedExpense;
+    const parcelaAPagar = centavos(parcelasAPagar.get(date) ?? 0);
+    const parcelaAReceber = centavos(parcelasAReceber.get(date) ?? 0);
+
+    const net =
+      bookingRevenue + subscriptionCharge + mensalidadeAtrasada - fixedExpense
+      + parcelaAReceber - parcelaAPagar;
     cumulative += net;
 
     resultado.push({
@@ -1376,6 +1424,8 @@ export function projecaoDeCaixa(params: {
       subscriptionCharge,
       mensalidadeAtrasada,
       fixedExpense,
+      parcelaAPagar,
+      parcelaAReceber,
       net,
       cumulative,
     });
@@ -1544,6 +1594,8 @@ export type MesProjetado = {
   /** Atrasadas em aberto — só no mês do primeiro dia. Ver `DiaProjetado`. */
   mensalidadeAtrasada: number;
   fixedExpense: number;
+  parcelaAPagar: number;
+  parcelaAReceber: number;
   net: number;
   cumulative: number;
   /** Quanto da receita do mês é estimativa, de 0 a 1. */
@@ -1579,6 +1631,8 @@ export function agruparProjecaoPorMes(dias: DiaProjetado[]): MesProjetado[] {
         subscriptionCharge: 0,
         mensalidadeAtrasada: 0,
         fixedExpense: 0,
+        parcelaAPagar: 0,
+        parcelaAReceber: 0,
         net: 0,
         // O acumulado é o do ÚLTIMO dia do mês, não a soma dos acumulados
         // diários — somar acumulado é contar o mesmo dinheiro várias vezes.
@@ -1591,6 +1645,8 @@ export function agruparProjecaoPorMes(dias: DiaProjetado[]): MesProjetado[] {
     m.subscriptionCharge += d.subscriptionCharge;
     m.mensalidadeAtrasada += d.mensalidadeAtrasada ?? 0;
     m.fixedExpense += d.fixedExpense;
+    m.parcelaAPagar += d.parcelaAPagar ?? 0;
+    m.parcelaAReceber += d.parcelaAReceber ?? 0;
     m.net += d.net;
     m.cumulative = d.cumulative;
     if (d.isEstimate) m.fracaoEstimada += d.bookingRevenue;

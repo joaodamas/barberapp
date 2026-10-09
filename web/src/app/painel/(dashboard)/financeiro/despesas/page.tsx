@@ -23,7 +23,18 @@ import type { Doc } from "@/lib/db/repository";
 type Expense = Doc<ExpenseDoc>;
 import { useTenant } from "@/lib/tenant-context";
 import { useShopCollection } from "@/lib/db/use-collection";
-import { gravarNovo, novoIdDe, patchDoc, removeDoc } from "@/lib/db/repository";
+import { gravarEmLote, gravarNovo, novoIdDe, patchDoc, removeDoc } from "@/lib/db/repository";
+import { ParcelamentoCampos, rotuloDoValor, type ModoDoValor, type TipoDeLancamento } from "@/components/parcelamento-campos";
+import { GrupoDeParcelas } from "@/components/grupo-de-parcelas";
+import {
+  aVencer,
+  descricaoDaParcela,
+  idDaParcela,
+  parcelasValidas,
+  planejarParcelas,
+  PARCELAS_MAX,
+  PARCELAS_MIN,
+} from "@/lib/parcelamento";
 import { esperarServidorOuSeguir } from "@/lib/db/sem-esperar-servidor";
 import { lerReais, reaisParaCampo, VALOR_ILEGIVEL } from "@/lib/reais";
 import { Voltar } from "@/components/ui/voltar";
@@ -39,7 +50,9 @@ const emptyForm = {
   value: "",
   date: todayISO(),
   payment: "Pix" as ExpensePaymentMethod,
-  recurring: false,
+  tipo: "unica" as TipoDeLancamento,
+  parcelas: "10",
+  modo: "total" as ModoDoValor,
   observations: "",
 };
 
@@ -74,6 +87,9 @@ export default function DespesasPage() {
   const [formError, setFormError] = useState<string | null>(null);
   /** Exclusão pedia confirmação em Reservas mas apagava lançamento num clique. */
   const [pendingDelete, setPendingDelete] = useState<Expense | null>(null);
+  /* O grupo de parcelas aberto em "ver parcelas". */
+  const [grupoAberto, setGrupoAberto] = useState<string | null>(null);
+  const hoje = todayISO();
 
   const [saving, setSaving] = useState(false);
   /* Id da despesa nova, escolhido na primeira tentativa e mantido nas
@@ -126,7 +142,9 @@ export default function DespesasPage() {
       value: reaisParaCampo(expense.value),
       date: expense.date,
       payment: expense.payment,
-      recurring: expense.recurring,
+      tipo: expense.parcela ? "parcelada" : expense.recurring ? "recorrente" : "unica",
+      parcelas: String(expense.parcela?.total ?? 10),
+      modo: "total",
       observations: expense.observations ?? "",
     });
     setFormError(null);
@@ -151,6 +169,16 @@ export default function DespesasPage() {
       setFormError("Informe um valor maior que zero.");
       return;
     }
+    const parcelado = !editingId && form.tipo === "parcelada";
+    const nParcelas = Number(form.parcelas);
+    if (parcelado && !parcelasValidas(nParcelas)) {
+      setFormError(`O número de parcelas vai de ${PARCELAS_MIN} a ${PARCELAS_MAX}.`);
+      return;
+    }
+    if (!form.date) {
+      setFormError("Informe a data.");
+      return;
+    }
     setFormError(null);
 
     const fields = {
@@ -160,7 +188,8 @@ export default function DespesasPage() {
       value,
       date: form.date,
       payment: form.payment,
-      recurring: form.recurring,
+      /* Parcelada e recorrente não se misturam: uma tem fim, a outra não. */
+      recurring: form.tipo === "recorrente",
       // O textarea era preenchido e o valor descartado no salvamento.
       observations: form.observations.trim() || undefined,
     };
@@ -168,7 +197,40 @@ export default function DespesasPage() {
     setSaving(true);
     try {
       let noServidor: Promise<unknown>;
-      if (editingId) {
+      if (parcelado) {
+        /* N documentos num lote atômico. O id do grupo é escolhido na primeira
+         * tentativa e mantido (`idDoRascunho`), e cada parcela tem id
+         * derivado dele: repetir o clique ou a rede sobrescreve as mesmas
+         * parcelas em vez de criar um segundo grupo. */
+        const grupoId = idDoRascunho ?? (await novoIdDe(barbershopId, "expenses"));
+        setIdDoRascunho(grupoId);
+        const plano = planejarParcelas({
+          modo: form.modo,
+          valor: value,
+          n: nParcelas,
+          primeira: form.date,
+        });
+        noServidor = (
+          await gravarEmLote(
+            barbershopId,
+            "expenses",
+            plano.valores.map((valorDaParcela, i) => ({
+              tipo: "gravar" as const,
+              id: idDaParcela(grupoId, i + 1),
+              dados: {
+                ...fields,
+                value: valorDaParcela,
+                date: plano.datas[i],
+                description: descricaoDaParcela(fields.description, i + 1, nParcelas),
+                recurring: false,
+                parcela: { numero: i + 1, total: nParcelas, grupoId },
+              },
+            }))
+          )
+        ).noServidor;
+      } else if (editingId) {
+        /* Editar uma parcela mexe só nela e preserva `parcela`: o grupo é
+         * tratado em "ver parcelas". */
         noServidor = patchDoc(barbershopId, "expenses", editingId, fields);
       } else {
         const id = idDoRascunho ?? (await novoIdDe(barbershopId, "expenses"));
@@ -414,6 +476,20 @@ export default function DespesasPage() {
                     <Repeat size={10} /> mensal
                   </Pill>
                 )}
+                {e.parcela && (
+                  <>
+                    {aVencer(e.date, hoje) && (
+                      <Pill tone="gold" className="ml-2">a vencer</Pill>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setGrupoAberto(e.parcela!.grupoId)}
+                      className="ml-2 min-h-11 text-xs text-gold-strong underline underline-offset-2 md:min-h-0"
+                    >
+                      ver parcelas
+                    </button>
+                  </>
+                )}
               </p>
               <p className="text-xs text-ink-muted">
                 {formatDateShortPtBR(e.date)} · <span className="text-gold-strong">{e.category}</span> · {e.payment}
@@ -508,6 +584,20 @@ export default function DespesasPage() {
                       <Repeat size={10} /> mensal
                     </Pill>
                   )}
+                  {e.parcela && (
+                    <>
+                      {aVencer(e.date, hoje) && (
+                        <Pill tone="gold" className="ml-2">a vencer</Pill>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setGrupoAberto(e.parcela!.grupoId)}
+                        className="ml-2 text-xs text-gold-strong underline underline-offset-2"
+                      >
+                        ver parcelas
+                      </button>
+                    </>
+                  )}
                 </td>
                 <td className="px-4 py-3 text-ink-muted">{e.supplier}</td>
                 <td className="px-4 py-3 text-gold-strong">{e.category}</td>
@@ -570,6 +660,27 @@ export default function DespesasPage() {
         }
       >
         <div className="grid gap-4 md:grid-cols-2">
+          <ParcelamentoCampos
+            tipo={form.tipo}
+            onTipo={(tipo) => setForm((f) => ({ ...f, tipo }))}
+            permiteRecorrente
+            permiteParcelada={!editingId || expenses.some((e) => e.id === editingId && e.parcela)}
+            bloqueado={Boolean(editingId && expenses.some((e) => e.id === editingId && e.parcela))}
+            parcelas={form.parcelas}
+            onParcelas={(parcelas) => setForm((f) => ({ ...f, parcelas }))}
+            modo={form.modo}
+            onModo={(modo) => setForm((f) => ({ ...f, modo }))}
+            valor={lerReais(form.value)}
+            primeira={form.date}
+          />
+          {/* Editar uma parcela mexe só nela; o grupo todo se trata em "ver parcelas". */}
+          {editingId && expenses.some((e) => e.id === editingId && e.parcela) && (
+            <p role="note" className="rounded-controle border border-gold/40 bg-gold/5 p-3 text-xs text-ink md:col-span-2">
+              Esta é uma parcela de um lançamento parcelado: o que você mudar aqui vale só para ela.
+              Para mudar o grupo, use &quot;ver parcelas&quot; na lista.
+            </p>
+          )}
+
           <label className="flex flex-col gap-1 text-xs text-ink-muted md:col-span-2">
             Descrição *
             <input
@@ -606,7 +717,7 @@ export default function DespesasPage() {
           </label>
 
           <label className="flex flex-col gap-1 text-xs text-ink-muted">
-            Valor (R$) *
+            {rotuloDoValor(form.tipo, form.modo)}
             {/* Texto, não `number`: o campo numérico do navegador não aceita
                 "1.500,50", e o que ele entrega para "1.500" depende do
                 aparelho. Quem lê é `lerReais`. */}
@@ -647,15 +758,6 @@ export default function DespesasPage() {
             </select>
           </label>
 
-          <label className="flex items-center gap-2 text-sm text-ink md:col-span-2">
-            <input
-              type="checkbox"
-              checked={form.recurring}
-              onChange={(e) => setForm((f) => ({ ...f, recurring: e.target.checked }))}
-              className="h-4 w-4 rounded border-border accent-gold"
-            />
-            Recorrente (repete todo mês — entra como custo fixo no resultado)
-          </label>
           {/* Sem data de fim no modelo: mudar a recorrente antiga muda o custo
               de TODOS os meses desde o lançamento, inclusive os já fechados. */}
           {editingId &&
@@ -687,6 +789,17 @@ export default function DespesasPage() {
         </div>
       </Modal>
 
+      <GrupoDeParcelas
+        grupoId={grupoAberto}
+        onClose={() => setGrupoAberto(null)}
+        barbershopId={barbershopId}
+        colecao="expenses"
+        itens={expenses}
+        categorias={expenseCategories}
+        hoje={hoje}
+        substantivo="despesa"
+      />
+
       <Modal
         open={pendingDelete !== null}
         onClose={() => setPendingDelete(null)}
@@ -712,6 +825,8 @@ export default function DespesasPage() {
             ? `${formatBRL(pendingDelete.value)} · ${pendingDelete.category} · ${formatDateShortPtBR(pendingDelete.date)}`
             : ""}
           . Esta ação não pode ser desfeita e altera o resultado do mês.
+          {pendingDelete?.parcela &&
+            ` É a parcela ${pendingDelete.parcela.numero}/${pendingDelete.parcela.total}: só ela será excluída. Para excluir as próximas ou todas, use "ver parcelas".`}
         </p>
       </Modal>
 
