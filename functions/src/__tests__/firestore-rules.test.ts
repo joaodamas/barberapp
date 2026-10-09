@@ -1456,7 +1456,7 @@ describe("a rede / franquia (09/10)", () => {
   it("🔒 o dono da unidade não grava, troca nem apaga o redeId", async () => {
     await assertFails(updateDoc(doc(as(DONO_ALFA), "barbershops", ALFA), { redeId: OUTRA }));
     await assertFails(updateDoc(doc(as(DONO_ALFA), "barbershops", ALFA), { redeId: deleteField() }));
-    await assertFails(updateDoc(doc(as(DONO_BETA), "barbershops", BETA), { redeId: REDE, name: "x" }));
+    await assertFails(updateDoc(doc(as(DONO_BETA), "barbershops", BETA), { redeId: OUTRA, name: "x" }));
     // O resto da ficha continua editável (a trava não vira bloqueio geral).
     await assertSucceeds(updateDoc(doc(as(DONO_ALFA), "barbershops", ALFA), { "contact.address": "Rua Nova, 10" }));
   });

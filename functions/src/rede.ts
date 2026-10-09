@@ -263,12 +263,6 @@ export async function sincronizarAcessoDaRede(
 /* Callables de plataforma                                             */
 /* ------------------------------------------------------------------ */
 
-function exigirPlataforma(request: { auth?: { token: Record<string, unknown> } | null }): void {
-  if (request.auth?.token.platformAdmin !== true) {
-    throw new HttpsError("permission-denied", "Só o operador da plataforma administra redes.");
-  }
-}
-
 async function donoPorEmail(auth: Auth, emailBruto: unknown): Promise<{ uid: string; email: string }> {
   const email = String(emailBruto ?? "").trim().toLowerCase();
   if (!email) throw new HttpsError("invalid-argument", "Informe o e-mail do dono da rede.");
@@ -311,7 +305,11 @@ type EntradaDeCriarRede = {
 };
 
 export const criarRede = onCall<EntradaDeCriarRede>(async (request) => {
-  exigirPlataforma(request);
+  /* A guarda fica À VISTA em cada callable (e não num helper): o teste de
+   * autorização lê o corpo de cada uma procurando por ela. */
+  if (request.auth?.token.platformAdmin !== true) {
+    throw new HttpsError("permission-denied", "Só o operador da plataforma administra redes.");
+  }
   const d: Partial<EntradaDeCriarRede> = request.data ?? {};
   const nome = String(d.nome ?? "").trim();
   const slug = String(d.slug ?? "").trim().toLowerCase();
@@ -372,7 +370,11 @@ export const criarRede = onCall<EntradaDeCriarRede>(async (request) => {
 });
 
 export const vincularUnidade = onCall<{ redeId: string; barbershopId: string }>(async (request) => {
-  exigirPlataforma(request);
+  /* A guarda fica À VISTA em cada callable (e não num helper): o teste de
+   * autorização lê o corpo de cada uma procurando por ela. */
+  if (request.auth?.token.platformAdmin !== true) {
+    throw new HttpsError("permission-denied", "Só o operador da plataforma administra redes.");
+  }
   const redeId = idSeguro(request.data?.redeId, "Rede");
   const barbershopId = idSeguro(request.data?.barbershopId, "Barbearia");
   const db = getFirestore();
@@ -412,7 +414,11 @@ export const vincularUnidade = onCall<{ redeId: string; barbershopId: string }>(
 });
 
 export const desvincularUnidade = onCall<{ redeId: string; barbershopId: string }>(async (request) => {
-  exigirPlataforma(request);
+  /* A guarda fica À VISTA em cada callable (e não num helper): o teste de
+   * autorização lê o corpo de cada uma procurando por ela. */
+  if (request.auth?.token.platformAdmin !== true) {
+    throw new HttpsError("permission-denied", "Só o operador da plataforma administra redes.");
+  }
   const redeId = idSeguro(request.data?.redeId, "Rede");
   const barbershopId = idSeguro(request.data?.barbershopId, "Barbearia");
   const db = getFirestore();
@@ -437,7 +443,11 @@ export const desvincularUnidade = onCall<{ redeId: string; barbershopId: string 
 });
 
 export const definirDonoDaRede = onCall<{ redeId: string; donoEmail: string }>(async (request) => {
-  exigirPlataforma(request);
+  /* A guarda fica À VISTA em cada callable (e não num helper): o teste de
+   * autorização lê o corpo de cada uma procurando por ela. */
+  if (request.auth?.token.platformAdmin !== true) {
+    throw new HttpsError("permission-denied", "Só o operador da plataforma administra redes.");
+  }
   const redeId = idSeguro(request.data?.redeId, "Rede");
   const db = getFirestore();
   const auth = getAuth();
