@@ -10,6 +10,8 @@ import { LoadingRows } from "@/components/ui/empty-state";
 import { MarcarNoBalcao } from "@/components/marcar-no-balcao";
 import { useAcoesDoAtendimento } from "@/components/agenda/acoes-do-atendimento";
 import { useCadeira } from "@/components/barbeiro/area-do-barbeiro";
+import { EtiquetaMensalista } from "@/components/agenda/etiqueta-mensalista";
+import { mensalistaDoHorario } from "@/lib/mensalista-do-horario";
 import { useAgendaDoBarbeiro, useServices } from "@/lib/db/use-shop-data";
 import { useAcesso } from "@/lib/tenant-context";
 import { atendimentoJaChegou, diaVizinho } from "@/lib/barbeiro";
@@ -124,13 +126,21 @@ export default function AgendaDoBarbeiroPage() {
           const aberto = EM_ABERTO.includes(b.status) && atendimentoJaChegou(b, hoje, agora);
           const encaixe = b.status === "fit_in_requested";
           const liquidacao = b.status === "completed" ? liquidacaoDoAtendimento(b) : null;
+          /* Quem tem plano não lê o preço cheio como "a cobrar": coberto pelo
+           * plano não tem valor a cobrar, e o horário fixo ainda depende da
+           * cota. A etiqueta vem do que está na reserva (`mensalista-do-horario`). */
+          const plano = mensalistaDoHorario(b);
+          const semValorACobrar = plano === "coberto" || (plano === "fixo" && EM_ABERTO.includes(b.status));
           return (
             <li key={b.id}>
               <Card className="flex flex-col gap-3 p-4">
                 <div className="flex items-start gap-3">
                   <p className="w-14 shrink-0 font-display text-lg tabular-nums text-gold-strong">{b.time}</p>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium text-ink">{b.clientName || "Cliente"}</p>
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <p className="truncate font-medium text-ink">{b.clientName || "Cliente"}</p>
+                      {plano && <EtiquetaMensalista />}
+                    </div>
                     <p className="truncate text-sm text-ink-muted">{nomeDosServicos(b.serviceIds)}</p>
                     {liquidacao && (
                       <p className="mt-0.5 text-xs text-ink-muted">
@@ -140,7 +150,13 @@ export default function AgendaDoBarbeiroPage() {
                     )}
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-1">
-                    <p className="text-sm font-medium tabular-nums text-ink">{formatBRL(b.value)}</p>
+                    {semValorACobrar ? (
+                      <p className="max-w-28 text-right text-xs text-ink-muted">
+                        {plano === "coberto" ? "pago pelo plano" : "entra no plano, se tiver cota"}
+                      </p>
+                    ) : (
+                      <p className="text-sm font-medium tabular-nums text-ink">{formatBRL(b.value)}</p>
+                    )}
                     <Pill tone={meta.tone}>{meta.label}</Pill>
                   </div>
                 </div>
