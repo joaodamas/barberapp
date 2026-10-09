@@ -188,7 +188,11 @@ export function VenderProduto({
         ? ativos[0].id
         : null;
 
-  const podeConfirmar = linhas.length > 0 && metodo !== null;
+  /* Preço digitado e não aplicado não pode sair pelo preço de tabela sem
+   * aviso: enquanto o editor estiver aberto, confirmar fica travado (teste de
+   * 09/10 — a venda saiu por R$ 55 com R$ 50 escrito no campo). */
+  const precoPendente = editandoPreco !== null;
+  const podeConfirmar = linhas.length > 0 && metodo !== null && !precoPendente;
 
   function abrirPreco(id: string, precoAtual: number) {
     setEditandoPreco(id);
@@ -307,7 +311,7 @@ export function VenderProduto({
           </p>
           <p className="text-sm text-ink">
             A devolução de <span className="tabular-nums">{formatBRL(inicial.valorDevolvido)}</span> já
-            está registrada. Ajuste os itens, o preço e a forma abaixo e confirme a venda certa.
+            está registrada. Ajuste os itens, o preço e a forma abaixo e confirme a venda certa. Se a correção era só tirar unidades, não precisa vender de novo: toque em "Não refazer agora".
           </p>
           <div>
             <Button variant="ghost" size="sm" onClick={descartarCorrecao}>
@@ -641,9 +645,11 @@ export function VenderProduto({
           <Button onClick={confirmar} disabled={!podeConfirmar || salvando}>
             {salvando
               ? "Registrando…"
-              : metodo
-                ? `Confirmar venda · ${formatBRL(totalValor)}`
-                : "Escolha como o cliente pagou"}
+              : precoPendente
+                ? "Aplique ou cancele o preço antes de confirmar"
+                : metodo
+                  ? `Confirmar venda · ${formatBRL(totalValor)}`
+                  : "Escolha como o cliente pagou"}
           </Button>
         </Card>
       )}
