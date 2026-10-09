@@ -99,7 +99,7 @@ export function BottomNav({ items, acao }: { items: NavItem[]; acao?: AcaoCentra
             </div>
             {secoes.map((secao) => (
               <section key={secao.titulo} className="mt-2">
-                <p className="mb-1.5 px-1 text-[12.5px] font-medium text-ink-muted">
+                <p className="mb-1.5 px-1 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
                   {secao.titulo}
                 </p>
                 <ul className="grid grid-cols-4 gap-1.5">

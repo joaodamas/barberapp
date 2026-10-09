@@ -134,7 +134,7 @@ export function LivroCaixa({ competencia }: { competencia?: string }) {
   return (
     <section className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <h2 className="flex items-center gap-1.5 text-[15px] font-semibold text-ink">
+        <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
           <Wallet size={12} /> Livro caixa
         </h2>
         <Button variant="secondary" className="min-h-9 px-3 text-xs" onClick={abrir}>
@@ -154,19 +154,19 @@ export function LivroCaixa({ competencia }: { competencia?: string }) {
 
       <div className="grid grid-cols-3 gap-2">
         <Card className="flex flex-col gap-0.5 p-3">
-          <p className="text-[12.5px] font-medium text-ink-muted">Entrou</p>
+          <p className="text-[11px] uppercase tracking-wide text-ink-muted">Entrou</p>
           <p className="font-display text-base font-semibold text-success md:text-xl">
             {formatBRL(resumo.entradas)}
           </p>
         </Card>
         <Card className="flex flex-col gap-0.5 p-3">
-          <p className="text-[12.5px] font-medium text-ink-muted">Saiu</p>
+          <p className="text-[11px] uppercase tracking-wide text-ink-muted">Saiu</p>
           <p className="font-display text-base font-semibold text-danger md:text-xl">
             {formatBRL(resumo.saidas)}
           </p>
         </Card>
         <Card className="flex flex-col gap-0.5 p-3">
-          <p className="text-[12.5px] font-medium text-ink-muted">Saldo</p>
+          <p className="text-[11px] uppercase tracking-wide text-ink-muted">Saldo</p>
           <p className="font-display text-base font-semibold text-ink md:text-xl">
             {formatBRL(resumo.saldo)}
           </p>
@@ -227,7 +227,7 @@ export function LivroCaixa({ competencia }: { competencia?: string }) {
       >
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-1.5">
-            <p className="text-[12.5px] font-medium text-ink-muted">O que foi</p>
+            <p className="text-[11px] uppercase tracking-wide text-ink-muted">O que foi</p>
             <div className="flex flex-wrap gap-1.5">
               {TIPOS.map((t) => (
                 <button
@@ -254,7 +254,7 @@ export function LivroCaixa({ competencia }: { competencia?: string }) {
           {/* Só o ajuste pergunta a direção — nos outros ela vem do tipo. */}
           {tipo === "ajuste" && (
             <div className="flex flex-col gap-1.5">
-              <p className="text-[12.5px] font-medium text-ink-muted">
+              <p className="text-[11px] uppercase tracking-wide text-ink-muted">
                 Sobrou ou faltou
               </p>
               <div className="flex gap-1.5">
@@ -280,7 +280,7 @@ export function LivroCaixa({ competencia }: { competencia?: string }) {
 
           {tipo === "pagamento_comissao" && (
             <div className="flex flex-col gap-1.5">
-              <p className="text-[12.5px] font-medium text-ink-muted">Para quem *</p>
+              <p className="text-[11px] uppercase tracking-wide text-ink-muted">Para quem *</p>
               <div className="flex flex-wrap gap-1.5">
                 {ativos.map((b) => (
                   <button
@@ -327,7 +327,7 @@ export function LivroCaixa({ competencia }: { competencia?: string }) {
           </label>
 
           <div className="flex flex-col gap-1.5">
-            <p className="text-[12.5px] font-medium text-ink-muted">Como</p>
+            <p className="text-[11px] uppercase tracking-wide text-ink-muted">Como</p>
             <div className="grid grid-cols-4 gap-1.5">
               {PAYMENT_METHODS.map((m) => (
                 <button

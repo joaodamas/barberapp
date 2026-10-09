@@ -102,7 +102,7 @@ function ProjecaoConteudo() {
         </p>
         {/* "Projeção de Caixa" contra "Projeção de caixa" no menu, no
             `RecursoBloqueado` e no `BloqueioPlano` desta própria tela. */}
-        <h1 className="text-[22px] font-semibold leading-[1.15] tracking-[-0.02em] text-ink md:text-[28px]">Projeção de caixa</h1>
+        <h1 className="text-xl text-ink md:text-3xl md:tracking-tight">Projeção de caixa</h1>
         <p className="mt-1 text-xs text-ink-muted md:text-sm">
           Combina marcações já confirmadas, mensalidades em aberto (no
           vencimento da fatura; mês ainda não emitido, pelo cadastro) e despesas
@@ -220,7 +220,7 @@ function ProjecaoConteudo() {
         <Card className="table-scroll overflow-x-auto p-0">
           <table className="w-full min-w-[560px] text-sm">
             <thead>
-              <tr className="border-b border-border text-left text-[12.5px] font-medium text-ink-muted">
+              <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ink-muted">
                 <th className="px-4 py-3 font-medium md:px-6">Mês</th>
                 <th className="px-4 py-3 text-right font-medium">Receita</th>
                 <th className="px-4 py-3 text-right font-medium">Mensalistas</th>
@@ -282,7 +282,7 @@ function ProjecaoConteudo() {
       <Card className="table-scroll overflow-x-auto p-0">
         <table className="w-full min-w-[640px] text-sm">
           <thead>
-              <tr className="border-b border-border text-left text-[12.5px] font-medium text-ink-muted">
+            <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ink-muted">
               <th className="px-4 py-3 font-medium md:px-6">Dia</th>
               <th className="px-4 py-3 font-medium">Receita</th>
               <th className="px-4 py-3 text-right font-medium">Mensalista</th>

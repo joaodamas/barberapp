@@ -136,7 +136,7 @@ function LojaConteudo() {
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm text-ink-muted md:text-base">Catálogo</p>
-          <h1 className="text-[22px] font-semibold leading-[1.15] tracking-[-0.02em] text-ink md:text-[28px]">Loja</h1>
+          <h1 className="text-xl text-ink md:text-4xl md:tracking-tight">Loja</h1>
         </div>
         <Button onClick={openModal}>
           <Plus size={16} />
@@ -174,7 +174,7 @@ function LojaConteudo() {
 
       <div className="grid gap-4 md:grid-cols-[1.4fr_1fr] md:gap-8">
         <section>
-          <h2 className="mb-2 flex items-center gap-1.5 text-[15px] font-semibold text-ink md:mb-3">
+          <h2 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-ink-muted md:mb-3 md:text-sm">
             <Package size={12} /> Produtos
           </h2>
           {status === "carregando" && <LoadingRows rows={3} oQue="seus produtos" />}
@@ -228,7 +228,7 @@ function LojaConteudo() {
         </section>
 
         <section>
-          <h2 className="mb-2 flex items-center gap-1.5 text-[15px] font-semibold text-ink md:mb-3">
+          <h2 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-ink-muted md:mb-3 md:text-sm">
             <Percent size={12} /> Simulador rápido de comissão
           </h2>
           <Card className="flex flex-col gap-3 md:gap-4 md:p-6">
@@ -356,7 +356,7 @@ function LojaConteudo() {
         </div>
 
         <div className="mt-4 flex flex-col gap-2 rounded-xl border border-border bg-surface-raised/60 p-4">
-          <p className="flex items-center gap-1.5 text-[12.5px] font-medium text-gold-strong">
+          <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-gold-strong">
             <Percent size={12} /> Prévia de precificação
           </p>
           <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">

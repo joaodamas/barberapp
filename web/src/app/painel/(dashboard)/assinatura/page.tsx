@@ -153,7 +153,7 @@ function PlanoAtual({ plano, resposta }: { plano: PlanId; resposta: Resposta | n
   const valor = doHub?.valor ?? null;
   return (
     <Card className="flex flex-col gap-2 md:p-6">
-      <p className="text-[12.5px] font-medium text-ink-muted">Seu plano</p>
+      <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">Seu plano</p>
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h2 className="font-display text-2xl text-ink">{NOME_DO_PLANO[plano]}</h2>
         {doHub?.ciclo === "anual" && doHub.valorCiclo != null ? (

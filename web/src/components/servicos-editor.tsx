@@ -198,7 +198,7 @@ export function EditorDeServicos({
   return (
     <div className="flex flex-col gap-4">
       <div
-        className={`hidden gap-3 px-1 text-[12.5px] font-medium   text-ink-muted md:grid ${colunas}`}
+        className={`hidden gap-3 px-1 text-xs uppercase tracking-wide text-ink-muted md:grid ${colunas}`}
       >
         <span>Serviço</span>
         <span>Duração</span>

@@ -103,7 +103,7 @@ export default function NumerosPage() {
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="text-sm text-ink-muted md:text-base">Seu mês</p>
-          <h1 className="text-[22px] font-semibold leading-[1.15] tracking-[-0.02em] text-ink md:text-[28px]">Números</h1>
+          <h1 className="text-xl text-ink md:text-4xl md:tracking-tight">Números</h1>
         </div>
 
         <div className="flex flex-col gap-2 md:items-end">
@@ -148,7 +148,7 @@ export default function NumerosPage() {
       <>
       <div className="grid grid-cols-2 gap-2 md:grid-cols-5 md:gap-4">
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-6">
-          <p className="text-[12.5px] font-medium text-ink-muted">Faturamento</p>
+          <p className="text-[11px] uppercase text-ink-muted md:text-xs md:tracking-wide">Faturamento</p>
           <p className="font-display text-lg font-semibold text-gold-strong md:text-2xl">
             {apuracao.valor("faturamento", formatBRL(kpis.revenue))}
           </p>
@@ -157,7 +157,7 @@ export default function NumerosPage() {
           )}
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-6">
-          <p className="text-[12.5px] font-medium text-ink-muted">Atendimentos</p>
+          <p className="text-[11px] uppercase text-ink-muted md:text-xs md:tracking-wide">Atendimentos</p>
           <p className="font-display text-lg font-semibold text-ink md:text-2xl">
             {apuracao.valor("atendimentos", String(kpis.appointments))}
           </p>
@@ -166,7 +166,7 @@ export default function NumerosPage() {
           )}
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-6">
-          <p className="text-[12.5px] font-medium text-ink-muted">Ticket médio</p>
+          <p className="text-[11px] uppercase text-ink-muted md:text-xs md:tracking-wide">Ticket médio</p>
           <p className="font-display text-lg font-semibold text-ink md:text-2xl">
             {apuracao.valor("ticketMedio", formatBRL(avgTicket))}
           </p>
@@ -175,7 +175,7 @@ export default function NumerosPage() {
           )}
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-6">
-          <p className="text-[12.5px] font-medium text-ink-muted">Ocupação</p>
+          <p className="text-[11px] uppercase text-ink-muted md:text-xs md:tracking-wide">Ocupação</p>
           {/* A17 · exibia `0%` no mês com UM atendimento, e o mapa de calor
               logo abaixo dizia "100% de ocupação" naquele horário. O motor
               passou a devolver uma casa decimal e `formatPctPtBR` garante que
@@ -193,7 +193,7 @@ export default function NumerosPage() {
               mesmo fato, na mesma tela. O produto inteiro diz falta: o botão
               da agenda ("Não veio"), o diálogo ("Marcar falta?") e o motor do
               Action Center ("Marcar falta"). */}
-          <p className="text-[12.5px] font-medium text-ink-muted">Taxa de falta</p>
+          <p className="text-[11px] uppercase text-ink-muted md:text-xs md:tracking-wide">Taxa de falta</p>
           <p className="font-display text-lg font-semibold text-ink md:text-2xl">
             {apuracao.valor("taxaDeFalta", formatPctPtBR(kpis.noShowPct))}
           </p>
@@ -205,7 +205,7 @@ export default function NumerosPage() {
 
       <div className="grid gap-4 md:grid-cols-2 md:gap-8">
         <section>
-          <h2 className="mb-2 flex items-center gap-1.5 text-[15px] font-semibold text-ink md:mb-3">
+          <h2 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-ink-muted md:mb-3 md:text-sm">
             <Scissors size={12} /> Top serviços
           </h2>
           <Card className="flex flex-col gap-3 md:gap-4 md:p-6">
@@ -226,7 +226,7 @@ export default function NumerosPage() {
         </section>
 
         <section>
-          <h2 className="mb-2 flex items-center gap-1.5 text-[15px] font-semibold text-ink md:mb-3">
+          <h2 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-ink-muted md:mb-3 md:text-sm">
             <UserX size={12} /> Recorrência de clientes
           </h2>
           <Card className="flex flex-col gap-3 md:gap-4 md:p-6">
@@ -252,7 +252,7 @@ export default function NumerosPage() {
       </div>
 
       <section>
-          <h2 className="mb-2 flex items-center gap-1.5 text-[15px] font-semibold text-ink md:mb-3">
+        <h2 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-ink-muted md:mb-3 md:text-sm">
           <Flame size={12} /> Mapa de calor · dia × horário
         </h2>
         <Card className="overflow-x-auto md:p-6">
@@ -266,7 +266,7 @@ export default function NumerosPage() {
             {hourlyHeatmap.hours.map((h) => (
               <span
                 key={h}
-                className="text-center text-[12.5px] font-medium text-ink-muted"
+                className="text-center text-[11px] uppercase text-ink-muted md:text-xs"
               >
                 {h}
               </span>
@@ -321,7 +321,7 @@ export default function NumerosPage() {
         {/* "Insights" é a outra palavra em inglês da tela, e o rótulo mais de
             sistema do painel: descreve COMO o texto foi produzido em vez de
             dizer o que ele responde. */}
-        <h2 className="mb-2 text-[15px] font-semibold text-ink md:mb-3">
+        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted md:mb-3 md:text-sm">
           O que os números dizem
         </h2>
         {/* Uma coluna, e não duas: o insight de pico/brecha foi para o rodapé

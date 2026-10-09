@@ -325,7 +325,7 @@ function DreConteudo() {
               "Demonstração de resultado" fica no subtítulo — quem conhece o
               termo o reconhece, e quem não conhece não precisa dele para
               entender a tela. */}
-          <h1 className="text-[22px] font-semibold leading-[1.15] tracking-[-0.02em] text-ink md:text-[28px]">Quanto sobrou</h1>
+          <h1 className="text-xl text-ink md:text-3xl md:tracking-tight">Quanto sobrou</h1>
           <p className="text-xs text-ink-muted md:text-sm">
             Demonstração de resultado — o que entrou, o que custou e o que
             sobrou no mês
@@ -617,7 +617,7 @@ function DreConteudo() {
         <div className="table-scroll overflow-x-auto">
           <table className="w-full min-w-[480px] text-sm">
             <thead>
-              <tr className="border-b border-border text-left text-[12.5px] font-medium text-ink-muted">
+              <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ink-muted">
                 <th className="pb-2 font-medium">Indicador</th>
                 <th className="pb-2 text-right font-medium">Atual</th>
                 <th className="pb-2 text-right font-medium">Cenário simulado</th>

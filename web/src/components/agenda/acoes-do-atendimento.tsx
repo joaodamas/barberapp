@@ -33,11 +33,6 @@ import type { BookingDoc, MotivoDoDesconto, SubscriberDoc, TipoDeDesconto } from
 type PlanoNoFechamento = Pick<SubscriberDoc, "planName" | "unlimited" | "servicesIncluded">;
 import type { Doc } from "@/lib/db/repository";
 import { mensagemDaFuncao } from "@/lib/mensagem-da-funcao";
-import { criarFilaAdiada, type ResultadoDoEnvio } from "@/lib/envio-adiado";
-import { AvisosAdiados, type AvisoAdiado } from "@/components/agenda/avisos-adiados";
-
-/** Quanto o "Desfazer" fica de pé. Mais que isso e o dono espera o app, em pé no balcão. */
-const ESPERA_DO_DESFAZER_MS = 5000;
 
 /**
  * O que o dono faz com UM atendimento — concluir, marcar falta, cancelar,
@@ -79,71 +74,12 @@ export function useAcoesDoAtendimento() {
    * botão que o dono toca (ver `linkDoAvisoDeCancelamento`). */
   const [cancelado, setCancelado] = useState<Doc<BookingDoc> | null>(null);
   const [erroCancelar, setErroCancelar] = useState<string | null>(null);
-  /* Uma falha de gravação de concluir/falta aparece no aviso do rodapé (ver
-   * `avisosAdiados`), que fica até o dono fechar: o diálogo já se foi quando o
-   * servidor responde, e o erro não pode morrer com ele. */
-
-  /* Concluir e marcar falta saem ADIADOS (ver `lib/envio-adiado.ts`): a linha
-   * muda na hora, o aviso do rodapé oferece "Desfazer", e a gravação real só
-   * sai quando o prazo acaba. O produto não tem como reverter uma conclusão no
-   * servidor — então o desfazer é não ter enviado ainda, e não uma promessa. */
-  const [avisosAdiados, setAvisosAdiados] = useState<AvisoAdiado[]>([]);
-  const [fila] = useState(() =>
-    criarFilaAdiada({
-      esperaMs: ESPERA_DO_DESFAZER_MS,
-      aoMudar: ({ enviando }) =>
-        setAvisosAdiados((antes) =>
-          antes.map((a) =>
-            a.estado === "erro" ? a : { ...a, estado: enviando.includes(a.id) ? "enviando" : "espera" }
-          )
-        ),
-      /* Gravou: o aviso cumpriu o papel. Recusou: a linha volta ao normal e o
-       * aviso vira o erro, que fica até alguém fechar. */
-      aoTerminar: (id, resultado) =>
-        setAvisosAdiados((antes) =>
-          resultado.ok
-            ? antes.filter((a) => a.id !== id)
-            : antes.map((a) => (a.id === id ? { ...a, estado: "erro", erro: resultado.erro } : a))
-        ),
-    })
-  );
-
-  /* Sair da página NÃO cancela: antecipa. Aba escondida, página fechada ou
-   * troca de tela do painel enviam o que estava esperando — perder uma
-   * conclusão porque o dono guardou o celular no bolso seria o pior desfecho. */
-  useEffect(() => {
-    const aoOcultar = () => {
-      if (document.visibilityState === "hidden") fila.enviarTodos();
-    };
-    const enviarJa = () => fila.enviarTodos();
-    document.addEventListener("visibilitychange", aoOcultar);
-    window.addEventListener("pagehide", enviarJa);
-    return () => {
-      document.removeEventListener("visibilitychange", aoOcultar);
-      window.removeEventListener("pagehide", enviarJa);
-      fila.enviarTodos();
-    };
-  }, [fila]);
-
-  function adiar(
-    item: Pick<AvisoAdiado, "id" | "texto" | "linha"> & { enviar: () => Promise<ResultadoDoEnvio> }
-  ) {
-    fila.agendar({ id: item.id, enviar: item.enviar });
-    setAvisosAdiados((antes) => [
-      ...antes.filter((a) => a.id !== item.id),
-      { id: item.id, texto: item.texto, linha: item.linha, estado: "espera", esperaMs: ESPERA_DO_DESFAZER_MS },
-    ]);
-  }
-
-  function desfazerAdiado(id: string) {
-    if (fila.desfazer(id)) setAvisosAdiados((antes) => antes.filter((a) => a.id !== id));
-  }
-
-  /* Reserva com envio em andamento: a linha mostra o texto, e nenhuma ação
-   * nova abre sobre ela. */
-  const emEnvio: ReadonlyMap<string, string> = new Map(
-    avisosAdiados.filter((a) => a.estado !== "erro").map((a): [string, string] => [a.id, a.linha])
-  );
+  /* Uma falha de gravação precisa aparecer ONDE a ação foi disparada. Antes ela
+   * ia só para o console: o diálogo fechava, o dono entendia "pronto", e no
+   * caso do encaixe o WhatsApp ainda saía confirmando o que não existia. */
+  const [salvando, setSalvando] = useState(false);
+  const [erroAoFechar, setErroAoFechar] = useState<string | null>(null);
+  const [erroDaFalta, setErroDaFalta] = useState<string | null>(null);
 
   /* A conta que o dono vê antes de confirmar, com a política DESTA barbearia —
    * a mesma que `cancelBooking` vai aplicar do lado do servidor. Enquanto isto
@@ -273,7 +209,7 @@ export function useAcoesDoAtendimento() {
    * valor que ninguém recebeu, e quem decide a cobertura continua sendo o
    * servidor, que lê a assinatura e a cota na conclusão.
    */
-  function concluirCom(forma: FormaDePagamento | null) {
+  async function concluirCom(forma: FormaDePagamento | null) {
     const booking = aFechar;
     if (!booking) return;
     if (descontoBloqueia) return;
@@ -294,45 +230,38 @@ export function useAcoesDoAtendimento() {
     /* Cortesia conclui SEM forma — não entrou dinheiro. Com forma, é desconto
      * parcial; a regra recusa as duas combinações trocadas. */
     if (desconto && calculoDoDesconto.cortesia !== (forma === null)) return;
-    const cobrar = calculoDoDesconto.cobrar;
-    adiar({
-      id: booking.id,
-      linha: "Concluindo…",
-      texto: forma
-        ? `Concluído · ${formatBRL(cobrar)} · ${forma.label}`
-        : desconto
-          ? "Concluído · cortesia"
-          : "Concluído · sem cobrança no balcão",
-      enviar: () =>
-        soAvisaSeGravou({
-          gravar: async () => {
-            /* `discountAt` é o relógio do SERVIDOR: a regra o confere contra
-             * `request.time`. Carregado sob demanda, como o resto do SDK. */
-            const autoria = desconto
-              ? { discountAt: (await import("firebase/firestore")).serverTimestamp() }
-              : {};
-            return patchDoc(tenant.id, "bookings", booking.id, {
-              status: "completed",
-              /* O MEIO e a FORMA, na mesma escrita.
-               *
-               * O meio é o que todo relatório já sabe agrupar; a forma é o que
-               * diz qual taxa a maquininha cobrou. O servidor lê os dois do
-               * documento atualizado — gravar em duas etapas materializaria o
-               * pagamento antes de a forma existir, e a taxa nasceria da forma
-               * errada. */
-              paymentMethod: forma?.base ?? null,
-              paymentFormId: forma?.id ?? null,
-              paymentFormLabel: forma?.label ?? null,
-              ...(desconto ?? {}),
-              ...autoria,
-            });
-          },
-        }),
+    setSalvando(true);
+    setErroAoFechar(null);
+    const r = await soAvisaSeGravou({
+      gravar: async () => {
+        /* `discountAt` é o relógio do SERVIDOR: a regra o confere contra
+         * `request.time`. Carregado sob demanda, como o resto do SDK. */
+        const autoria = desconto
+          ? { discountAt: (await import("firebase/firestore")).serverTimestamp() }
+          : {};
+        return patchDoc(tenant.id, "bookings", booking.id, {
+          status: "completed",
+          /* O MEIO e a FORMA, na mesma escrita.
+           *
+           * O meio é o que todo relatório já sabe agrupar; a forma é o que diz
+           * qual taxa a maquininha cobrou. O servidor lê os dois do documento
+           * atualizado — gravar em duas etapas materializaria o pagamento antes
+           * de a forma existir, e a taxa nasceria da forma errada. */
+          paymentMethod: forma?.base ?? null,
+          paymentFormId: forma?.id ?? null,
+          paymentFormLabel: forma?.label ?? null,
+          ...(desconto ?? {}),
+          ...autoria,
+        });
+      },
+      // Fechar o diálogo É o aviso: é assim que o dono lê "deu certo".
+      avisar: () => {
+        setAFechar(null);
+        limparDesconto();
+      },
     });
-    /* O diálogo fecha já: o aviso do rodapé é quem diz "concluído", e quem
-     * recusa a gravação é o aviso, não mais o diálogo. */
-    setAFechar(null);
-    limparDesconto();
+    setSalvando(false);
+    if (!r.ok) setErroAoFechar(r.erro);
   }
 
   /**
@@ -349,19 +278,17 @@ export function useAcoesDoAtendimento() {
    * está em `OCCUPIES_SLOT`), porque ele foi reservado e ninguém mais pôde
    * usá-lo — é exatamente o custo que a falta representa.
    */
-  function marcarFalta() {
+  async function marcarFalta() {
     const booking = faltaDe;
     if (!booking) return;
-    adiar({
-      id: booking.id,
-      linha: "Marcando falta…",
-      texto: `Falta marcada · ${booking.clientName}`,
-      enviar: () =>
-        soAvisaSeGravou({
-          gravar: () => patchDoc(tenant.id, "bookings", booking.id, { status: "no_show" }),
-        }),
+    setSalvando(true);
+    setErroDaFalta(null);
+    const r = await soAvisaSeGravou({
+      gravar: () => patchDoc(tenant.id, "bookings", booking.id, { status: "no_show" }),
+      avisar: () => setFaltaDe(null),
     });
-    setFaltaDe(null);
+    setSalvando(false);
+    if (!r.ok) setErroDaFalta(r.erro);
   }
 
   /**
@@ -610,11 +537,6 @@ export function useAcoesDoAtendimento() {
 
   const modais = (
     <>
-      <AvisosAdiados
-        avisos={avisosAdiados}
-        aoDesfazer={desfazerAdiado}
-        aoFechar={(id) => setAvisosAdiados((antes) => antes.filter((a) => a.id !== id))}
-      />
       {/* D22 · devolver valor de atendimento concluído. */}
       {aEstornar && (
         <EstornarValor
@@ -825,7 +747,8 @@ export function useAcoesDoAtendimento() {
 
             <button
               type="button"
-              onClick={() => concluirCom(null)}
+              disabled={salvando}
+              onClick={() => void concluirCom(null)}
               className="flex min-h-16 cursor-pointer items-center justify-center gap-2 rounded-xl border border-gold/50 bg-gold/10 text-sm font-medium text-gold-strong transition-colors hover:border-gold hover:bg-gold/15"
             >
               <Check size={16} /> Concluir sem cobrar
@@ -841,7 +764,7 @@ export function useAcoesDoAtendimento() {
               agenda mostra o motivo, e aí a cobrança é com você.
             </p>
 
-            <p className="mt-1 text-[12.5px] font-medium text-ink-muted">
+            <p className="mt-1 text-xs uppercase tracking-wider text-ink-muted">
               Ou registre a cobrança
             </p>
           </div>
@@ -856,7 +779,8 @@ export function useAcoesDoAtendimento() {
         {!planoConferido ? null : podeDarDesconto && calculoDoDesconto.cortesia && !descontoBloqueia ? (
           <button
             type="button"
-            onClick={() => concluirCom(null)}
+            disabled={salvando}
+            onClick={() => void concluirCom(null)}
             className="flex min-h-16 w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-gold/50 bg-gold/10 text-sm font-medium text-gold-strong transition-colors hover:border-gold hover:bg-gold/15"
           >
             <Check size={16} /> Concluir como cortesia
@@ -867,8 +791,8 @@ export function useAcoesDoAtendimento() {
             <button
               key={forma.id}
               type="button"
-              disabled={descontoBloqueia}
-              onClick={() => concluirCom(forma)}
+              disabled={salvando || descontoBloqueia}
+              onClick={() => void concluirCom(forma)}
               className="flex min-h-16 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-xl border border-border px-2 text-center text-sm font-medium text-ink transition-colors hover:border-gold hover:bg-gold/10 hover:text-gold-strong"
             >
               <span className="leading-tight">{forma.label}</span>
@@ -880,6 +804,11 @@ export function useAcoesDoAtendimento() {
             </button>
           ))}
         </div>
+        )}
+        {erroAoFechar && (
+          <p role="alert" className="mt-4 text-sm text-danger">
+            {erroAoFechar}
+          </p>
         )}
         <p className="mt-4 text-xs text-ink-muted">
           A taxa da maquininha é registrada com o valor de hoje e não muda
@@ -906,11 +835,21 @@ export function useAcoesDoAtendimento() {
           agenda — foi reservado e ninguém mais pôde usá-lo. Se ele aparecer
           depois, é só concluir o atendimento normalmente.
         </p>
+        {erroDaFalta && (
+          <p role="alert" className="mb-4 text-sm text-danger">
+            {erroDaFalta}
+          </p>
+        )}
         <div className="flex gap-2">
-          <Button className="flex-1" onClick={marcarFalta}>
-            Confirmar falta
+          <Button className="flex-1" disabled={salvando} onClick={() => void marcarFalta()}>
+            {salvando ? "Salvando…" : "Confirmar falta"}
           </Button>
-          <Button variant="secondary" className="flex-1" onClick={() => setFaltaDe(null)}>
+          <Button
+            variant="secondary"
+            className="flex-1"
+            disabled={salvando}
+            onClick={() => setFaltaDe(null)}
+          >
             Cancelar
           </Button>
         </div>
@@ -1001,14 +940,14 @@ export function useAcoesDoAtendimento() {
 
   return {
     abrirConcluir: (b: Doc<BookingDoc>) => {
-      if (emEnvio.has(b.id)) return;
+      setErroAoFechar(null);
       limparDesconto();
       /* 🔒 R1 · concluído nunca reabre a conclusão: vai para a correção. */
       if (b.status === "completed") return setACorrigir(b);
       setAFechar(b);
     },
     abrirFalta: (b: Doc<BookingDoc>) => {
-      if (emEnvio.has(b.id)) return;
+      setErroDaFalta(null);
       setFaltaDe(b);
     },
     abrirCancelar: (b: Doc<BookingDoc>) => {
@@ -1025,8 +964,6 @@ export function useAcoesDoAtendimento() {
     responderEncaixe: (b: Doc<BookingDoc>, aprovar: boolean, sugestoes?: string[]) =>
       void responderEncaixe(b, aprovar, sugestoes),
     respondendoEncaixe,
-    /** Reservas com conclusão/falta esperando o prazo: id → "Concluindo…". */
-    emEnvio,
     temAviso: !!respostaEncaixe || !!remarcado,
     avisos,
     modais,

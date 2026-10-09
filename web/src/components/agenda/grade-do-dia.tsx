@@ -55,12 +55,9 @@ export function GradeDoDia({
   aoMarcarLivre,
   podeEditar,
   mensalistas,
-  emEnvio,
 }: {
   /** Clientes com plano ativo (`useMensalistasAtivos`). */
   mensalistas?: Set<string>;
-  /** Reservas com conclusão/falta esperando o "Desfazer": id → "Concluindo…". */
-  emEnvio?: ReadonlyMap<string, string>;
   dia: string;
   reservas: Doc<BookingDoc>[];
   pedidos: Pedido[];
@@ -86,7 +83,7 @@ export function GradeDoDia({
   const nomeDe = (id: string | null | undefined, gravado?: string | null) =>
     equipe.find((b) => b.id === id)?.name ?? gravado ?? "";
   const varios = equipe.filter((b) => b.active !== false).length > 1;
-  const props = { pedidos, selecionadoId, aoSelecionar, aoMarcarLivre, podeEditar, mensalistas, nomeDe, varios, emEnvio };
+  const props = { pedidos, selecionadoId, aoSelecionar, aoMarcarLivre, podeEditar, mensalistas, nomeDe, varios };
 
   /* Uma coluna só (barbearia de um barbeiro, ou filtro): serve a qualquer tela. */
   if (emColunas.colunas.length <= 1) {
@@ -115,11 +112,9 @@ function Grade({
   mensalistas,
   nomeDe,
   varios,
-  emEnvio,
   comCabecalho,
   comNome,
 }: {
-  emEnvio?: ReadonlyMap<string, string>;
   montada: GradeMontada<Doc<BookingDoc>>;
   pedidos: Pedido[];
   selecionadoId: string | null;
@@ -156,10 +151,10 @@ function Grade({
   };
 
   return (
-    <div className="overflow-x-auto rounded-superficie border border-border bg-surface p-2">
+    <div className="overflow-x-auto rounded-2xl border border-border bg-surface p-2">
       <div className={lado ? "min-w-[34rem]" : undefined}>
         {(temPedidos || comCabecalho) && (
-          <div className="mb-1 grid gap-x-1 text-[12.5px] text-ink-muted" style={{ gridTemplateColumns: colunasCss }}>
+          <div className="mb-1 grid gap-x-1 text-[11px] uppercase tracking-wide text-ink-muted" style={{ gridTemplateColumns: colunasCss }}>
             <span />
             {comCabecalho ? (
               colunas.map((c, i) => (
@@ -185,7 +180,7 @@ function Grade({
           {linhas.map((t, i) => (
             <div
               key={`h${t}`}
-              className="border-t border-border/60 pr-1 pt-0.5 text-right text-[12.5px] tabular-nums text-ink-muted"
+              className="border-t border-border/60 pr-1 pt-0.5 text-right text-[11px] tabular-nums text-ink-muted"
               style={{ gridColumn: 1, gridRow: i + 1 }}
             >
               {paraHora(t)}
@@ -212,7 +207,6 @@ function Grade({
                 aoSelecionar={aoSelecionar}
                 mensalistas={mensalistas}
                 nomeDe={nomeDe}
-                emEnvio={emEnvio}
               />
             );
           })}
@@ -227,8 +221,8 @@ function Grade({
                 onClick={() => aoSelecionar(b.id)}
                 aria-pressed={selecionadoId === b.id}
                 className={
-                  "my-0.5 flex min-w-0 flex-col items-start overflow-hidden rounded-controle border border-dashed px-2 py-1 text-left " +
-                  (selecionadoId === b.id ? "ring-2 ring-gold-strong " : "") +
+                  "my-0.5 flex min-w-0 flex-col items-start overflow-hidden rounded-lg border border-dashed px-2 py-1 text-left " +
+                  (selecionadoId === b.id ? "ring-2 ring-gold-light " : "") +
                   estilo.classe
                 }
                 style={{ gridColumn: 2 + totalFaixas, gridRow: `${linhaDe(inicio)} / ${linhaDe(fim - 1) + 1}` }}
@@ -237,9 +231,9 @@ function Grade({
                   {paraHora(inicio)}–{paraHora(fim)} · {b.clientName}
                 </span>
                 {varios && (
-                  <span className="w-full truncate text-[12.5px] text-ink-muted">{nomeDe(b.staffId)}</span>
+                  <span className="w-full truncate text-[11px] text-ink-muted">{nomeDe(b.staffId)}</span>
                 )}
-                <span className="text-[12.5px] font-medium">{estilo.rotulo}</span>
+                <span className="text-[11px] font-medium">{estilo.rotulo}</span>
               </button>
             );
           })}
@@ -265,9 +259,7 @@ function ColunaDaGradeView({
   podeEditar,
   mensalistas,
   nomeDe,
-  emEnvio,
 }: {
-  emEnvio?: ReadonlyMap<string, string>;
   coluna: GradeMontada<Doc<BookingDoc>>["colunas"][number];
   lugar: { gridColumn: string };
   inicio: number;
@@ -289,7 +281,7 @@ function ColunaDaGradeView({
     <>
       {c.folga && (
         <div
-          className="my-0.5 flex items-center justify-center rounded-controle bg-surface-raised px-2 text-center text-[12.5px] text-ink-muted"
+          className="my-0.5 flex items-center justify-center rounded-lg bg-surface-raised px-2 text-center text-[11px] text-ink-muted"
           style={{ ...lugar, gridRow: `1 / ${linhas.length + 1}` }}
         >
           Não trabalha neste dia
@@ -299,7 +291,7 @@ function ColunaDaGradeView({
       {c.intervalos.map((t) => (
         <div
           key={`p${prefixo}${t}`}
-          className="my-0.5 flex items-center rounded-controle bg-surface-raised px-2 text-[12.5px] text-ink-muted"
+          className="my-0.5 flex items-center rounded-lg bg-surface-raised px-2 text-[11px] text-ink-muted"
           style={{ ...lugar, gridRow: linhaDoInicio(t) }}
         >
           Intervalo
@@ -313,7 +305,7 @@ function ColunaDaGradeView({
             type="button"
             onClick={() => aoMarcarLivre({ hora: paraHora(t), barbeiroId: c.id })}
             aria-label={`Marcar às ${paraHora(t)}${c.nome ? ` com ${c.nome}` : ""}`}
-            className="my-0.5 flex items-center rounded-controle border border-dashed border-border px-2 text-left text-[12.5px] text-ink-muted transition-colors hover:border-gold hover:text-gold-strong"
+            className="my-0.5 flex items-center rounded-lg border border-dashed border-border px-2 text-left text-[11px] text-ink-muted transition-colors hover:border-gold hover:text-gold-strong"
             style={{ ...lugar, gridRow: linhaDoInicio(t) }}
           >
             Livre · marcar
@@ -321,7 +313,7 @@ function ColunaDaGradeView({
         ) : (
           <div
             key={`l${prefixo}${t}`}
-            className="my-0.5 flex items-center rounded-controle border border-dashed border-border px-2 text-[12.5px] text-ink-muted"
+            className="my-0.5 flex items-center rounded-lg border border-dashed border-border px-2 text-[11px] text-ink-muted"
             style={{ ...lugar, gridRow: linhaDoInicio(t) }}
           >
             Livre
@@ -339,8 +331,8 @@ function ColunaDaGradeView({
             onClick={() => aoSelecionar(b.id)}
             aria-pressed={selecionadoId === b.id}
             className={
-              "my-0.5 flex min-w-0 flex-col items-start overflow-hidden rounded-controle border px-2 py-1 text-left transition-colors duration-150 " +
-              (selecionadoId === b.id ? "ring-2 ring-gold-strong " : "") +
+              "my-0.5 flex min-w-0 flex-col items-start overflow-hidden rounded-lg border px-2 py-1 text-left transition-colors " +
+              (selecionadoId === b.id ? "ring-2 ring-gold-light " : "") +
               (falta
                 ? "border-danger/40 bg-danger/5 text-ink-muted"
                 : feito
@@ -358,17 +350,11 @@ function ColunaDaGradeView({
               {b.isFitIn && <EtiquetaEncaixe />}
               {mensalistas?.has(b.clientId) && <EtiquetaMensalista />}
             </span>
-            <span className="w-full truncate text-[12.5px] text-ink-muted">
+            <span className="w-full truncate text-[11px] text-ink-muted">
               {comNome && <span className="font-medium text-ink">{nomeDe(b.staffId)} · </span>}
               {((b as { serviceNames?: string[] }).serviceNames ?? []).join(" + ") || "Serviço"}
               {b.horarioFixoId ? " · horário fixo" : ""}
-              {emEnvio?.get(b.id)
-                ? ` · ${emEnvio.get(b.id)!.toLowerCase()}`
-                : feito
-                  ? " · concluído"
-                  : falta
-                    ? " · não veio"
-                    : ""}
+              {feito ? " · concluído" : falta ? " · não veio" : ""}
             </span>
           </button>
         );

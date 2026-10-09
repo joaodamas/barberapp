@@ -41,7 +41,7 @@ export function RecursoBloqueado({
     <div className="flex flex-col gap-6 pt-1 md:gap-10 md:pt-2">
       <div>
         <p className="text-sm text-ink-muted md:text-base">Plano</p>
-        <h1 className="text-[22px] font-semibold leading-[1.15] tracking-[-0.02em] text-ink md:text-[28px]">{titulo}</h1>
+        <h1 className="text-xl text-ink md:text-4xl md:tracking-tight">{titulo}</h1>
       </div>
 
       {/* Era a TERCEIRA cópia da mesma composição — círculo, título, descrição,

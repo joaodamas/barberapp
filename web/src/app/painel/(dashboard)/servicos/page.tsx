@@ -40,7 +40,7 @@ export default function ServicosPage() {
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm text-ink-muted md:text-base">Catálogo</p>
-          <h1 className="text-[22px] font-semibold leading-[1.15] tracking-[-0.02em] text-ink md:text-[28px]">Serviços</h1>
+          <h1 className="text-xl text-ink md:text-4xl md:tracking-tight">Serviços</h1>
         </div>
         <Pill tone={ativos.length === 0 ? "danger" : "neutral"}>
           {ativos.length} no app
@@ -88,7 +88,7 @@ export default function ServicosPage() {
 
         <div className="flex flex-col gap-4">
           <Card className="flex flex-col gap-1 md:p-6">
-            <p className="text-[12.5px] font-medium text-ink-muted">
+            <p className="text-[11px] uppercase tracking-wide text-ink-muted md:text-xs">
               Ticket médio do cardápio
             </p>
             <p className="font-display text-lg font-semibold text-ink md:text-2xl">

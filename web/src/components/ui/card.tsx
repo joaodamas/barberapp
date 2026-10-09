@@ -42,7 +42,7 @@ export const Card = forwardRef<
     <div
       ref={ref}
       className={cn(
-        "card-elevated rounded-superficie border border-border bg-surface",
+        "card-elevated rounded-2xl border border-border bg-surface",
         paddings[padding],
         interactive && "card-interactive",
         className

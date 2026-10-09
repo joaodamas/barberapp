@@ -174,7 +174,7 @@ export function VenderProduto({ aoVender }: { aoVender?: () => void }) {
       {/* ---- Produtos ---- */}
       <section className="flex flex-col gap-2">
         <div className="flex items-baseline justify-between">
-          <h2 className="text-[15px] font-semibold text-ink">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
             Vender
           </h2>
           {produtos.length > 0 && disponiveis.length === 0 && (
@@ -264,8 +264,8 @@ export function VenderProduto({ aoVender }: { aoVender?: () => void }) {
 
           {/* Cliente — opcional, e a tela diz isso */}
           <div className="flex flex-col gap-1.5">
-            <p className="text-[12.5px] font-medium text-ink-muted">
-              Cliente <span className="font-normal">(opcional)</span>
+            <p className="text-[11px] uppercase tracking-wide text-ink-muted">
+              Cliente <span className="normal-case tracking-normal">(opcional)</span>
             </p>
             {cliente ? (
               <div className="flex items-center justify-between gap-2 rounded-xl border border-gold/60 bg-gold/5 px-3 py-2">
@@ -324,8 +324,8 @@ export function VenderProduto({ aoVender }: { aoVender?: () => void }) {
           {/* Vendedor — define de quem é a comissão */}
           {ativos.length > 1 && (
             <div className="flex flex-col gap-1.5">
-            <p className="text-[12.5px] font-medium text-ink-muted">
-                Quem vendeu <span className="font-normal">(opcional)</span>
+              <p className="text-[11px] uppercase tracking-wide text-ink-muted">
+                Quem vendeu <span className="normal-case tracking-normal">(opcional)</span>
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {ativos.map((b) => (
@@ -357,7 +357,7 @@ export function VenderProduto({ aoVender }: { aoVender?: () => void }) {
 
           {/* Pagamento — obrigatório, e o motivo está no comentário */}
           <div className="flex flex-col gap-1.5">
-            <p className="text-[12.5px] font-medium text-ink-muted">Pagamento</p>
+            <p className="text-[11px] uppercase tracking-wide text-ink-muted">Pagamento</p>
             {/* Débito e crédito SEPARADOS, e não um "Cartão" só.
                 Juntá-los obrigaria a supor crédito no cálculo da taxa por
                 precaução, superestimando o custo do débito em 1,5 ponto — foi

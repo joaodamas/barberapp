@@ -25,7 +25,7 @@ export function EtiquetaMensalista({ className = "" }: { className?: string }) {
   return (
     <span
       className={
-        "inline-flex shrink-0 items-center rounded px-1.5 py-px text-[10px] font-medium   " +
+        "inline-flex shrink-0 items-center rounded px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide " +
         "bg-gold/15 text-gold-strong " +
         className
       }

@@ -99,7 +99,7 @@ export function DireitosDoTitular({ clientId }: { clientId: string }) {
 
   return (
     <div className="flex flex-col gap-3 border-t border-border pt-4">
-      <p className="text-[12.5px] font-medium text-ink-muted">Pedidos do cliente (LGPD)</p>
+      <p className="text-[11px] uppercase tracking-wide text-ink-muted">Pedidos do cliente (LGPD)</p>
 
       {etapa === "botoes" && (
         <>

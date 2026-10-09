@@ -6,24 +6,30 @@ import Link from "next/link";
 import {
   AlertCircle,
   CalendarCheck,
+  CalendarClock,
   CalendarPlus,
+  CalendarX,
+  Check,
   ChevronLeft,
   ChevronRight,
   CreditCard,
   HelpCircle,
+  PencilLine,
   Landmark,
+  RotateCcw,
+  UserX,
   Wallet,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { EtiquetaEncaixe } from "@/components/agenda/etiqueta-encaixe";
 import { EtiquetaMensalista, useMensalistasAtivos } from "@/components/agenda/etiqueta-mensalista";
 import { cn } from "@/lib/cn";
+import { Pill } from "@/components/ui/pill";
 import { Button } from "@/components/ui/button";
-import { liquidacaoDoAtendimento } from "@/lib/booking-status";
-import { situacaoDoHorario } from "@/lib/situacao-do-horario";
-import { Situacao } from "@/components/agenda/situacao";
-import { AcoesDaLinha } from "@/components/agenda/acoes-da-linha";
-import { useAtalhosDaAgenda } from "@/components/agenda/atalhos-da-agenda";
+import {
+  liquidacaoDoAtendimento,
+  metaDoStatus,
+} from "@/lib/booking-status";
 import {
   avaliarOperacao,
   estaAtrasado,
@@ -186,63 +192,6 @@ export default function PainelHojePage() {
    * pagamento dos horários em aberto — no fechamento é que o plano decide. */
   const mensalistas = useMensalistasAtivos();
 
-  /* O que cada linha da agenda precisa saber, calculado UMA vez: as linhas, o
-   * menu "Mais" e os atalhos de teclado leem o mesmo resultado, e por isso o
-   * teclado nunca oferece o que o botão não oferece. */
-  const linhasDoDia = bookingsDoDia.map((booking) => {
-    const liquidacao = liquidacaoDoAtendimento(booking);
-    const bookingServices = getServicesByIds(booking.serviceIds);
-    const emAberto =
-      booking.status === "confirmed" ||
-      booking.status === "confirmed_by_client";
-    /* A falta não é beco sem saída: cliente que aparece 40 min depois volta a
-     * ser atendimento pelo mesmo caminho. Sem isso, um toque errado no "Não
-     * veio" viraria receita perdida no relatório, e a única correção seria
-     * mexer no banco.
-     *
-     * Concluir é dizer que o corte ACONTECEU — num dia que ainda não chegou,
-     * isso seria o sistema afirmando o que não houve. */
-    const podeConcluir =
-      (emAberto || booking.status === "no_show") && booking.date <= hoje;
-    /* Quem responde "isto está atrasado?" é o motor — a tela só pergunta.
-     * Comparar minuto com tolerância aqui daria duas verdades: a coluna
-     * lateral acusando o atraso e a linha ao lado sem oferecer a ação. */
-    const atrasado = estaAtrasado({
-      booking,
-      agora,
-      toleranciaMin: toleranciaAtrasoMin,
-    });
-    const atrasoMin = agora ? minutosDeAtraso(booking, agora) : null;
-    const digitos = String(booking.clientWhatsapp ?? "").replace(/\D/g, "");
-    const situacao = situacaoDoHorario({ booking, atrasado, atrasoMin });
-    return {
-      booking, liquidacao, bookingServices, emAberto,
-      podeConcluir, atrasado, atrasoMin, digitos, situacao,
-    };
-  });
-  const idDaReserva = (id: string) => todas.find((x) => x.id === id);
-  const atalhos = useAtalhosDaAgenda({
-    linhas: linhasDoDia.map((l) => ({
-      id: l.booking.id,
-      podeConcluir: l.podeConcluir,
-      atrasado: l.atrasado,
-      emAberto: l.emAberto,
-    })),
-    ativo: status === "pronto",
-    aoConcluir: (id) => {
-      const b = idDaReserva(id);
-      if (b) atendimento.abrirConcluir(b);
-    },
-    aoNaoVeio: (id) => {
-      const b = idDaReserva(id);
-      if (b) atendimento.abrirFalta(b);
-    },
-    aoRemarcar: (id) => {
-      const b = idDaReserva(id);
-      if (b) atendimento.abrirRemarcar(b);
-    },
-  });
-
   /* D2 · o caixa do dia nasce do PAGAMENTO, não da reserva concluída.
    *
    * Passava `agendados`, e toda reserva concluída virava dinheiro. Com o
@@ -346,7 +295,6 @@ export default function PainelHojePage() {
           nomeDoServico: (ids) => getServicesByIds(ids).map((s) => s.name).join(" + ") || "Atendimento",
         })}
         /* Mesma troca de dia das setas da agenda, e rola até ela. */
-        emEnvio={atendimento.emEnvio}
         aoVerAmanha={() => {
           setSentidoDoDia("depois");
           setDiaEscolhido(somarDias(hoje, 1));
@@ -367,7 +315,7 @@ export default function PainelHojePage() {
       {(acoesVisiveis.length > 0 || atendimento.temAviso) && (
         <section >
         {atendimento.avisos}
-          <h2 className="mb-2 text-[15px] font-semibold text-ink">
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
             Precisa de você
           </h2>
           <div className="flex flex-col gap-2 md:grid md:grid-cols-2 md:gap-3 xl:grid-cols-3">
@@ -400,7 +348,7 @@ export default function PainelHojePage() {
          * do painel criava reserva: o produto tinha um caminho só, o app do
          * cliente autenticado. */}
         <div className="mb-2 flex items-center justify-between gap-2">
-          <h2 className="text-[15px] font-semibold text-ink">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
             Agenda
           </h2>
           {/* No celular quem marca é o "+" da barra; o mesmo botão aqui era
@@ -426,7 +374,7 @@ export default function PainelHojePage() {
         />
         <FiltroDeBarbeiro equipe={equipe} valor={filtro} aoMudar={setFiltro} className="mt-2" />
         {filtro && (
-          <p className="mt-2 flex flex-wrap items-center gap-x-2 rounded-controle border border-gold/40 bg-gold/5 px-3 py-2 text-sm text-ink">
+          <p className="mt-2 flex flex-wrap items-center gap-x-2 rounded-xl border border-gold/40 bg-gold/5 px-3 py-2 text-sm text-ink">
             <span>
               Mostrando só <strong>{equipe.find((b) => b.id === filtro)?.name}</strong> na agenda. Os números e o
               caixa são da barbearia inteira.
@@ -477,8 +425,42 @@ export default function PainelHojePage() {
          * dentro do mesmo dia, arbitrária. Na tela isso aparecia como
          * "09:00, 10:00, 12:00, 11:00": a agenda do dia fora de ordem, que é
          * justamente a informação que o dono lê primeiro de manhã. */}
-        {linhasDoDia.length > 0 && (() => {
-          const linhas = linhasDoDia;
+        {bookingsDoDia.length > 0 && (() => {
+          const linhas = bookingsDoDia.map((booking) => {
+            /* Leitura guardada: um status fora da união derrubava a tela
+             * Hoje INTEIRA — `undefined.tone`, e o dono ficava sem a
+             * agenda do dia por causa de uma linha. Ver `metaDoStatus`. */
+            const statusMeta = metaDoStatus(booking.status);
+            const liquidacao = liquidacaoDoAtendimento(booking);
+            const bookingServices = getServicesByIds(booking.serviceIds);
+            const emAberto =
+              booking.status === "confirmed" ||
+              booking.status === "confirmed_by_client";
+            /* A falta não é beco sem saída: cliente que aparece 40 min
+             * depois volta a ser atendimento pelo mesmo caminho. Sem
+             * isso, um toque errado no "Não veio" viraria receita perdida
+             * no relatório, e a única correção seria mexer no banco. */
+            /* Concluir é dizer que o corte ACONTECEU — num dia que ainda não
+             * chegou, isso seria o sistema afirmando o que não houve. */
+            const podeConcluir =
+              (emAberto || booking.status === "no_show") && booking.date <= hoje;
+            /* Quem responde "isto está atrasado?" é o motor — a tela só
+             * pergunta. Comparar minuto com tolerância aqui daria duas
+             * verdades: a coluna lateral acusando o atraso e a linha ao
+             * lado sem oferecer a ação. */
+            const atrasado = estaAtrasado({
+              booking,
+              agora,
+              toleranciaMin: toleranciaAtrasoMin,
+            });
+            const atrasoMin = agora ? minutosDeAtraso(booking, agora) : null;
+            const digitos = String(booking.clientWhatsapp ?? "").replace(/\D/g, "");
+
+            return {
+              booking, statusMeta, liquidacao, bookingServices, emAberto,
+              podeConcluir, atrasado, atrasoMin, digitos,
+            };
+          });
           type Linha = (typeof linhas)[number];
 
           const telefone = ({ digitos }: Linha) => (
@@ -490,7 +472,7 @@ export default function PainelHojePage() {
                   href={`https://wa.me/${digitos}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="alvo-toque text-ink-muted underline-offset-2 transition-colors duration-150 hover:text-gold-strong hover:underline"
+                  className="alvo-toque text-ink-muted underline-offset-2 transition-colors hover:text-gold-strong hover:underline"
                 >
                   {formatPhonePtBR(digitos)}
                 </a>
@@ -502,62 +484,136 @@ export default function PainelHojePage() {
           /* D2 · diz como o atendimento foi LIQUIDADO, não só que meio de
            * pagamento tem gravado. O corte coberto pelo plano não tem
            * pagamento — e exibia "A pagar no salão" depois de concluído, que
-           * é o produto mandando cobrar de novo o que a mensalidade pagou.
-           *
-           * Concluído já diz a forma na coluna Situação ("Concluído · Pix"):
-           * aqui sobra só o detalhe (a cota, o desconto). Mensalista em
-           * aberto não tem "a pagar" para mostrar — quem diz é a coluna Valor. */
-          const pagamento = ({ liquidacao, booking, emAberto }: Linha) => {
-            const detalhe = liquidacao.detalhe && (
-              <span className="block truncate text-[12.5px]" title={liquidacao.detalhe}>
-                {liquidacao.detalheCurto ?? liquidacao.detalhe}
-              </span>
-            );
-            if (emAberto && !liquidacao.coberto && mensalistas.has(booking.clientId)) return "—";
-            if (booking.status === "completed") return detalhe ?? "—";
-            return (
+           * é o produto mandando cobrar de novo o que a mensalidade pagou. */
+          const pagamento = ({ liquidacao, booking, emAberto }: Linha) =>
+            emAberto && !liquidacao.coberto && mensalistas.has(booking.clientId) ? (
               <>
-                {liquidacao.label}
-                {detalhe}
+                <span className="text-ink">Mensalista</span>
+                <span className="block text-[11px]">entra no plano, se tiver cota</span>
               </>
-            );
-          };
-          /* O valor que o cliente NÃO paga não aparece como se pagasse: coberto
-           * pelo plano diz "no plano". O mensalista ainda em aberto só é
-           * "previsto" — quem decide a cobertura é o servidor, na conclusão,
-           * com a cota do mês. */
-          const valor = ({ liquidacao, booking, emAberto }: Linha) =>
-            liquidacao.coberto ? (
-              <span className="text-ink-muted">no plano</span>
-            ) : emAberto && mensalistas.has(booking.clientId) ? (
-              <span className="text-ink-muted" title="Entra no plano se ainda houver cota no mês">
-                previsto no plano
-              </span>
             ) : (
-              <span className="text-ink">{formatBRL(booking.value)}</span>
-            );
-          const acoes = (l: Linha) => (
-            <div className="flex items-center justify-between gap-2">
-              {l.situacao && !atendimento.emEnvio.has(l.booking.id) ? (
-                <Situacao situacao={l.situacao} />
-              ) : (
-                <span />
-              )}
-              <AcoesDaLinha
-                booking={l.booking}
-                liquidacao={l.liquidacao}
-                podeConcluir={l.podeConcluir}
-                atrasado={l.atrasado}
-                emAberto={l.emAberto}
-                atendimento={atendimento}
-              />
-            </div>
-          );
-          const etiquetas = (l: Linha) => (
             <>
-              {l.booking.isFitIn && <EtiquetaEncaixe className="shrink-0" />}
-              {mensalistas.has(l.booking.clientId) && <EtiquetaMensalista className="shrink-0" />}
+              {liquidacao.coberto ? (
+                <span className="text-ink">{liquidacao.label}</span>
+              ) : (
+                liquidacao.label
+              )}
+              {/* Na tabela, só a cota ("1 de 4 no mês"): o nome do plano
+                  inteiro quebrava em quatro linhas (03/10). Ele fica no
+                  título, ao passar o mouse. */}
+              {liquidacao.detalhe && (
+                <span className="block truncate text-[11px]" title={liquidacao.detalhe}>
+                  {liquidacao.detalheCurto ?? liquidacao.detalhe}
+                </span>
+              )}
             </>
+            );
+          const acoes = ({ booking, statusMeta, liquidacao, emAberto, podeConcluir, atrasado }: Linha) => (
+            <div className="flex flex-wrap items-center gap-x-1 gap-y-2 md:flex-nowrap">
+              {/* Concluído é o estado BOM do dia, e era um cinza igual ao de
+                  qualquer outro — o olho não separava o feito do pendente
+                  (pedido do dono, 30/09). Verde só aqui; falta e cancelado
+                  seguem com a etiqueta de sempre. */}
+              {booking.status === "completed" ? (
+                <span className="mr-1 inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-success/10 px-2.5 py-1 text-xs font-medium text-success">
+                  <Check size={13} strokeWidth={2.5} /> Concluído
+                </span>
+              ) : (
+                !emAberto && <Pill tone={statusMeta.tone}>{statusMeta.label}</Pill>
+              )}
+              {podeConcluir && (
+                <button
+                  onClick={() => {
+                    atendimento.abrirConcluir(booking);
+                  }}
+                  className="alvo-toque flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ink-muted transition-colors hover:border-success hover:text-success"
+                >
+                  <Check size={14} />
+                  {booking.status === "no_show" ? "Veio depois" : "Concluir"}
+                </button>
+              )}
+              {/* Só depois da tolerância. Oferecer "não veio" às
+                  13:59 para um horário das 14:00 é convidar o erro
+                  no gesto mais repetido do dia. */}
+              {atrasado && (
+                <button
+                  onClick={() => {
+                    atendimento.abrirFalta(booking);
+                  }}
+                  className="alvo-toque flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ink-muted transition-colors hover:border-danger hover:text-danger"
+                >
+                  <UserX size={14} /> Não veio
+                </button>
+              )}
+              {/* Só enquanto está em aberto. Cancelar depois de
+                  concluído mexeria em dinheiro já materializado, e
+                  desfazer a conclusão é outro caminho. */}
+              {emAberto && (
+                <button
+                  onClick={() => {
+                    atendimento.abrirCancelar(booking);
+                  }}
+                  className="alvo-toque flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ink-muted transition-colors hover:border-danger hover:text-danger"
+                >
+                  <CalendarX size={14} /> Cancelar
+                </button>
+              )}
+              {emAberto && (
+                <button
+                  onClick={() => atendimento.abrirRemarcar(booking)}
+                  className="alvo-toque flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ink-muted transition-colors hover:border-gold hover:text-gold-strong"
+                >
+                  <CalendarClock size={14} /> Remarcar
+                </button>
+              )}
+              {/* R1 · A PORTA da correção de pagamento.
+                  Ela fica na linha do atendimento concluído, e não
+                  atrás do card crítico, porque o card só enxerga o
+                  caso 1 — o atendimento que terminou sem método.
+                  O caso 2 (o dono marcou Pix e o cliente pagou em
+                  dinheiro) não aciona alerta nenhum: com o método
+                  preenchido, `!b.paymentMethod` é falso e nenhuma
+                  tela do produto o detecta. Sem esta linha, metade
+                  da matriz não teria por onde ser alcançada.
+
+                  Não aparece no coberto pelo plano: ali não existe
+                  `PaymentDoc` — a mensalidade já é a receita
+                  daquele corte —, e o servidor recusa. Oferecer o
+                  botão para depois recusar seria a interface
+                  prometendo o que o sistema não faz. */}
+              {booking.status === "completed" && (booking.edicoesDeCobranca?.length ?? 0) > 0 && (
+                <span
+                  title="Cobrança editada"
+                  aria-label="Cobrança editada"
+                  className="flex h-6 shrink-0 items-center gap-1 rounded-md bg-surface-raised px-1.5 text-[11px] text-ink-muted"
+                >
+                  <PencilLine size={12} /> editada
+                </span>
+              )}
+              {booking.status === "completed" && !liquidacao.coberto && !liquidacao.cortesia && (
+                <button
+                  onClick={() => atendimento.abrirCorrecao(booking)}
+                  title="Editar serviços, desconto ou forma de pagamento"
+                  className={ACAO_DISCRETA}
+                >
+                  <CreditCard size={13} /> Editar
+                </button>
+              )}
+              {/* D22 · e este é o "outro caminho" que o comentário
+                  acima mencionava e que não existia.
+                  Devolver dinheiro de atendimento REALIZADO é
+                  estorno, não cancelamento: o serviço aconteceu, e
+                  o registro dele fica. */}
+              {booking.status === "completed" && !liquidacao.cortesia && (
+                <button
+                  onClick={() => atendimento.abrirEstorno(booking)}
+                  title="Devolver dinheiro deste atendimento"
+                  className={ACAO_DISCRETA}
+                >
+                  <RotateCcw size={13} /> Devolver
+                </button>
+              )}
+            </div>
           );
 
           return (
@@ -569,31 +625,44 @@ export default function PainelHojePage() {
                   (rodada E2E de 23/09). */}
               <div className="flex flex-col gap-2 md:hidden">
                 {linhas.map((l) => (
-                  <Card key={l.booking.id} className="flex flex-col gap-2 p-4">
+                  <Card
+                    key={l.booking.id}
+                    className={cn(
+                      "flex flex-col gap-2 p-4",
+                      l.atrasado && "border-danger/40 bg-danger/5"
+                    )}
+                  >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="flex items-center gap-2 text-[14px] font-medium text-ink">
-                          <span className="tabular-nums">{l.booking.time}</span>
-                          <span className="min-w-0 truncate">{l.booking.clientName}</span>
-                          {etiquetas(l)}
+                        <p className="font-display text-lg text-gold-strong">
+                          {l.booking.time}
                         </p>
-                        <p className="truncate text-[12.5px] text-ink-muted">
+                        {l.atrasado && (
+                          <p className="text-xs font-medium text-danger">
+                            Em aberto há {l.atrasoMin} min — atendeu ou não veio?
+                          </p>
+                        )}
+                        <p className="truncate text-sm font-medium text-ink">{l.booking.clientName}</p>
+                        <p className="truncate text-xs text-ink-muted">
                           {variosBarbeiros && (
                             <span className="font-medium text-ink">{nomeDoBarbeiro(l.booking)} · </span>
                           )}
                           {l.bookingServices.map((x) => x.name).join(" + ")}
                         </p>
                       </div>
-                      <div className="shrink-0 text-right text-[14px] font-medium tabular-nums">{valor(l)}</div>
+                      <div className="shrink-0 text-right">
+                        <p className="text-sm font-semibold text-ink">{formatBRL(l.booking.value)}</p>
+                        <div className="text-xs text-ink-muted">{pagamento(l)}</div>
+                      </div>
                     </div>
-                    <div className="text-[12.5px]">{telefone(l)}</div>
+                    <div className="text-xs">{telefone(l)}</div>
                     {acoes(l)}
                   </Card>
                 ))}
               </div>
 
               <Card className="table-scroll hidden overflow-x-auto p-0 md:block">
-                <table className={cn("w-full table-fixed text-[14px]", variosBarbeiros ? "min-w-[1030px]" : "min-w-[920px]")}>
+                <table className={cn("w-full table-fixed text-[13px]", variosBarbeiros ? "min-w-[1030px]" : "min-w-[920px]")}>
                   {/* Larguras FIXAS (02/10): a tabela se ajustava ao conteúdo
                       de cada dia e as colunas pulavam ao trocar de data. */}
                   <colgroup>
@@ -602,12 +671,12 @@ export default function PainelHojePage() {
                     {variosBarbeiros && <col className="w-[110px]" />}
                     <col className="w-[128px]" />
                     <col className="w-[19%]" />
-                    <col className="w-[14%]" />
-                    <col className="w-[120px]" />
+                    <col className="w-[16%]" />
+                    <col className="w-[96px]" />
                     <col className="w-[300px]" />
                   </colgroup>
                   <thead>
-                    <tr className="border-b border-border text-left text-[12.5px] text-ink-muted">
+                    <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-ink-muted">
                       <th className="px-3 py-2.5 font-medium md:pl-5">Hora</th>
                       <th className="px-3 py-2.5 font-medium">Cliente</th>
                       {variosBarbeiros && <th className="px-3 py-2.5 font-medium">Barbeiro</th>}
@@ -619,56 +688,49 @@ export default function PainelHojePage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {linhas.map((l) => {
-                      const escolhida = atalhos.selecionadoId === l.booking.id;
-                      return (
-                        <tr
-                          key={l.booking.id}
-                          data-linha-id={l.booking.id}
-                          data-selecionada={escolhida || undefined}
-                          onClick={(e) => {
-                            /* Clicar na linha a escolhe para os atalhos — mas
-                               não quando o clique era num controle dela. */
-                            if ((e.target as HTMLElement).closest("button, a, input")) return;
-                            atalhos.selecionar(escolhida ? null : l.booking.id);
-                          }}
-                          className={cn(
-                            "border-b border-border/60 transition-colors duration-150 last:border-0",
-                            escolhida
-                              ? "bg-surface-raised shadow-[inset_2px_0_0_var(--color-gold-strong)]"
-                              : "hover:bg-surface-raised/60"
+                    {linhas.map((l) => (
+                      <tr
+                        key={l.booking.id}
+                        className={cn(
+                          "border-b border-border/60 transition-colors last:border-0",
+                          l.atrasado ? "bg-danger/5 hover:bg-danger/10" : "hover:bg-surface-raised/60"
+                        )}
+                      >
+                        <td className="whitespace-nowrap px-3 py-2.5 font-display tabular-nums text-gold-strong md:pl-5">
+                          {l.booking.time}
+                          {l.atrasado && (
+                            <span className="block font-sans text-[11px] text-danger">
+                              {l.atrasoMin} min atrasado
+                            </span>
                           )}
-                        >
-                          <td className="whitespace-nowrap px-3 py-2.5 font-semibold tabular-nums text-ink md:pl-5">
-                            {l.booking.time}
+                        </td>
+                        <td className="px-3 py-2.5 text-ink">
+                          {/* Etiquetas SEMPRE ao lado do nome (02/10): antes
+                              quebravam para baixo quando o nome era longo. */}
+                          <div className="flex min-w-0 items-center gap-2">
+                            <span className="min-w-0 truncate" title={l.booking.clientName}>
+                              {l.booking.clientName}
+                            </span>
+                            {l.booking.isFitIn && <EtiquetaEncaixe className="shrink-0" />}
+                            {mensalistas.has(l.booking.clientId) && <EtiquetaMensalista className="shrink-0" />}
+                          </div>
+                        </td>
+                        {variosBarbeiros && (
+                          <td className="truncate px-3 py-2.5 text-ink" title={nomeDoBarbeiro(l.booking)}>
+                            {nomeDoBarbeiro(l.booking)}
                           </td>
-                          <td className="px-3 py-2.5 text-ink">
-                            {/* Etiquetas SEMPRE ao lado do nome (02/10): antes
-                                quebravam para baixo quando o nome era longo. */}
-                            <div className="flex min-w-0 items-center gap-2">
-                              <span className="min-w-0 truncate" title={l.booking.clientName}>
-                                {l.booking.clientName}
-                              </span>
-                              {etiquetas(l)}
-                            </div>
-                          </td>
-                          {variosBarbeiros && (
-                            <td className="truncate px-3 py-2.5 text-ink" title={nomeDoBarbeiro(l.booking)}>
-                              {nomeDoBarbeiro(l.booking)}
-                            </td>
-                          )}
-                          <td className="whitespace-nowrap px-3 py-2.5 text-[13px]">{telefone(l)}</td>
-                          <td className="px-3 py-2.5 text-ink-muted">
-                            {l.bookingServices.map((x) => x.name).join(" + ")}
-                          </td>
-                          <td className="px-3 py-2.5 text-[13px] text-ink-muted">{pagamento(l)}</td>
-                          <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">
-                            {valor(l)}
-                          </td>
-                          <td className="px-3 py-2.5 md:pr-5">{acoes(l)}</td>
-                        </tr>
-                      );
-                    })}
+                        )}
+                        <td className="whitespace-nowrap px-3 py-2.5">{telefone(l)}</td>
+                        <td className="px-3 py-2.5 text-ink-muted">
+                          {l.bookingServices.map((x) => x.name).join(" + ")}
+                        </td>
+                        <td className="px-3 py-2.5 text-ink-muted">{pagamento(l)}</td>
+                        <td className="whitespace-nowrap px-3 py-2.5 text-right text-ink">
+                          {formatBRL(l.booking.value)}
+                        </td>
+                        <td className="px-3 py-2.5 md:pr-5">{acoes(l)}</td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </Card>
@@ -680,10 +742,10 @@ export default function PainelHojePage() {
 
       {!agendaIlegivel && (
       <section id="caixa-de-hoje" className="scroll-mt-4">
-        <h2 className="mb-2 text-[15px] font-semibold text-ink">
+        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
           Caixa de hoje
           {estornadoHoje > 0 && (
-            <span className="ml-2 font-normal font-normal">
+            <span className="ml-2 font-normal normal-case tracking-normal">
               · por forma, antes de devoluções ({formatBRL(estornadoHoje)})
             </span>
           )}
@@ -932,7 +994,7 @@ function SeletorDeDia({
           ? "Ontem"
           : null;
   const botao =
-    "flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-controle border border-border bg-surface text-ink-muted transition-colors duration-150 hover:border-gold hover:text-gold-strong";
+    "flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-border bg-surface text-ink-muted transition-colors hover:border-gold hover:text-gold-strong";
   return (
     <div className="mb-3 flex items-center gap-2">
       <button
@@ -945,7 +1007,7 @@ function SeletorDeDia({
       </button>
       {/* O input de data cobre o rótulo inteiro, invisível: o toque abre o
           calendário nativo — no celular é a roda de datas que o dono já conhece. */}
-      <label className="relative flex h-10 min-w-0 flex-1 cursor-pointer items-center justify-center gap-2 rounded-controle border border-border bg-surface px-3 text-sm text-ink md:flex-none md:min-w-56">
+      <label className="relative flex h-10 min-w-0 flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border border-border bg-surface px-3 text-sm text-ink md:flex-none md:min-w-56">
         <span className="truncate font-medium">{nome ?? formatarDiaCurto(dia)}</span>
         {nome && <span className="text-ink-muted">{formatarDiaCurto(dia)}</span>}
         {total !== null && (
@@ -973,7 +1035,7 @@ function SeletorDeDia({
         <button
           type="button"
           onClick={() => aoMudar(hoje)}
-          className="flex h-10 shrink-0 cursor-pointer items-center rounded-controle bg-gold/15 px-3 text-sm font-medium text-gold-strong"
+          className="flex h-10 shrink-0 cursor-pointer items-center rounded-xl bg-gold/15 px-3 text-sm font-medium text-gold-strong"
         >
           Hoje
         </button>
@@ -981,3 +1043,9 @@ function SeletorDeDia({
     </div>
   );
 }
+
+/* Ação de atendimento JÁ concluído: rara, e por isso quieta. Com borda e o
+ * mesmo peso de "Concluir", "Corrigir pagamento" e "Devolver" empilhavam em
+ * duas linhas e disputavam o olho com o status (30/09). */
+const ACAO_DISCRETA =
+  "inline-flex min-h-9 cursor-pointer items-center gap-1 whitespace-nowrap rounded-md px-2 text-xs text-ink-muted transition-colors hover:bg-surface-raised hover:text-ink";
