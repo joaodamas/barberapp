@@ -28,9 +28,12 @@ export function ConfirmarSaidaDoBarbeiro({
   barbeiro,
   acao,
   trabalhando,
+  erro,
   onConfirmar,
   onClose,
 }: {
+  /** O erro da gravação, dentro do modal (o da página fica atrás dele). */
+  erro?: string | null;
   barbeiro: { id: string; name: string };
   acao: Acao;
   trabalhando: boolean;
@@ -89,6 +92,11 @@ export function ConfirmarSaidaDoBarbeiro({
             Remover apaga a ficha dele e desfaz o acesso dele ao painel. O salário dele sai da folha dos meses
             anteriores (o registro fica guardado). Os atendimentos e as comissões já feitos ficam. Para parar
             de atender sem mexer no histórico, desligue em vez de remover.
+          </p>
+        )}
+        {erro && (
+          <p role="alert" className="text-xs text-danger">
+            {erro}
           </p>
         )}
         <div className="flex flex-wrap justify-end gap-2">

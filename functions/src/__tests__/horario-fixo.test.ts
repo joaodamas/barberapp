@@ -243,6 +243,13 @@ describe("remarcação do cliente não é liberada nem recriada (09/10)", () => 
     expect(semanaJaResolvida("2026-10-16", [liberadaRemarcada])).toBe(true);
   });
 
+  it("trocou o dia da semana: a remarcada da mesma semana resolve a data nova", () => {
+    const remarcada = { date: "2026-10-19", status: "confirmed", rescheduledFrom: { date: "2026-10-16" } };
+    /* Terça 13/10 é da semana da sexta 16/10; terça 20/10 não. */
+    expect(semanaJaResolvida("2026-10-13", [remarcada])).toBe(true);
+    expect(semanaJaResolvida("2026-10-20", [remarcada])).toBe(false);
+  });
+
   it("duas remarcações: a origem da primeira (origemDoFixo) continua valendo", () => {
     const duasVezes = {
       date: "2026-10-20",

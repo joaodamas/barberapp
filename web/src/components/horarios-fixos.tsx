@@ -255,6 +255,8 @@ export function HorariosFixos() {
                 <span>
                   {c.clientName} · {formatDatePtBR(c.date)} às {c.time} — {c.motivo}
                 </span>
+                {c.motivo.startsWith("Semana segue no horário antigo") &&
+                  assinaturas.some((x) => x.id === c.subscriptionId && x.horarioFixo) && (
                 <Button
                   variant="secondary"
                   className="min-h-8 px-2 text-xs"
@@ -263,6 +265,7 @@ export function HorariosFixos() {
                 >
                   {tentando === c.subscriptionId ? "Tentando…" : "Tentar de novo"}
                 </Button>
+                )}
               </li>
             ))}
           </ul>

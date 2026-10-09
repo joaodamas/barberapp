@@ -118,7 +118,14 @@ export default function EquipePage() {
   const [removendo, setRemovendo] = useState<string | null>(null);
   /* Desligar e remover pedem confirmação, com o número de horários presos
    * (09/10): eram um toque, sem pergunta. */
-  const [aConfirmar, setAConfirmar] = useState<{ id: string; acao: Acao } | null>(null);
+  /* Guarda id e nome na abertura: ao remover, a escuta apaga a ficha antes da
+   * resposta chegar, e o modal não pode depender dela estar viva. */
+  const [aConfirmar, setAConfirmar] = useState<{ id: string; name: string; acao: Acao } | null>(null);
+  const [saindo, setSaindo] = useState(false);
+  function pedirSaida(b: { id: string; name: string }, acao: Acao) {
+    setErro(null);
+    setAConfirmar({ id: b.id, name: b.name, acao });
+  }
   async function remover(id: string) {
     if (soloRestante || removendo) return false;
     setErro(null);
@@ -139,9 +146,14 @@ export default function EquipePage() {
   async function confirmarSaida() {
     if (!aConfirmar) return;
     const { id, acao } = aConfirmar;
-    const ok = acao === "remover" ? await remover(id) : await salvar(id, "active", false);
-    /* Falhou: o modal fica aberto e o erro aparece na tela, para tentar de novo. */
-    if (ok) setAConfirmar(null);
+    setSaindo(true);
+    try {
+      const ok = acao === "remover" ? await remover(id) : await salvar(id, "active", false);
+      /* Falhou: o modal fica aberto com o erro dentro dele, para tentar de novo. */
+      if (ok) setAConfirmar(null);
+    } finally {
+      setSaindo(false);
+    }
   }
 
   function alternarServico(id: string, atuais: string[], serviceId: string) {
@@ -223,7 +235,7 @@ export default function EquipePage() {
                   onChange={(e) =>
                     e.target.checked
                       ? salvar(b.id, "active", true)
-                      : setAConfirmar({ id: b.id, acao: "desligar" })
+                      : pedirSaida(b, "desligar")
                   }
                   className="h-4 w-4 accent-[var(--color-gold)]"
                 />
@@ -233,7 +245,7 @@ export default function EquipePage() {
               <button
                 type="button"
                 aria-label={`Remover ${b.name || "barbeiro"}`}
-                onClick={() => setAConfirmar({ id: b.id, acao: "remover" })}
+                onClick={() => pedirSaida(b, "remover")}
                 disabled={soloRestante || removendo === b.id}
                 title={
                   soloRestante
@@ -380,11 +392,12 @@ export default function EquipePage() {
         </p>
       )}
 
-      {aConfirmar && equipe.some((s) => s.id === aConfirmar.id) && (
+      {aConfirmar && (
         <ConfirmarSaidaDoBarbeiro
-          barbeiro={equipe.find((s) => s.id === aConfirmar.id)!}
+          barbeiro={{ id: aConfirmar.id, name: aConfirmar.name }}
           acao={aConfirmar.acao}
-          trabalhando={removendo === aConfirmar.id}
+          trabalhando={saindo}
+          erro={erro}
           onConfirmar={() => void confirmarSaida()}
           onClose={() => setAConfirmar(null)}
         />
