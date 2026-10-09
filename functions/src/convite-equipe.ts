@@ -463,6 +463,32 @@ async function cadeiraEhDoDono(uid: string, barbershopId: string, quem: string):
   return (conta?.customClaims?.barbershops as Record<string, string> | undefined)?.[barbershopId] === "owner";
 }
 
+/**
+ * A conta ligada à ficha é MESMO desta cadeira? (09/10)
+ *
+ * O `uid` da ficha vem de um campo; a prova de que a conta aceitou o convite
+ * está nos claims (`equipe[loja] == staffId`, gravado pelo aceite) e em
+ * `members/{uid}` (só o servidor grava). Sem nenhum dos dois, o `uid` da ficha
+ * é de alguém que nunca aceitou nada aqui — e reescrever os claims ou revogar
+ * as sessões dessa conta seria mexer na vida de terceiro.
+ */
+export async function contaEhDaCadeira(params: {
+  uid: string;
+  barbershopId: string;
+  staffId: string;
+  db?: FirebaseFirestore.Firestore;
+  /** Injetável para o emulador, que não tem o Auth. */
+  claimsDaConta?: (uid: string) => Promise<Record<string, unknown> | null>;
+}): Promise<boolean> {
+  const db = params.db ?? getFirestore();
+  const membro = await db.doc(`barbershops/${params.barbershopId}/members/${params.uid}`).get();
+  if (membro.exists && membro.get("role") === "staff" && membro.get("staffId") === params.staffId) return true;
+  const claims = await (params.claimsDaConta ??
+    (async (u: string) => (await getAuth().getUser(u).catch(() => null))?.customClaims ?? null))(params.uid);
+  const equipe = claims?.equipe as Record<string, string> | undefined;
+  return equipe?.[params.barbershopId] === params.staffId;
+}
+
 /** O dono tira o acesso. O barbeiro continua na agenda; só perde o login. */
 export const revogarAcessoDoBarbeiro = onCall<{ barbershopId: string; staffId: string }>(
   async (request) => {
@@ -485,11 +511,15 @@ export const revogarAcessoDoBarbeiro = onCall<{ barbershopId: string; staffId: s
       throw new HttpsError("failed-precondition", "Esta cadeira é do dono — o acesso dele não é tirado por aqui.");
     }
 
+    /* Só mexe na conta se ela é, de fato, desta cadeira (09/10). Ficha com um
+     * `uid` que nunca aceitou convite aqui é solta sem tocar na conta. */
+    const daCadeira = await contaEhDaCadeira({ uid, barbershopId, staffId });
+
     /* A cadeira solta PRIMEIRO: é o `staff.uid` que as regras e as callables
      * conferem a cada pedido, e com ele nulo o barbeiro para de ler e de fechar
      * atendimento na hora — sem esperar o token dele vencer. */
     await staffRef.update({ uid: null });
-    await desligarCadeira({ barbershopId, staffId, uid, donoDaCadeira: false });
+    await desligarCadeira({ barbershopId, staffId, uid: daCadeira ? uid : null, donoDaCadeira: false });
     return { revogado: true };
   }
 );
@@ -536,7 +566,10 @@ export const removerBarbeiro = onCall<{ barbershopId: string; staffId: string }>
 
   const uid = (staff.get("uid") as string | null) ?? null;
   const donoDaCadeira = uid ? await cadeiraEhDoDono(uid, barbershopId, quem) : false;
-  await desligarCadeira({ barbershopId, staffId, uid, donoDaCadeira });
+  /* A conta só é tocada se for MESMO desta cadeira (09/10): o `uid` da ficha,
+   * sozinho, não prova que a pessoa aceitou o convite. */
+  const daCadeira = uid && !donoDaCadeira ? await contaEhDaCadeira({ uid, barbershopId, staffId }) : false;
+  await desligarCadeira({ barbershopId, staffId, uid: daCadeira ? uid : null, donoDaCadeira });
   await staffRef.delete();
   return { removido: true };
 });

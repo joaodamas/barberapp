@@ -257,9 +257,13 @@ describe("cliente final", () => {
     );
   });
 
-  it("lê o próprio pagamento e não o dos outros", async () => {
-    await assertSucceeds(getDoc(doc(as(CLIENTE), `barbershops/${ALFA}/payments`, "pg-1")));
+  it("🔒 NÃO lê pagamento nenhum — taxa e líquido da casa são dado interno (09/10)", async () => {
+    await assertFails(getDoc(doc(as(CLIENTE), `barbershops/${ALFA}/payments`, "pg-1")));
     await assertFails(getDoc(doc(as(OUTRO_CLIENTE), `barbershops/${ALFA}/payments`, "pg-1")));
+    await assertFails(
+      getDocs(query(collection(as(CLIENTE), `barbershops/${ALFA}/payments`), where("clientId", "==", CLIENTE.sub)))
+    );
+    await assertSucceeds(getDoc(doc(as(DONO_ALFA), `barbershops/${ALFA}/payments`, "pg-1")));
   });
 
   it("🔒 NÃO escreve pagamento — isso é do servidor", async () => {
@@ -1225,6 +1229,21 @@ describe("acesso do barbeiro: tirado é tirado (08/10)", () => {
     await assertFails(updateDoc(bk, { status: "no_show" }));
   });
 
+  it("🔒 com a ficha solta: não lê comissão pelo `uid` do documento nem taxas e comissão da casa", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `barbershops/${ALFA}/commissions`, "c-uid"), {
+        uid: BARBEIRO_ALFA.sub, commissionAmount: 25,
+      });
+      await setDoc(doc(ctx.firestore(), `barbershops/${ALFA}/private`, "financeiro"), { commissionSplit: {} });
+    });
+    await assertSucceeds(getDoc(doc(as(BARBEIRO_ALFA), `barbershops/${ALFA}/commissions`, "c-uid")));
+    await assertSucceeds(getDoc(doc(as(BARBEIRO_ALFA), `barbershops/${ALFA}/private`, "financeiro")));
+    await tirarAcesso();
+    await assertFails(getDoc(doc(as(BARBEIRO_ALFA), `barbershops/${ALFA}/commissions`, "c-uid")));
+    await assertFails(getDoc(doc(as(BARBEIRO_ALFA), `barbershops/${ALFA}/private`, "financeiro")));
+    await assertSucceeds(getDoc(doc(as(DONO_ALFA), `barbershops/${ALFA}/private`, "financeiro")));
+  });
+
   it("🔒 a ficha ligada a OUTRA conta não serve ao claim desta", async () => {
     await testEnv.withSecurityRulesDisabled(async (ctx) => {
       await updateDoc(doc(ctx.firestore(), `barbershops/${ALFA}/staff`, "s-alfa"), { uid: "outra-conta" });
@@ -1292,6 +1311,56 @@ describe("remover barbeiro (08/10)", () => {
 
   it("🔒 o barbeiro não apaga ficha nenhuma", async () => {
     await assertFails(deleteDoc(doc(as(BARBEIRO_ALFA), `barbershops/${ALFA}/staff`, "sem-conta")));
+  });
+});
+
+describe("a conta ligada à cadeira é do servidor (09/10)", () => {
+  const ficha = (id: string, quem = DONO_ALFA) => doc(as(quem), `barbershops/${ALFA}/staff`, id);
+
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `barbershops/${ALFA}/staff`, "sem-conta"), {
+        name: "Sem conta", active: true, uid: null,
+      });
+    });
+  });
+
+  it("o dono cria ficha sem conta e edita o que é da ficha", async () => {
+    await assertSucceeds(setDoc(ficha("novo"), { name: "Novo", active: true, uid: null, serviceIds: [] }));
+    await assertSucceeds(setDoc(ficha("novo2"), { name: "Novo", active: true }));
+    await assertSucceeds(updateDoc(ficha("sem-conta"), { name: "Renomeado", active: false }));
+    await assertSucceeds(updateDoc(ficha("s-alfa"), { name: "Renomeado" }));
+  });
+
+  it("🔒 o dono não cria ficha já ligada a uma conta nem com convite forjado", async () => {
+    await assertFails(setDoc(ficha("novo"), { name: "X", active: true, uid: "vitima" }));
+    await assertFails(
+      setDoc(ficha("novo"), { name: "X", active: true, uid: null, convitePendente: { expiraEmMs: 1, porEmail: false } })
+    );
+  });
+
+  it("🔒 o dono não liga a ficha à conta de terceiro, nem troca nem zera a ligação", async () => {
+    await assertFails(updateDoc(ficha("sem-conta"), { uid: "vitima" }));
+    await assertFails(updateDoc(ficha("s-alfa"), { uid: "vitima" }));
+    /* Zerar o `uid` e apagar a ficha contornava o "só o servidor remove ficha com conta". */
+    await assertFails(updateDoc(ficha("s-alfa"), { uid: null }));
+    await assertFails(updateDoc(ficha("s-alfa"), { uid: deleteField() }));
+    await assertFails(deleteDoc(ficha("s-alfa")));
+  });
+
+  it("🔒 o dono não grava nem apaga `convitePendente` — é o estado do convite do servidor", async () => {
+    await assertFails(updateDoc(ficha("sem-conta"), { convitePendente: { expiraEmMs: 1, porEmail: false } }));
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `barbershops/${ALFA}/staff`, "sem-conta"), {
+        convitePendente: { expiraEmMs: 9, porEmail: true },
+      });
+    });
+    await assertFails(updateDoc(ficha("sem-conta"), { convitePendente: deleteField() }));
+    await assertSucceeds(updateDoc(ficha("sem-conta"), { name: "Só o nome" }));
+  });
+
+  it("🔒 o barbeiro não grava a própria ficha", async () => {
+    await assertFails(updateDoc(ficha("s-alfa", BARBEIRO_ALFA), { uid: BARBEIRO_ALFA.sub, name: "Eu" }));
   });
 });
 

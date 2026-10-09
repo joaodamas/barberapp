@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { initializeApp, deleteApp, type App } from "firebase-admin/app";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
-import { PRAZO_DO_CONVITE_MS, aceitarNaTransacao, desligarCadeira } from "../convite-equipe";
+import { limparAvisosDoUid } from "../avisos-por-uid";
+import { PRAZO_DO_CONVITE_MS, aceitarNaTransacao, contaEhDaCadeira, desligarCadeira } from "../convite-equipe";
 
 /**
  * Convite e retirada de acesso do barbeiro (08/10) contra o emulador.
@@ -40,6 +41,7 @@ async function limpar() {
   }
   const convites = await db.collection("convites_equipe").get();
   await Promise.all(convites.docs.map((d) => d.ref.delete()));
+  await Promise.all(["111", "222"].map((c) => db.doc(`telegram_chats/${c}`).delete()));
 }
 
 async function semear(params: { email?: string | null } = {}) {
@@ -185,5 +187,69 @@ describe("tirar o acesso", () => {
     expect(retirados).toEqual([]);
     expect((await shopRef().collection("members").doc("conta-dono").get()).exists).toBe(true);
     expect((await shopRef().collection("push_tokens").doc("aparelho-dono").get()).exists).toBe(true);
+  });
+});
+
+describe("a conta da ficha é MESMO desta cadeira? (09/10)", () => {
+  const semClaims = async () => null;
+  const verificar = (uid: string, claimsDaConta: (u: string) => Promise<Record<string, unknown> | null> = semClaims) =>
+    contaEhDaCadeira({ uid, barbershopId: SHOP, staffId: "s1", db, claimsDaConta });
+
+  it("quem aceitou o convite é da cadeira (members gravado pelo servidor)", async () => {
+    await semear();
+    await aceitar();
+    expect(await verificar(UID)).toBe(true);
+  });
+
+  it("conta com o claim `equipe` desta cadeira também é", async () => {
+    await semear();
+    expect(await verificar("outra", async () => ({ equipe: { [SHOP]: "s1" } }))).toBe(true);
+  });
+
+  it("🔒 `uid` gravado na ficha sem convite aceito NÃO é da cadeira — a conta de terceiro não é tocada", async () => {
+    await semear();
+    await staffRef().update({ uid: "conta-de-terceiro" });
+    expect(await verificar("conta-de-terceiro")).toBe(false);
+    /* Nem a conta de um dono de OUTRA barbearia, nem a de quem tem a cadeira de outro colega. */
+    expect(await verificar("conta-de-terceiro", async () => ({ barbershops: { outra: "owner" } }))).toBe(false);
+    expect(await verificar("conta-de-terceiro", async () => ({ equipe: { [SHOP]: "s2" } }))).toBe(false);
+  });
+
+  it("🔒 `members` de outra cadeira não prova esta", async () => {
+    await semear();
+    await shopRef().collection("members").doc("x").set({ role: "staff", staffId: "s2" });
+    expect(await verificar("x")).toBe(false);
+  });
+});
+
+describe("quem deixa de ser dono perde os avisos de dono (09/10)", () => {
+  const COCONTA = "conta-co-dono";
+
+  beforeEach(async () => {
+    await shopRef().set({ status: "ativo" });
+    await shopRef().collection("push_tokens").doc("a1").set({ uid: COCONTA, papel: "owner", token: "t1" });
+    await shopRef().collection("push_tokens").doc("a2").set({ uid: "dono-que-fica", papel: "owner", token: "t2" });
+    await shopRef().collection("telegram_contatos").doc("111").set({ chatId: "111", alvo: "dono", ligadoPor: COCONTA, ativo: true });
+    await shopRef().collection("telegram_contatos").doc("222").set({ chatId: "222", alvo: "dono", ligadoPor: "dono-que-fica", ativo: true });
+    await shopRef().collection("telegram_contatos").doc("333").set({ chatId: "333", alvo: "barbeiro", ligadoPor: COCONTA, staffId: "s1", ativo: true });
+    await db.doc("telegram_chats/111").set({ barbershopId: SHOP });
+    await db.doc("telegram_chats/222").set({ barbershopId: SHOP });
+  });
+
+  it("apaga os aparelhos e o Telegram de dono daquela conta, e só dela", async () => {
+    const r = await limparAvisosDoUid(SHOP, COCONTA, db);
+    expect(r).toEqual({ aparelhos: 1, telegram: 1 });
+    expect((await shopRef().collection("push_tokens").doc("a1").get()).exists).toBe(false);
+    expect((await shopRef().collection("push_tokens").doc("a2").get()).exists).toBe(true);
+    expect((await shopRef().collection("telegram_contatos").doc("111").get()).exists).toBe(false);
+    expect((await db.doc("telegram_chats/111").get()).exists).toBe(false);
+    expect((await shopRef().collection("telegram_contatos").doc("222").get()).exists).toBe(true);
+    expect((await db.doc("telegram_chats/222").get()).exists).toBe(true);
+    /* O contato de barbeiro é da cadeira, e segue o caminho de `desligarCadeira`. */
+    expect((await shopRef().collection("telegram_contatos").doc("333").get()).exists).toBe(true);
+  });
+
+  it("sem nada para apagar, não falha", async () => {
+    expect(await limparAvisosDoUid(SHOP, "ninguem", db)).toEqual({ aparelhos: 0, telegram: 0 });
   });
 });
