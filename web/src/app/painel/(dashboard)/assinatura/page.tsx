@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, Copy, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -8,6 +8,7 @@ import { Modal } from "@/components/ui/modal";
 import { Pill } from "@/components/ui/pill";
 import { useShopCollection } from "@/lib/db/use-collection";
 import { mensagemDoErro } from "@/lib/direitos-do-titular";
+import { AVISO_DE_COPIA_FALHOU, copiarOuSelecionar } from "@/lib/copiar-texto";
 import { formatBRL } from "@/lib/format";
 import { NOME_DO_PLANO, PRECOS_POR_PLANO, type PlanId } from "@/lib/tenant";
 import { useTenant } from "@/lib/tenant-context";
@@ -51,7 +52,7 @@ type Pedido = { tipo: string; plano: string | null; valor: number | null; em?: {
 const PLANOS: PlanId[] = ["agenda", "crescimento", "gestao"];
 
 const O_QUE_O_PLANO_TRAZ: Record<PlanId, string> = {
-  agenda: "Agenda online com a sua marca, encaixe e lembrete no WhatsApp.",
+  agenda: "Agenda online com a sua marca, encaixe e mensagem pronta para enviar pelo WhatsApp.",
   crescimento: "Tudo do Agenda, mais mensalistas, loja, fidelidade e projeção de caixa.",
   gestao: "Tudo do Crescimento, mais despesas, DRE e o fechamento completo do mês.",
 };
@@ -233,7 +234,6 @@ type Via = { linhaDigitavel: string | null; pixCopiaECola: string | null; pdfBas
 function SegundaVia({ boleto, barbershopId, onClose }: { boleto: Boleto; barbershopId: string; onClose: () => void }) {
   const [via, setVia] = useState<Via | null>(null);
   const [erro, setErro] = useState<string | null>(null);
-  const [copiado, setCopiado] = useState<string | null>(null);
 
   useEffect(() => {
     let vivo = true;
@@ -253,16 +253,6 @@ function SegundaVia({ boleto, barbershopId, onClose }: { boleto: Boleto; barbers
       vivo = false;
     };
   }, [barbershopId, boleto.id]);
-
-  async function copiar(texto: string, qual: string) {
-    try {
-      await navigator.clipboard.writeText(texto);
-      setCopiado(qual);
-      setTimeout(() => setCopiado(null), 2000);
-    } catch {
-      setCopiado(null);
-    }
-  }
 
   function baixarPdf(base64: string) {
     const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
@@ -290,20 +280,10 @@ function SegundaVia({ boleto, barbershopId, onClose }: { boleto: Boleto; barbers
       {via && (
         <div className="flex flex-col gap-4">
           {via.pixCopiaECola && (
-            <Campo
-              rotulo="Pix copia e cola"
-              valor={via.pixCopiaECola}
-              copiado={copiado === "pix"}
-              onCopiar={() => copiar(via.pixCopiaECola!, "pix")}
-            />
+            <Campo rotulo="Pix copia e cola" valor={via.pixCopiaECola} />
           )}
           {via.linhaDigitavel && (
-            <Campo
-              rotulo="Linha digitável"
-              valor={via.linhaDigitavel}
-              copiado={copiado === "linha"}
-              onCopiar={() => copiar(via.linhaDigitavel!, "linha")}
-            />
+            <Campo rotulo="Linha digitável" valor={via.linhaDigitavel} />
           )}
           {via.pdfBase64 && (
             <Button variant="secondary" onClick={() => baixarPdf(via.pdfBase64!)}>
@@ -321,24 +301,34 @@ function SegundaVia({ boleto, barbershopId, onClose }: { boleto: Boleto; barbers
   );
 }
 
-function Campo({
-  rotulo,
-  valor,
-  copiado,
-  onCopiar,
-}: {
-  rotulo: string;
-  valor: string;
-  copiado: boolean;
-  onCopiar: () => void;
-}) {
+/** Um dado para copiar. Se o navegador não deixa, o texto fica selecionado e o aviso diz o que fazer. */
+function Campo({ rotulo, valor }: { rotulo: string; valor: string }) {
+  const textoRef = useRef<HTMLParagraphElement>(null);
+  const [copia, setCopia] = useState<"sim" | "nao" | null>(null);
+
+  async function copiar() {
+    const ok = await copiarOuSelecionar(valor, textoRef.current);
+    setCopia(ok ? "sim" : "nao");
+    if (ok) setTimeout(() => setCopia(null), 2000);
+  }
+
   return (
     <div className="flex flex-col gap-1.5">
       <span className="text-xs font-medium text-ink-muted">{rotulo}</span>
-      <p className="break-all rounded-lg border border-border bg-surface-raised p-3 font-mono text-xs text-ink">{valor}</p>
-      <Button variant="secondary" size="sm" onClick={onCopiar} className="self-start">
-        {copiado ? <Check size={14} /> : <Copy size={14} />} {copiado ? "Copiado" : "Copiar"}
+      <p
+        ref={textoRef}
+        className="break-all rounded-lg border border-border bg-surface-raised p-3 font-mono text-xs text-ink"
+      >
+        {valor}
+      </p>
+      <Button variant="secondary" size="sm" onClick={copiar} className="self-start">
+        {copia === "sim" ? <Check size={14} /> : <Copy size={14} />} {copia === "sim" ? "Copiado" : "Copiar"}
       </Button>
+      {copia === "nao" && (
+        <p role="status" className="text-xs text-ink-muted">
+          {AVISO_DE_COPIA_FALHOU}
+        </p>
+      )}
     </div>
   );
 }
