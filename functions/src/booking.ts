@@ -13,6 +13,7 @@ import { horariosDaJornada, jornadaDoDia } from "./jornada";
 import { resolverCliente, type OrigemDoCliente } from "./clients";
 import {
   QUALQUER_BARBEIRO,
+  fazTodosOsServicos,
   elegiveis,
   escolherBarbeiro,
   ordemDoBarbeiro,
@@ -236,6 +237,22 @@ export function refDoLimiteDiario(
   dia: string
 ): FirebaseFirestore.DocumentReference {
   return db.doc(`limites_de_reserva/${uid}_${dia}`);
+}
+
+/**
+ * A ocorrência do fixo ainda pode sair na TROCA do horário: em aberto, não
+ * remarcada pelo cliente e com o instante ainda no futuro. Conferida de novo
+ * dentro da transação (`gravarComTravaDeHorario`).
+ */
+export function liberavelNaTroca(
+  b: { status?: unknown; date?: unknown; time?: unknown; rescheduledFrom?: unknown; origemDoFixo?: unknown },
+  timeZone: string,
+  agora: Date = new Date()
+): boolean {
+  if (!["confirmed", "confirmed_by_client"].includes(String(b.status ?? ""))) return false;
+  if (b.rescheduledFrom || b.origemDoFixo) return false;
+  if (typeof b.date !== "string" || typeof b.time !== "string") return false;
+  return instanteNoFuso(b.date, b.time, timeZone).getTime() > agora.getTime();
 }
 
 /**
@@ -1257,7 +1274,7 @@ export async function gravarComTravaDeHorario(params: {
    * gravação — se a nova não cabe, nada é cancelado. Só as que ainda estão
    * confirmadas: uma que mudou de estado nesse meio-tempo segue ocupando.
    */
-  liberando?: { ids: string[]; campos: Record<string, unknown> };
+  liberando?: { ids: string[]; campos: Record<string, unknown>; timeZone: string };
 }): Promise<string> {
   const { db, shopRef, date, time } = params;
   const bookingRef = params.idDaReserva
@@ -1268,7 +1285,7 @@ export async function gravarComTravaDeHorario(params: {
     /* Reiniciado a cada tentativa: a transação pode rodar mais de uma vez. */
     let virouEncaixe = false;
     let encaixadoNoBalcao = false;
-    let aLiberar: FirebaseFirestore.QueryDocumentSnapshot[] = [];
+    let aLiberar: FirebaseFirestore.DocumentSnapshot[] = [];
     let escolhido: { staffId: string; staffName: string; slotMinutes: number; duracaoDaReserva: number } | null =
       null;
     /* Repetição da MESMA tentativa: a reserva já existe, e o pedido já foi
@@ -1376,10 +1393,15 @@ export async function gravarComTravaDeHorario(params: {
        * discordar. */
       const doDia = await tx.get(shopRef.collection("bookings").where("date", "==", date));
 
-      aLiberar = doDia.docs.filter(
-        (d) =>
-          params.liberando?.ids.includes(d.id) &&
-          ["confirmed", "confirmed_by_client"].includes(String(d.data().status))
+      /* As que saem na troca são RELIDAS aqui (podem estar em outra data da
+       * mesma semana) e só saem se ainda estão em aberto, não foram remarcadas
+       * e o instante delas não chegou: o que mudou desde a leitura de fora da
+       * transação passa a ocupar a cadeira de novo. */
+      const relidas = params.liberando
+        ? await Promise.all(params.liberando.ids.map((id) => tx.get(shopRef.collection("bookings").doc(id))))
+        : [];
+      aLiberar = relidas.filter(
+        (d) => d.exists && liberavelNaTroca(d.data() ?? {}, params.liberando!.timeZone)
       );
       const daCadeira = (id: string) =>
         doDia.docs.filter(
@@ -1569,6 +1591,23 @@ export const rescheduleBooking = onCall<{
         ? "Esse barbeiro não está disponível para receber o horário."
         : "Esse barbeiro não está disponível. Fale com a barbearia."
     );
+  }
+  if (trocaDeBarbeiro && barbeiroSnap) {
+    /* O barbeiro novo precisa fazer o que está marcado (lista vazia = todos).
+     * Combo conta se o barbeiro faz o combo ou todas as peças dele. */
+    const faz = barbeiroSnap.get("serviceIds");
+    const ids: string[] = Array.isArray(booking.serviceIds) ? booking.serviceIds.map(String) : [];
+    const catalogo = new Map((await shopRef.collection("services").get()).docs.map((d) => [d.id, d]));
+    const atende = ids.every((id) => {
+      const pecas: unknown = catalogo.get(id)?.get("composicao");
+      return (
+        fazTodosOsServicos(faz, [id]) ||
+        (Array.isArray(pecas) && pecas.length > 0 && fazTodosOsServicos(faz, pecas.map(String)))
+      );
+    });
+    if (!atende) {
+      throw new HttpsError("failed-precondition", `${barbeiroSnap.get("name")} não faz um dos serviços deste horário.`);
+    }
   }
   /* Reserva antiga, sem `staffId`: vale a jornada da loja. */
   const barbeiro = barbeiroSnap ?? { get: () => undefined };

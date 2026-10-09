@@ -102,9 +102,11 @@ export default function EquipePage() {
         await patchDoc(tenant.id, "staff", id, { [campo]: valor });
         if (historico) await putDoc(tenant.id, "staffPay", id, historico);
       }
+      return true;
     } catch (e) {
       console.error("[equipe] falha ao salvar", e);
       setErro("Não foi possível salvar. Verifique a conexão.");
+      return false;
     }
   }
 
@@ -118,15 +120,17 @@ export default function EquipePage() {
    * (09/10): eram um toque, sem pergunta. */
   const [aConfirmar, setAConfirmar] = useState<{ id: string; acao: Acao } | null>(null);
   async function remover(id: string) {
-    if (soloRestante || removendo) return;
+    if (soloRestante || removendo) return false;
     setErro(null);
     setRemovendo(id);
     try {
       const { callFunction } = await import("@/lib/firebase");
       await callFunction("removerBarbeiro", { barbershopId: tenant.id, staffId: id });
+      return true;
     } catch (e) {
       console.error("[equipe] falha ao remover", e);
       setErro(mensagemDaFuncao(e, "Não foi possível remover agora."));
+      return false;
     } finally {
       setRemovendo(null);
     }
@@ -135,9 +139,9 @@ export default function EquipePage() {
   async function confirmarSaida() {
     if (!aConfirmar) return;
     const { id, acao } = aConfirmar;
-    if (acao === "remover") await remover(id);
-    else await salvar(id, "active", false);
-    setAConfirmar(null);
+    const ok = acao === "remover" ? await remover(id) : await salvar(id, "active", false);
+    /* Falhou: o modal fica aberto e o erro aparece na tela, para tentar de novo. */
+    if (ok) setAConfirmar(null);
   }
 
   function alternarServico(id: string, atuais: string[], serviceId: string) {

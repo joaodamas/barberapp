@@ -86,9 +86,9 @@ export function ConfirmarSaidaDoBarbeiro({
         )}
         {remover && (
           <p className="text-xs text-danger">
-            Remover apaga a ficha dele: o histórico de salário some da folha dos meses anteriores, e o acesso
-            dele ao painel é desfeito. Os atendimentos e as comissões já feitos ficam. Para parar de atender
-            sem perder o histórico, desligue em vez de remover.
+            Remover apaga a ficha dele e desfaz o acesso dele ao painel. O salário dele sai da folha dos meses
+            anteriores (o registro fica guardado). Os atendimentos e as comissões já feitos ficam. Para parar
+            de atender sem mexer no histórico, desligue em vez de remover.
           </p>
         )}
         <div className="flex flex-wrap justify-end gap-2">

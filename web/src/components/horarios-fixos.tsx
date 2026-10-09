@@ -172,6 +172,39 @@ export function HorariosFixos() {
     }
   }
 
+  /* A saída do dono para a semana presa ao horário antigo: repete a gravação do
+   * horário atual, e o servidor troca a antiga pela nova onde agora couber. */
+  const [tentando, setTentando] = useState<string | null>(null);
+  const [erroDoRetry, setErroDoRetry] = useState<string | null>(null);
+  async function tentarDeNovo(subscriptionId: string) {
+    const a = assinaturas.find((x) => x.id === subscriptionId);
+    if (!a?.horarioFixo) return;
+    setTentando(subscriptionId);
+    setErroDoRetry(null);
+    try {
+      const { callFunction } = await import("@/lib/firebase");
+      const r = await callFunction<
+        { barbershopId: string; subscriptionId: string; horarioFixo: HorarioFixo; tentarDeNovo: boolean },
+        { ocorrencias: Ocorrencia[] }
+      >("definirHorarioFixo", {
+        barbershopId: tenant.id,
+        subscriptionId,
+        horarioFixo: a.horarioFixo,
+        tentarDeNovo: true,
+      });
+      const resolvidas = r.ocorrencias.filter((o) => o.resultado === "criada" || o.resultado === "reativada").length;
+      const presas = r.ocorrencias.filter((o) => o.resultado === "conflito").length;
+      setAviso(
+        `${a.name}: ${contar(resolvidas, "semana trocada para o horário novo", "semanas trocadas para o horário novo")}` +
+          (presas ? `; ${contar(presas, "semana segue sem o horário novo", "semanas seguem sem o horário novo")}.` : ".")
+      );
+    } catch (e) {
+      setErroDoRetry(mensagemDaFuncao(e, "Não foi possível tentar de novo."));
+    } finally {
+      setTentando(null);
+    }
+  }
+
   async function remover() {
     setSalvando(true);
     setErro(null);
@@ -218,11 +251,26 @@ export function HorariosFixos() {
           </p>
           <ul className="mt-1 flex flex-col gap-0.5 text-xs text-ink">
             {conflitosAbertos.slice(0, 6).map((c) => (
-              <li key={c.id}>
-                {c.clientName} · {formatDatePtBR(c.date)} às {c.time} — {c.motivo}
+              <li key={c.id} className="flex flex-wrap items-center justify-between gap-2">
+                <span>
+                  {c.clientName} · {formatDatePtBR(c.date)} às {c.time} — {c.motivo}
+                </span>
+                <Button
+                  variant="secondary"
+                  className="min-h-8 px-2 text-xs"
+                  disabled={tentando !== null}
+                  onClick={() => void tentarDeNovo(c.subscriptionId)}
+                >
+                  {tentando === c.subscriptionId ? "Tentando…" : "Tentar de novo"}
+                </Button>
               </li>
             ))}
           </ul>
+          {erroDoRetry && (
+            <p role="alert" className="mt-1 text-xs text-danger">
+              {erroDoRetry}
+            </p>
+          )}
         </div>
       )}
 
@@ -458,7 +506,8 @@ export function HorariosFixos() {
                 : "Nenhum horário em aberto será liberado."}
           </p>
           <p className="text-xs text-ink-muted">
-            As semanas já feitas, as canceladas e as que o cliente remarcou ficam como estão. Isto não é um
+            As semanas já feitas, as canceladas e as que o cliente remarcou ficam como estão (a remarcada
+            continua sendo horário dele, mesmo sem o fixo). Isto não é um
             cancelamento: não entra nos números do mês.
           </p>
           {erro && (

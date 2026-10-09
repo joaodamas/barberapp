@@ -5,7 +5,8 @@ import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { useTenant } from "@/lib/tenant-context";
 import { useAuth } from "@/lib/auth-context";
-import { useStaff } from "@/lib/db/use-shop-data";
+import { useServices, useStaff } from "@/lib/db/use-shop-data";
+import { staffFazServico } from "@/lib/domain";
 import { mensagemDaFuncao } from "@/lib/mensagem-da-funcao";
 import { bookableDays } from "@/lib/slots";
 import { capacidadeDaData } from "@/lib/jornada";
@@ -40,6 +41,17 @@ export function RemarcarAtendimento({
   const ehDono = claims.barbershops?.[tenant.id] === "owner";
   const { items: equipe } = useStaff();
   const barbeiros = useMemo(() => equipe.filter((s) => s.active !== false), [equipe]);
+  /* Só quem faz o que está marcado (o servidor confere igual): combo vale se o
+   * barbeiro faz o combo ou todas as peças. Lista vazia = faz tudo. */
+  const { items: servicos } = useServices();
+  const candidatos = useMemo(() => {
+    const catalogo = new Map(servicos.map((s) => [s.id, s as { composicao?: string[] }]));
+    const faz = (b: (typeof barbeiros)[number], id: string) => {
+      const pecas = catalogo.get(id)?.composicao ?? [];
+      return staffFazServico(b, id) || (pecas.length > 0 && pecas.every((p) => staffFazServico(b, p)));
+    };
+    return barbeiros.filter((b) => b.id === booking.staffId || (booking.serviceIds ?? []).every((id) => faz(b, id)));
+  }, [barbeiros, servicos, booking.staffId, booking.serviceIds]);
   /* O barbeiro da reserva ainda atende? Se não, o dono precisa escolher quem assume. */
   const barbeiroAtende = !booking.staffId || barbeiros.length === 0 || barbeiros.some((b) => b.id === booking.staffId);
   /* Derivado, e não guardado de partida: a equipe chega depois do primeiro render. */
@@ -156,7 +168,7 @@ export function RemarcarAtendimento({
               className="min-h-10 rounded-lg border border-border bg-surface px-3 text-sm text-ink"
             >
               {!staffEscolhido && <option value="">Escolha quem assume este horário</option>}
-              {barbeiros.map((b) => (
+              {candidatos.map((b) => (
                 <option key={b.id} value={b.id}>
                   {b.name}
                 </option>

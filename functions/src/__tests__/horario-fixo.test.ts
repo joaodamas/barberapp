@@ -3,7 +3,9 @@ import {
   datasDoHorarioFixo,
   diaDaSemanaDe,
   faseDaQuinzena,
+  foiRemarcada,
   horarioFixoMudou,
+  semanaDe,
   somenteDatasFuturas,
   semanaJaResolvida,
   horarioFixoValido,
@@ -13,6 +15,7 @@ import {
   ocorrenciaLiberavel,
   versaoDoHorario,
 } from "../horario-fixo";
+import { liberavelNaTroca } from "../booking";
 
 const base = { hora: "17:00", staffId: "barbeiro-1", serviceIds: ["corte"] };
 
@@ -202,15 +205,32 @@ describe("remarcação do cliente não é liberada nem recriada (09/10)", () => 
   const SP = "America/Sao_Paulo";
   const agora = new Date("2026-10-08T21:00:00Z");
 
-  it("sexta remarcada para segunda: mudar o fixo não a libera", () => {
+  it("sexta remarcada para segunda: mudar ou tirar o fixo a preserva; plano encerrado não", () => {
     const remarcada = {
       date: "2026-10-19",
       time: "10:00",
       status: "confirmed",
       rescheduledFrom: { date: "2026-10-16", time: "10:00" },
     };
-    expect(ocorrenciaLiberavel(remarcada, SP, agora)).toBe(false);
-    expect(ocorrenciaLiberavel({ ...remarcada, rescheduledFrom: undefined }, SP, agora)).toBe(true);
+    expect(foiRemarcada(remarcada)).toBe(true);
+    expect(foiRemarcada({ origemDoFixo: { date: "2026-10-16" } })).toBe(true);
+    expect(foiRemarcada({ ...remarcada, rescheduledFrom: undefined })).toBe(false);
+    /* A regra de "liberável" em si não olha remarcação: quem preserva é o chamador. */
+    expect(ocorrenciaLiberavel(remarcada, SP, agora)).toBe(true);
+  });
+
+  it("liberavelNaTroca exige aberta, não remarcada e no futuro", () => {
+    const ok = { date: "2026-10-16", time: "10:00", status: "confirmed" };
+    expect(liberavelNaTroca(ok, SP, agora)).toBe(true);
+    expect(liberavelNaTroca({ ...ok, rescheduledFrom: { date: "2026-10-09" } }, SP, agora)).toBe(false);
+    expect(liberavelNaTroca({ ...ok, date: "2026-10-08" }, SP, agora)).toBe(false);
+    expect(liberavelNaTroca({ ...ok, status: "completed" }, SP, agora)).toBe(false);
+  });
+
+  it("semanaDe: segunda a domingo é a mesma semana", () => {
+    expect(semanaDe("2026-10-12")).toBe(semanaDe("2026-10-18"));
+    expect(semanaDe("2026-10-18")).not.toBe(semanaDe("2026-10-19"));
+    expect(semanaDe("2026-10-13")).toBe(semanaDe("2026-10-16"));
   });
 
   it("a data de origem segue resolvida mesmo se o documento foi liberado", () => {

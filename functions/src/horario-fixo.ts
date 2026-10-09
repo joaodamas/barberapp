@@ -3,7 +3,7 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { exigirEdicao, idSeguro, motivoDeLeitura, vinculosDe } from "./acesso";
 import { createHash } from "node:crypto";
-import { OCUPAM_SLOT, documentoDaReserva, gravarComTravaDeHorario, validarPedido } from "./booking";
+import { OCUPAM_SLOT, documentoDaReserva, gravarComTravaDeHorario, liberavelNaTroca, validarPedido } from "./booking";
 import { horarioDisponivel, janelasOcupadas } from "./agenda";
 import { hojeNoFuso, instanteNoFuso, localeDoDocumento } from "./locale";
 import { staffIdDeQuemChamou } from "./convite-equipe";
@@ -118,6 +118,21 @@ export function versaoDoHorario(h: HorarioFixo): string {
 
 export const idDaOcorrencia = (subscriptionId: string, versao: string, data: string) =>
   `fixo_${subscriptionId}_${versao}_${data}`;
+
+/**
+ * A semana (segunda a domingo) de uma data, como número. A troca de horário
+ * casa a ocorrência antiga com a nova pela SEMANA, e não pela data: ao mudar o
+ * dia (sexta para terça), pela data a nova não teria par, e se ela não coubesse
+ * a semana ficaria sem horário nenhum.
+ */
+export function semanaDe(iso: string): number {
+  return Math.floor((paraDia(iso) + 3) / 7);
+}
+
+/** O cliente remarcou esta ocorrência: ela é horário dele agora. */
+export function foiRemarcada(b: { rescheduledFrom?: unknown; origemDoFixo?: unknown }): boolean {
+  return !!(b.rescheduledFrom || b.origemDoFixo);
+}
 
 /**
  * Qual das duas quinzenas o horário ocupa (0 ou 1). Semanal não tem fase.
@@ -307,16 +322,20 @@ export async function garantirReservasDoFixo(params: {
         (d) =>
           d.get("horarioFixoId") === subscriptionId &&
           !novosIds.has(d.id) &&
-          ocorrenciaLiberavel(d.data(), locale.timeZone, agora)
+          liberavelNaTroca(d.data(), locale.timeZone, agora)
       )
     : [];
   const idsAntigos = new Set(antigas.map((d) => d.id));
 
   for (const data of datas) {
     const id = idDaOcorrencia(subscriptionId, versao, data);
-    const antigasDoDia = antigas.filter((d) => d.get("date") === data);
+    const antigasDoDia = antigas.filter((d) => semanaDe(String(d.get("date"))) === semanaDe(data));
     const liberando = antigasDoDia.length
-      ? { ids: antigasDoDia.map((d) => d.id), campos: camposDaLiberacao("Horário fixo alterado") }
+      ? {
+          ids: antigasDoDia.map((d) => d.id),
+          campos: camposDaLiberacao("Horário fixo alterado"),
+          timeZone: locale.timeZone,
+        }
       : undefined;
     const ref = shopRef.collection("bookings").doc(id);
     const existente = await ref.get();
@@ -327,6 +346,38 @@ export async function garantirReservasDoFixo(params: {
     if (existente.exists && !reativar) {
       const vale = AINDA_VALE.includes(String(existente.get("status")));
       resultados.push({ data, resultado: vale ? "ja-existe" : "desmarcada" });
+      continue;
+    }
+    /* A versão antiga ficou viva nesta semana porque a nova não coube na troca
+     * (ou ainda não coube): a semana NÃO está resolvida pelo cliente, está
+     * pendente. Segue como conflito, e o aviso ao dono fica — antes a rotina
+     * via a antiga confirmada, dizia "cliente já marcado" e apagava o aviso. */
+    const antigaViva = (doCliente?.docs ?? []).find(
+      (d) =>
+        d.get("horarioFixoId") === subscriptionId &&
+        d.id !== id &&
+        !idsAntigos.has(d.id) &&
+        semanaDe(String(d.get("date"))) === semanaDe(data) &&
+        ["confirmed", "confirmed_by_client"].includes(String(d.get("status"))) &&
+        !foiRemarcada(d.data())
+    );
+    if (antigaViva) {
+      const motivo = `Semana segue no horário antigo (${antigaViva.get("time")}) — o novo não coube.`;
+      resultados.push({ data, resultado: "conflito", motivo });
+      if (!params.simular) {
+        await conflitos.doc(id).set(
+          {
+            subscriptionId,
+            clientId,
+            clientName: String(assinatura.clientName ?? ""),
+            date: data,
+            time: horario.hora,
+            motivo,
+            atualizadoEm: FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+      }
       continue;
     }
     const jaMarcado = semanaJaResolvida(
@@ -496,7 +547,7 @@ async function reativarOcorrencia(params: {
   slotMinutes: number;
   documento: Record<string, unknown>;
   /** Ocorrências antigas da mesma data que saem junto, na mesma transação. */
-  liberando?: { ids: string[]; campos: Record<string, unknown> };
+  liberando?: { ids: string[]; campos: Record<string, unknown>; timeZone: string };
 }): Promise<"reativada" | "ja-existe" | "desmarcada"> {
   const { db, shopRef, ref } = params;
   return db.runTransaction(async (tx) => {
@@ -506,9 +557,12 @@ async function reativarOcorrencia(params: {
       return AINDA_VALE.includes(String(atual.get("status"))) ? "ja-existe" : "desmarcada";
     }
     const doDia = await tx.get(shopRef.collection("bookings").where("date", "==", params.date));
-    const aLiberar = doDia.docs.filter(
-      (d) => params.liberando?.ids.includes(d.id) && ["confirmed", "confirmed_by_client"].includes(String(d.get("status")))
-    );
+    /* Relidas na transação (podem estar em outra data da semana): só saem as
+     * que continuam em aberto, não remarcadas e no futuro. */
+    const relidas = params.liberando
+      ? await Promise.all(params.liberando.ids.map((id) => tx.get(shopRef.collection("bookings").doc(id))))
+      : [];
+    const aLiberar = relidas.filter((d) => d.exists && liberavelNaTroca(d.data() ?? {}, params.liberando!.timeZone));
     const ocupadas = janelasOcupadas(
       doDia.docs
         .filter(
@@ -540,6 +594,12 @@ export const definirHorarioFixo = onCall<{
   subscriptionId: string;
   horarioFixo: HorarioFixo | null;
   simular?: boolean;
+  /**
+   * Repete a troca com o MESMO horário (09/10): a saída do dono para a semana
+   * que ficou no horário antigo porque o novo não coube. Quando o que
+   * atrapalhava saiu, a nova entra no lugar da antiga.
+   */
+  tentarDeNovo?: boolean;
 }>(async (request) => {
   if (!request.auth?.uid) throw new HttpsError("unauthenticated", "Entre na sua conta.");
   const barbershopId = idSeguro(request.data?.barbershopId, "Barbearia");
@@ -585,7 +645,7 @@ export const definirHorarioFixo = onCall<{
    * versão antiga seguia valendo nas reservas já criadas. A troca é por data,
    * dentro da transação que grava a nova (`substituir`), e a prévia usa a mesma
    * conta — ver `garantirReservasDoFixo`. */
-  const mudou = horarioFixoMudou(anterior, horario);
+  const mudou = horarioFixoMudou(anterior, horario) || (!!horario && request.data?.tentarDeNovo === true);
   const assinatura = { ...subSnap.data(), horarioFixo: horario ?? undefined };
   if (request.data?.simular) {
     const ocorrencias = horario
@@ -609,7 +669,8 @@ export const definirHorarioFixo = onCall<{
   const fusoDaLoja = localeDoDocumento(shopSnap.data()).timeZone;
   const hojeDaLoja = hojeNoFuso(fusoDaLoja);
   if (!horario) {
-    /* Tirar o fixo libera só o que ainda não aconteceu. */
+    /* Tirar o fixo libera só o que ainda não aconteceu — e deixa de pé o que o
+     * cliente remarcou (decisão explícita, 09/10; o modal da tela avisa). */
     const liberadas = await liberarOcorrenciasFuturas({
       db,
       shopRef,
@@ -617,6 +678,7 @@ export const definirHorarioFixo = onCall<{
       hoje: hojeDaLoja,
       timeZone: fusoDaLoja,
       motivo: "Horário fixo removido",
+      preservarRemarcadas: true,
     });
     return { ocorrencias: [], liberadas };
   }
@@ -645,7 +707,8 @@ export const definirHorarioFixo = onCall<{
       preservarIds: new Set(
         datasDoHorarioFixo({ horario, hoje: hojeDaLoja }).map((d) => idDaOcorrencia(subscriptionId, versao, d))
       ),
-      preservarDatas: new Set(ocorrencias.filter((o) => o.resultado === "conflito").map((o) => o.data)),
+      preservarSemanas: new Set(ocorrencias.filter((o) => o.resultado === "conflito").map((o) => semanaDe(o.data))),
+      preservarRemarcadas: true,
     });
   }
   return { ocorrencias, liberadas };
@@ -670,21 +733,11 @@ export function camposDaLiberacao(motivo: string): Record<string, unknown> {
  * o corte das 10h da agenda do dia (07/10).
  */
 export function ocorrenciaLiberavel(
-  b: {
-    date?: unknown;
-    time?: unknown;
-    status?: unknown;
-    rescheduledFrom?: unknown;
-    origemDoFixo?: unknown;
-  },
+  b: { date?: unknown; time?: unknown; status?: unknown },
   timeZone: string,
   agora: Date = new Date()
 ): boolean {
   if (!["confirmed", "confirmed_by_client"].includes(String(b.status ?? ""))) return false;
-  /* Ocorrência que o CLIENTE remarcou é horário dele agora (09/10): a semana
-   * foi adiantada ou adiada de propósito, e liberar apagava o dia novo em que
-   * ele combinou de vir. */
-  if (b.rescheduledFrom || b.origemDoFixo) return false;
   if (typeof b.date !== "string" || typeof b.time !== "string") return false;
   return instanteNoFuso(b.date, b.time, timeZone).getTime() > agora.getTime();
 }
@@ -709,8 +762,14 @@ export async function liberarOcorrenciasFuturas(params: {
   agora?: Date;
   /** Ids que ficam (o horário novo, depois de uma mudança) — e seus conflitos. */
   preservarIds?: Set<string>;
-  /** Datas que ficam: onde o horário novo não coube e a antiga segue valendo. */
-  preservarDatas?: Set<string>;
+  /** Semanas que ficam: onde o horário novo não coube e a antiga segue valendo. */
+  preservarSemanas?: Set<number>;
+  /**
+   * Deixa de pé a ocorrência que o CLIENTE remarcou (09/10): é horário dele
+   * agora, e liberar apagava o dia novo em que ele combinou de vir. Vale para
+   * mudar e para tirar o fixo; plano encerrado libera tudo (não passa isto).
+   */
+  preservarRemarcadas?: boolean;
 }): Promise<number> {
   const timeZone = params.timeZone ?? localeDoDocumento((await params.shopRef.get()).data()).timeZone;
   const agora = params.agora ?? new Date();
@@ -722,7 +781,8 @@ export async function liberarOcorrenciasFuturas(params: {
     (d) =>
       String(d.get("date")) >= params.hoje &&
       !params.preservarIds?.has(d.id) &&
-      !params.preservarDatas?.has(String(d.get("date"))) &&
+      !params.preservarSemanas?.has(semanaDe(String(d.get("date")))) &&
+      !(params.preservarRemarcadas && foiRemarcada(d.data())) &&
       ocorrenciaLiberavel(d.data(), timeZone, agora)
   );
   for (const d of abertas) {
