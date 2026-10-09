@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { destinoDoCadastro } from "@/lib/platform";
 import { PRECOS_POR_PLANO } from "@/lib/tenant";
-import { ArrowRight, Plus } from "lucide-react";
+import { ArrowRight, Check, Plus } from "lucide-react";
 import fotoDono from "@/assets/fotos/dono-no-salao.webp";
 import pcAgenda from "@/assets/landing/pc-agenda.jpg";
 import celAgendarHorario from "@/assets/landing/cel-agendar-horario.jpg";
