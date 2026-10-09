@@ -86,7 +86,7 @@ export default function FinanceiroPage() {
    * sucesso; não atingido, ela para onde parou, em vermelho. E o percentual
    * vai escrito ao lado, porque a `UI-UX-GUIDELINES` §3 proíbe elemento que
    * dependa só de cor. */
-  const coberturaDoCustoPct = safePct(r.grossRevenue, r.totalCost);
+  const coberturaDoCustoPct = safePct(r.grossRevenue + r.outrasReceitas, r.totalCost);
   const equilibrioAtingido = r.breakEvenDay !== null;
 
   const netGrowth = commercialStats.newSubscribers - commercialStats.cancellations;
@@ -126,7 +126,7 @@ export default function FinanceiroPage() {
       {status === "carregando" && <LoadingRows rows={4} oQue="o resumo financeiro" />}
       {status === "erro" && <ErroAoCarregar oQue="o resumo financeiro" erro={erro} />}
 
-      {status === "pronto" && receita.bruta === 0 && raw.expenses.length === 0 && (
+      {status === "pronto" && receita.bruta === 0 && raw.expenses.length === 0 && r.outrasReceitas === 0 && (
         <EmptyState
           icon={Wallet}
           title="Seu resultado aparece assim que houver movimento"
@@ -140,7 +140,7 @@ export default function FinanceiroPage() {
         />
       )}
 
-      {(receita.bruta > 0 || raw.expenses.length > 0) && (
+      {(receita.bruta > 0 || raw.expenses.length > 0 || r.outrasReceitas > 0) && (
       <>
       {/* ---- Seção: Financeiro ---- */}
       <section className="flex flex-col gap-5 md:gap-6">
@@ -198,6 +198,17 @@ export default function FinanceiroPage() {
             caption={apuracao.legenda("margem")}
           />
         </div>
+
+        {/* Para a conta fechar na tela: Receita − Custo + Outras = Resultado.
+            Outras receitas ficam fora da receita realizada e do imposto. */}
+        {r.outrasReceitas > 0 && apuracao.ok("outrasReceitas") && (
+          <p className="text-xs text-ink-muted md:text-sm">
+            Resultado = receita realizada − custo total + outras receitas{" "}
+            <strong className="text-ink">{formatBRL(r.outrasReceitas)}</strong> (venda de
+            equipamento, aluguel de cadeira, parcerias — fora do imposto). A margem é sobre a
+            receita realizada mais as outras receitas.
+          </p>
+        )}
 
         {apuracao.ok("pontoDeEquilibrio") && (
         <Card className="flex flex-col gap-2 md:p-6">

@@ -30,6 +30,8 @@ export const SHOP_COLLECTIONS = {
   bookings: "bookings",
   schedules: "schedules",
   expenses: "expenses",
+  /** Receita avulsa (venda de equipamento, aluguel de cadeira…). Só o dono lê e grava. */
+  otherIncomes: "other_incomes",
   cashEntries: "cash_entries",
   commissions: "commissions",
   inventoryMovements: "inventory_movements",

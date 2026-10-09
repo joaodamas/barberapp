@@ -49,6 +49,7 @@ const COLECOES_DE_MOVIMENTO = [
   "cash_entries",
   "inventory_movements",
   "expenses",
+  "other_incomes",
   "subscriptions",
   "subscription_invoices",
   "loyalty_transactions",
