@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatBRL } from "@/lib/format";
+import { lerPercentual } from "@/lib/reais";
 import {
   FORMAS_NATIVAS,
   idDaForma,
@@ -46,6 +47,7 @@ export function EditorDeFormasDePagamento({
   const [novoLabel, setNovoLabel] = useState("");
   const [novaBase, setNovaBase] = useState<MeioDePagamento>("credit");
   const [novaTaxa, setNovaTaxa] = useState("");
+  const [erroNova, setErroNova] = useState<string | null>(null);
 
   const nativos = new Set(FORMAS_NATIVAS.map((f) => f.id));
 
@@ -56,13 +58,20 @@ export function EditorDeFormasDePagamento({
   function adicionar() {
     const label = novoLabel.trim();
     if (!label) return;
+    /* Taxa em branco é 0%; ilegível ou acima de 100 NÃO entra como 0% em silêncio. */
+    const taxa = novaTaxa.trim() === "" ? 0 : lerPercentual(novaTaxa);
+    if (taxa === null) {
+      setErroNova("Taxa inválida. Use um percentual de 0 a 100, com até 2 casas (ex.: 3,49).");
+      return;
+    }
+    setErroNova(null);
     onChange([
       ...formas,
       {
         id: idDaForma(label, formas.map((f) => f.id)),
         label,
         base: novaBase,
-        feePct: paraTaxa(novaTaxa),
+        feePct: taxa,
         active: true,
       },
     ]);
@@ -98,13 +107,21 @@ export function EditorDeFormasDePagamento({
 
               <div className="flex min-h-11 items-center gap-2">
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="decimal"
                   aria-label={`Taxa de ${forma.label}`}
-                  min={0}
-                  max={100}
-                  step="0.01"
-                  value={forma.feePct}
-                  onChange={(e) => alterar(forma.id, { feePct: paraTaxa(e.target.value) })}
+                  /* Não controlado: o texto só vira número ao sair do campo
+                     (digitar "3," não pode ser reescrito a cada tecla). */
+                  key={`${forma.id}:${forma.feePct}`}
+                  defaultValue={String(forma.feePct).replace(".", ",")}
+                  onBlur={(e) => {
+                    const taxa = lerPercentual(e.target.value);
+                    if (taxa === null) {
+                      e.target.value = String(forma.feePct).replace(".", ",");
+                      return;
+                    }
+                    alterar(forma.id, { feePct: taxa });
+                  }}
                   className="min-h-11 w-full rounded-xl border border-border bg-surface-raised px-3 text-sm tabular-nums text-ink"
                 />
                 <span className="text-sm text-ink-muted">%</span>
@@ -188,10 +205,8 @@ export function EditorDeFormasDePagamento({
             </label>
             <input
               id="nova-taxa"
-              type="number"
-              min={0}
-              max={100}
-              step="0.01"
+              type="text"
+              inputMode="decimal"
               value={novaTaxa}
               placeholder="0,00"
               onChange={(e) => setNovaTaxa(e.target.value)}
@@ -203,6 +218,11 @@ export function EditorDeFormasDePagamento({
             <Plus size={16} aria-hidden /> Adicionar
           </Button>
         </div>
+        {erroNova && (
+          <p role="alert" className="text-xs text-danger">
+            {erroNova}
+          </p>
+        )}
         <p className="text-xs text-ink-muted">
           <strong className="text-ink">Entra como</strong> é o que o relatório vai
           contar: uma forma de crédito soma em cartão no fluxo de caixa, seja qual
@@ -223,10 +243,3 @@ const NOME_DO_MEIO: Record<MeioDePagamento, string> = {
   debit: "Débito",
   credit: "Crédito",
 };
-
-/** Vírgula aceita, negativo não, e o teto é 100 — acima disso é digitação. */
-function paraTaxa(valor: string): number {
-  const n = Number(String(valor).replace(",", "."));
-  if (!Number.isFinite(n) || n < 0) return 0;
-  return Math.min(Math.round(n * 100) / 100, 100);
-}

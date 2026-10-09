@@ -47,7 +47,7 @@ export default function EquipePage() {
   /* Do tenant, não da constante da plataforma: a barbearia que combinou 50/50
    * via 40% aqui e o split correto no DRE — duas telas, dois números. */
   const padraoDaCasa = tenant.policies.commissionSplit.barberPct;
-  const { items: equipe, status, error } = useStaffComRemuneracao();
+  const { items: equipe, status, error, folhaPronta } = useStaffComRemuneracao();
   const { items: servicos } = useServices();
   const [erro, setErro] = useState<string | null>(null);
   /* Salário que não deu para ler, por barbeiro. O campo fica com o que foi
@@ -86,6 +86,13 @@ export default function EquipePage() {
 
   async function salvar(id: string, campo: string, valor: unknown) {
     setErro(null);
+    /* Salário e ativo regravam o HISTÓRICO da folha a partir do que foi lido de
+     * `staff_pay`. Com a leitura ainda carregando ou falha, gravaria só o valor
+     * novo e os meses passados perderiam o salário que valia neles. */
+    if ((campo === "salary" || campo === "active") && !folhaPronta) {
+      setErro("A folha ainda não carregou. Espere um instante ou recarregue a página — nada foi salvo.");
+      return;
+    }
     try {
       /* Comissão e salário vão para `staff_pay`, que só o dono lê: na ficha
        * pública (`staff`) qualquer pessoa leria o salário do barbeiro. A
@@ -308,6 +315,7 @@ export default function EquipePage() {
                     defaultValue={reaisParaCampo(b.salary)}
                     placeholder="0,00"
                     aria-invalid={salarioIlegivel[b.id] === true}
+                    disabled={!folhaPronta}
                     onBlur={(e) => {
                       const texto = e.target.value.trim();
                       const v = texto === "" ? 0 : lerReais(texto);

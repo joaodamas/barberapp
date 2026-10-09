@@ -106,6 +106,8 @@ type Reserva = Pick<
     id: string;
     /** Gravado pelo servidor na reserva; não está no tipo do front (ver Agenda). */
     serviceNames?: string[];
+    /** Idem: o nome do barbeiro na hora da marcação, para quem foi removido. */
+    staffName?: string;
   };
 
 export type LinhaDoRelatorio = {
@@ -191,7 +193,7 @@ function paraLinha(b: Reserva, ctx: Contexto): LinhaDoRelatorio {
     cliente: b.clientName || "Cliente sem nome",
     telefone: String(b.clientWhatsapp ?? ""),
     servicos: nomes.join(" + ") || "Serviço",
-    barbeiro: ctx.nomeDoBarbeiro(b.staffId) ?? "—",
+    barbeiro: ctx.nomeDoBarbeiro(b.staffId) ?? (b.staffName || "—"),
     /* O fato gravado vence: o atendimento coberto pelo plano foi de mensalista
      * mesmo que a assinatura tenha sido cancelada depois. Para o que ainda não
      * foi liquidado, vale a assinatura ativa hoje. */

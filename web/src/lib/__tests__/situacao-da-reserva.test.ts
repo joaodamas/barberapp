@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   assinaturaAtivaDe,
+  assinaturaDoAtendimentoDe,
   bookingStatusMeta,
   liquidacaoDoAtendimento,
   metaDoStatus,
@@ -370,11 +371,26 @@ describe("a guarda chega à tela Hoje", () => {
   });
 });
 
+describe("assinaturaDoAtendimentoDe — dono e barbeiro veem a mesma régua do servidor", () => {
+  const cancelada = { id: "a1", ...assin({ status: "cancelado", canceledAt: "2026-10-05" }) };
+  const paga = [{ subscriptionId: "a1", competencia: "2026-10", status: "paga" as const }];
+  const aberta = [{ subscriptionId: "a1", competencia: "2026-10", status: "aberta" as const }];
+
+  it("cancelada com a fatura do mês paga ainda é plano naquele mês", () => {
+    expect(assinaturaDoAtendimentoDe([cancelada], paga, "marcos", "2026-10-20")?.id).toBe("a1");
+  });
+  it("sem fatura paga, ou no mês seguinte, é avulso", () => {
+    expect(assinaturaDoAtendimentoDe([cancelada], aberta, "marcos", "2026-10-20")).toBeNull();
+    expect(assinaturaDoAtendimentoDe([cancelada], [], "marcos", "2026-10-20")).toBeNull();
+    expect(assinaturaDoAtendimentoDe([cancelada], paga, "marcos", "2026-11-02")).toBeNull();
+  });
+});
+
 describe("o D2 chega às duas telas", () => {
   it("o fechamento consulta a assinatura do cliente", () => {
     const codigo = HOJE();
     expect(codigo).toContain("useSubscribers(");
-    expect(codigo).toContain("assinaturaAtivaDe(");
+    expect(codigo).toContain("assinaturaDoAtendimentoDe(");
   });
 
   it("o fechamento oferece concluir SEM meio de pagamento", () => {

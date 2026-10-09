@@ -6,6 +6,8 @@ import { Modal } from "@/components/ui/modal";
 import { formatBRL } from "@/lib/format";
 import { useTenant } from "@/lib/tenant-context";
 import { chaveDeIdempotencia } from "@/lib/chave-de-idempotencia";
+import { mensagemDaFuncao } from "@/lib/mensagem-da-funcao";
+import { lerReais } from "@/lib/reais";
 import { PAYMENT_METHODS, paymentMethodLabel } from "@/lib/payment-method";
 import type { PaymentMethod } from "@/lib/types";
 import type { Doc } from "@/lib/db/repository";
@@ -47,9 +49,10 @@ export function EntradaDeEstoque({
   const [chave, setChave] = useState(chaveDeIdempotencia);
 
   const qtd = Number(quantidade);
-  const custoUnit = Number(custo.replace(",", "."));
+  const custoLido = lerReais(custo);
+  const custoUnit = custoLido ?? 0;
   const valido =
-    Number.isInteger(qtd) && qtd > 0 && Number.isFinite(custoUnit) && custoUnit >= 0 && !!custo;
+    Number.isInteger(qtd) && qtd > 0 && custoLido !== null;
   const total = valido ? Math.round(custoUnit * qtd * 100) / 100 : 0;
 
   function limpar() {
@@ -79,7 +82,7 @@ export function EntradaDeEstoque({
       limpar();
       aoFechar();
     } catch (err) {
-      setErro((err as { message?: string })?.message ?? "Não foi possível dar entrada agora.");
+      setErro(mensagemDaFuncao(err, "Não foi possível dar entrada agora."));
     } finally {
       setSalvando(false);
     }
@@ -142,7 +145,10 @@ export function EntradaDeEstoque({
               autoFocus
               inputMode="numeric"
               value={quantidade}
-              onChange={(e) => setQuantidade(e.target.value.replace(/\D/g, ""))}
+              onChange={(e) => {
+                setQuantidade(e.target.value.replace(/\D/g, ""));
+                setChave(chaveDeIdempotencia());
+              }}
               placeholder="10"
               className="min-h-11 rounded-xl border border-border bg-surface px-3 text-sm text-ink"
             />
@@ -154,7 +160,10 @@ export function EntradaDeEstoque({
             <input
               inputMode="decimal"
               value={custo}
-              onChange={(e) => setCusto(e.target.value.replace(/[^\d.,]/g, ""))}
+              onChange={(e) => {
+                setCusto(e.target.value.replace(/[^\d.,]/g, ""));
+                setChave(chaveDeIdempotencia());
+              }}
               placeholder="18,00"
               className="min-h-11 rounded-xl border border-border bg-surface px-3 text-sm text-ink"
             />
@@ -167,7 +176,7 @@ export function EntradaDeEstoque({
           </span>
           <input
             value={fornecedor}
-            onChange={(e) => setFornecedor(e.target.value)}
+            onChange={(e) => { setFornecedor(e.target.value); setChave(chaveDeIdempotencia()); }}
             placeholder="Distribuidora"
             className="min-h-11 rounded-xl border border-border bg-surface px-3 text-sm text-ink"
           />
@@ -183,7 +192,7 @@ export function EntradaDeEstoque({
                 key={m}
                 type="button"
                 aria-pressed={metodo === m}
-                onClick={() => setMetodo(metodo === m ? null : m)}
+                onClick={() => { setMetodo(metodo === m ? null : m); setChave(chaveDeIdempotencia()); }}
                 className={
                   "min-h-11 rounded-xl border text-sm transition-colors " +
                   (metodo === m

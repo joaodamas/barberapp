@@ -150,9 +150,20 @@ export type ResultadoComExtras = ResultadoDoCombo & { nomes: string[] };
 export function aplicarCombosComCongelados(
   reserva: ReservaComServicos,
   extras: string[],
-  catalogo: ServicoDoCatalogo[]
+  catalogo: ServicoDoCatalogo[],
+  /**
+   * Serviços TIRADOS da reserva (edição da cobrança, 09/10). O que fica
+   * continua valendo a sua parte do `value` gravado — tirar a barba não
+   * reprecifica o corte pela tabela de hoje.
+   */
+  remover: string[] = []
 ): ResultadoComExtras {
   const atuais = Array.isArray(reserva.serviceIds) ? reserva.serviceIds.map(String) : [];
+  const mantidos = [...atuais];
+  for (const id of remover) {
+    const i = mantidos.indexOf(id);
+    if (i >= 0) mantidos.splice(i, 1);
+  }
   const nomesGravados = Array.isArray(reserva.serviceNames) ? reserva.serviceNames.map(String) : [];
   const porId = new Map(catalogo.map((s) => [s.id, s]));
   const valorAtual = Math.max(0, Number(reserva.value) || 0);
@@ -194,23 +205,26 @@ export function aplicarCombosComCongelados(
 
   const vezes = (lista: string[], id: string) => lista.filter((x) => x === id).length;
   const valendo: ServicoDoCatalogo[] = catalogo.map((s) => {
-    const n = vezes(atuais, s.id);
+    const n = vezes(mantidos, s.id);
     if (n === 0) return s;
+    /* `noInicio`: quantas havia na reserva — o congelado é o total delas, e
+     * cada unidade que FICA vale a sua fatia. */
+    const noInicio = vezes(atuais, s.id);
     const m = vezes(extras, s.id);
     const durHoje = Number(s.durationMin) || 0;
     return {
       ...s,
       name: nomeGravado.get(s.id) ?? s.name,
-      price: ((precoCongelado.get(s.id) ?? 0) + preco(s) * m) / (n + m),
+      price: (((precoCongelado.get(s.id) ?? 0) / noInicio) * n + preco(s) * m) / (n + m),
       durationMin: duracaoCongelada
-        ? ((duracaoCongelada.get(s.id) ?? 0) + durHoje * m) / (n + m)
+        ? (((duracaoCongelada.get(s.id) ?? 0) / noInicio) * n + durHoje * m) / (n + m)
         : s.durationMin,
       /* O que o atendimento JÁ foi continua valendo, mesmo desativado depois
        * (a mesma regra de `servicosDaEdicao`). */
       active: true,
     };
   });
-  for (const id of new Set(atuais)) {
+  for (const id of new Set(mantidos)) {
     if (porId.has(id)) continue;
     const n = vezes(atuais, id);
     valendo.push({
@@ -222,11 +236,31 @@ export function aplicarCombosComCongelados(
     });
   }
 
-  const r = aplicarCombos([...atuais, ...extras], valendo);
+  const r = aplicarCombos([...mantidos, ...extras], valendo);
   const nomes = new Map(valendo.map((s) => [s.id, String(s.name ?? "Serviço")]));
   return {
     ...r,
     duracao: Math.round(r.duracao),
     nomes: r.ids.map((id) => nomes.get(id) ?? "Serviço"),
   };
+}
+
+/**
+ * O que a edição da cobrança tirou e o que somou, como listas de ids (com
+ * repetição: dois cortes são duas ocorrências). Alimenta o `extras` e o
+ * `remover` de `aplicarCombosComCongelados`.
+ */
+export function diferencaDeServicos(
+  atuais: string[],
+  novos: string[]
+): { extras: string[]; remover: string[] } {
+  const tirar = (lista: string[], dela: string[]) => {
+    const resto = [...lista];
+    for (const id of dela) {
+      const i = resto.indexOf(id);
+      if (i >= 0) resto.splice(i, 1);
+    }
+    return resto;
+  };
+  return { extras: tirar(novos, atuais), remover: tirar(atuais, novos) };
 }

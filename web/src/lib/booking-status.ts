@@ -1,4 +1,4 @@
-import type { BookingDoc, SubscriberDoc } from "./domain";
+import type { BookingDoc, SubscriberDoc, SubscriptionInvoiceDoc } from "./domain";
 import { paymentMethodLabel } from "./payment-method";
 import { contar, contarDeTotal } from "./plural";
 import { ehCortesia } from "./desconto";
@@ -249,6 +249,39 @@ export function assinaturaAtivaDe<T extends Pick<SubscriberDoc, "clientId" | "st
 ): T | null {
   if (!clientId) return null;
   return assinaturas.find((a) => a.clientId === clientId && a.status === "ativo") ?? null;
+}
+
+/**
+ * A assinatura que responde por um atendimento de `data` — a mesma régua do
+ * servidor (`assinaturaDaCompetencia`), para dono e barbeiro verem o mesmo.
+ *
+ * A ativa de sempre; ou, se ela não houver, a CANCELADA cuja competência ainda
+ * vale (cancelada no mês do atendimento ou depois) E cuja fatura dessa
+ * competência está PAGA. Sem fatura paga, depois do cancelamento é avulso.
+ */
+export function assinaturaDoAtendimentoDe<
+  T extends Pick<SubscriberDoc, "clientId" | "status" | "canceledAt"> & { id: string }
+>(
+  assinaturas: readonly T[],
+  faturas: readonly Pick<SubscriptionInvoiceDoc, "subscriptionId" | "competencia" | "status">[],
+  clientId: string | null | undefined,
+  data: string
+): T | null {
+  const ativa = assinaturaAtivaDe(assinaturas, clientId);
+  if (ativa || !clientId) return ativa;
+  const competencia = data.slice(0, 7);
+  return (
+    assinaturas.find(
+      (a) =>
+        a.clientId === clientId &&
+        a.status === "cancelado" &&
+        !!a.canceledAt &&
+        a.canceledAt.slice(0, 7) >= competencia &&
+        faturas.some(
+          (f) => f.subscriptionId === a.id && f.competencia === competencia && f.status === "paga"
+        )
+    ) ?? null
+  );
 }
 
 /**

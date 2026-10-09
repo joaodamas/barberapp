@@ -318,6 +318,83 @@ export function movimentoDeDevolucao(params: {
  */
 export type ItemDaVenda = { productId: string; quantity: number };
 
+/**
+ * A chave de repetição não confere o pedido — a mesma falha que o #140 fechou
+ * na reserva (`divergenciaDaRepeticao`). Reusar a chave com OUTRO carrinho
+ * devolvia "venda registrada" sem registrar o que a tela mandou agora.
+ *
+ * `gravadas` são as quantidades dos movimentos que já existem sob a chave
+ * (`null` = a linha não existe). Qualquer diferença com o pedido é recusada;
+ * movimento antigo sem `quantity` numérico não é comparado.
+ */
+export function divergenciaDaVendaRepetida(
+  gravadas: Array<{ quantity: number | null; assinatura?: unknown }>,
+  itens: ItemDaVenda[],
+  assinaturaAtual: string
+): string | null {
+  /* A assinatura gravada no movimento cobre o pedido INTEIRO — itens, forma,
+   * cliente e vendedor — e é a comparação principal: `gravadas` vem das linhas
+   * do pedido novo, então só a assinatura enxerga o carrinho que encolheu. */
+  const comAssinatura = gravadas.filter((g) => typeof g.assinatura === "string");
+  const diferente =
+    comAssinatura.length > 0
+      ? comAssinatura.some((g) => g.assinatura !== assinaturaAtual) || gravadas.some((g) => g.quantity === null)
+      : /* Movimento anterior à assinatura: só dá para conferir a quantidade. */
+        gravadas.length !== itens.length ||
+        gravadas.some(
+          (g, i) => g.quantity === null || (Number.isFinite(g.quantity) && g.quantity !== itens[i]!.quantity)
+        );
+  return diferente
+    ? "Essa venda já foi registrada com outro pedido. Confira o estoque e a lista de vendas antes de tentar de novo."
+    : null;
+}
+
+/**
+ * A assinatura do pedido de venda: o que, quanto, como foi pago, para quem e
+ * por quem. Ordenada por produto — a ordem do carrinho não é o pedido.
+ */
+export function assinaturaDaVenda(p: {
+  itens: ItemDaVenda[];
+  paymentMethod: string;
+  formaId?: string | null;
+  clientId?: string | null;
+  staffId?: string | null;
+}): string {
+  const itens = [...p.itens]
+    .sort((a, b) => a.productId.localeCompare(b.productId))
+    .map((i) => `${i.productId}:${i.quantity}`)
+    .join(",");
+  return [itens, p.paymentMethod, p.formaId ?? "", p.clientId ?? "", p.staffId ?? ""].join("|");
+}
+
+/** O mesmo, para a entrada de estoque (produto, quantidade, custo, fornecedor e meio). */
+export function divergenciaDaEntradaRepetida(
+  gravada: {
+    productId?: unknown;
+    quantity?: unknown;
+    unitCost?: unknown;
+    supplier?: unknown;
+    paymentMethod?: unknown;
+  },
+  pedido: {
+    productId: string;
+    quantity: number;
+    unitCost: number;
+    supplier?: string | null;
+    paymentMethod?: string | null;
+  }
+): string | null {
+  const diferente =
+    gravada.productId !== pedido.productId ||
+    (typeof gravada.quantity === "number" && gravada.quantity !== pedido.quantity) ||
+    (typeof gravada.unitCost === "number" && gravada.unitCost !== pedido.unitCost) ||
+    (gravada.supplier !== undefined && (gravada.supplier ?? null) !== (pedido.supplier ?? null)) ||
+    (gravada.paymentMethod !== undefined && (gravada.paymentMethod ?? null) !== (pedido.paymentMethod ?? null));
+  return diferente
+    ? "Essa entrada já foi registrada com outros dados. Confira o estoque antes de tentar de novo."
+    : null;
+}
+
 export async function gravarVendaComTravaDeEstoque(params: {
   db: FirebaseFirestore.Firestore;
   shopRef: FirebaseFirestore.DocumentReference;
@@ -388,6 +465,14 @@ export async function gravarVendaComTravaDeEstoque(params: {
     vistos.add(item.productId);
   }
 
+  const assinaturaDoPedido = assinaturaDaVenda({
+    itens,
+    paymentMethod: params.paymentMethod,
+    formaId: params.formaId,
+    clientId: params.clientId,
+    staffId: params.vendedor?.staffId ?? null,
+  });
+
   const refs = itens.map((item) => ({
     item,
     productRef: shopRef.collection("products").doc(item.productId),
@@ -414,6 +499,15 @@ export async function gravarVendaComTravaDeEstoque(params: {
      * Basta UMA linha existir: a venda é atômica, então ou todas foram
      * gravadas ou nenhuma foi. */
     if (lidos.some((l) => l.jaExiste.exists)) {
+      const divergencia = divergenciaDaVendaRepetida(
+        lidos.map((l) => ({
+          quantity: l.jaExiste.exists ? Number(l.jaExiste.get("quantity")) : null,
+          assinatura: l.jaExiste.get("assinaturaDoPedido"),
+        })),
+        lidos.map((l) => l.item),
+        assinaturaDoPedido
+      );
+      if (divergencia) throw new HttpsError("failed-precondition", divergencia);
       return {
         movementIds: lidos.map((l) => l.movementRef.id),
         value: lidos.reduce((s, l) => s + (Number(l.jaExiste.get("value")) || 0), 0),
@@ -467,7 +561,7 @@ export async function gravarVendaComTravaDeEstoque(params: {
        * entre a leitura e o commit, e o valor explícito torna "estoque depois"
        * determinístico — é o que o teste de concorrência verifica. */
       tx.update(m.productRef, { stock: m.estoqueAntes - m.item.quantity });
-      tx.set(m.movementRef, { ...m.movimento, ...(params.extras ?? {}) });
+      tx.set(m.movementRef, { ...m.movimento, assinaturaDoPedido, ...(params.extras ?? {}) });
 
       /* G1.6 · o pagamento nasce com a venda, na MESMA transação.
        *
@@ -743,6 +837,23 @@ export async function gravarCompraComEntradaDeEstoque(params: {
     ]);
 
     if (jaExiste.exists) {
+      const divergencia = divergenciaDaEntradaRepetida(
+        {
+          productId: jaExiste.get("productId"),
+          quantity: jaExiste.get("quantity"),
+          unitCost: jaExiste.get("unitCost"),
+          supplier: jaExiste.get("supplier"),
+          paymentMethod: jaExiste.get("paymentMethod"),
+        },
+        {
+          productId,
+          quantity,
+          unitCost: params.unitCost,
+          supplier: params.supplier,
+          paymentMethod: params.paymentMethod,
+        }
+      );
+      if (divergencia) throw new HttpsError("failed-precondition", divergencia);
       return {
         movementId: movementRef.id,
         value: Number(jaExiste.get("value")) || 0,
