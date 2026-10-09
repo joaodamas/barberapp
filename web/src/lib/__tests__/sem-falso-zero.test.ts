@@ -93,7 +93,6 @@ describe("nenhum estado de erro perde a causa", () => {
   const TELAS_COM_ERRO = [
     ...DO_FINANCEIRO,
     "(dashboard)/financeiro/despesas/page.tsx",
-    "(dashboard)/financeiro/receitas/page.tsx",
     "(dashboard)/page.tsx",
     "(dashboard)/clientes/page.tsx",
     "(dashboard)/loja/page.tsx",

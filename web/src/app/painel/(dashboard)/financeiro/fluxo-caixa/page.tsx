@@ -77,7 +77,7 @@ export default function FluxoCaixaPage() {
             no bloqueio de plano e no atalho do Resumo. É a mesma classe de
             defeito de "DRE Gerencial", num tamanho menor: três pontos
             escreviam de um jeito e a tela de destino do outro. */}
-        <h1 className="text-[22px] font-semibold leading-[1.15] tracking-[-0.02em] text-ink md:text-[28px]">Fluxo de caixa</h1>
+        <h1 className="text-xl text-ink md:text-3xl md:tracking-tight">Fluxo de caixa</h1>
         {/* A legenda anterior dizia "só o que entra pelo balcão — mensalidades
             aparecem no Financeiro". Virou falsa na Rodada 3.2: a mensalidade
             paga gera pagamento e ENTRA aqui, e o fluxo passou a ter saídas.
@@ -130,14 +130,6 @@ export default function FluxoCaixaPage() {
         />
       </div>
 
-      {apuracao.ok("caixaDoMes") && fluxo.porOrigem.receita_avulsa > 0 && (
-        <p className="text-xs text-ink-muted">
-          &quot;Entrou&quot; inclui {formatBRL(fluxo.porOrigem.receita_avulsa)} de outras receitas
-          (venda de equipamento, aluguel de cadeira, parcerias). Receita com data futura ainda não
-          entrou e não conta.
-        </p>
-      )}
-
       {/* Para onde o dinheiro foi. Sem isto, "saiu R$ 730" é um número que o
           dono não consegue conferir nem questionar.
           Com uma das cinco portas de saída ilegível o detalhamento sai da tela:
@@ -145,7 +137,7 @@ export default function FluxoCaixaPage() {
           pior que não conferir — as parcelas visíveis não somariam o "Saiu". */}
       {apuracao.ok("caixaDoMes") && fluxo.saidas > 0 && (
         <div>
-          <h2 className="mb-2 text-[15px] font-semibold text-ink">
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
             Para onde o dinheiro foi
           </h2>
           <Card className="flex flex-col divide-y divide-border p-0">
@@ -204,7 +196,7 @@ export default function FluxoCaixaPage() {
       <Card className="table-scroll overflow-x-auto p-0">
         <table className="w-full min-w-[640px] text-sm">
           <thead>
-            <tr className="border-b border-border text-left text-[12.5px] font-medium text-ink-muted">
+            <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ink-muted">
               <th className="px-4 py-3 font-medium md:px-6">Dia</th>
               <th className="px-4 py-3 text-right font-medium">Atendimentos</th>
               <th className="px-4 py-3 text-right font-medium">Ticket médio</th>
@@ -247,7 +239,7 @@ export default function FluxoCaixaPage() {
           </tbody>
           <tfoot>
             <tr className="border-t border-border font-medium">
-              <td className="px-4 py-3 text-[12.5px] font-medium text-ink-muted md:px-6">
+              <td className="px-4 py-3 text-xs uppercase tracking-wide text-ink-muted md:px-6">
                 Total
               </td>
               <td className="px-4 py-3 text-right text-ink">{totalAppointments}</td>

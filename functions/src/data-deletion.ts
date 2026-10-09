@@ -57,7 +57,6 @@ export const COLECOES_FISCAIS = [
   "commissions",
   "cash_entries",
   "expenses",
-  "other_incomes",
   "subscription_invoices",
   "audit_log",
   "private",

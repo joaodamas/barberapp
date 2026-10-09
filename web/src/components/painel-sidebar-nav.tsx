@@ -8,7 +8,7 @@ import { cn } from "@/lib/cn";
 import { itemAtivo, painelNavItems, rotaAtiva } from "@/lib/nav-items";
 import { SidebarUserFooter } from "@/components/sidebar-user-footer";
 import { useAcesso, useTenant } from "@/lib/tenant-context";
-import { CLASSE_DO_LOGO_REDONDO, logoSemOtimizar } from "@/lib/logo-da-marca";
+import { logoSemOtimizar } from "@/lib/logo-da-marca";
 
 export function PainelSidebarNav() {
   const pathname = usePathname();
@@ -30,25 +30,23 @@ export function PainelSidebarNav() {
        sair inalcançável. Agora só a lista de navegação rola, e quem é dono do
        espaço restante é ela — o rodapé fica sempre ancorado embaixo. */
     <aside
-      className="hidden shrink-0 bg-surface/60 md:flex md:h-full md:w-64 md:flex-col md:overflow-hidden md:border-r md:border-border">
+      className="hidden shrink-0 bg-surface/60 md:flex md:h-full md:w-64 md:flex-col md:overflow-hidden md:border-r md:border-border md:shadow-[8px_0_32px_-24px_rgba(15,23,42,0.28)]">
       <Link
         href="/painel"
         className="flex items-center gap-3 px-6 pb-6 pt-8"
       >
-        <Image src={brand.logo} unoptimized={logoSemOtimizar(brand.logo)} alt="" width={38} height={38} priority className={CLASSE_DO_LOGO_REDONDO} />
-        <div className="min-w-0 leading-tight">
-          {/* O nome inteiro, em até duas linhas: `shortName` é o rótulo do ícone
-              na tela inicial (corta em 14) e aqui deixava "Navalha Tatuap". */}
-          <p className="line-clamp-2 break-words font-display text-base font-semibold text-ink" title={brand.name}>
-            {brand.name}
+        <Image src={brand.logo} unoptimized={logoSemOtimizar(brand.logo)} alt="" width={38} height={38} priority />
+        <div className="leading-tight">
+          <p className="font-display text-base uppercase tracking-wider text-ink">
+            {brand.shortName}
           </p>
-          <p className="text-[12.5px] text-ink-muted">
+          <p className="text-[11px] uppercase tracking-wide text-ink-muted">
             {brand.panelLabel}
           </p>
         </div>
       </Link>
 
-      <div className="mx-6 mb-5 h-px bg-border" />
+      <div className="mx-6 mb-6 h-px bg-gradient-to-r from-border via-border to-transparent" />
 
       <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-4 pb-2">
         {painelNavItems.map((item) => {
@@ -64,29 +62,34 @@ export function PainelSidebarNav() {
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "group flex items-center gap-3 rounded-controle px-3 py-2 text-[14px] transition-colors duration-150",
+                  "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors duration-150",
                   active
-                    ? "bg-surface-raised font-medium text-ink"
-                    : "text-ink-muted hover:bg-surface-raised/70 hover:text-ink"
+                    ? "bg-gold/10 text-gold-strong"
+                    : "text-ink-muted hover:bg-surface-raised hover:text-ink"
                 )}
               >
-                {/* Um tamanho e um traço para todos os ícones. O dourado marca
-                    o item ativo; nos outros o ícone acompanha o texto. */}
-                <Icon
-                  size={18}
-                  strokeWidth={1.75}
-                  aria-hidden
+                <span
                   className={cn(
-                    "shrink-0 transition-colors duration-150",
-                    active ? "text-gold-strong" : "text-ink-muted group-hover:text-ink"
+                    "absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-gold transition-opacity duration-150",
+                    active ? "opacity-100" : "opacity-0"
                   )}
+                  aria-hidden
                 />
+                <span
+                  className={cn(
+                    "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors duration-150",
+                    active
+                      ? "bg-gold/15 text-gold-strong"
+                      : "text-ink-muted/80 group-hover:text-ink"
+                  )}
+                >
+                  <Icon size={17} strokeWidth={active ? 2.4 : 1.8} />
+                </span>
                 {item.label}
                 {item.feature && !features[item.feature] && (
                   <Lock
                     size={13}
-                    strokeWidth={1.75}
-                    className="ml-auto shrink-0 text-ink-muted"
+                    className="ml-auto shrink-0 text-ink-muted/70"
                     aria-label="Não incluído no seu plano"
                   />
                 )}
@@ -107,9 +110,9 @@ export function PainelSidebarNav() {
                         href={child.href}
                         aria-current={childActive ? "page" : undefined}
                         className={cn(
-                          "flex items-center gap-2 rounded-controle px-3 py-1.5 text-[14px] transition-colors duration-150",
+                          "flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm transition-colors duration-150",
                           childActive
-                            ? "font-medium text-ink"
+                            ? "font-medium text-gold-strong"
                             : "text-ink-muted hover:text-ink"
                         )}
                       >
@@ -119,8 +122,7 @@ export function PainelSidebarNav() {
                         {bloqueado && (
                           <Lock
                             size={12}
-                            strokeWidth={1.75}
-                            className="ml-auto shrink-0 text-ink-muted"
+                            className="ml-auto shrink-0 text-ink-muted/70"
                             aria-label="Não incluído no seu plano"
                           />
                         )}
@@ -135,7 +137,7 @@ export function PainelSidebarNav() {
       </nav>
 
       <div className="shrink-0">
-        <SidebarUserFooter caption={brand.panelLabel} fallbackName={brand.name} discreto />
+        <SidebarUserFooter caption={brand.panelLabel} fallbackName={brand.name} />
       </div>
     </aside>
   );

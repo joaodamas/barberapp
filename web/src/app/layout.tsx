@@ -67,9 +67,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const daBarbearia: Metadata = {
     title: {
       default: brand.name,
-      /* O nome inteiro: `shortName` corta em 14 caracteres (é o rótulo do ícone) e
-       * deixava "Minha agenda · Navalha Tatuap" na aba. */
-      template: `%s · ${brand.name}`,
+      template: `%s · ${brand.shortName}`,
     },
     description: `Agende seu horário, acompanhe sua fidelidade e assine um plano na ${brand.name}.`,
     manifest: "/manifest.webmanifest",
@@ -95,7 +93,7 @@ export const viewport: Viewport = {
   /* Tem que ser o MESMO valor de `--color-canvas`. É a faixa que o Android
    * pinta acima da página no PWA: divergir cria uma emenda visível bem na
    * borda de cima, que é onde o dono olha primeiro. */
-  themeColor: "#f6f6f4",
+  themeColor: "#f8fafc",
   width: "device-width",
   initialScale: 1,
   /* `maximumScale: 1` bloqueava o pinch-zoom e reprovava no WCAG 1.4.4.

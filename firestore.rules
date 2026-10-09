@@ -589,30 +589,6 @@ service cloud.firestore {
       /* -------- financeiro: só quem é do time -------- */
 
       match /expenses/{expenseId}         { allow read, write: if isOwnerOf(barbershopId); }
-      /* Receita avulsa (venda de equipamento, aluguel de cadeira, parceria),
-       * inclusive as parcelas. Mesma dívida e mesma regra de `expenses`. */
-      match /other_incomes/{incomeId} {
-        allow read, delete: if isOwnerOf(barbershopId);
-        allow create, update: if isOwnerOf(barbershopId)
-          && request.resource.data.keys().hasOnly(
-               ['category', 'description', 'payer', 'value', 'date', 'payment', 'observations', 'parcela'])
-          && request.resource.data.keys().hasAll(['category', 'description', 'value', 'date', 'payment'])
-          && request.resource.data.value is number
-          && request.resource.data.value > 0
-          && request.resource.data.date is string
-          && request.resource.data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
-          && request.resource.data.description is string
-          && request.resource.data.category is string
-          && request.resource.data.payment in ['Pix', 'Boleto', 'Cartão', 'Transferência']
-          && (!('parcela' in request.resource.data) || (
-               request.resource.data.parcela is map
-               && request.resource.data.parcela.keys().hasOnly(['numero', 'total', 'grupoId'])
-               && request.resource.data.parcela.numero is int
-               && request.resource.data.parcela.total is int
-               && request.resource.data.parcela.numero >= 1
-               && request.resource.data.parcela.numero <= request.resource.data.parcela.total
-               && request.resource.data.parcela.total <= 48));
-      }
       /* Livro caixa — escrito SÓ pelo servidor desde a Rodada 3.1 (D25).
        *
        * Era `write: if isOwnerOf`, herdado de quando a coleção não tinha

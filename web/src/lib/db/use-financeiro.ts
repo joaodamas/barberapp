@@ -3,7 +3,7 @@
 import { toISODate } from "@/lib/format";
 import { useTenant } from "@/lib/tenant-context";
 import {
-  useBookings, useExpenses, useOtherIncomes, useInventoryMovements,
+  useBookings, useExpenses, useInventoryMovements,
   useCommissions, usePayments, useProducts, useServices, useStaffComRemuneracao,
   useSubscribers, useRefunds, useSubscriptionInvoices, useCashEntries, combineStatus,
 } from "@/lib/db/use-shop-data";
@@ -42,7 +42,6 @@ export function useFinanceiro(mes: string, horizonte: Horizonte = "mensal") {
   const tenant = useTenant();
   const bookings = useBookings();
   const expenses = useExpenses();
-  const otherIncomes = useOtherIncomes();
   const movements = useInventoryMovements();
   const subscribers = useSubscribers();
   const services = useServices();
@@ -57,10 +56,7 @@ export function useFinanceiro(mes: string, horizonte: Horizonte = "mensal") {
   const periodo = mesPeriodo(mes);
   const status = combineStatus(
     bookings, expenses, movements, subscribers, services, products, staff,
-    commissions, payments, refunds, invoices, cashEntries,
-    /* Receita avulsa espera carregar, mas NÃO derruba a tela se falhar: o erro dela
-     * segue em `fontesIlegiveis` e suprime só os números que dependem dela. */
-    { status: otherIncomes.status === "erro" ? ("pronto" as const) : otherIncomes.status }
+    commissions, payments, refunds, invoices, cashEntries
   );
 
   /* Quais coleções NÃO puderam ser lidas — D3/D4.
@@ -88,7 +84,6 @@ export function useFinanceiro(mes: string, horizonte: Horizonte = "mensal") {
     ["staff", staff],
     ["commissions", commissions],
     ["cashEntries", cashEntries],
-    ["otherIncomes", otherIncomes],
   ];
   const ilegiveis = porFonte.filter(([, e]) => e.status === "erro");
   const fontesIlegiveis = ilegiveis.map(([nome]) => nome);
@@ -116,7 +111,6 @@ export function useFinanceiro(mes: string, horizonte: Horizonte = "mensal") {
   const dre = resultadoDoMes({
     receita,
     expenses: expenses.items,
-    otherIncomes: otherIncomes.items,
     movements: movements.items,
     periodo,
     policies: tenant.policies,
@@ -153,12 +147,9 @@ export function useFinanceiro(mes: string, horizonte: Horizonte = "mensal") {
     payments: payments.items,
     refunds: refunds.items,
     expenses: expenses.items,
-    otherIncomes: otherIncomes.items,
     movements: movements.items,
     cashEntries: cashEntries.items,
     periodo,
-    /* Parcela que ainda não venceu não é saída (nem entrada) de caixa. */
-    hoje: toISODate(new Date()),
   });
   const fluxo = resumoDoFluxo(movimentos);
   const fluxoPorDia = fluxoDiario(movimentos);
@@ -219,7 +210,6 @@ export function useFinanceiro(mes: string, horizonte: Horizonte = "mensal") {
     projecao: projecaoDeCaixa({
       bookings: bookings.items,
       expenses: expenses.items,
-      otherIncomes: otherIncomes.items,
       subscribers: subscribers.items,
       /* As faturas emitidas mandam na mensalidade projetada (08/10): aberta
        * entra no vencimento, paga e "Não cobrar" saem, atrasada aparece à
@@ -251,7 +241,6 @@ export function useFinanceiro(mes: string, horizonte: Horizonte = "mensal") {
     raw: {
       bookings: bookings.items,
       expenses: expenses.items,
-      otherIncomes: otherIncomes.items,
       movements: movements.items,
       subscribers: subscribers.items,
       services: services.items,

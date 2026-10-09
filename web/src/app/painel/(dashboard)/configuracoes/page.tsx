@@ -161,7 +161,7 @@ export default function ConfiguracoesPage() {
           servia, porque contexto é o que a tela contém, e o nome é o título. */}
       <div>
         <p className="text-sm text-ink-muted md:text-base">Taxas e regras</p>
-        <h1 className="text-[22px] font-semibold leading-[1.15] tracking-[-0.02em] text-ink md:text-[28px]">Ajustes</h1>
+        <h1 className="text-xl text-ink md:text-4xl md:tracking-tight">Ajustes</h1>
       </div>
 
       {naoConfigurado && (

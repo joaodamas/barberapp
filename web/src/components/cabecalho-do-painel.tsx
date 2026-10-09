@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useTenant } from "@/lib/tenant-context";
-import { CLASSE_DO_LOGO_REDONDO, logoSemOtimizar } from "@/lib/logo-da-marca";
+import { logoSemOtimizar } from "@/lib/logo-da-marca";
 import { MARCA_GERADA, svgDoMonograma } from "@/lib/monograma";
 
 /**
@@ -33,11 +33,10 @@ export function CabecalhoDoPainel() {
           alt=""
           width={32}
           height={32}
-          className={CLASSE_DO_LOGO_REDONDO}
           priority
         />
-        <div className="min-w-0 leading-tight">
-          <p className="line-clamp-2 break-words font-display text-sm font-semibold text-ink">{brand.name}</p>
+        <div className="leading-tight">
+          <p className="font-display text-sm uppercase tracking-wider text-ink">{brand.shortName}</p>
           <p className="text-[11px] text-ink-muted">{brand.panelLabel}</p>
         </div>
       </Link>

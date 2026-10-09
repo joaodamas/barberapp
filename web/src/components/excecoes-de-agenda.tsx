@@ -192,7 +192,7 @@ export function ExcecoesDeAgenda() {
         </div>
 
         <div className="flex flex-col gap-2">
-          <p className="text-[12.5px] font-medium text-ink-muted">
+          <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
             Dias já cadastrados
           </p>
 

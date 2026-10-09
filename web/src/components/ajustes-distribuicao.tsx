@@ -110,7 +110,7 @@ export function AjustesDistribuicao() {
 
       {(regra === "prioridade" || regra === "rodizio") && lista.length > 1 && (
         <div className="flex flex-col gap-2">
-          <p className="text-[12.5px] font-medium text-ink-muted">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
             {regra === "prioridade" ? "Ordem de preferência" : "Ordem do rodízio"}
           </p>
           <ol className="flex flex-col divide-y divide-border rounded-xl border border-border">

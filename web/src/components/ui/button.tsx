@@ -45,7 +45,7 @@ type Size = "md" | "sm";
 
 const sizes: Record<Size, string> = {
   md: "min-h-11 px-5 text-sm",
-  sm: "alvo-toque min-h-9 px-3 text-[13px]",
+  sm: "alvo-toque min-h-9 px-3 text-xs",
 };
 
 export function Button({
@@ -61,7 +61,7 @@ export function Button({
         // `<button>`, e o produto já compensava isso à mão em `Segmented` e em
         // `.card-interactive`. Faltava justamente no botão — o controle mais
         // clicado do painel era o único sem a afordância.
-        "inline-flex cursor-pointer items-center justify-center gap-2 rounded-controle transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-40",
+        "inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl transition-colors disabled:cursor-not-allowed disabled:opacity-40",
         sizes[size],
         variants[variant],
         className

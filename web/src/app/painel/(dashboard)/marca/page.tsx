@@ -1,29 +1,20 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Check, Eraser, ImagePlus, Loader2, ScanSearch, Sparkles, Trash2 } from "lucide-react";
+import { AlertTriangle, Check, ImagePlus, Loader2, Sparkles, Trash2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { RecorteDoLogo, XADREZ } from "@/components/marca/recorte-do-logo";
 import { PreviaDaMarca } from "@/components/marca/previa-da-marca";
-import { PreviaEmTamanhoReal } from "@/components/marca/previa-em-tamanho-real";
 import { useTenant } from "@/lib/tenant-context";
 import { salvarMarca } from "@/lib/db/repository";
 import {
   carregarImagem,
-  apagamentoDoLogo,
   corDoRecorte,
-  desenharMonograma,
   desenharRecorte,
   enviarMarca,
   gerarArquivosDaMarca,
-  foraDoCirculoDoRecorte,
-  liberarCanvas,
-  montarFonte,
-  prepararBase,
-  type BaseDoLogo,
 } from "@/lib/db/enviar-logo";
-import { avisosDoLogo, temSobraRelevante, type FundoDetectado } from "@/lib/analise-do-logo";
 import {
   FORMATOS_DE_LOGO,
   FUNDOS_DO_ICONE,
@@ -32,15 +23,7 @@ import {
   problemaNoArquivo,
   type FundoDoIcone,
 } from "@/lib/logo-da-marca";
-import {
-  ENQUADRAMENTO_INICIAL,
-  enquadramentoInicial,
-  tamanhoDaFonte,
-  type Enquadramento,
-} from "@/lib/recorte-do-logo";
-
-/** Fundo "transparente" para medir o círculo: nenhuma cor é descartada, só o vazio. */
-const SEM_FUNDO: FundoDetectado = { transparente: true, cor: { r: 0, g: 0, b: 0 }, solidez: 1 };
+import { ENQUADRAMENTO_INICIAL, type Enquadramento } from "@/lib/recorte-do-logo";
 import {
   avaliarCor,
   CORES_PRONTAS,
@@ -51,10 +34,7 @@ import {
   problemaNoNome,
   problemaNoNomeCurto,
 } from "@/lib/marca-editavel";
-import {
-  MARCA_GERADA,
-  svgDoMonograma,
-} from "@/lib/monograma";
+import { MARCA_GERADA, svgDoMonograma } from "@/lib/monograma";
 import { cn } from "@/lib/cn";
 
 /**
@@ -72,7 +52,7 @@ import { cn } from "@/lib/cn";
  *
  * - O dono VÊ antes de salvar como fica nos três lugares que o cliente dele
  *   enxerga: o topo do app, a tela de entrar e o ícone do celular.
- * - O recorte é quadrado, com a máscara do círculo por cima (o selo do app é redondo), e o que aparece na área de recorte é exatamente o
+ * - O recorte é quadrado e o que aparece na área de recorte é exatamente o
  *   que sobe (mesma conta, `retanguloNoQuadrado`).
  * - A cor sai sugerida do próprio logo, mas é sugestão. A conferência de
  *   contraste mostra o número e o que o app vai fazer com ele.
@@ -93,25 +73,11 @@ export default function SuaMarcaPage() {
   const { brand } = tenant;
   const entrada = useRef<HTMLInputElement>(null);
 
-  /* O arquivo escolhido (`original`) e, derivado dele, o canvas que o recorte
-   * enquadra (`imagem`): aparado nas sobras, com ou sem fundo. O monograma
-   * entra pelo mesmo `imagem`, e dali segue o caminho do logo enviado. */
-  const [original, setOriginal] = useState<HTMLImageElement | null>(null);
-  const [vetorial, setVetorial] = useState(false);
-  /* `null` = automático: aparar só quando há sobra relevante (ver `aparando`). */
-  const [aparar, setAparar] = useState<boolean | null>(null);
-  const [semFundo, setSemFundo] = useState(false);
-  const [noSimbolo, setNoSimbolo] = useState(false);
-  const [usandoMonograma, setUsandoMonograma] = useState(false);
-  const [canvasMonograma, setCanvasMonograma] = useState<HTMLCanvasElement | null>(null);
-  /* O enquadramento vale para UMA fonte: trocou a fonte (aparar, tirar o
-   * fundo, outro arquivo), volta ao inicial — sem efeito, comparando. */
-  const [ajuste, setAjuste] = useState<{ fonte: unknown; valor: Enquadramento }>({
-    fonte: null,
-    valor: ENQUADRAMENTO_INICIAL,
-  });
+  const [imagem, setImagem] = useState<HTMLImageElement | null>(null);
+  const [enquadramento, setEnquadramento] = useState<Enquadramento>(ENQUADRAMENTO_INICIAL);
   const [fundo, setFundo] = useState<FundoDoIcone>("claro");
   const [remover, setRemover] = useState(false);
+  const [corSugerida, setCorSugerida] = useState<string | null>(null);
 
   const [rascunhoNome, setRascunhoNome] = useState<string | null>(null);
   const [rascunhoCurto, setRascunhoCurto] = useState<string | null>(null);
@@ -126,94 +92,9 @@ export default function SuaMarcaPage() {
   /* A imagem escolhida vive num `blob:` — memória do navegador que só volta
    * quando alguém a revoga. Trocar de arquivo ou sair da tela revoga. */
   useEffect(() => {
-    if (!original) return;
-    return () => URL.revokeObjectURL(original.src);
-  }, [original]);
-
-  /* O que dá para saber do arquivo: fundo, caixa do conteúdo, símbolo. */
-  const base = useMemo<BaseDoLogo | null>(() => {
-    if (!original) return null;
-    try {
-      return prepararBase(original, vetorial);
-    } catch (e) {
-      console.error("[marca] não consegui analisar a imagem", e);
-      return null;
-    }
-  }, [original, vetorial]);
-
-  /* Canvas é memória que o Safari do iPhone não solta sozinho: devolve o da
-   * base quando ela é trocada, e o monograma antigo quando é redesenhado. */
-  useEffect(() => {
-    if (!base) return;
-    return () => liberarCanvas(base.canvas);
-  }, [base]);
-  useEffect(() => {
-    if (!canvasMonograma) return;
-    return () => liberarCanvas(canvasMonograma);
-  }, [canvasMonograma]);
-
-  const aparando =
-    aparar ??
-    (base?.analise?.caixa
-      ? temSobraRelevante(base.analise.caixa, base.canvas.width, base.canvas.height)
-      : false);
-  const caixaAparada = aparando && base?.analise?.caixa ? base.analise.caixa : null;
-  const caixaEscolhida = noSimbolo && base?.simbolo ? base.simbolo.caixa : caixaAparada;
-  const podeRemoverFundo = base?.analise?.podeRemoverFundo ?? false;
-
-  /* Se o aparelho não der canvas (memória do Safari), o logo segue inteiro,
-   * como escolhido, e a tela avisa de leve que as ajudas não rodaram. */
-  const montada = useMemo<{ fonte: HTMLImageElement | HTMLCanvasElement | null; falhou: boolean }>(() => {
-    if (usandoMonograma) return { fonte: canvasMonograma, falhou: false };
-    if (!original) return { fonte: null, falhou: false };
-    if (!base) return { fonte: original, falhou: true };
-    try {
-      return {
-        fonte: montarFonte(base, { caixa: caixaEscolhida, semFundo: semFundo && podeRemoverFundo }),
-        falhou: false,
-      };
-    } catch (e) {
-      console.error("[marca] não consegui montar o recorte", e);
-      return { fonte: original, falhou: true };
-    }
-  }, [usandoMonograma, canvasMonograma, original, base, caixaEscolhida, semFundo, podeRemoverFundo]);
-  const imagem = montada.fonte;
-
-  /* Recortes derivados (aparados, sem fundo) saem de cena quando a fonte muda. */
-  useEffect(() => {
-    if (!(imagem instanceof HTMLCanvasElement)) return;
-    return () => {
-      if (imagem !== base?.canvas && imagem !== canvasMonograma) liberarCanvas(imagem);
-    };
-  }, [imagem, base, canvasMonograma]);
-
-  /* O fundo que NÃO conta como logo ao medir o que o círculo corta: o da
-   * imagem original, a menos que tenha sido removido (ou seja monograma). */
-  const fundoDaFonte = useMemo<FundoDetectado>(
-    () =>
-      usandoMonograma || (semFundo && podeRemoverFundo) || !base?.analise
-        ? SEM_FUNDO
-        : base.analise.fundo,
-    [usandoMonograma, semFundo, podeRemoverFundo, base]
-  );
-
-  /* Abre já encaixado no círculo: se os cantos têm logo, ele encolhe até a
-   * caixa caber no círculo inscrito; logo redondo abre como está. */
-  const enquadramentoAutomatico = useMemo(() => {
-    if (!imagem) return ENQUADRAMENTO_INICIAL;
-    const { largura, altura } = tamanhoDaFonte(imagem);
-    return enquadramentoInicial(largura, altura, foraDoCirculoDoRecorte(imagem, ENQUADRAMENTO_INICIAL, fundoDaFonte));
-  }, [imagem, fundoDaFonte]);
-  const enquadramento = ajuste.fonte === imagem ? ajuste.valor : enquadramentoAutomatico;
-  /* "Encaixar no círculo": a caixa da fonte atual inteira dentro do círculo, centrada. */
-  const encaixeNoCirculo = useMemo(() => {
-    if (!imagem) return ENQUADRAMENTO_INICIAL;
-    const { largura, altura } = tamanhoDaFonte(imagem);
-    return enquadramentoInicial(largura, altura, 1);
+    if (!imagem) return;
+    return () => URL.revokeObjectURL(imagem.src);
   }, [imagem]);
-  const encaixado =
-    enquadramento.zoom <= encaixeNoCirculo.zoom + 0.001 && enquadramento.x === 0 && enquadramento.y === 0;
-  const setEnquadramento = (valor: Enquadramento) => setAjuste({ fonte: imagem, valor });
 
   /* A miniatura das prévias acompanha o recorte. 192 px custam pouco para
    * redesenhar a cada arraste. */
@@ -225,43 +106,6 @@ export default function SuaMarcaPage() {
   const nome = rascunhoNome ?? brand.name;
   const nomeCurto = rascunhoCurto ?? brand.shortName;
   const cor = rascunhoCor ?? brand.accentColor;
-
-  /* O monograma acompanha o nome e a cor do rascunho. */
-  useEffect(() => {
-    if (!usandoMonograma) return;
-    let vivo = true;
-    desenharMonograma(nome, cor)
-      .then((c) => vivo && setCanvasMonograma(c))
-      .catch((e) => console.error("[marca] monograma", e));
-    return () => {
-      vivo = false;
-    };
-  }, [usandoMonograma, nome, cor]);
-
-  /* Cor sugerida a partir do que vai subir (já sem o fundo, se foi removido). */
-  const corSugerida = useMemo(
-    () => (original && imagem ? corDoRecorte(desenharRecorte(imagem, ENQUADRAMENTO_INICIAL, 64)) : null),
-    [original, imagem]
-  );
-
-  /* Avisos antes de salvar: orientam, não bloqueiam. */
-  const avisosDoEnvio = useMemo(() => {
-    if (!imagem) return [];
-    const apagamento = imagem instanceof HTMLCanvasElement ? apagamentoDoLogo(imagem) : { claro: 0, escuro: 0 };
-    const caixa = usandoMonograma ? null : noSimbolo && base?.simbolo ? base.simbolo.caixa : caixaAparada;
-    /* Medidas em pixels do ARQUIVO: a base de trabalho pode estar reduzida. */
-    const escala = base?.escala ?? 1;
-    const largura = usandoMonograma ? 512 : (caixa?.w ?? base?.canvas.width ?? original?.naturalWidth ?? 0) / escala;
-    const altura = usandoMonograma ? 512 : (caixa?.h ?? base?.canvas.height ?? original?.naturalHeight ?? 0) / escala;
-    return avisosDoLogo({
-      vetorial: vetorial && !usandoMonograma,
-      largura,
-      altura,
-      apagadoNoClaro: apagamento.claro,
-      apagadoNoEscuro: apagamento.escuro,
-      foraDoCirculo: foraDoCirculoDoRecorte(imagem, enquadramento, fundoDaFonte),
-    });
-  }, [imagem, usandoMonograma, noSimbolo, base, caixaAparada, original, vetorial, enquadramento, fundoDaFonte]);
   const avaliacao = avaliarCor(cor);
 
   const temLogoProprio = brand.logo !== MARCA_GERADA;
@@ -301,14 +145,10 @@ export default function SuaMarcaPage() {
     setPreparando(true);
     try {
       const nova = await carregarImagem(arquivo);
-      setOriginal(nova);
-      setVetorial(arquivo.type === "image/svg+xml");
-      setUsandoMonograma(false);
-      setCanvasMonograma(null);
-      setAparar(null);
-      setSemFundo(false);
-      setNoSimbolo(false);
+      setImagem(nova);
+      setEnquadramento(ENQUADRAMENTO_INICIAL);
       setRemover(false);
+      setCorSugerida(corDoRecorte(desenharRecorte(nova, ENQUADRAMENTO_INICIAL, 64)));
     } catch (e) {
       console.error("[marca] não consegui ler a imagem", e);
       setErro("Não consegui abrir essa imagem. Tente outro arquivo — PNG costuma funcionar melhor.");
@@ -317,23 +157,11 @@ export default function SuaMarcaPage() {
     }
   }
 
-  /** Desiste do arquivo (ou do monograma) escolhido: volta o logo que está no ar. */
+  /** Desiste do arquivo escolhido: volta o logo que está no ar. */
   function cancelarArquivo() {
     limparAvisos();
-    setOriginal(null);
-    setUsandoMonograma(false);
-    setCanvasMonograma(null);
-    setNoSimbolo(false);
-    setSemFundo(false);
-  }
-
-  function usarMonograma() {
-    limparAvisos();
-    setOriginal(null);
-    setNoSimbolo(false);
-    setSemFundo(false);
-    setRemover(false);
-    setUsandoMonograma(true);
+    setImagem(null);
+    setCorSugerida(null);
   }
 
   function removerLogo() {
@@ -348,8 +176,10 @@ export default function SuaMarcaPage() {
   }
 
   function descartar() {
-    cancelarArquivo();
+    limparAvisos();
+    setImagem(null);
     setRemover(false);
+    setCorSugerida(null);
     setRascunhoNome(null);
     setRascunhoCurto(null);
     setRascunhoCor(null);
@@ -388,8 +218,9 @@ export default function SuaMarcaPage() {
                 "Pronto, sua marca foi salva. O ícone do app no celular pode levar alguns minutos para mudar."
               : "Pronto, sua marca foi salva."
       );
-      cancelarArquivo();
+      setImagem(null);
       setRemover(false);
+      setCorSugerida(null);
       setRascunhoNome(null);
       setRascunhoCurto(null);
       setRascunhoCor(null);
@@ -428,11 +259,11 @@ export default function SuaMarcaPage() {
                 <RecorteDoLogo imagem={imagem} enquadramento={enquadramento} onChange={setEnquadramento} />
               ) : (
                 <div
-                  className="flex h-[240px] w-[240px] shrink-0 items-center justify-center overflow-hidden rounded-full border border-border"
+                  className="flex h-[240px] w-[240px] shrink-0 items-center justify-center rounded-2xl border border-border p-6"
                   style={XADREZ}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={logoNaPrevia} alt="Seu logo" className="h-full w-full object-cover" />
+                  <img src={logoNaPrevia} alt="Seu logo" className="max-h-full max-w-full object-contain" />
                 </div>
               )}
 
@@ -440,10 +271,8 @@ export default function SuaMarcaPage() {
                 <p className="text-xs text-ink-muted">
                   {remover
                     ? "O logo sai ao salvar, e as iniciais voltam no lugar."
-                    : usandoMonograma
-                      ? "Ícone gerado com as iniciais e a cor da sua marca. Ele muda junto com o nome e a cor."
-                      : imagem
-                      ? "Arraste para posicionar e use o controle para aproximar. O que está dentro do círculo aparece no app; o quadrado inteiro vai para o ícone do celular."
+                    : imagem
+                      ? "Arraste para posicionar e use o controle para aproximar. O quadrado é o que vai para o ícone do celular."
                       : temLogoProprio
                         ? "Este é o logo que está no ar."
                         : "Por enquanto sua barbearia usa as iniciais como marca."}
@@ -513,107 +342,6 @@ export default function SuaMarcaPage() {
                   </fieldset>
                 )}
               </div>
-            </div>
-
-            {original && (base?.analise?.caixa || podeRemoverFundo || noSimbolo) && (
-              <div className="flex flex-col gap-2">
-                <p className="text-xs font-medium text-ink">Ajudas automáticas</p>
-                <div className="flex flex-wrap gap-2">
-                  {base?.analise?.caixa && (
-                    <AjudaBotao ativo={aparando} onClick={() => setAparar(!aparando)}>
-                      <ScanSearch size={14} aria-hidden /> Recortar as sobras
-                    </AjudaBotao>
-                  )}
-                  {podeRemoverFundo && (
-                    <AjudaBotao ativo={semFundo} onClick={() => setSemFundo((v) => !v)}>
-                      <Eraser size={14} aria-hidden /> Remover fundo
-                    </AjudaBotao>
-                  )}
-                  {noSimbolo && (
-                    <AjudaBotao ativo={false} onClick={() => setNoSimbolo(false)}>
-                      Voltar ao logo inteiro
-                    </AjudaBotao>
-                  )}
-                </div>
-                <p className="text-[11px] text-ink-muted">
-                  Tudo aqui é sugestão: o resultado aparece no recorte e na prévia, e você pode desligar.
-                  {semFundo && " O fundo é apagado pela cor das bordas; se comer parte do desenho, desligue."}
-                </p>
-              </div>
-            )}
-
-            {montada.falhou && (
-              <p role="status" className="text-xs text-ink-muted">
-                Neste aparelho não consegui aplicar as ajudas automáticas. O logo vai inteiro, como você escolheu.
-              </p>
-            )}
-
-            {avisosDoEnvio.length > 0 && (
-              <ul className="flex flex-col gap-2" aria-label="Avisos sobre o logo">
-                {avisosDoEnvio.map((a) => (
-                  <li
-                    key={a.id}
-                    className="flex flex-wrap items-center gap-3 rounded-xl border border-gold/40 bg-gold/10 p-3"
-                  >
-                    <AlertTriangle size={16} className="shrink-0 text-gold-strong" aria-hidden />
-                    <p className="min-w-0 flex-1 text-xs text-ink">{a.texto}</p>
-                    {a.acao === "simbolo" && (
-                      <div className="flex flex-wrap gap-2">
-                        {/* Só os botões que mudam algo: sem símbolo achado, ou já nele, não há o que fazer. */}
-                        {a.id === "circulo" && imagem && !encaixado && (
-                          <Button type="button" size="sm" onClick={() => setEnquadramento(encaixeNoCirculo)}>
-                            Encaixar no círculo
-                          </Button>
-                        )}
-                        {!noSimbolo && !usandoMonograma && base?.simbolo && (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant={a.id === "circulo" ? "secondary" : "primary"}
-                            onClick={() => setNoSimbolo(true)}
-                          >
-                            Aproximar no símbolo
-                          </Button>
-                        )}
-                        {!usandoMonograma && (
-                          <Button type="button" size="sm" variant="secondary" onClick={() => usarMonograma()}>
-                            Usar monograma
-                          </Button>
-                        )}
-                      </div>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-            {noSimbolo && base?.simbolo && !base.simbolo.confiavel && (
-              <p role="status" className="text-xs text-ink-muted">
-                Não achei um símbolo separado do nome. Aproximei no centro, pela altura do logo: confira o recorte
-                e arraste se precisar.
-              </p>
-            )}
-
-            <div className="flex flex-col gap-2 border-t border-border pt-4">
-              <p className="text-xs font-medium text-ink">Sem logo pronto? Gere um ícone com as iniciais</p>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  aria-pressed={usandoMonograma}
-                  disabled={preparando || salvando}
-                  onClick={() => usarMonograma()}
-                  className={cn(
-                    "flex min-h-11 items-center gap-2 rounded-controle border px-3 text-xs font-medium text-ink transition-colors",
-                    usandoMonograma ? "border-ink bg-surface-raised" : "border-border hover:border-gold/60"
-                  )}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={monograma} alt="" width={28} height={28} className="h-7 w-7 rounded-full" />
-                  Gerar monograma
-                </button>
-              </div>
-              <p className="text-[11px] text-ink-muted">
-                Usa as iniciais do nome e a cor de destaque. Sobe como qualquer logo, com os mesmos ícones do celular.
-              </p>
             </div>
           </Card>
 
@@ -746,17 +474,6 @@ export default function SuaMarcaPage() {
             <h2 className="text-sm font-semibold text-ink md:text-base">Como seus clientes veem</h2>
             <p className="mt-1 text-xs text-ink-muted md:text-sm">Prévia com o que está escolhido agora.</p>
           </div>
-          {imagem && (
-            <div className="flex flex-col gap-2">
-              <p className="text-xs font-medium text-ink">Em tamanho real</p>
-              <PreviaEmTamanhoReal
-                logo={logoNaPrevia}
-                nomeCurto={nomeCurto.trim()}
-                rotulo={brand.panelLabel}
-                fundoDoIcone={FUNDOS_DO_ICONE[fundo]}
-              />
-            </div>
-          )}
           <PreviaDaMarca
             logo={logoNaPrevia}
             nome={nome.trim()}
@@ -789,30 +506,6 @@ export default function SuaMarcaPage() {
         )}
       </div>
     </div>
-  );
-}
-
-function AjudaBotao({
-  ativo,
-  onClick,
-  children,
-}: {
-  ativo: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={ativo}
-      onClick={onClick}
-      className={cn(
-        "flex min-h-11 items-center gap-2 rounded-xl border px-3 text-xs font-medium text-ink transition-colors",
-        ativo ? "border-ink bg-surface-raised" : "border-border hover:border-gold/60"
-      )}
-    >
-      {children}
-    </button>
   );
 }
 

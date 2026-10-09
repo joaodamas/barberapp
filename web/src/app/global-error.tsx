@@ -35,8 +35,8 @@ export default function ErroGlobal({
           padding: 24,
           textAlign: "center",
           fontFamily: "system-ui, sans-serif",
-          background: "#f6f6f4",
-          color: "#1a1916",
+          background: "#f8fafc",
+          color: "#0f172a",
         }}
       >
         <h1 style={{ fontSize: 20, margin: 0 }}>Esta tela não abriu</h1>

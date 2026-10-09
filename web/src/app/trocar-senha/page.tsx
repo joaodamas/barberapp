@@ -10,7 +10,7 @@ import { useAuth } from "@/lib/auth-context";
 import { useTenant } from "@/lib/tenant-context";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { CLASSE_DO_LOGO_REDONDO, logoSemOtimizar } from "@/lib/logo-da-marca";
+import { logoSemOtimizar } from "@/lib/logo-da-marca";
 
 /**
  * Troca da senha provisória.
@@ -101,7 +101,7 @@ export default function TrocarSenhaPage() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-6 overflow-y-auto bg-canvas px-4 py-10 md:h-full">
       <div className="flex flex-col items-center gap-2 text-center">
-        <Image src={brand.logo} unoptimized={logoSemOtimizar(brand.logo)} alt="" width={56} height={56} priority className={CLASSE_DO_LOGO_REDONDO} />
+        <Image src={brand.logo} unoptimized={logoSemOtimizar(brand.logo)} alt="" width={56} height={56} priority />
         <h1 className="font-display text-xl text-ink">Crie sua senha</h1>
         <p className="max-w-sm text-sm text-ink-muted">
           A senha que te enviamos era temporária e some agora. Escolha uma que só

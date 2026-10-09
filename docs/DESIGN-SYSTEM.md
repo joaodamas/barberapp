@@ -24,41 +24,31 @@ Definidos em `globals.css`. **Nenhum valor novo sem decisão do dono.**
 
 ### Superfícies — elas empilham
 
-> **Atualizado em 09/10 ("sofisticar a base").** Os neutros eram o Slate de
-> fábrica do Tailwind; agora são próprios — cinzas com um fio de calor, **não**
-> creme. Os nomes abaixo são os do `globals.css` de hoje (os de `ivory` e
-> `gold-light` das versões antigas deste documento não existem mais).
-
 ```
---color-canvas          #f6f6f4   a página
---color-surface         #ffffff   o cartão — MAIS claro que a página
---color-surface-raised  #f0efec   o realce dentro do cartão, e a etiqueta
+--color-bg              #ffffff   a página
+--color-surface         #f8f5ee   o cartão
+--color-surface-raised  #efe9dc   o realce dentro do cartão, e a etiqueta
 ```
 
-O cartão se separa da página por **borda de 1px** e por ser mais claro, não por
-sombra. Empilham nesta ordem e não pulam degraus: um realce dentro de um realce
-não existe.
+Empilham nesta ordem e não pulam degraus: um realce dentro de um realce não
+existe. Se a tela precisa de um terceiro nível, a hierarquia está errada, não a
+paleta.
 
 ### Tinta
 
 ```
---color-ink           #1a1916   texto principal            16,3 / 17,6 / 15,3
---color-ink-muted     #5a564f   texto secundário e contorno de campo
-                                                             6,7 / 7,3 / 6,3
---color-gold          #b8863a   acento da marca — SOBRESCRITO por barbearia
---color-gold-strong   #8c5f1e   mais ESCURO que gold; texto e anel de foco
---color-gold-hover    #c99a52   hover de superfície dourada — precisa CLAREAR
---color-success       #047857   resultado positivo
---color-danger        #b91c1c   erro, perda, ação destrutiva
---color-encaixe       #1d4ed8   a única cor que não é da marca nem de estado
---color-border        #e4e2dd   divisão decorativa — não é alvo de WCAG
---color-border-strong #a8a49c   linha-guia (gráfico); NÃO serve de contorno de campo
+--color-ivory        #17140f   texto principal (quase preto)
+--color-ivory-muted  #6b6355   texto secundário, e contorno de campo
+--color-gold         #b8863a   acento da marca — SOBRESCRITO por barbearia
+--color-gold-light   #8c5f1e   mais ESCURO que gold; texto e anel de foco
+--color-gold-hover   #c99a52   hover de superfície dourada — precisa CLAREAR
+--color-success      #43733a   resultado positivo
+--color-danger       #ab4a3a   erro, perda, ação destrutiva
+--color-border       #e1d8c5   divisão decorativa (1,30:1 — não é alvo de WCAG)
+--color-border-strong #a1937a  divisão que precisa ser vista, fora de controle
 ```
 
-(contrastos sobre página / cartão / realce, medidos em
-`contraste-de-tokens.test.ts`)
-
-⚠️ **A nomenclatura engana e é deliberada.** `ink` é quase preto; `gold-strong`
+⚠️ **A nomenclatura engana e é deliberada.** `ivory` é quase preto; `gold-light`
 é mais escuro que `gold`. Não "corrija" os nomes.
 
 ### A regra que governa os tokens de acessibilidade
@@ -72,28 +62,14 @@ Isso não é teoria: o anel de foco dependia dele e media 2,96:1 no cartão, com
 valor diferente em cada cliente e nenhum build capaz de saber qual. Hoje usa
 `--color-gold-light`, que é da plataforma, e o teste reprova se voltar.
 
-### Elevação — só o que flutua
+### Elevação
 
 ```
-(nenhuma)    cartão estático: borda de 1px, SEM sombra (.card-elevated)
---shadow-md  menu "Mais" (MenuMais)
---shadow-lg  diálogo (Modal) e aviso do rodapé
---shadow-sm  reservado
+--shadow-sm   cartão em repouso (.card-elevated)
+--shadow-md   cartão sob o cursor (.card-interactive:hover)
+--shadow-lg   reservado
 --shadow-gold ⚠️ sombra colorida — anti-pattern declarado. Ver §7.
 ```
-
-Quando todo cartão tem sombra a tela inteira flutua, e quando tudo flutua nada
-flutua. A sombra ficou para quem de fato sobrepõe a página.
-
-### Raio — dois, e só dois
-
-```
-rounded-controle     8px    botão, campo, menu, item de lista, barra de aba
-rounded-superficie  12px    cartão, tabela, diálogo, aviso
-```
-
-`rounded-2xl` (16px) é remapeado para 12px em `@theme`, para o que ainda não
-foi revisto convergir sozinho.
 
 ### Utilitários de `globals.css`
 
@@ -448,65 +424,3 @@ identidade, é uma linha em `globals.css`.
 
 *UX-04 · 17/08/2026. `tsc` limpo · `eslint --max-warnings=0` limpo · 563 testes
 verdes (451 na entrada) · `npm run build` compila.*
-
----
-
-## 9 · Refinamento de 09/10 — tipografia, linha de agenda e "Desfazer"
-
-Não é redesenho: mesma estrutura, mesmas informações, mesmos fluxos. É sistema e
-acabamento.
-
-### Escala tipográfica (Manrope)
-
-```
-título de tela   28 / 1.15  semibold  tracking -0.02em   (22 no celular)
-seção            15         semibold  ink
-corpo            14
-meta / etiqueta  12,5       medium    ink-muted, sem tracking
-```
-
-Etiqueta em caixa alta com tracking saiu do painel inteiro: vira frase normal em
-12,5 medium. Cabeçalho de tabela idem. Números (horário, dinheiro, contagem)
-sempre `tabular-nums`, e valor alinhado à direita.
-
-### Linha de agenda: uma primária e o resto no "Mais"
-
-`AcoesDaLinha` (`components/agenda/acoes-da-linha.tsx`) é o único desenho de
-ação de linha, nas telas Hoje e Agenda: **Concluir** (ou "Veio depois") à vista,
-e no `MenuMais` (⋯) Não veio, Remarcar, Apagar agendamento, Cancelar, Editar
-cobrança e Devolver — as MESMAS condições de antes, só em outro lugar.
-
-A situação é texto com ponto colorido (`Situacao`), não pílula preenchida:
-"Concluído · Pix", "Cancelado pelo cliente", "Atrasado 50 min". A regra mora em
-`lib/situacao-do-horario.ts` (com teste). Na coluna de valor, o corte que o
-cliente não paga diz "no plano" em `ink-muted`, em vez do preço de tabela.
-
-`MenuMais`: portal com `position: fixed` (tabela com rolagem lateral cortaria um
-menu absoluto), abre por Enter/Espaço/↓, setas/Home/End andam, Esc fecha e
-devolve o foco, Tab fecha, alvo de 44px no toque.
-
-### "Desfazer" honesto — envio adiado
-
-O produto não tem como reverter uma conclusão no servidor. Então o aviso do
-rodapé ("Concluído · R$ 60,00 · Pix · Desfazer", barra de 5 s) não promete
-reverter: ele **ainda não enviou**. A linha muda na hora para "Concluindo…" e a
-gravação real — a mesma de antes — só sai quando os 5 s acabam. Desfazer antes
-disso cancela o envio. Sair da página (`visibilitychange`, `pagehide`, troca de
-tela) **antecipa** o envio, nunca o cancela. Se o servidor recusar, a linha volta
-e o aviso vira o erro, que fica até alguém fechar. A fila é pura e testada:
-`lib/envio-adiado.ts`.
-
-### Atalhos (desktop, lista do dia)
-
-↑/↓ escolhem a linha, Enter conclui, N marca "não veio", R remarca, Esc limpa.
-Cada atalho chama o handler do botão, com a mesma condição. Não intercepta com
-foco em campo de texto, com diálogo/menu aberto, com Ctrl/Meta/Alt, nem em tela
-estreita.
-
-### Movimento
-
-150–200 ms em hover/foco/troca de estado (`duration-150`). A linha que muda de
-situação faz um fade curto (`.linha-muda`); menu e aviso entram com um
-deslocamento de 4–8 px (`.menu-entra`, `.aviso-entra`). Tudo isso está no bloco
-`prefers-reduced-motion` de `globals.css` — a barra de tempo do aviso some, em
-vez de ficar parada em "cheia" mentindo sobre o prazo.

@@ -145,7 +145,7 @@ export default function ClientesPage() {
         <p className="text-sm text-ink-muted md:text-base">
           {status === "pronto" ? contar(clientes.length, "cadastrado", "cadastrados") : "\u00a0"}
         </p>
-        <h1 className="text-[22px] font-semibold leading-[1.15] tracking-[-0.02em] text-ink md:text-[28px]">Clientes</h1>
+        <h1 className="text-xl text-ink md:text-4xl md:tracking-tight">Clientes</h1>
       </div>
 
       {status === "carregando" && <LoadingRows rows={4} oQue="seus clientes" />}
@@ -296,7 +296,7 @@ export default function ClientesPage() {
               { rotulo: "Cadastro do balcão", c: vinculando.balcao },
             ].map(({ rotulo, c }) => (
               <div key={c.id} className="rounded-xl border border-border bg-surface-raised p-3">
-                <p className="text-[12.5px] font-medium text-ink-muted">{rotulo}</p>
+                <p className="text-[11px] uppercase tracking-wide text-ink-muted">{rotulo}</p>
                 <p className="text-ink">{c.name}</p>
                 <p className="text-xs text-ink-muted">
                   {c.whatsapp ? mascararWhatsapp(c.whatsapp) : "sem WhatsApp"} ·{" "}
@@ -385,7 +385,7 @@ export default function ClientesPage() {
 
             {aberta.proximoAtendimento && (
               <div className="rounded-xl border border-gold/40 bg-gold/5 p-3">
-                <p className="text-[12.5px] font-medium text-ink-muted">
+                <p className="text-[11px] uppercase tracking-wide text-ink-muted">
                   Próximo atendimento
                 </p>
                 <p className="text-sm text-ink">
@@ -399,7 +399,7 @@ export default function ClientesPage() {
 
             {aberta.mensalista && (
               <div className="rounded-xl border border-border bg-surface-raised p-3">
-                <p className="text-[12.5px] font-medium text-ink-muted">Mensalista</p>
+                <p className="text-[11px] uppercase tracking-wide text-ink-muted">Mensalista</p>
                 <p className="text-sm text-ink">
                   {aberta.mensalista.planName} · {formatBRL(aberta.mensalista.price)}/mês
                 </p>
@@ -426,7 +426,7 @@ export default function ClientesPage() {
 function Dado({ rotulo, valor }: { rotulo: string; valor: string }) {
   return (
     <div className="rounded-xl border border-border bg-surface p-3">
-                <p className="text-[12.5px] font-medium text-ink-muted">{rotulo}</p>
+      <p className="text-[11px] uppercase tracking-wide text-ink-muted">{rotulo}</p>
       <p className="font-display text-base font-semibold text-ink">{valor}</p>
     </div>
   );

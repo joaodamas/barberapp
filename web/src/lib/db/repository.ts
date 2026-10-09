@@ -12,7 +12,6 @@ import {
   setDoc,
   updateDoc,
   where,
-  writeBatch,
   type DocumentData,
   type QueryConstraint,
 } from "firebase/firestore";
@@ -339,38 +338,6 @@ export async function removeDoc(
   conferirEscrita();
   const db = await getDb();
   await deleteDoc(doc(db, shopDocPath(barbershopId, collectionName, docId)));
-}
-
-/**
- * Várias escritas de UMA coleção, todas ou nenhuma (`writeBatch`).
- *
- * Existe para o lançamento parcelado: as N parcelas nascem juntas, ou o grupo
- * ficaria com "3/10" e sem as outras nove. Os ids vêm do chamador
- * (determinísticos), então repetir o lote — clique duplo, rede ruim, offline —
- * sobrescreve as mesmas parcelas em vez de duplicar o grupo. Como em
- * `gravarNovo`, devolve `noServidor` sem obrigar a esperar o servidor.
- * O limite do Firestore é 500 operações; o produto usa no máximo 48.
- */
-export type OperacaoEmLote =
-  | { tipo: "gravar"; id: string; dados: DocumentData }
-  | { tipo: "atualizar"; id: string; dados: DocumentData }
-  | { tipo: "excluir"; id: string };
-
-export async function gravarEmLote(
-  barbershopId: string,
-  collectionName: ShopCollection,
-  operacoes: OperacaoEmLote[]
-): Promise<{ noServidor: Promise<void> }> {
-  conferirEscrita();
-  const db = await getDb();
-  const lote = writeBatch(db);
-  for (const op of operacoes) {
-    const ref = doc(db, shopDocPath(barbershopId, collectionName, op.id));
-    if (op.tipo === "gravar") lote.set(ref, stripUndefined(op.dados));
-    else if (op.tipo === "atualizar") lote.update(ref, stripUndefined(op.dados));
-    else lote.delete(ref);
-  }
-  return { noServidor: lote.commit() };
 }
 
 /**

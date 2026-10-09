@@ -70,8 +70,7 @@ export type FonteFinanceira =
   | "subscribers"
   | "staff"
   | "commissions"
-  | "cashEntries"
-  | "otherIncomes";
+  | "cashEntries";
 
 /** O nome da coleção em linguagem de dono, para entrar numa frase. */
 const NOME_DA_FONTE: Record<FonteFinanceira, string> = {
@@ -85,7 +84,6 @@ const NOME_DA_FONTE: Record<FonteFinanceira, string> = {
   staff: "a equipe",
   commissions: "as comissões",
   cashEntries: "o livro caixa",
-  otherIncomes: "as receitas avulsas",
 };
 
 /* As três receitas que compõem a bruta. Nomeadas porque entram em quase toda
@@ -111,27 +109,19 @@ const CUSTO_VARIAVEL: readonly FonteFinanceira[] = [
 /* Despesa recorrente e eventual saem de `expenses`; a folha fixa, de `staff`. */
 const CUSTO_FIXO: readonly FonteFinanceira[] = ["expenses", "staff"];
 
-/* O custo total não depende das receitas avulsas: se só elas caírem, o custo
- * continua apurado. */
-const CUSTO_TOTAL: readonly FonteFinanceira[] = [
+const RESULTADO: readonly FonteFinanceira[] = [
   ...RECEITA,
   ...CUSTO_VARIAVEL,
   ...CUSTO_FIXO,
 ];
 
-const RESULTADO: readonly FonteFinanceira[] = [
-  "otherIncomes", // "Outras receitas" entra no resultado, fora da receita bruta
-  ...CUSTO_TOTAL,
-];
-
-/* O caixa é o dinheiro que se moveu, e ele se move por sete portas. */
+/* O caixa é o dinheiro que se moveu, e ele se move por seis portas. */
 const CAIXA: readonly FonteFinanceira[] = [
   "payments",
   "refunds",
   "expenses",
   "movements",
   "cashEntries",
-  "otherIncomes",
 ];
 
 /**
@@ -159,7 +149,7 @@ export const FONTES_DA_GRANDEZA = {
   despesasEventuais: ["expenses"],
   despesasDoMes: ["expenses"],
   custoFixo: CUSTO_FIXO,
-  custoTotal: CUSTO_TOTAL,
+  custoTotal: RESULTADO,
 
   /* --- resultado --- */
   margemDeContribuicao: [...RECEITA, ...CUSTO_VARIAVEL],
@@ -180,8 +170,7 @@ export const FONTES_DA_GRANDEZA = {
   taxaDeFalta: ["bookings"],
 
   /* --- futuro --- */
-  projecao: ["bookings", "expenses", "otherIncomes", "subscribers", "payments"],
-  outrasReceitas: ["otherIncomes"],
+  projecao: ["bookings", "expenses", "subscribers", "payments"],
   mensalistas: ["subscribers", "invoices"],
 } as const satisfies Record<string, readonly FonteFinanceira[]>;
 

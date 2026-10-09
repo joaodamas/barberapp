@@ -2,7 +2,6 @@ import type { Doc } from "@/lib/db/repository";
 import type {
   CashEntryDoc,
   ExpenseDoc,
-  OtherIncomeDoc,
   InventoryMovementDoc,
   PaymentDoc,
   RefundDoc,
@@ -65,7 +64,6 @@ export type OrigemDeCaixa =
   | "mensalidade"
   | "estorno"
   | "despesa"
-  | "receita_avulsa"
   | "compra"
   | "caixa";
 
@@ -114,21 +112,10 @@ export function movimentosDeCaixa(params: {
   payments: Doc<PaymentDoc>[];
   refunds: Doc<RefundDoc>[];
   expenses: Doc<ExpenseDoc>[];
-  /** Receitas avulsas — entrada pela data lançada (a da parcela, quando parcelada). */
-  otherIncomes?: Doc<OtherIncomeDoc>[];
   movements: Doc<InventoryMovementDoc>[];
   cashEntries: Doc<CashEntryDoc>[];
   periodo: Periodo;
-  /**
-   * `AAAA-MM-DD` de hoje. Com ele, PARCELA de despesa e QUALQUER receita avulsa
-   * com data depois de hoje não é movimento de caixa ainda — o modelo não guarda
-   * "paga", então o que ainda não venceu não é afirmado como saído/entrado.
-   * Sem ele, vale a data lançada para tudo (comportamento anterior).
-   */
-  hoje?: string;
 }): MovimentoDeCaixa[] {
-  const aindaNaoVenceu = (i: { date: string; parcela?: unknown }) =>
-    Boolean(params.hoje && i.parcela && i.date > params.hoje);
   const out: MovimentoDeCaixa[] = [];
 
   /* ---- ENTRADAS: pagamentos, pelo LÍQUIDO ----
@@ -185,7 +172,7 @@ export function movimentosDeCaixa(params: {
    * idempotência: é o D24, dívida consciente. O Fluxo a consome sem fingir que
    * ela tem as garantias das outras cinco coleções. */
   for (const e of params.expenses) {
-    if (!dentroDoPeriodo(e.date, params.periodo) || aindaNaoVenceu(e)) continue;
+    if (!dentroDoPeriodo(e.date, params.periodo)) continue;
     out.push({
       date: e.date,
       origem: "despesa",
@@ -193,25 +180,6 @@ export function movimentosDeCaixa(params: {
       valor: centavos(Number(e.value) || 0),
       metodo: metodoDaDespesa(e.payment),
       descricao: e.description || e.category || "Despesa",
-    });
-  }
-
-  /* ---- ENTRADA: receita avulsa ----
-   *
-   * Venda de equipamento, aluguel de cadeira, parceria. Não existe `payments`
-   * por trás (é D24 outra vez: o dono grava direto), então nenhuma outra seção
-   * a repete — a exclusividade se mantém. Parcela entra na data dela. */
-  for (const r of params.otherIncomes ?? []) {
-    /* Receita avulsa com data futura (parcela ou não) ainda não entrou: o
-     * produto não guarda "recebida", então vale a data. */
-    if (!dentroDoPeriodo(r.date, params.periodo) || (params.hoje && r.date > params.hoje)) continue;
-    out.push({
-      date: r.date,
-      origem: "receita_avulsa",
-      direcao: "entrada",
-      valor: centavos(Number(r.value) || 0),
-      metodo: metodoDaDespesa(r.payment),
-      descricao: r.description || r.category || "Receita avulsa",
     });
   }
 
@@ -274,7 +242,6 @@ const ORIGENS_ZERADAS: Record<OrigemDeCaixa, number> = {
   mensalidade: 0,
   estorno: 0,
   despesa: 0,
-  receita_avulsa: 0,
   compra: 0,
   caixa: 0,
 };

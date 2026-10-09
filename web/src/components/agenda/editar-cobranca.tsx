@@ -203,7 +203,7 @@ export function EditarCobranca({
 
         {/* SERVIÇOS */}
         <section>
-          <p className="mb-2 text-[12.5px] font-medium text-ink-muted">Serviços feitos</p>
+          <p className="mb-2 text-xs uppercase tracking-wider text-ink-muted">Serviços feitos</p>
           <ul className="flex flex-col gap-2">
             {ids.map((id, i) => (
               <li
@@ -257,7 +257,7 @@ export function EditarCobranca({
         {/* DESCONTO — só o dono dá, muda ou tira; o barbeiro só mantém (08/10). */}
         {(ehDono || tinhaDesconto) && (
           <section>
-            <p className="mb-2 text-[12.5px] font-medium text-ink-muted">Desconto</p>
+            <p className="mb-2 text-xs uppercase tracking-wider text-ink-muted">Desconto</p>
             <div className="flex flex-wrap gap-2">
               {tinhaDesconto && (
                 <Opcao ativa={modo === "manter"} onClick={() => setModo("manter")}>
@@ -304,7 +304,7 @@ export function EditarCobranca({
 
         {/* FORMA DE PAGAMENTO */}
         <section>
-          <p className="mb-2 text-[12.5px] font-medium text-ink-muted">Como o cliente pagou</p>
+          <p className="mb-2 text-xs uppercase tracking-wider text-ink-muted">Como o cliente pagou</p>
           <div className={formas.length > 4 ? "grid grid-cols-3 gap-2" : "grid grid-cols-2 gap-2"}>
             {formas.map((f) => (
               <button

@@ -23,19 +23,7 @@ import type { Doc } from "@/lib/db/repository";
 type Expense = Doc<ExpenseDoc>;
 import { useTenant } from "@/lib/tenant-context";
 import { useShopCollection } from "@/lib/db/use-collection";
-import { gravarEmLote, gravarNovo, novoIdDe, patchDoc, removeDoc } from "@/lib/db/repository";
-import { ParcelamentoCampos, rotuloDoValor, type ModoDoValor, type TipoDeLancamento } from "@/components/parcelamento-campos";
-import { GrupoDeParcelas } from "@/components/grupo-de-parcelas";
-import {
-  aVencer,
-  descricaoDaParcela,
-  idDaParcela,
-  parcelasValidas,
-  planejarParcelas,
-  PARCELAS_MAX,
-  PARCELAS_MIN,
-  parcelasComCentavo,
-} from "@/lib/parcelamento";
+import { gravarNovo, novoIdDe, patchDoc, removeDoc } from "@/lib/db/repository";
 import { esperarServidorOuSeguir } from "@/lib/db/sem-esperar-servidor";
 import { lerReais, reaisParaCampo, VALOR_ILEGIVEL } from "@/lib/reais";
 import { Voltar } from "@/components/ui/voltar";
@@ -51,9 +39,7 @@ const emptyForm = {
   value: "",
   date: todayISO(),
   payment: "Pix" as ExpensePaymentMethod,
-  tipo: "unica" as TipoDeLancamento,
-  parcelas: "10",
-  modo: "total" as ModoDoValor,
+  recurring: false,
   observations: "",
 };
 
@@ -88,20 +74,12 @@ export default function DespesasPage() {
   const [formError, setFormError] = useState<string | null>(null);
   /** Exclusão pedia confirmação em Reservas mas apagava lançamento num clique. */
   const [pendingDelete, setPendingDelete] = useState<Expense | null>(null);
-  /* O grupo de parcelas aberto em "ver parcelas". */
-  const [grupoAberto, setGrupoAberto] = useState<string | null>(null);
-  const hoje = todayISO();
-  /* A parcela que está sendo editada (se for uma): o formulário mostra só o
-   * valor e a data DELA, sem tipo, nº de parcelas nem prévia. */
-  const parcelaEmEdicao = editingId ? (expenses.find((e) => e.id === editingId)?.parcela ?? null) : null;
 
   const [saving, setSaving] = useState(false);
   /* Id da despesa nova, escolhido na primeira tentativa e mantido nas
    * seguintes: salvar duas vezes (rede lenta, offline) sobrescreve o mesmo
    * lançamento em vez de criar outro. Zera ao abrir o diálogo de novo. */
   const [idDoRascunho, setIdDoRascunho] = useState<string | null>(null);
-  /* Com que tipo e nº de parcelas o rascunho nasceu: se mudou, é outro id. */
-  const [assinaturaDoRascunho, setAssinaturaDoRascunho] = useState<string | null>(null);
   /* O que a tela diz depois que o diálogo fecha sem o servidor ter
    * confirmado. "Salvo" seria mentira; silêncio esconderia uma gravação que
    * ainda pode ser recusada. */
@@ -148,9 +126,7 @@ export default function DespesasPage() {
       value: reaisParaCampo(expense.value),
       date: expense.date,
       payment: expense.payment,
-      tipo: expense.parcela ? "parcelada" : expense.recurring ? "recorrente" : "unica",
-      parcelas: String(expense.parcela?.total ?? 10),
-      modo: "total",
+      recurring: expense.recurring,
       observations: expense.observations ?? "",
     });
     setFormError(null);
@@ -175,29 +151,7 @@ export default function DespesasPage() {
       setFormError("Informe um valor maior que zero.");
       return;
     }
-    const parcelado = !editingId && form.tipo === "parcelada";
-    const nParcelas = Number(form.parcelas);
-    if (parcelado && !parcelasValidas(nParcelas)) {
-      setFormError(`O número de parcelas vai de ${PARCELAS_MIN} a ${PARCELAS_MAX}.`);
-      return;
-    }
-    if (!form.date) {
-      setFormError("Informe a data.");
-      return;
-    }
-    const plano = parcelado
-      ? planejarParcelas({ modo: form.modo, valor: value, n: nParcelas, primeira: form.date })
-      : null;
-    if (plano && !parcelasComCentavo(plano)) {
-      setFormError("Cada parcela precisa ser de pelo menos R$ 0,01. Aumente o valor ou diminua as parcelas.");
-      return;
-    }
     setFormError(null);
-    /* Tipo ou nº de parcelas diferente da tentativa anterior = outro lançamento
-     * (ids novos), senão uma Única viraria uma parcela do grupo anterior. */
-    const assinatura = `${form.tipo}:${parcelado ? nParcelas : 0}`;
-    const reaproveita = idDoRascunho !== null && assinatura === assinaturaDoRascunho;
-    const rascunho = reaproveita ? idDoRascunho : null;
 
     const fields = {
       category: form.category,
@@ -206,8 +160,7 @@ export default function DespesasPage() {
       value,
       date: form.date,
       payment: form.payment,
-      /* Parcelada e recorrente não se misturam: uma tem fim, a outra não. */
-      recurring: form.tipo === "recorrente",
+      recurring: form.recurring,
       // O textarea era preenchido e o valor descartado no salvamento.
       observations: form.observations.trim() || undefined,
     };
@@ -215,40 +168,11 @@ export default function DespesasPage() {
     setSaving(true);
     try {
       let noServidor: Promise<unknown>;
-      if (plano) {
-        /* N documentos num lote atômico. O id do grupo é escolhido na primeira
-         * tentativa e mantido (`idDoRascunho`), e cada parcela tem id
-         * derivado dele: repetir o clique ou a rede sobrescreve as mesmas
-         * parcelas em vez de criar um segundo grupo. */
-        const grupoId = rascunho ?? (await novoIdDe(barbershopId, "expenses"));
-        setIdDoRascunho(grupoId);
-        setAssinaturaDoRascunho(assinatura);
-        noServidor = (
-          await gravarEmLote(
-            barbershopId,
-            "expenses",
-            plano.valores.map((valorDaParcela, i) => ({
-              tipo: "gravar" as const,
-              id: idDaParcela(grupoId, i + 1),
-              dados: {
-                ...fields,
-                value: valorDaParcela,
-                date: plano.datas[i],
-                description: descricaoDaParcela(fields.description, i + 1, nParcelas),
-                recurring: false,
-                parcela: { numero: i + 1, total: nParcelas, grupoId },
-              },
-            }))
-          )
-        ).noServidor;
-      } else if (editingId) {
-        /* Editar uma parcela mexe só nela e preserva `parcela`: o grupo é
-         * tratado em "ver parcelas". */
+      if (editingId) {
         noServidor = patchDoc(barbershopId, "expenses", editingId, fields);
       } else {
-        const id = rascunho ?? (await novoIdDe(barbershopId, "expenses"));
+        const id = idDoRascunho ?? (await novoIdDe(barbershopId, "expenses"));
         setIdDoRascunho(id);
-        setAssinaturaDoRascunho(assinatura);
         noServidor = (await gravarNovo(barbershopId, "expenses", id, fields)).noServidor;
       }
       /* Offline, o servidor não responde nunca — e esperar por ele deixava o
@@ -316,7 +240,7 @@ export default function DespesasPage() {
               ? `Lançamentos de ${rotuloDoMes(mes)} não apurados`
               : `${contar(resumo.lancamentos, "lançamento", "lançamentos")} em ${rotuloDoMes(mes)}`}
           </p>
-          <h1 className="text-[22px] font-semibold leading-[1.15] tracking-[-0.02em] text-ink md:text-[28px]">Despesas</h1>
+          <h1 className="text-xl text-ink md:text-3xl md:tracking-tight">Despesas</h1>
         </div>
         {/* Caixa alta no meio da frase é convenção de inglês. O resto do painel
             escreve "Marcar atendimento", "Adicionar produto", "Lançar
@@ -354,7 +278,7 @@ export default function DespesasPage() {
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-5">
           <div className="flex items-center gap-1.5">
             <CheckSquare size={12} className="text-gold-strong" />
-            <p className="text-[12.5px] font-medium text-ink-muted">Lançamentos</p>
+            <p className="text-[11px] uppercase tracking-wide text-ink-muted md:text-xs">Lançamentos</p>
           </div>
           <p className="font-display text-lg font-semibold text-ink md:text-2xl">
             {naoApurado ? NAO_APURADO : resumo.lancamentos}
@@ -368,7 +292,7 @@ export default function DespesasPage() {
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-5">
           <div className="flex items-center gap-1.5">
             <DollarSign size={12} className="text-danger" />
-            <p className="text-[12.5px] font-medium text-ink-muted">Total no mês</p>
+            <p className="text-[11px] uppercase tracking-wide text-ink-muted md:text-xs">Total no mês</p>
           </div>
           <p className="font-display text-lg font-semibold text-ink md:text-2xl">
             {naoApurado ? NAO_APURADO : formatBRL(total)}
@@ -378,7 +302,7 @@ export default function DespesasPage() {
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-5">
           <div className="flex items-center gap-1.5">
             <Repeat size={12} className="text-gold-strong" />
-            <p className="text-[12.5px] font-medium text-ink-muted">Recorrentes</p>
+            <p className="text-[11px] uppercase tracking-wide text-ink-muted md:text-xs">Recorrentes</p>
           </div>
           <p className="font-display text-lg font-semibold text-ink md:text-2xl">
             {naoApurado ? NAO_APURADO : formatBRL(recurringTotal)}
@@ -390,7 +314,7 @@ export default function DespesasPage() {
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-5">
           <div className="flex items-center gap-1.5">
             <Tag size={12} className="text-gold-strong" />
-            <p className="text-[12.5px] font-medium text-ink-muted">Maior categoria</p>
+            <p className="text-[11px] uppercase tracking-wide text-ink-muted md:text-xs">Maior categoria</p>
           </div>
           {/* O `—` deste cartão era o mais enganoso dos quatro: ele já é o
               placeholder de "não houve categoria", então erro e vazio ficavam
@@ -432,7 +356,7 @@ export default function DespesasPage() {
           ))}
           <p className="text-xs text-ink-muted">
             Recorrente se repete sozinha todo mês, a partir da data do lançamento. Se uma delas
-            foi relançada, troque-a para &quot;Única&quot; em Editar — senão o custo fixo soma as
+            foi relançada, desmarque o &quot;recorrente&quot; dela — senão o custo fixo soma as
             duas. Se são contas diferentes (luz e água, por exemplo), está certo.
           </p>
         </Card>
@@ -444,7 +368,7 @@ export default function DespesasPage() {
           cartão com valor e a lista sem a conta, e lançava de novo. */}
       {!naoApurado && resumo.recorrentesDeAntes.length > 0 && (
         <Card className="flex flex-col gap-2 p-3 md:p-4">
-          <p className="text-[12.5px] font-medium text-ink-muted">
+          <p className="text-xs uppercase tracking-wide text-ink-muted">
             Recorrentes de meses anteriores · valem em {rotuloDoMes(mes)}
           </p>
           {resumo.recorrentesDeAntes.map((e) => (
@@ -490,20 +414,6 @@ export default function DespesasPage() {
                     <Repeat size={10} /> mensal
                   </Pill>
                 )}
-                {e.parcela && (
-                  <>
-                    {aVencer(e.date, hoje) && (
-                      <Pill tone="gold" className="ml-2">a vencer</Pill>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => setGrupoAberto(e.parcela!.grupoId)}
-                      className="ml-2 min-h-11 text-xs text-gold-strong underline underline-offset-2 md:min-h-0"
-                    >
-                      ver parcelas
-                    </button>
-                  </>
-                )}
               </p>
               <p className="text-xs text-ink-muted">
                 {formatDateShortPtBR(e.date)} · <span className="text-gold-strong">{e.category}</span> · {e.payment}
@@ -531,7 +441,7 @@ export default function DespesasPage() {
             </div>
           </Card>
         ))}
-        <div className="flex items-center justify-between px-1 pt-1 text-[12.5px] font-medium text-ink-muted">
+        <div className="flex items-center justify-between px-1 pt-1 text-xs uppercase tracking-wide text-ink-muted">
           <span>Total do mês</span>
           <span className="font-display text-sm font-semibold normal-case text-ink">
             {naoApurado ? NAO_APURADO : formatBRL(total)}
@@ -542,7 +452,7 @@ export default function DespesasPage() {
       <Card className="table-scroll hidden overflow-x-auto p-0 md:block">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-border text-left text-[12.5px] font-medium text-ink-muted">
+            <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ink-muted">
               <th className="px-4 py-3 font-medium md:px-6">Data</th>
               <th className="px-4 py-3 font-medium">Descrição</th>
               <th className="px-4 py-3 font-medium">Fornecedor</th>
@@ -598,20 +508,6 @@ export default function DespesasPage() {
                       <Repeat size={10} /> mensal
                     </Pill>
                   )}
-                  {e.parcela && (
-                    <>
-                      {aVencer(e.date, hoje) && (
-                        <Pill tone="gold" className="ml-2">a vencer</Pill>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => setGrupoAberto(e.parcela!.grupoId)}
-                        className="ml-2 text-xs text-gold-strong underline underline-offset-2"
-                      >
-                        ver parcelas
-                      </button>
-                    </>
-                  )}
                 </td>
                 <td className="px-4 py-3 text-ink-muted">{e.supplier}</td>
                 <td className="px-4 py-3 text-gold-strong">{e.category}</td>
@@ -642,7 +538,7 @@ export default function DespesasPage() {
           </tbody>
           <tfoot>
             <tr className="border-t border-border">
-              <td className="px-4 py-3 text-[12.5px] font-medium text-ink-muted md:px-6" colSpan={5}>
+              <td className="px-4 py-3 text-xs uppercase tracking-wide text-ink-muted md:px-6" colSpan={5}>
                 Total do mês
               </td>
               {/* O rodapé era o quinto zero da tela e o mais autoritário
@@ -674,20 +570,6 @@ export default function DespesasPage() {
         }
       >
         <div className="grid gap-4 md:grid-cols-2">
-          <ParcelamentoCampos
-            tipo={form.tipo}
-            onTipo={(tipo) => setForm((f) => ({ ...f, tipo }))}
-            permiteRecorrente
-            permiteParcelada={!editingId}
-            parcelaExistente={parcelaEmEdicao}
-            parcelas={form.parcelas}
-            onParcelas={(parcelas) => setForm((f) => ({ ...f, parcelas }))}
-            modo={form.modo}
-            onModo={(modo) => setForm((f) => ({ ...f, modo }))}
-            valor={lerReais(form.value)}
-            primeira={form.date}
-          />
-
           <label className="flex flex-col gap-1 text-xs text-ink-muted md:col-span-2">
             Descrição *
             <input
@@ -724,7 +606,7 @@ export default function DespesasPage() {
           </label>
 
           <label className="flex flex-col gap-1 text-xs text-ink-muted">
-            {rotuloDoValor(form.tipo, form.modo, Boolean(parcelaEmEdicao))}
+            Valor (R$) *
             {/* Texto, não `number`: o campo numérico do navegador não aceita
                 "1.500,50", e o que ele entrega para "1.500" depende do
                 aparelho. Quem lê é `lerReais`. */}
@@ -739,7 +621,7 @@ export default function DespesasPage() {
           </label>
 
           <label className="flex flex-col gap-1 text-xs text-ink-muted">
-            {parcelaEmEdicao ? "Data desta parcela" : form.tipo === "parcelada" ? "Data da primeira parcela" : "Data"}
+            Data
             <input
               type="date"
               value={form.date}
@@ -765,12 +647,21 @@ export default function DespesasPage() {
             </select>
           </label>
 
+          <label className="flex items-center gap-2 text-sm text-ink md:col-span-2">
+            <input
+              type="checkbox"
+              checked={form.recurring}
+              onChange={(e) => setForm((f) => ({ ...f, recurring: e.target.checked }))}
+              className="h-4 w-4 rounded border-border accent-gold"
+            />
+            Recorrente (repete todo mês — entra como custo fixo no resultado)
+          </label>
           {/* Sem data de fim no modelo: mudar a recorrente antiga muda o custo
               de TODOS os meses desde o lançamento, inclusive os já fechados. */}
           {editingId &&
             expenses.some((e) => e.id === editingId && e.recurring && e.date < `${mes}-01`) && (
               <p role="note" className="rounded-lg border border-gold/40 bg-gold/5 p-3 text-xs text-ink md:col-span-2">
-                Esta recorrente vem de meses anteriores. Mudar o valor ou trocar para &quot;Única&quot; aqui muda o custo
+                Esta recorrente vem de meses anteriores. Mudar o valor ou desmarcar aqui muda o custo
                 fixo de todos os meses desde o lançamento, inclusive os já fechados. Para reajustar só
                 daqui para frente, lance uma nova recorrente (mesma categoria e descrição) com a data
                 de hoje e o valor novo — a mais recente substitui a antiga — e não mexa nesta.
@@ -795,18 +686,6 @@ export default function DespesasPage() {
           )}
         </div>
       </Modal>
-
-      <GrupoDeParcelas
-        grupoId={grupoAberto}
-        onClose={() => setGrupoAberto(null)}
-        barbershopId={barbershopId}
-        colecao="expenses"
-        itens={expenses}
-        categorias={expenseCategories}
-        hoje={hoje}
-        substantivo="despesa"
-        onAviso={setSincronia}
-      />
 
       <Modal
         open={pendingDelete !== null}
@@ -833,8 +712,6 @@ export default function DespesasPage() {
             ? `${formatBRL(pendingDelete.value)} · ${pendingDelete.category} · ${formatDateShortPtBR(pendingDelete.date)}`
             : ""}
           . Esta ação não pode ser desfeita e altera o resultado do mês.
-          {pendingDelete?.parcela &&
-            ` É a parcela ${pendingDelete.parcela.numero}/${pendingDelete.parcela.total}: só ela será excluída. Para excluir as próximas ou todas, use "ver parcelas".`}
         </p>
       </Modal>
 

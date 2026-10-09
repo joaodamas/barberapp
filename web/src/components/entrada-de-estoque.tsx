@@ -138,7 +138,7 @@ export function EntradaDeEstoque({
       <div className="flex flex-col gap-4">
         <div className="grid grid-cols-2 gap-3">
           <label className="flex flex-col gap-1.5">
-            <span className="text-[12.5px] font-medium text-ink-muted">
+            <span className="text-[11px] uppercase tracking-wide text-ink-muted">
               Quantidade
             </span>
             <input
@@ -154,7 +154,7 @@ export function EntradaDeEstoque({
             />
           </label>
           <label className="flex flex-col gap-1.5">
-            <span className="text-[12.5px] font-medium text-ink-muted">
+            <span className="text-[11px] uppercase tracking-wide text-ink-muted">
               Custo por unidade
             </span>
             <input
@@ -171,8 +171,8 @@ export function EntradaDeEstoque({
         </div>
 
         <label className="flex flex-col gap-1.5">
-            <span className="text-[12.5px] font-medium text-ink-muted">
-            Fornecedor <span className="font-normal">(opcional)</span>
+          <span className="text-[11px] uppercase tracking-wide text-ink-muted">
+            Fornecedor <span className="normal-case tracking-normal">(opcional)</span>
           </span>
           <input
             value={fornecedor}
@@ -183,8 +183,8 @@ export function EntradaDeEstoque({
         </label>
 
         <div className="flex flex-col gap-1.5">
-            <span className="text-[12.5px] font-medium text-ink-muted">
-            Como você pagou <span className="font-normal">(opcional)</span>
+          <span className="text-[11px] uppercase tracking-wide text-ink-muted">
+            Como você pagou <span className="normal-case tracking-normal">(opcional)</span>
           </span>
           <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
             {PAYMENT_METHODS.map((m) => (

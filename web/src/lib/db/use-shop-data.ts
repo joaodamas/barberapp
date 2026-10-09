@@ -6,7 +6,7 @@ import { separarAPartirDe } from "@/lib/a-partir-de";
 import { saldoDeFidelidade } from "@/lib/domain";
 import { useTenant } from "@/lib/tenant-context";
 import type {
-  BookingDoc, ClientDoc, CommissionDoc, ExpenseDoc, InventoryMovementDoc, OtherIncomeDoc,
+  BookingDoc, ClientDoc, CommissionDoc, ExpenseDoc, InventoryMovementDoc,
   CashEntryDoc,
   LoyaltyTransactionDoc, PaymentDoc, PlanDoc, ProductDoc, RefundDoc, ServiceDoc,
   SubscriptionInvoiceDoc,
@@ -142,9 +142,6 @@ export function useBookings() {
 export const useClients = () =>
   useShopCollection<ClientDoc>("clients", { orderByField: "name" });
 
-export const useOtherIncomes = () =>
-  useShopCollection<OtherIncomeDoc>("otherIncomes", { orderByField: "date", direction: "desc" });
-
 export const useExpenses = () =>
   useShopCollection<ExpenseDoc>("expenses", { orderByField: "date", direction: "desc" });
 
@@ -255,18 +252,4 @@ export const useComissaoDoBarbeiro = (staffId: string | null, de: string, ate: s
     range: { field: "date", from: de, to: ate },
     orderByField: "date",
     enabled: !!staffId,
-  });
-
-/**
- * As faturas do próprio cliente — o aviso de vencimento no app do mensalista.
- *
- * Filtradas por `clientId` pelo mesmo motivo de `useMinhasAssinaturas`: a regra
- * de `subscription_invoices` libera o dono do documento, e a listagem sem o
- * filtro seria negada. Sem `orderByField`: filtro de igualdade + ordenação pede
- * índice composto, e quem escolhe a fatura relevante é `faturaRelevante`.
- */
-export const useMinhasFaturas = (clientId: string | undefined) =>
-  useShopCollection<SubscriptionInvoiceDoc>("subscriptionInvoices", {
-    equals: { clientId },
-    enabled: !!clientId,
   });

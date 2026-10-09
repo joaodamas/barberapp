@@ -86,7 +86,7 @@ export default function FinanceiroPage() {
    * sucesso; não atingido, ela para onde parou, em vermelho. E o percentual
    * vai escrito ao lado, porque a `UI-UX-GUIDELINES` §3 proíbe elemento que
    * dependa só de cor. */
-  const coberturaDoCustoPct = safePct(r.grossRevenue + r.outrasReceitas, r.totalCost);
+  const coberturaDoCustoPct = safePct(r.grossRevenue, r.totalCost);
   const equilibrioAtingido = r.breakEvenDay !== null;
 
   const netGrowth = commercialStats.newSubscribers - commercialStats.cancellations;
@@ -110,7 +110,7 @@ export default function FinanceiroPage() {
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm text-ink-muted md:text-base">Fechamento de {rotuloDoMes(mes)}</p>
-          <h1 className="text-[22px] font-semibold leading-[1.15] tracking-[-0.02em] text-ink md:text-[28px]">Financeiro</h1>
+          <h1 className="text-xl text-ink md:text-4xl md:tracking-tight">Financeiro</h1>
         </div>
         {/* Dizia "Fechamento do mês" e levava à tela que o menu chama "Quanto
             sobrou" — o terceiro nome para o mesmo destino, e o mais confuso
@@ -126,7 +126,7 @@ export default function FinanceiroPage() {
       {status === "carregando" && <LoadingRows rows={4} oQue="o resumo financeiro" />}
       {status === "erro" && <ErroAoCarregar oQue="o resumo financeiro" erro={erro} />}
 
-      {status === "pronto" && receita.bruta === 0 && raw.expenses.length === 0 && r.outrasReceitas === 0 && (
+      {status === "pronto" && receita.bruta === 0 && raw.expenses.length === 0 && (
         <EmptyState
           icon={Wallet}
           title="Seu resultado aparece assim que houver movimento"
@@ -140,7 +140,7 @@ export default function FinanceiroPage() {
         />
       )}
 
-      {(receita.bruta > 0 || raw.expenses.length > 0 || r.outrasReceitas > 0) && (
+      {(receita.bruta > 0 || raw.expenses.length > 0) && (
       <>
       {/* ---- Seção: Financeiro ---- */}
       <section className="flex flex-col gap-5 md:gap-6">
@@ -199,17 +199,6 @@ export default function FinanceiroPage() {
           />
         </div>
 
-        {/* Para a conta fechar na tela: Receita − Custo + Outras = Resultado.
-            Outras receitas ficam fora da receita realizada e do imposto. */}
-        {r.outrasReceitas > 0 && apuracao.ok("outrasReceitas") && (
-          <p className="text-xs text-ink-muted md:text-sm">
-            Resultado = receita realizada − custo total + outras receitas{" "}
-            <strong className="text-ink">{formatBRL(r.outrasReceitas)}</strong> (venda de
-            equipamento, aluguel de cadeira, parcerias — fora do imposto). A margem é sobre a
-            receita realizada mais as outras receitas.
-          </p>
-        )}
-
         {apuracao.ok("pontoDeEquilibrio") && (
         <Card className="flex flex-col gap-2 md:p-6">
           <div className="flex items-center justify-between text-sm md:text-base">
@@ -264,7 +253,7 @@ export default function FinanceiroPage() {
         )}
 
         <div>
-          <h3 className="mb-2 text-[15px] font-semibold text-ink">
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
             De onde vem o dinheiro
           </h3>
           <Card className="flex flex-col gap-3 md:p-6">
@@ -315,7 +304,7 @@ export default function FinanceiroPage() {
 
         <div>
           <div className="mb-2 flex items-center justify-between">
-            <h3 className="text-[15px] font-semibold text-ink">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
               Taxas por método
             </h3>
             <div className="flex gap-1 rounded-lg border border-border bg-surface p-0.5">
@@ -360,7 +349,7 @@ export default function FinanceiroPage() {
         </div>
 
         <div>
-          <h3 className="mb-2 text-[15px] font-semibold text-ink">
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
             Relatórios detalhados
           </h3>
           {/* Os quatro rótulos são os do MENU, palavra por palavra. Três
