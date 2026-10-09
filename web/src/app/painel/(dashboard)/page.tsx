@@ -38,7 +38,10 @@ import {
   type ActionIntent,
   type ActionItem,
 } from "@/lib/action-center";
-import { usePayments } from "@/lib/db/use-shop-data";
+import { usePayments, useRefunds } from "@/lib/db/use-shop-data";
+import { recebidoDoDia } from "@/lib/recebido-do-dia";
+import { FiltroDeBarbeiro, useFiltroDeBarbeiro } from "@/components/agenda/filtro-de-barbeiro";
+import { reservasDoFiltro } from "@/lib/grade-por-barbeiro";
 import { formasAtivas } from "@/lib/formas-de-pagamento";
 import { formatBRL, formatPhonePtBR, safePct } from "@/lib/format";
 import { contar } from "@/lib/plural";
@@ -64,7 +67,14 @@ export default function PainelHojePage() {
   const { items: todas, status, error: erroDaAgenda } = useBookings();
   const { items: services, status: statusServicos } = useServices();
   const payments = usePayments();
+  const refunds = useRefunds();
   const { items: equipe } = useStaff();
+  /* Filtro por barbeiro: só a lista da agenda do dia. Os números do topo e o
+   * caixa são da barbearia inteira. */
+  const [filtro, setFiltro] = useFiltroDeBarbeiro(equipe, "hoje");
+  const variosBarbeiros = equipe.filter((b) => b.active !== false).length > 1;
+  const nomeDoBarbeiro = (b: { staffId?: string | null; staffName?: string | null }) =>
+    equipe.find((s) => s.id === b.staffId)?.name ?? b.staffName ?? "—";
 
   const hoje = toISODate(new Date());
   const bookings = todas.filter((b) => b.date === hoje);
@@ -117,7 +127,7 @@ export default function PainelHojePage() {
    * faltar sem que nenhuma tela tenha errado. Encontrado em 20/08, ao semear uma
    * reserva pelo Admin SDK sem o campo. */
   const reservasDaAgenda = todas.filter((b) => b.date === dia);
-  const bookingsDoDia = reservasDaAgenda
+  const bookingsDoDia = reservasDoFiltro(reservasDaAgenda, filtro)
     .slice()
     .sort((a, b) => (a.time ?? "").localeCompare(b.time ?? ""));
   const agendados = bookings.filter((b) => OCCUPIES_SLOT.includes(b.status));
@@ -195,7 +205,10 @@ export default function PainelHojePage() {
    * divergir do Fluxo de Caixa por população. */
   const pagamentosDeHoje = payments.items.filter((p) => p.date === hoje);
   const caixaHoje = caixaDoDia(pagamentosDeHoje);
-  const recebidoReal = caixaHoje.total;
+  /* Menos o que voltou para o cliente hoje — a mesma conta do fechamento do
+   * Telegram. O detalhe por forma (`caixaHoje`) segue bruto: a devolução não
+   * grava a forma de cada fatia, e inventar a divisão seria chute. */
+  const { recebido: recebidoReal, estornado: estornadoHoje } = recebidoDoDia(caixaHoje.total, refunds.items, hoje);
 
   /* D3 · o recebido tem fonte PRÓPRIA desde o D2, e some pela falha dela.
    *
@@ -203,7 +216,8 @@ export default function PainelHojePage() {
    * pode estar ilegível com os pagamentos perfeitamente legíveis — e nesse dia
    * "quanto entrou" continua sendo uma pergunta respondível. É a segunda metade
    * da regra do D3: suprimir o que não dá para apurar, preservar o que dá. */
-  const pagamentosIlegiveis = payments.status === "erro";
+  /* Sem ler os estornos, o recebido seria maior que o caixa: não apurar. */
+  const pagamentosIlegiveis = payments.status === "erro" || refunds.status === "erro";
 
   /* D3 · sem a agenda, todo número desta tela é zero por falta de leitura.
    *
@@ -358,6 +372,27 @@ export default function PainelHojePage() {
             setDiaEscolhido(d === hoje ? null : d);
           }}
         />
+        <FiltroDeBarbeiro equipe={equipe} valor={filtro} aoMudar={setFiltro} className="mt-2" />
+        {filtro && (
+          <p className="mt-2 flex flex-wrap items-center gap-x-2 rounded-xl border border-gold/40 bg-gold/5 px-3 py-2 text-sm text-ink">
+            <span>
+              Mostrando só <strong>{equipe.find((b) => b.id === filtro)?.name}</strong> na agenda. Os números e o
+              caixa são da barbearia inteira.
+            </span>
+            <button
+              type="button"
+              onClick={() => setFiltro(null)}
+              className="alvo-toque font-medium text-gold-strong underline underline-offset-2"
+            >
+              ver todos
+            </button>
+          </p>
+        )}
+        {status === "pronto" && reservasDaAgenda.length > 0 && bookingsDoDia.length === 0 && (
+          <p className="mt-2 text-sm text-ink-muted">
+            Nenhum horário de {equipe.find((b) => b.id === filtro)?.name ?? "este barbeiro"} neste dia.
+          </p>
+        )}
         {/* `key` no dia: a lista de cada dia é outra, e remontar é o que faz a
             entrada tocar de novo. Os dados de todos os dias já estão na
             memória (`useBookings`), então não há carregamento no meio. */}
@@ -491,7 +526,7 @@ export default function PainelHojePage() {
                   onClick={() => {
                     atendimento.abrirConcluir(booking);
                   }}
-                  className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ink-muted transition-colors hover:border-success hover:text-success"
+                  className="alvo-toque flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ink-muted transition-colors hover:border-success hover:text-success"
                 >
                   <Check size={14} />
                   {booking.status === "no_show" ? "Veio depois" : "Concluir"}
@@ -505,7 +540,7 @@ export default function PainelHojePage() {
                   onClick={() => {
                     atendimento.abrirFalta(booking);
                   }}
-                  className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ink-muted transition-colors hover:border-danger hover:text-danger"
+                  className="alvo-toque flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ink-muted transition-colors hover:border-danger hover:text-danger"
                 >
                   <UserX size={14} /> Não veio
                 </button>
@@ -518,7 +553,7 @@ export default function PainelHojePage() {
                   onClick={() => {
                     atendimento.abrirCancelar(booking);
                   }}
-                  className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ink-muted transition-colors hover:border-danger hover:text-danger"
+                  className="alvo-toque flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ink-muted transition-colors hover:border-danger hover:text-danger"
                 >
                   <CalendarX size={14} /> Cancelar
                 </button>
@@ -526,7 +561,7 @@ export default function PainelHojePage() {
               {emAberto && (
                 <button
                   onClick={() => atendimento.abrirRemarcar(booking)}
-                  className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ink-muted transition-colors hover:border-gold hover:text-gold-strong"
+                  className="alvo-toque flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ink-muted transition-colors hover:border-gold hover:text-gold-strong"
                 >
                   <CalendarClock size={14} /> Remarcar
                 </button>
@@ -609,6 +644,9 @@ export default function PainelHojePage() {
                         )}
                         <p className="truncate text-sm font-medium text-ink">{l.booking.clientName}</p>
                         <p className="truncate text-xs text-ink-muted">
+                          {variosBarbeiros && (
+                            <span className="font-medium text-ink">{nomeDoBarbeiro(l.booking)} · </span>
+                          )}
                           {l.bookingServices.map((x) => x.name).join(" + ")}
                         </p>
                       </div>
@@ -624,12 +662,13 @@ export default function PainelHojePage() {
               </div>
 
               <Card className="table-scroll hidden overflow-x-auto p-0 md:block">
-                <table className="w-full min-w-[920px] table-fixed text-[13px]">
+                <table className={cn("w-full table-fixed text-[13px]", variosBarbeiros ? "min-w-[1030px]" : "min-w-[920px]")}>
                   {/* Larguras FIXAS (02/10): a tabela se ajustava ao conteúdo
                       de cada dia e as colunas pulavam ao trocar de data. */}
                   <colgroup>
                     <col className="w-[72px]" />
                     <col className="w-[21%]" />
+                    {variosBarbeiros && <col className="w-[110px]" />}
                     <col className="w-[128px]" />
                     <col className="w-[19%]" />
                     <col className="w-[16%]" />
@@ -640,6 +679,7 @@ export default function PainelHojePage() {
                     <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-ink-muted">
                       <th className="px-3 py-2.5 font-medium md:pl-5">Hora</th>
                       <th className="px-3 py-2.5 font-medium">Cliente</th>
+                      {variosBarbeiros && <th className="px-3 py-2.5 font-medium">Barbeiro</th>}
                       <th className="px-3 py-2.5 font-medium">Telefone</th>
                       <th className="px-3 py-2.5 font-medium">Serviço</th>
                       <th className="px-3 py-2.5 font-medium">Pagamento</th>
@@ -675,6 +715,11 @@ export default function PainelHojePage() {
                             {mensalistas.has(l.booking.clientId) && <EtiquetaMensalista className="shrink-0" />}
                           </div>
                         </td>
+                        {variosBarbeiros && (
+                          <td className="truncate px-3 py-2.5 text-ink" title={nomeDoBarbeiro(l.booking)}>
+                            {nomeDoBarbeiro(l.booking)}
+                          </td>
+                        )}
                         <td className="whitespace-nowrap px-3 py-2.5">{telefone(l)}</td>
                         <td className="px-3 py-2.5 text-ink-muted">
                           {l.bookingServices.map((x) => x.name).join(" + ")}
@@ -699,6 +744,11 @@ export default function PainelHojePage() {
       <section id="caixa-de-hoje" className="scroll-mt-4">
         <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
           Caixa de hoje
+          {estornadoHoje > 0 && (
+            <span className="ml-2 font-normal normal-case tracking-normal">
+              · por forma, antes de devoluções ({formatBRL(estornadoHoje)})
+            </span>
+          )}
         </h2>
         <Card className="flex flex-col divide-y divide-border p-0 md:flex-row md:divide-x md:divide-y-0">
           <div className="flex items-center gap-3 px-4 py-3 md:flex-1 md:p-5">
