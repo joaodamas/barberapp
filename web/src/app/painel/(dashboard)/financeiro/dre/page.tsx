@@ -13,7 +13,8 @@ import {
   despesasRecorrentesVigentes,
   recorrentesRepetidasPorCategoria,
 } from "@/lib/analytics";
-import { detalheDoCustoDoVendido } from "@/lib/fontes-financeiras";
+import { detalheDoCustoDoVendido, perdasDeEstoque } from "@/lib/fontes-financeiras";
+import { rotuloDoMotivo } from "@/lib/ajuste-de-estoque";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
 import { useFeature, useTenant } from "@/lib/tenant-context";
@@ -241,6 +242,17 @@ function DreConteudo() {
     return linhas;
   });
 
+  /* Perdas e uso interno de estoque — o ajuste manual de saída, ao custo
+   * congelado. A conta vem do motor (`perdasDeEstoque`), a mesma que entrou no
+   * custo variável: a tela só escreve o nome. */
+  const detalhePerdas = perdasDeEstoque({ movements: raw.movements, periodo });
+  const perdasTree: DreItem[] = detalhePerdas.linhas.map((l) => ({
+    key: `perdas.${l.productId}.${l.reason}`,
+    label: `${nomeDoProduto(l.productId)} · ${rotuloDoMotivo(l.reason, l.reasonText)}`,
+    value: l.custo,
+    caption: `${l.unidades} un.`,
+  }));
+
   /* Comissão aberta POR PESSOA, e não numa linha só.
    *
    * É a maior despesa de uma barbearia com equipe, e o total agregado não
@@ -462,6 +474,24 @@ function DreConteudo() {
           groupKey="cmv"
           tone="danger"
         />
+        {(r.perdasDeEstoque > 0 || detalhePerdas.semCustoCongelado > 0) && (
+          <ExpandableGroup
+            label="(−) Perdas e uso interno de estoque"
+            value={r.perdasDeEstoque}
+            faltando={apuracao.faltando("cmv")}
+            items={perdasTree}
+            open={open}
+            toggle={toggle}
+            groupKey="perdas"
+            tone="danger"
+          />
+        )}
+        {detalhePerdas.semCustoCongelado > 0 && (
+          <p role="status" className="pl-5 text-xs text-ink-muted">
+            {detalhePerdas.semCustoCongelado} un. de perda sem custo cadastrado — ficaram de fora do
+            valor. Cadastre o custo do produto (Dar entrada ou Editar) para as próximas.
+          </p>
+        )}
         <ExpandableGroup
           label="(−) Despesas Variáveis"
           value={r.gatewayFees + r.commissions}

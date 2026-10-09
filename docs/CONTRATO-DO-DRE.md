@@ -21,6 +21,7 @@ código alterada.
 | CMV | `unitCost` congelado nas vendas do período | 🟢 desde G1 |
 | Taxas | `PaymentDoc.feeAmount` | 🟢 desde G1.6 |
 | Comissão de serviço | `commissions` com `origin: "servico"` | 🟢 desde o Gate A |
+| Perdas e uso interno de estoque (10/10) | movimento `ajuste` MANUAL de saída (`quantity < 0`, sem `refundOf`) × `unitCost` congelado | 🟢 desde `ajustarEstoque` |
 | Comissão de produto | — | 🔴 **não existe documento** |
 | Despesas | `ExpenseDoc` | 🟡 existe, sem congelamento (D24) |
 | Correções | `refunds` · movimento `ajuste` | 🔴 **não existem** |
@@ -81,6 +82,53 @@ somado por engano em nenhuma visão futura. E a marca
 (`includedInSubscription`) continua necessária **no booking**, para explicar
 por que não há pagamento — sem ela, um atendimento sem `payments` seria
 indistinguível de um erro de materialização.
+
+---
+
+## Adendo de 10/10/2026 · ajuste de estoque, perdas e correção de venda
+
+**Ajustar o estoque** (`ajustarEstoque`) grava um movimento `kind: "ajuste"` com
+`quantity` ASSINADA, `reason` (`perda`, `uso_interno`, `vencido`, `contagem`,
+`outro`), `reasonText` e o `unitCost` do produto CONGELADO no instante. Ele não
+tem `refundOf` — é isso que o separa de uma devolução.
+
+| Fato | Receita | CMV | Perdas e uso interno | Estoque |
+|---|---|---|---|---|
+| Saída por perda, uso interno, vencido, contagem a menos ou "outro" | — | — | **+ `\|quantity\| × unitCost`** | − |
+| Contagem a MAIS (achou mais do que o sistema dizia) | — | — | — | + |
+| Devolução (`ajuste` com `refundOf`) | − `refunds` | − custo devolvido | — | + |
+
+Decisões:
+
+- **Perda é linha própria**, entre o CMV e as despesas variáveis, e soma no custo
+  variável. Mercadoria que saiu sem venda é custo do mês — mas diluí-la no CMV
+  esconderia justamente quanto a quebra e o uso na cadeira custam.
+- **Contagem a mais não gera receita nem reduz custo.** Nenhum dinheiro entrou;
+  corrige a quantidade e fica registrada. O custo médio do cadastro não se move
+  (não há compra para ponderar).
+- **Contagem a menos é perda.** A diferença de inventário é mercadoria que sumiu
+  sem venda: custo, ao custo congelado.
+- **Devolução e perda não se contam duas vezes.** `perdasDeEstoque` ignora
+  `refundOf`; `detalheDoCustoDoVendido` ignora `ajuste` sem `refundOf`. Cada
+  fato contribui para uma linha só.
+- **Sem custo congelado** (movimento anterior ao campo), a perda entra com custo
+  zero e a tela conta quantas unidades ficaram de fora — nunca lê `products.cost`.
+
+**Corrigir a forma de pagamento de uma venda** (`corrigirPagamentoDeVenda`)
+altera `payments` (meio, forma, taxa, líquido) e o `paymentMethod` do movimento
+na mesma transação, com log em `audit_log`. A taxa é a de HOJE, congelada
+(R1.1). Receita bruta, CMV e comissão não mudam. Venda com devolução — total ou
+parcial — não se corrige: o estorno guardou o meio antigo. Janela: o mês
+corrente, como no atendimento.
+
+**Preço combinado na hora** (só o dono): o movimento de venda guarda o
+`unitPrice` praticado (de onde saem receita, taxa e comissão), o `listPrice` de
+tabela do instante e o `priceReason`. O desconto reduz a receita bruta
+diretamente — não existe "linha de desconto" na venda de produto.
+
+**Corrigir venda** não é um fato novo: é uma devolução (`refunds`) seguida de uma
+venda nova. Cada uma é um fato completo; se a segunda não acontece, a primeira
+fica registrada.
 
 ---
 

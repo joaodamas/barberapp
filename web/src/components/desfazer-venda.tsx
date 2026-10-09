@@ -1,13 +1,21 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { RotateCcw } from "lucide-react";
+import { ChevronLeft, ChevronRight, RotateCcw } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
-import { formatBRL } from "@/lib/format";
+import { CorrigirFormaDaVenda } from "@/components/corrigir-forma-da-venda";
+import { CorrigirVenda, type CorrecaoDeVenda } from "@/components/corrigir-venda";
+import { formatBRL, formatDateShortPtBR, mesAtual, rotuloDoMes } from "@/lib/format";
 import { useTenant } from "@/lib/tenant-context";
-import { useInventoryMovements, useProducts, useRefunds, useStaff } from "@/lib/db/use-shop-data";
+import {
+  useInventoryMovements,
+  usePaymentsDesde,
+  useProducts,
+  useRefunds,
+  useStaff,
+} from "@/lib/db/use-shop-data";
 import { chaveDeIdempotencia } from "@/lib/chave-de-idempotencia";
 import { mensagemDaFuncao } from "@/lib/mensagem-da-funcao";
 import { paymentMethodLabel } from "@/lib/payment-method";
@@ -41,13 +49,27 @@ import type { PaymentMethod } from "@/lib/types";
  * pergunta do dono não é "quanto voltou" — é "por quê".
  */
 
-export function DesfazerVenda() {
+/** Quantas vendas a lista mostra antes do "Ver todas". */
+const ULTIMAS = 10;
+
+export function DesfazerVenda({
+  aoCorrigirVenda,
+}: {
+  /** O dono devolveu o que estava errado: a tela abre o Vender com a venda certa. */
+  aoCorrigirVenda: (c: Omit<CorrecaoDeVenda, "nonce">) => void;
+}) {
   const tenant = useTenant();
   const { items: movimentos } = useInventoryMovements();
   const { items: refunds } = useRefunds();
   const { items: produtos } = useProducts();
   const { items: equipe } = useStaff();
 
+  const [verTodas, setVerTodas] = useState(false);
+  const [mesAtras, setMesAtras] = useState(0);
+  const [produtoFiltro, setProdutoFiltro] = useState("");
+  const [aCorrigirForma, setACorrigirForma] = useState<VendaEstornavel | null>(null);
+  const [aCorrigirVenda, setACorrigirVenda] = useState<VendaEstornavel | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
   const [aDesfazer, setADesfazer] = useState<VendaEstornavel | null>(null);
   const [quantidade, setQuantidade] = useState(1);
   const [motivo, setMotivo] = useState("");
@@ -56,10 +78,42 @@ export function DesfazerVenda() {
   const [feito, setFeito] = useState<{ valor: number; unidades: number } | null>(null);
   const [chave, setChave] = useState(chaveDeIdempotencia);
 
-  const vendas = useMemo(
-    () => vendasEstornaveis({ movimentos, refunds, limite: 8 }),
+  const mes = mesAtual(mesAtras);
+  const todas = useMemo(
+    () => vendasEstornaveis({ movimentos, refunds, limite: Infinity }),
     [movimentos, refunds]
   );
+  const vendas = useMemo(
+    () =>
+      verTodas
+        ? vendasEstornaveis({
+            movimentos,
+            refunds,
+            limite: Infinity,
+            mes,
+            produtoId: produtoFiltro || null,
+          })
+        : todas.slice(0, ULTIMAS),
+    [verTodas, movimentos, refunds, mes, produtoFiltro, todas]
+  );
+  const produtosVendidos = useMemo(
+    () => [...new Set(todas.map((v) => v.productId))],
+    [todas]
+  );
+
+  /* Só os pagamentos do recorte: da venda mais antiga que a lista mostra em
+   * diante (e do mês escolhido), não a coleção `payments` inteira. */
+  const desde = vendas.reduce((min, v) => (v.date < min ? v.date : min), `${mes}-01`);
+  const { items: pagamentos } = usePaymentsDesde(desde);
+
+  /* A forma gravada no PAGAMENTO da venda — o movimento só guarda o meio. */
+  const formaDoPagamento = useMemo(() => {
+    const mapa = new Map<string, string | null>();
+    for (const p of pagamentos) {
+      if (p.origin === "produto" && p.movementId) mapa.set(p.movementId, p.paymentFormId ?? null);
+    }
+    return mapa;
+  }, [pagamentos]);
 
   const nomeDoProduto = (id: string) => produtos.find((p) => p.id === id)?.name ?? "Produto";
   const nomeDoVendedor = (id: string | null) =>
@@ -108,13 +162,71 @@ export function DesfazerVenda() {
     }
   }
 
-  if (vendas.length === 0) return null;
+  if (todas.length === 0) return null;
 
   return (
     <section>
-      <h2 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-ink-muted md:mb-3 md:text-sm">
-        <RotateCcw size={12} /> Vendas recentes
-      </h2>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
+          <RotateCcw size={12} /> {verTodas ? "Vendas do mês" : "Vendas recentes"}
+        </h2>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            setVerTodas((x) => !x);
+            setMesAtras(0);
+            setProdutoFiltro("");
+          }}
+        >
+          {verTodas ? "Só as últimas" : "Ver todas"}
+        </Button>
+      </div>
+
+      {verTodas && (
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-label="Mês anterior"
+              onClick={() => setMesAtras((m) => m + 1)}
+            >
+              <ChevronLeft size={14} />
+            </Button>
+            <span className="min-w-28 text-center text-sm tabular-nums text-ink">{rotuloDoMes(mes)}</span>
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-label="Mês seguinte"
+              disabled={mesAtras === 0}
+              onClick={() => setMesAtras((m) => Math.max(m - 1, 0))}
+            >
+              <ChevronRight size={14} />
+            </Button>
+          </div>
+          <select
+            value={produtoFiltro}
+            onChange={(e) => setProdutoFiltro(e.target.value)}
+            aria-label="Filtrar por produto"
+            className="min-h-9 rounded-lg border border-border bg-surface px-2 text-sm text-ink"
+          >
+            <option value="">Todos os produtos</option>
+            {produtosVendidos.map((id) => (
+              <option key={id} value={id}>
+                {nomeDoProduto(id)}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {aviso && (
+        <Card className="mb-2 flex items-center gap-2 border-gold/40 py-2.5 text-sm">
+          <RotateCcw size={16} className="shrink-0 text-gold-strong" />
+          <span>{aviso}</span>
+        </Card>
+      )}
 
       {feito && (
         <Card className="mb-2 flex items-center gap-2 border-gold/40 py-2.5 text-sm">
@@ -132,6 +244,9 @@ export function DesfazerVenda() {
       )}
 
       <Card className="flex flex-col divide-y divide-border p-0">
+        {vendas.length === 0 && (
+          <p className="px-3 py-4 text-sm text-ink-muted md:px-4">Nenhuma venda neste filtro.</p>
+        )}
         {vendas.map((v) => {
           const situacao = situacaoDaVenda(v);
           return (
@@ -139,10 +254,10 @@ export function DesfazerVenda() {
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm text-ink">
                   {v.quantidade}× {nomeDoProduto(v.productId)}
-                  <span className="text-ink-muted"> · {formatBRL(v.valor)}</span>
+                  <span className="tabular-nums text-ink-muted"> · {formatBRL(v.valor)}</span>
                 </p>
                 <p className="truncate text-[11px] text-ink-muted">
-                  {v.date}
+                  <span className="tabular-nums">{formatDateShortPtBR(v.date)}</span>
                   {v.paymentMethod &&
                     ` · ${paymentMethodLabel[v.paymentMethod as PaymentMethod]}`}
                   {nomeDoVendedor(v.staffId) && ` · ${nomeDoVendedor(v.staffId)}`}
@@ -155,9 +270,25 @@ export function DesfazerVenda() {
               {v.encerrada ? (
                 <span className="shrink-0 text-[11px] text-ink-muted">Devolvida</span>
               ) : (
-                <Button variant="ghost" className="shrink-0 text-xs" onClick={() => abrir(v)}>
-                  Devolver
-                </Button>
+                <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
+                  {v.devolvida > 0 && (
+                    <span className="text-[11px] text-gold-strong">Devolvida em parte</span>
+                  )}
+                  <Button variant="ghost" className="text-xs" onClick={() => abrir(v)}>
+                    Devolver
+                  </Button>
+                  {/* Devolução registrada (total ou parcial) trava a correção da
+                      forma: ela guardou o meio antigo, e o servidor recusa. A
+                      tela não oferece o que o sistema não faz. */}
+                  {todas.filter((x) => x.carrinho === v.carrinho).every((x) => x.devolvida === 0) && (
+                    <Button variant="ghost" className="text-xs" onClick={() => setACorrigirForma(v)}>
+                      Corrigir forma
+                    </Button>
+                  )}
+                  <Button variant="ghost" className="text-xs" onClick={() => setACorrigirVenda(v)}>
+                    Corrigir venda
+                  </Button>
+                </div>
               )}
             </div>
           );
@@ -190,7 +321,7 @@ export function DesfazerVenda() {
                 "Venda" é o substantivo da AÇÃO, invariável aqui, e o produto
                 passa a ser dado da linha em vez de sujeito de um adjetivo. */}
             <p className="text-sm text-ink-muted">
-              Venda de {aDesfazer.date} · {aDesfazer.quantidade}×{" "}
+              Venda de {formatDateShortPtBR(aDesfazer.date)} · {aDesfazer.quantidade}×{" "}
               {nomeDoProduto(aDesfazer.productId)} · {formatBRL(aDesfazer.valor)}
             </p>
 
@@ -259,6 +390,33 @@ export function DesfazerVenda() {
           </div>
         )}
       </Modal>
+
+      {aCorrigirForma && (
+        <CorrigirFormaDaVenda
+          key={aCorrigirForma.movementId}
+          venda={aCorrigirForma}
+          irmas={todas.filter((x) => x.carrinho === aCorrigirForma.carrinho)}
+          nomeDoProduto={nomeDoProduto(aCorrigirForma.productId)}
+          formaAtualId={formaDoPagamento.get(aCorrigirForma.movementId) ?? null}
+          aoFechar={() => setACorrigirForma(null)}
+          aoCorrigir={setAviso}
+        />
+      )}
+
+      {aCorrigirVenda && (
+        <CorrigirVenda
+          key={aCorrigirVenda.movementId}
+          venda={aCorrigirVenda}
+          irmas={todas.filter((x) => x.carrinho === aCorrigirVenda.carrinho)}
+          nomeDoProduto={nomeDoProduto}
+          formaAtualId={formaDoPagamento.get(aCorrigirVenda.movementId) ?? null}
+          aoFechar={() => setACorrigirVenda(null)}
+          aoDevolver={(c) => {
+            setAviso(null);
+            aoCorrigirVenda(c);
+          }}
+        />
+      )}
     </section>
   );
 }

@@ -84,6 +84,18 @@ export const usePayments = () =>
   });
 
 /**
+ * Pagamentos de uma data em diante (`YYYY-MM-DD`), para a lista de vendas da
+ * Loja: ela só precisa dos pagamentos das vendas que está mostrando, e não da
+ * coleção inteira (que cresce com cada corte).
+ */
+export const usePaymentsDesde = (desde: string) =>
+  useShopCollection<PaymentDoc>("payments", {
+    orderByField: "date",
+    direction: "desc",
+    range: { field: "date", from: desde },
+  });
+
+/**
  * Estornos — D22 / D23. Escritos só pelo servidor.
  *
  * Coleção separada de propósito: o estorno **não** é um pagamento negativo em

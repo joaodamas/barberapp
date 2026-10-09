@@ -307,6 +307,27 @@ export function idDaCorrecao(bookingId: string, chave: string): string {
 /* A transação                                                        */
 /* ================================================================== */
 
+/**
+ * O estado ANTERIOR do pagamento, como o `audit_log` o guarda.
+ *
+ * Comum à correção de atendimento e à de venda de produto: o mesmo documento
+ * (`PaymentDoc`), a mesma leitura.
+ */
+export function estadoDoPagamento(
+  pagamentoSnap: FirebaseFirestore.DocumentSnapshot
+): Omit<CamposDaCorrecao, "paymentMethod"> & { paymentMethod: PaymentMethod | null } {
+  return {
+    paymentMethod: (pagamentoSnap.get("paymentMethod") ?? null) as PaymentMethod | null,
+    /* Nulos nos pagamentos anteriores às formas — e o `audit_log` precisa
+     * registrar isso como o que é: não havia forma, não que ela era vazia. */
+    paymentFormId: (pagamentoSnap.get("paymentFormId") ?? null) as string | null,
+    paymentFormLabel: (pagamentoSnap.get("paymentFormLabel") ?? null) as string | null,
+    feePct: Number(pagamentoSnap.get("feePct")) || 0,
+    feeAmount: Number(pagamentoSnap.get("feeAmount")) || 0,
+    netAmount: Number(pagamentoSnap.get("netAmount")) || 0,
+  };
+}
+
 export type ResultadoDaCorrecao = {
   paymentId: string;
   bookingId: string;
@@ -433,16 +454,7 @@ export async function gravarCorrecao(params: {
      * recebido. */
     const bruto = Number(pagamentoSnap.get("grossAmount")) || 0;
 
-    const de = {
-      paymentMethod: (pagamentoSnap.get("paymentMethod") ?? null) as PaymentMethod | null,
-      /* Nulos nos pagamentos anteriores às formas — e o `audit_log` precisa
-       * registrar isso como o que é: não havia forma, não que ela era vazia. */
-      paymentFormId: (pagamentoSnap.get("paymentFormId") ?? null) as string | null,
-      paymentFormLabel: (pagamentoSnap.get("paymentFormLabel") ?? null) as string | null,
-      feePct: Number(pagamentoSnap.get("feePct")) || 0,
-      feeAmount: Number(pagamentoSnap.get("feeAmount")) || 0,
-      netAmount: Number(pagamentoSnap.get("netAmount")) || 0,
-    };
+    const de = estadoDoPagamento(pagamentoSnap);
 
     const para = camposDaCorrecao({
       bruto,
@@ -539,6 +551,338 @@ export const corrigirPagamentoDeAtendimento = onCall<CorrecaoInput>(async (reque
     throw new HttpsError("invalid-argument", "Informe como o cliente pagou.");
   }
 
+  const { db, shopRef, fees, formas, hoje, fuso, chave } = await contextoDaCorrecao(
+    barbershopId,
+    data.idempotencyKey
+  );
+
+  return gravarCorrecao({
+    db,
+    shopRef,
+    bookingId,
+    metodo: data.paymentMethod,
+    fees,
+    formas,
+    formaId: data.paymentFormId ? String(data.paymentFormId) : null,
+    hoje,
+    fuso,
+    chave,
+    autor: uid,
+  });
+});
+
+/* ================================================================== */
+/* A mesma correção, para a VENDA de produto                          */
+/* ================================================================== */
+
+/*
+ * "Pix → Cartão" numa venda da Loja. Antes só o atendimento tinha porta
+ * (`gravarCorrecao`), e `payments` de produto ficava com o meio errado e a taxa
+ * errada para sempre — o dono só tinha como devolver e vender de novo.
+ *
+ * Reaproveita tudo o que é comum: `camposDaCorrecao` (a conta da taxa, sem
+ * cópia), `dentroDaJanela` (o mesmo mês corrente), `idDaCorrecao` (o id derivado
+ * do log) e `estadoDoPagamento` (o "de"). O que muda é o "operacional": no
+ * atendimento é a reserva, aqui é o movimento de venda, que também guarda o
+ * `paymentMethod` (o caixa diário o lê).
+ *
+ * Comissão e CMV não mudam: nascem do preço e do custo, nunca da forma de
+ * pagamento. A taxa nova é a de HOJE, congelada — a mesma decisão R1.1.
+ */
+
+export type MotivoDaRecusaDaVenda =
+  | "venda_ausente"
+  | "nao_e_venda"
+  | "sem_pagamento"
+  | "ja_devolvida"
+  | "fora_da_janela"
+  | "mesma_forma";
+
+export const FRASE_DA_RECUSA_DA_VENDA: Record<MotivoDaRecusaDaVenda, string> = {
+  venda_ausente: "Essa venda não está mais registrada.",
+  nao_e_venda: "Esse movimento não é uma venda.",
+  sem_pagamento:
+    "Essa venda é anterior ao registro de pagamentos e não tem pagamento para corrigir.",
+  ja_devolvida:
+    "Essa venda já teve devolução registrada, e a devolução guardou a forma de pagamento antiga. Corrigir aqui deixaria os dois em desacordo.",
+  fora_da_janela: "Essa venda é de outro mês. A correção vale para o mês corrente.",
+  mesma_forma: "Essa já é a forma de pagamento registrada — não há o que corrigir.",
+};
+
+const CODIGO_DA_RECUSA_DA_VENDA: Record<MotivoDaRecusaDaVenda, "not-found" | "failed-precondition"> = {
+  venda_ausente: "not-found",
+  nao_e_venda: "failed-precondition",
+  sem_pagamento: "failed-precondition",
+  ja_devolvida: "failed-precondition",
+  fora_da_janela: "failed-precondition",
+  mesma_forma: "failed-precondition",
+};
+
+/**
+ * A régua de recusa da venda, pura e na ordem em que cada frase explica melhor.
+ *
+ * "Já devolvida" vale para devolução TOTAL ou PARCIAL: o estorno congela o meio
+ * antigo (`documentoDeEstorno`), e corrigir o pagamento deixaria o estorno
+ * apontando para um meio que não existe mais no fato.
+ */
+export function motivoDaRecusaDaVenda(params: {
+  temMovimento: boolean;
+  tipoDoMovimento: string | null | undefined;
+  temPagamento: boolean;
+  origemDoPagamento: string | null | undefined;
+  jaDevolvida: boolean;
+  dataDoPagamento: string;
+  criadoEm?: string | null;
+  hoje: string;
+  metodoAtual: PaymentMethod | null;
+  formaAtual: string | null;
+  metodoNovo: PaymentMethod;
+  /** A forma escolhida; nula = "a primeira ativa do meio", como na venda. */
+  formaNova: string | null;
+}): MotivoDaRecusaDaVenda | null {
+  if (!params.temMovimento) return "venda_ausente";
+  if (params.tipoDoMovimento !== "venda") return "nao_e_venda";
+  if (!params.temPagamento) return "sem_pagamento";
+  if (params.origemDoPagamento != null && params.origemDoPagamento !== "produto") return "nao_e_venda";
+  if (params.jaDevolvida) return "ja_devolvida";
+  if (!dentroDaJanela(params.dataDoPagamento, params.hoje, params.criadoEm)) return "fora_da_janela";
+
+  /* Mesmo meio E mesma forma: crédito à vista → crédito parcelado é meio igual
+   * e taxa diferente, e é uma correção legítima. */
+  const mesmoMeio = params.metodoAtual === params.metodoNovo;
+  const mesmaForma = params.formaNova === null || params.formaNova === params.formaAtual;
+  if (mesmoMeio && mesmaForma) return "mesma_forma";
+
+  return null;
+}
+
+type LinhaCorrigida = {
+  paymentId: string;
+  movementId: string;
+  de: ResultadoDaCorrecao["de"];
+  para: CamposDaCorrecao;
+};
+
+export type ResultadoDaCorrecaoDaVenda = LinhaCorrigida & {
+  repetida: boolean;
+  /** Todas as linhas corrigidas (venda com vários produtos). A primeira repete os campos acima. */
+  itens: LinhaCorrigida[];
+};
+
+/**
+ * Pagamento, movimento e auditoria numa transação só. `update`, nunca `set`: o
+ * pagamento continua sendo o mesmo documento, com os mesmos `createdAt`, `origin`
+ * e `grossAmount`.
+ *
+ * Uma venda de vários produtos tem um movimento (e um pagamento) por linha.
+ * Corrigir a forma é corrigir o carrinho inteiro: `movementIds` leva todas as
+ * linhas e a transação é UMA — ou todas mudam, ou nenhuma.
+ */
+export async function gravarCorrecaoDeVenda(params: {
+  db: FirebaseFirestore.Firestore;
+  shopRef: FirebaseFirestore.DocumentReference;
+  movementIds: string[];
+  metodo: PaymentMethod;
+  fees: PaymentFees;
+  formas?: FormaDePagamento[];
+  formaId?: string | null;
+  hoje: string;
+  fuso?: string;
+  chave: string;
+  autor: string | null;
+}): Promise<ResultadoDaCorrecaoDaVenda> {
+  const { db, shopRef } = params;
+  const ids = [...new Set(params.movementIds)];
+  if (ids.length === 0) throw new HttpsError("invalid-argument", "Venda não informada.");
+  if (ids.length > 20) throw new HttpsError("invalid-argument", "Venda com itens demais.");
+
+  const linhas = ids.map((movementId) => {
+    const paymentId = idDoPagamento({ origem: "produto", movementId });
+    return {
+      movementId,
+      paymentId,
+      pagamentoRef: shopRef.collection("payments").doc(paymentId),
+      movimentoRef: shopRef.collection("inventory_movements").doc(movementId),
+      logRef: shopRef.collection("audit_log").doc(idDaCorrecao(movementId, params.chave)),
+      devolucoesQuery: shopRef.collection("refunds").where("paymentId", "==", paymentId),
+    };
+  });
+
+  return db.runTransaction(async (tx) => {
+    /* ================= LEITURAS — todas antes de qualquer escrita ================= */
+    const lidas = await Promise.all(
+      linhas.map(async (l) => {
+        const { pagamentoRef, movimentoRef, logRef, devolucoesQuery } = l;
+        const [pagamentoSnap, movimentoSnap, logSnap, devolucoesSnap] = await Promise.all([
+          tx.get(pagamentoRef),
+          tx.get(movimentoRef),
+          tx.get(logRef),
+          tx.get(devolucoesQuery),
+        ]);
+        return { ...l, pagamentoSnap, movimentoSnap, logSnap, devolucoesSnap };
+      })
+    );
+
+    /* Idempotência ANTES de qualquer recusa: depois da primeira correção o
+     * pagamento já está na forma nova, e um retry cairia em `mesma_forma`. */
+    if (lidas.every((l) => l.logSnap.exists)) {
+      const itens: LinhaCorrigida[] = lidas.map((l) => {
+        const detail = (l.logSnap.get("detail") ?? {}) as {
+          de?: ResultadoDaCorrecao["de"];
+          para?: CamposDaCorrecao;
+        };
+        return {
+          paymentId: l.paymentId,
+          movementId: l.movementId,
+          de:
+            detail.de ?? {
+              paymentMethod: null,
+              paymentFormId: null,
+              paymentFormLabel: null,
+              feePct: 0,
+              feeAmount: 0,
+              netAmount: 0,
+            },
+          para:
+            detail.para ??
+            camposDaCorrecao({
+              bruto: Number(l.pagamentoSnap.get("grossAmount")) || 0,
+              metodo: params.metodo,
+              fees: params.fees,
+              formas: params.formas,
+              formaId: params.formaId,
+            }),
+        };
+      });
+      return { ...itens[0], itens, repetida: true };
+    }
+    if (lidas.some((l) => l.logSnap.exists)) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Essa correção já foi registrada com outros itens. Confira a lista de vendas antes de tentar de novo."
+      );
+    }
+
+    /* Valida TODAS as linhas antes de escrever qualquer uma: carrinho corrigido
+     * pela metade seria pior que nenhum. */
+    const planos = lidas.map((l) => {
+      const de = estadoDoPagamento(l.pagamentoSnap);
+
+      const motivo = motivoDaRecusaDaVenda({
+        temMovimento: l.movimentoSnap.exists,
+        tipoDoMovimento: l.movimentoSnap.get("kind") as string | null | undefined,
+        temPagamento: l.pagamentoSnap.exists,
+        origemDoPagamento: l.pagamentoSnap.get("origin") as string | null | undefined,
+        jaDevolvida: !l.devolucoesSnap.empty,
+        dataDoPagamento: String(l.pagamentoSnap.get("date") ?? ""),
+        criadoEm: diaDeCriacao(l.pagamentoSnap.get("createdAt"), params.fuso ?? DEFAULT_LOCALE.timeZone),
+        hoje: params.hoje,
+        metodoAtual: de.paymentMethod,
+        formaAtual: de.paymentFormId,
+        metodoNovo: params.metodo,
+        formaNova: params.formaId ?? null,
+      });
+      if (motivo) {
+        throw new HttpsError(CODIGO_DA_RECUSA_DA_VENDA[motivo], FRASE_DA_RECUSA_DA_VENDA[motivo]);
+      }
+
+      /* O bruto sai do PAGAMENTO congelado, nunca do preço de hoje do produto. */
+      const para = camposDaCorrecao({
+        bruto: Number(l.pagamentoSnap.get("grossAmount")) || 0,
+        metodo: params.metodo,
+        fees: params.fees,
+        formas: params.formas,
+        formaId: params.formaId,
+      });
+      return { l, de, para };
+    });
+
+    /* ================= ESCRITAS ================= */
+    for (const { l, de, para } of planos) {
+      const { pagamentoRef, movimentoRef, logRef, movementId, paymentId } = l;
+      tx.update(pagamentoRef, para);
+      /* O estado operacional, na MESMA transação: o caixa diário lê o meio do
+       * movimento. Só o meio — preço, custo e quantidade são o fato e não mudam. */
+      tx.update(movimentoRef, { paymentMethod: params.metodo });
+      tx.set(logRef, {
+        action: "payment.corrigido",
+        by: params.autor,
+        at: FieldValue.serverTimestamp(),
+        detail: { movementId, paymentId, de, para },
+      });
+    }
+
+    const itens: LinhaCorrigida[] = planos.map(({ l, de, para }) => ({
+      paymentId: l.paymentId,
+      movementId: l.movementId,
+      de,
+      para,
+    }));
+    return { ...itens[0], itens, repetida: false };
+  });
+}
+
+type CorrecaoDaVendaInput = {
+  barbershopId: string;
+  /** Uma venda de vários produtos leva todas as linhas em `movementIds`. */
+  movementId?: string;
+  movementIds?: string[];
+  paymentMethod: PaymentMethod;
+  paymentFormId?: string | null;
+  idempotencyKey?: string;
+};
+
+/**
+ * O dono corrige como uma venda da Loja foi paga. Dono-only, pelo mesmo motivo
+ * de `corrigirPagamentoDeAtendimento`: mexe em fato financeiro materializado.
+ */
+export const corrigirPagamentoDeVenda = onCall<CorrecaoDaVendaInput>(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Entre na sua conta.");
+
+  const data = request.data ?? ({} as CorrecaoDaVendaInput);
+  const { barbershopId } = data;
+  if (!barbershopId) throw new HttpsError("invalid-argument", "Barbearia não informada.");
+
+  const papel = vinculosDe(request)?.[barbershopId];
+  if (papel !== "owner") {
+    throw new HttpsError("permission-denied", "Só o dono corrige pagamento.");
+  }
+  await exigirEdicao(barbershopId);
+
+  const movementIds = (Array.isArray(data.movementIds) ? data.movementIds : [data.movementId])
+    .map((m) => String(m ?? ""))
+    .filter(Boolean);
+  if (movementIds.length === 0) throw new HttpsError("invalid-argument", "Venda não informada.");
+  if (!metodoValido(data.paymentMethod)) {
+    throw new HttpsError("invalid-argument", "Informe como o cliente pagou.");
+  }
+
+  const { db, shopRef, fees, formas, hoje, fuso, chave } = await contextoDaCorrecao(
+    barbershopId,
+    data.idempotencyKey
+  );
+
+  return gravarCorrecaoDeVenda({
+    db,
+    shopRef,
+    movementIds,
+    metodo: data.paymentMethod,
+    fees,
+    formas,
+    formaId: data.paymentFormId ? String(data.paymentFormId) : null,
+    hoje,
+    fuso,
+    chave,
+    autor: uid,
+  });
+});
+
+/**
+ * O que as portas de entrada (atendimento e venda) leem igual: a tabela de taxas
+ * e as formas vigentes AGORA, o dia no fuso da barbearia e a chave.
+ */
+async function contextoDaCorrecao(barbershopId: string, idempotencyKey: unknown) {
   const db = getFirestore();
   const shopRef = db.doc(`barbershops/${barbershopId}`);
   const shopSnap = await shopRef.get();
@@ -557,24 +901,13 @@ export const corrigirPagamentoDeAtendimento = onCall<CorrecaoInput>(async (reque
   /* No fuso DA BARBEARIA. A function roda em UTC, e a janela do mês corrente
    * decidida em UTC recusaria uma correção legítima feita às 23h50 de 31/07 em
    * São Paulo. */
+  const fuso = localeDoDocumento(shopSnap.data()).timeZone;
   const hoje = hojeNoFuso(localeDoDocumento(shopSnap.data()).timeZone);
 
   /* Sanitizada porque vira ID de documento: uma chave com "/" criaria uma
    * subcoleção em vez de um evento, e o Firestore aceitaria sem reclamar. */
-  const chave = String(data.idempotencyKey ?? "").replace(/[^A-Za-z0-9_-]/g, "");
+  const chave = String(idempotencyKey ?? "").replace(/[^A-Za-z0-9_-]/g, "");
   if (!chave) throw new HttpsError("invalid-argument", "Chave de idempotência ausente.");
 
-  return gravarCorrecao({
-    db,
-    shopRef,
-    bookingId,
-    metodo: data.paymentMethod,
-    fees,
-    formas,
-    formaId: data.paymentFormId ? String(data.paymentFormId) : null,
-    hoje,
-    fuso: localeDoDocumento(shopSnap.data()).timeZone,
-    chave,
-    autor: uid,
-  });
-});
+  return { db, shopRef, fees, formas, hoje, fuso, chave };
+}

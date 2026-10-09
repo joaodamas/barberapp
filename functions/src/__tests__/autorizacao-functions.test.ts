@@ -194,6 +194,8 @@ describe("o que é só do dono não aceita barbeiro", () => {
     "registrarPagamentoDeMensalidade",
     "dispensarMensalidade",
     "registrarEntradaDeEstoque",
+    "ajustarEstoque",
+    "corrigirPagamentoDeVenda",
     "redeemLoyaltyReward",
     "vincularCadastroDeBalcao",
     "removerBarbeiro",

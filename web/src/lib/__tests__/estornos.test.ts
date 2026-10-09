@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { devolucoesPorVenda, estornadoDe, situacaoDaVenda, vendasEstornaveis } from "../estornos";
+import { carrinhoDe, devolucoesPorVenda, estornadoDe, situacaoDaVenda, vendasEstornaveis } from "../estornos";
 import type { Doc } from "@/lib/db/repository";
 import type { InventoryMovementDoc, RefundDoc } from "@/lib/domain";
 
@@ -248,5 +248,66 @@ describe("D23 · a frase da situação", () => {
       refunds: [estorno("mv1", 2)],
     });
     expect(situacaoDaVenda(v)).toBe("Devolvida por inteiro");
+  });
+});
+
+describe("Loja · 'Ver todas' e o carrinho da venda", () => {
+  it("o carrinho sai do id: as linhas da mesma venda dividem a chave", () => {
+    expect(carrinhoDe("venda_abc123_pomada", "pomada")).toBe("abc123");
+    expect(carrinhoDe("venda_abc123_cera", "cera")).toBe("abc123");
+    // Chave com sublinhado e produto com hífen não confundem.
+    expect(carrinhoDe("venda_a_b-c_prod-1", "prod-1")).toBe("a_b-c");
+  });
+
+  it("venda antiga (id sorteado) é um carrinho de uma linha só", () => {
+    expect(carrinhoDe("Xk39dLq", "pomada")).toBe("Xk39dLq");
+    // O id acaba no produto mas não tem a chave no meio.
+    expect(carrinhoDe("venda_pomada", "pomada")).toBe("venda_pomada");
+  });
+
+  it("duas vendas iguais em momentos diferentes NÃO são o mesmo carrinho", () => {
+    const [a, b] = vendasEstornaveis({
+      movimentos: [venda("venda_k1_pomada"), venda("venda_k2_pomada")],
+      refunds: [],
+    });
+    expect(a.carrinho).not.toBe(b.carrinho);
+  });
+
+  it("carrega o cliente para refazer a venda", () => {
+    const [v] = vendasEstornaveis({ movimentos: [venda("mv1", { clientId: "c9" })], refunds: [] });
+    expect(v.clientId).toBe("c9");
+    const [sem] = vendasEstornaveis({ movimentos: [venda("mv2")], refunds: [] });
+    expect(sem.clientId).toBeNull();
+  });
+
+  it("sem limite, a lista traz todas; o padrão continua curto", () => {
+    const muitas = Array.from({ length: 30 }, (_, i) => venda(`mv${i}`, { date: `2026-09-${String((i % 28) + 1).padStart(2, "0")}` }));
+    expect(vendasEstornaveis({ movimentos: muitas, refunds: [], limite: Infinity })).toHaveLength(30);
+    expect(vendasEstornaveis({ movimentos: muitas, refunds: [] })).toHaveLength(12);
+  });
+
+  it("filtra por mês e por produto", () => {
+    const movimentos = [
+      venda("a", { productId: "pomada", date: "2026-10-02" }),
+      venda("b", { productId: "cera", date: "2026-10-03" }),
+      venda("c", { productId: "pomada", date: "2026-09-30" }),
+    ];
+    const ids = (p: Parameters<typeof vendasEstornaveis>[0]) => vendasEstornaveis(p).map((v) => v.movementId);
+
+    expect(ids({ movimentos, refunds: [], mes: "2026-10" })).toEqual(["b", "a"]);
+    expect(ids({ movimentos, refunds: [], mes: "2026-10", produtoId: "pomada" })).toEqual(["a"]);
+    expect(ids({ movimentos, refunds: [], produtoId: "pomada" })).toEqual(["a", "c"]);
+    expect(ids({ movimentos, refunds: [], mes: "2026-08" })).toEqual([]);
+  });
+
+  it("a venda devolvida em parte continua na lista, com o resto a devolver", () => {
+    const [v] = vendasEstornaveis({
+      movimentos: [venda("mv1", { quantity: 3 })],
+      refunds: [estorno("mv1", 1)],
+    });
+    expect(v.devolvida).toBe(1);
+    expect(v.resta).toBe(2);
+    expect(v.encerrada).toBe(false);
+    expect(situacaoDaVenda(v)).toBe("1 de 3 devolvidas");
   });
 });
