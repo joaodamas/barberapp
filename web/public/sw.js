@@ -15,6 +15,14 @@
 const VERSAO = new URL(self.location.href).searchParams.get("v") || "dev";
 const CACHE_NAME = `barbearia-${VERSAO}`;
 const OFFLINE_URL = "/offline";
+/* Quanto a navegação espera a rede antes de cair na página offline (09/10).
+ * Sem prazo, em sinal ruim o `fetch` ficava pendurado e a pessoa via a tela em
+ * branco, sem saída — a página offline tem o "Tentar de novo". Só o PRAZO é
+ * novo: a estratégia (rede primeiro) e a atualização do worker são as mesmas
+ * do incidente de 28/09. A requisição NÃO é abortada nem refeita (mexer no
+ * `Request` de uma navegação muda o modo/redirect dela); ela só deixa de ser
+ * esperada. */
+const PRAZO_DA_NAVEGACAO_MS = 8000;
 const APP_SHELL = [
   OFFLINE_URL,
   /* A marca DESTA barbearia — o worker é por origem, e cada subdomínio
@@ -83,19 +91,28 @@ self.addEventListener("fetch", (event) => {
   if (request.headers.has("range") || request.destination === "video" || request.destination === "audio") return;
 
   if (request.mode === "navigate") {
+    const rede = fetch(request);
+    // Se o prazo vencer primeiro, a resposta tardia não vira rejeição solta.
+    rede.catch(() => {});
+    let relogio;
+    const prazo = new Promise((_, rejeitar) => {
+      relogio = setTimeout(() => rejeitar(new Error("prazo da navegação")), PRAZO_DA_NAVEGACAO_MS);
+    });
     event.respondWith(
-      fetch(request).catch(async () => {
-        // `caches.match` pode devolver undefined; respondWith(undefined) vira
-        // erro de rede em vez da página offline.
-        const cached = await caches.match(OFFLINE_URL);
-        return (
-          cached ??
-          new Response("Você está offline.", {
-            status: 503,
-            headers: { "Content-Type": "text/plain; charset=utf-8" },
-          })
-        );
-      })
+      Promise.race([rede, prazo])
+        .finally(() => clearTimeout(relogio))
+        .catch(async () => {
+          // `caches.match` pode devolver undefined; respondWith(undefined) vira
+          // erro de rede em vez da página offline.
+          const cached = await caches.match(OFFLINE_URL);
+          return (
+            cached ??
+            new Response("Você está offline.", {
+              status: 503,
+              headers: { "Content-Type": "text/plain; charset=utf-8" },
+            })
+          );
+        })
     );
     return;
   }

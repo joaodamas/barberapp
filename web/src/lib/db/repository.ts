@@ -23,6 +23,7 @@ import {
   type ShopCollection,
 } from "@/lib/db/paths";
 import { conferirEscrita } from "@/lib/db/trava-de-escrita";
+import { registrarLeituraDoServidor } from "@/lib/conexao";
 
 /**
  * Acesso a uma subcoleção da barbearia.
@@ -138,6 +139,9 @@ export function subscribeToCollection<T extends DocumentData>(
         const parar = onSnapshot(
           query(ref, ...constraintsFrom(options)),
           (snapshot) => {
+            /* De quando são os dados, para o aviso "Sem conexão — mostrando
+             * dados de HH:MM": só conta o que veio do servidor. */
+            if (!snapshot.metadata.fromCache) registrarLeituraDoServidor();
             const items = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
             nova.ultimo = items;
             nova.ouvintes.forEach((fn) => fn(items));
