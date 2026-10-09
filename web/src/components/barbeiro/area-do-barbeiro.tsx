@@ -130,7 +130,7 @@ export function AreaDoBarbeiro({ children }: { children: React.ReactNode }) {
         <AvisoDeConexao recuoDoTopo={false} />
         <header className="safe-top flex items-center justify-between gap-3 px-4 pb-2 pt-4">
           <div className="min-w-0 leading-tight">
-            <p className="line-clamp-2 break-words font-display text-sm font-semibold text-ink">{tenant.brand.name}</p>
+            <p className="truncate font-display text-sm uppercase tracking-wider text-ink">{tenant.brand.shortName}</p>
             <p className="truncate text-xs text-ink-muted">{nome ? `${nome} · barbeiro` : "Barbeiro"}</p>
           </div>
           <button

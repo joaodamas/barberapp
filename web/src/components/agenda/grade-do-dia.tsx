@@ -7,8 +7,6 @@ import type { NivelDoEncaixe } from "@/lib/encaixe";
 import { montarGrade, type BarbeiroDaGrade, type GradeMontada } from "@/lib/grade-por-barbeiro";
 import { EtiquetaMensalista } from "@/components/agenda/etiqueta-mensalista";
 import { EtiquetaEncaixe } from "@/components/agenda/etiqueta-encaixe";
-import { medidasDasColunas } from "@/lib/barra-da-agenda";
-import { iniciaisDe } from "@/lib/monograma";
 
 /**
  * O dia inteiro em grade — pedido do dono (28/09): ver de relance o que está
@@ -90,11 +88,9 @@ export function GradeDoDia({
   const varios = equipe.filter((b) => b.active !== false).length > 1;
   const props = { pedidos, selecionadoId, aoSelecionar, aoMarcarLivre, podeEditar, mensalistas, nomeDe, varios, emEnvio };
 
-  /* Uma coluna só (barbearia de um barbeiro, ou filtro): serve a qualquer tela.
-   * Com o nome do barbeiro no cabeçalho — filtrar não pode apagar de quem é a
-   * coluna (a coluna única sem nome é a barbearia sem equipe cadastrada). */
+  /* Uma coluna só (barbearia de um barbeiro, ou filtro): serve a qualquer tela. */
   if (emColunas.colunas.length <= 1) {
-    return <Grade {...props} montada={emColunas} comCabecalho={!!emColunas.colunas[0]?.nome} comNome={false} />;
+    return <Grade {...props} montada={emColunas} comCabecalho={false} comNome={false} />;
   }
 
   return (
@@ -152,23 +148,16 @@ function Grade({
     proxima += c.nFaixas;
   }
   const totalFaixas = Math.max(1, proxima - 2);
-  /* Largura mínima e máxima por quantidade de colunas: uma só não estica na
-   * tela toda (parecia vazia), duas ou três não ficam espremidas nem gigantes. */
-  const medidas = medidasDasColunas(colunas.length);
-  const colunasCss = `3rem repeat(${totalFaixas}, ${medidas.trilha})${temPedidos ? ` ${medidas.pedidos}` : ""}`;
+  const trilha = lado ? "minmax(7rem, 1fr)" : "minmax(0, 1fr)";
+  const colunasCss = `3rem repeat(${totalFaixas}, ${trilha})${temPedidos ? " minmax(0, 0.9fr)" : ""}`;
   const janelaDe = (b: Doc<BookingDoc>) => {
     const ini = paraMinutos(b.time) ?? 0;
     return [ini, ini + (Number(b.durationMin) || grade)] as const;
   };
 
   return (
-    <div
-      className={
-        "overflow-x-auto rounded-superficie border border-border bg-surface p-2 " +
-        (medidas.contida ? "w-fit max-w-full" : "")
-      }
-    >
-      <div className={lado && !medidas.contida ? "min-w-[34rem]" : undefined}>
+    <div className="overflow-x-auto rounded-superficie border border-border bg-surface p-2">
+      <div className={lado ? "min-w-[34rem]" : undefined}>
         {(temPedidos || comCabecalho) && (
           <div className="mb-1 grid gap-x-1 text-[12.5px] text-ink-muted" style={{ gridTemplateColumns: colunasCss }}>
             <span />
@@ -176,17 +165,11 @@ function Grade({
               colunas.map((c, i) => (
                 <span
                   key={c.id ?? `c${i}`}
-                  className="flex min-w-0 items-center justify-center gap-2 py-1 font-semibold text-ink"
+                  className="truncate text-center font-semibold text-ink"
                   style={{ gridColumn: `${inicios[i]} / span ${c.nFaixas}` }}
                   title={c.nome}
                 >
-                  <span
-                    aria-hidden
-                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gold/15 text-[11px] font-semibold text-gold-strong"
-                  >
-                    {iniciaisDe(c.nome)}
-                  </span>
-                  <span className="truncate">{c.nome}</span>
+                  {c.nome}
                 </span>
               ))
             ) : (
@@ -325,31 +308,23 @@ function ColunaDaGradeView({
 
       {c.livres.map((t) =>
         podeEditar ? (
-          /* A célula livre fica limpa: "Livre · marcar" em todas, com seis colunas,
-           * era ruído. O convite aparece ao passar o mouse ou focar; no toque, a
-           * célula inteira é o alvo e abre o balcão já na hora e no barbeiro. */
           <button
             key={`l${prefixo}${t}`}
             type="button"
             onClick={() => aoMarcarLivre({ hora: paraHora(t), barbeiroId: c.id })}
             aria-label={`Marcar às ${paraHora(t)}${c.nome ? ` com ${c.nome}` : ""}`}
-            className="group my-0.5 flex cursor-pointer items-center rounded-controle border-t border-border/50 px-2 text-left text-[12.5px] text-ink-muted transition-colors duration-150 hover:border-transparent hover:bg-gold/10 hover:text-gold-strong focus-visible:border-transparent focus-visible:bg-gold/10 focus-visible:text-gold-strong"
+            className="my-0.5 flex items-center rounded-controle border border-dashed border-border px-2 text-left text-[12.5px] text-ink-muted transition-colors hover:border-gold hover:text-gold-strong"
             style={{ ...lugar, gridRow: linhaDoInicio(t) }}
           >
-            <span
-              aria-hidden
-              className="opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100"
-            >
-              + Marcar {paraHora(t)}
-            </span>
+            Livre · marcar
           </button>
         ) : (
           <div
             key={`l${prefixo}${t}`}
-            className="my-0.5 flex items-center rounded-controle border-t border-border/50 px-2 text-[12.5px] text-ink-muted"
+            className="my-0.5 flex items-center rounded-controle border border-dashed border-border px-2 text-[12.5px] text-ink-muted"
             style={{ ...lugar, gridRow: linhaDoInicio(t) }}
           >
-            <span className="sr-only">Livre às {paraHora(t)}</span>
+            Livre
           </div>
         )
       )}

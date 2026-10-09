@@ -36,11 +36,9 @@ export function PainelSidebarNav() {
         className="flex items-center gap-3 px-6 pb-6 pt-8"
       >
         <Image src={brand.logo} unoptimized={logoSemOtimizar(brand.logo)} alt="" width={38} height={38} priority className={CLASSE_DO_LOGO_REDONDO} />
-        <div className="min-w-0 leading-tight">
-          {/* O nome inteiro, em até duas linhas: `shortName` é o rótulo do ícone
-              na tela inicial (corta em 14) e aqui deixava "Navalha Tatuap". */}
-          <p className="line-clamp-2 break-words font-display text-base font-semibold text-ink" title={brand.name}>
-            {brand.name}
+        <div className="leading-tight">
+          <p className="font-display text-base uppercase tracking-wider text-ink">
+            {brand.shortName}
           </p>
           <p className="text-[12.5px] text-ink-muted">
             {brand.panelLabel}

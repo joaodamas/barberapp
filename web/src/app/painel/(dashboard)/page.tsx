@@ -7,6 +7,7 @@ import {
   AlertCircle,
   CalendarCheck,
   CalendarPlus,
+  ChevronLeft,
   ChevronRight,
   CreditCard,
   HelpCircle,
@@ -38,8 +39,6 @@ import { reservasDoFiltro } from "@/lib/grade-por-barbeiro";
 import { formasAtivas } from "@/lib/formas-de-pagamento";
 import { formatBRL, formatPhonePtBR, safePct } from "@/lib/format";
 import { contar } from "@/lib/plural";
-import { BarraFixa } from "@/components/agenda/barra-fixa";
-import { SeletorDeDia } from "@/components/agenda/seletor-de-dia";
 import { useTenant } from "@/lib/tenant-context";
 import { useBookings, useServices, useStaff } from "@/lib/db/use-shop-data";
 import { MarcarNoBalcao } from "@/components/marcar-no-balcao";
@@ -415,22 +414,17 @@ export default function PainelHojePage() {
             Marcar atendimento
           </Button>
         </div>
-        {/* Barra fixa: o dia e o filtro ficam colados no topo ao rolar. As
-            pendências e avisos acima mudam de altura com dado ao vivo; a barra,
-            não — o chip não pode sair de debaixo do cursor. */}
-        <BarraFixa className="mb-3 flex flex-col gap-2">
-          <SeletorDeDia
-            dia={dia}
-            hoje={hoje}
-            total={status === "pronto" ? reservasDaAgenda.length : null}
-            aoMudar={(d) => {
-              if (d === dia) return;
-              setSentidoDoDia(d > dia ? "depois" : "antes");
-              setDiaEscolhido(d === hoje ? null : d);
-            }}
-          />
-          <FiltroDeBarbeiro equipe={equipe} valor={filtro} aoMudar={setFiltro} />
-        </BarraFixa>
+        <SeletorDeDia
+          dia={dia}
+          hoje={hoje}
+          total={status === "pronto" ? reservasDaAgenda.length : null}
+          aoMudar={(d) => {
+            if (d === dia) return;
+            setSentidoDoDia(d > dia ? "depois" : "antes");
+            setDiaEscolhido(d === hoje ? null : d);
+          }}
+        />
+        <FiltroDeBarbeiro equipe={equipe} valor={filtro} aoMudar={setFiltro} className="mt-2" />
         {filtro && (
           <p className="mt-2 flex flex-wrap items-center gap-x-2 rounded-controle border border-gold/40 bg-gold/5 px-3 py-2 text-sm text-ink">
             <span>
@@ -911,4 +905,79 @@ function somarDias(iso: string, n: number) {
   const d = new Date(`${iso}T12:00:00`);
   d.setDate(d.getDate() + n);
   return toISODate(d);
+}
+
+/**
+ * Anda a agenda um dia por vez, ou salta para qualquer data pelo calendário
+ * do próprio aparelho. "Hoje" volta com um toque — é o dia que o dono mais
+ * olha, e ele não deve precisar achar a data de hoje no calendário.
+ */
+function SeletorDeDia({
+  dia,
+  hoje,
+  total,
+  aoMudar,
+}: {
+  dia: string;
+  hoje: string;
+  total: number | null;
+  aoMudar: (dia: string) => void;
+}) {
+  const nome =
+    dia === hoje
+      ? "Hoje"
+      : dia === somarDias(hoje, 1)
+        ? "Amanhã"
+        : dia === somarDias(hoje, -1)
+          ? "Ontem"
+          : null;
+  const botao =
+    "flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-controle border border-border bg-surface text-ink-muted transition-colors duration-150 hover:border-gold hover:text-gold-strong";
+  return (
+    <div className="mb-3 flex items-center gap-2">
+      <button
+        type="button"
+        onClick={() => aoMudar(somarDias(dia, -1))}
+        aria-label="Dia anterior"
+        className={botao}
+      >
+        <ChevronLeft size={18} />
+      </button>
+      {/* O input de data cobre o rótulo inteiro, invisível: o toque abre o
+          calendário nativo — no celular é a roda de datas que o dono já conhece. */}
+      <label className="relative flex h-10 min-w-0 flex-1 cursor-pointer items-center justify-center gap-2 rounded-controle border border-border bg-surface px-3 text-sm text-ink md:flex-none md:min-w-56">
+        <span className="truncate font-medium">{nome ?? formatarDiaCurto(dia)}</span>
+        {nome && <span className="text-ink-muted">{formatarDiaCurto(dia)}</span>}
+        {total !== null && (
+          <span className="hidden text-xs text-ink-muted sm:inline">
+            · {contar(total, "horário", "horários")}
+          </span>
+        )}
+        <input
+          type="date"
+          value={dia}
+          onChange={(e) => e.target.value && aoMudar(e.target.value)}
+          aria-label="Escolher o dia da agenda"
+          className="absolute inset-0 cursor-pointer opacity-0"
+        />
+      </label>
+      <button
+        type="button"
+        onClick={() => aoMudar(somarDias(dia, 1))}
+        aria-label="Próximo dia"
+        className={botao}
+      >
+        <ChevronRight size={18} />
+      </button>
+      {dia !== hoje && (
+        <button
+          type="button"
+          onClick={() => aoMudar(hoje)}
+          className="flex h-10 shrink-0 cursor-pointer items-center rounded-controle bg-gold/15 px-3 text-sm font-medium text-gold-strong"
+        >
+          Hoje
+        </button>
+      )}
+    </div>
+  );
 }
