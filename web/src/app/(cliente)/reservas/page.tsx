@@ -23,9 +23,11 @@ import { EM_ABERTO } from "@/lib/domain";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
 import { bookableDays, firstBookableIndex } from "@/lib/slots";
+import { estadoDosHorarios } from "../agendar/estado-dos-horarios";
 import { refundAmountFor } from "@/lib/business-rules";
 import type { TenantPolicies } from "@/lib/tenant";
 import type { Booking } from "@/lib/types";
+import { mensagemDaFuncao } from "@/lib/mensagem-da-funcao";
 
 type Tab = "futuras" | "historico";
 
@@ -132,7 +134,9 @@ export default function ReservasPage() {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [dayIndex, setDayIndex] = useState(() => firstBookableIndex(bookableDays(new Date(), tenant.schedule)));
   const [time, setTime] = useState<string | null>(null);
-  const [resposta, setResposta] = useState<{ chave: string; slots: string[] } | null>(null);
+  const [resposta, setResposta] = useState<{ chave: string; slots: string[]; falhou?: boolean } | null>(null);
+  /* Incrementar refaz a consulta de horários — o "Tentar de novo". */
+  const [tentativa, setTentativa] = useState(0);
   const [salvando, setSalvando] = useState(false);
   const [erroReserva, setErroReserva] = useState<string | null>(null);
 
@@ -146,8 +150,11 @@ export default function ReservasPage() {
     horizontePadrao: tenant.policies.booking.maxAdvanceDays,
   });
   const mensalistaAqui = !!assinaturaAtivaDe(minhasAssinaturas, user?.uid);
+  /* Para o mensalista, a data liberada aos avulsos também conta: o limite dele
+   * é o maior entre ela e os dias do plano (`lib/janela.ts`) — mesma condição
+   * do agendar. Sem isto ele via só os 10 dias de sempre ao remarcar. */
   const janelaConfigurada = mensalistaAqui
-    ? tenant.policies.janela?.diasMensalista != null
+    ? tenant.policies.janela?.diasMensalista != null || !!tenant.policies.janela?.abertaAte
     : !!tenant.policies.janela?.abertaAte;
   const days = useMemo(
     () => bookableDays(new Date(), tenant.schedule, janelaConfigurada ? limite : undefined),
@@ -198,18 +205,27 @@ export default function ReservasPage() {
         if (!cancelado) setResposta({ chave: chaveDaConsulta, slots: r.slots ?? [] });
       } catch (err) {
         console.error("[reservas] falha ao buscar horários", err);
-        if (!cancelado) setResposta({ chave: chaveDaConsulta, slots: [] });
+        if (!cancelado) setResposta({ chave: chaveDaConsulta, slots: [], falhou: true });
       }
     })();
     return () => {
       cancelado = true;
     };
-  }, [rescheduleOpen, selectedDay?.iso, idDoBarbeiro, duracaoParaSlots, idDaReserva, tenant.id, chaveDaConsulta]);
+  }, [rescheduleOpen, selectedDay?.iso, idDoBarbeiro, duracaoParaSlots, idDaReserva, tenant.id, chaveDaConsulta, tentativa]);
 
   /* Só vale a resposta desta combinação. Trocar o dia volta a lista para
    * "carregando" sem precisar limpá-la — e nunca mostra o dia anterior. */
-  const horariosLivres = resposta?.chave === chaveDaConsulta ? resposta.slots : null;
+  const respostaAtual = resposta?.chave === chaveDaConsulta ? resposta : null;
+  const horariosLivres = respostaAtual ? respostaAtual.slots : null;
   const slots = (horariosLivres ?? []).map((time) => ({ time, available: true }));
+  /* Os mesmos estados do agendar: lista vazia era a resposta para "ainda não
+   * voltou", "voltou sem horário" e "a rede caiu" — três coisas diferentes. */
+  const estadoDaLista = estadoDosHorarios({
+    diaFechado: !!selectedDay?.disabled,
+    temProfissional: !!idDoBarbeiro,
+    horariosLivres,
+    falhou: respostaAtual?.falhou === true,
+  });
 
   const refund = booking ? refundFor(booking, cancelamento) : null;
 
@@ -278,7 +294,7 @@ export default function ReservasPage() {
     } catch (err) {
       console.error("[reservas] falha ao reagendar", err);
       setErroReserva(
-        (err as { message?: string })?.message ?? "Não foi possível remarcar agora."
+        mensagemDaFuncao(err, "Não foi possível remarcar agora.")
       );
     } finally {
       setSalvando(false);
@@ -299,7 +315,7 @@ export default function ReservasPage() {
     } catch (err) {
       console.error("[reservas] falha ao cancelar", err);
       setErroReserva(
-        (err as { message?: string })?.message ?? "Não foi possível cancelar agora."
+        mensagemDaFuncao(err, "Não foi possível cancelar agora.")
       );
     } finally {
       setSalvando(false);
@@ -506,7 +522,7 @@ export default function ReservasPage() {
       </div>
 
       <div className="hidden md:col-start-2 md:row-start-2 md:flex md:flex-col md:gap-6">
-        {loyalty.ativo && (
+        {loyalty.ativo && loyalty.status !== "carregando" && (
         <section aria-labelledby="fidelidade-reservas">
           <h2
             id="fidelidade-reservas"
@@ -516,13 +532,25 @@ export default function ReservasPage() {
           </h2>
           <Card className="flex flex-col gap-3 md:p-6">
             <div className="flex items-center justify-between">
-              <p className="text-sm text-ink md:text-base">
-                {loyalty.stamps} de {loyalty.goal} carimbos
-              </p>
-              <p className="text-xs text-gold-strong md:text-sm">
-                {loyalty.podeResgatar ? "pronto para resgatar" : `faltam ${stampsLeft}`}
-              </p>
+              {/* Só o status "pronto" mostra o saldo: "0 de 10" enquanto carrega
+                  ou depois de falhar é um número que ninguém leu. */}
+              {loyalty.status === "pronto" ? (
+                <>
+                  <p className="text-sm text-ink md:text-base">
+                    {loyalty.stamps} de {loyalty.goal} carimbos
+                  </p>
+                  <p className="text-xs text-gold-strong md:text-sm">
+                    {loyalty.podeResgatar ? "pronto para resgatar" : `faltam ${stampsLeft}`}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-ink md:text-base">— carimbos</p>
+                  <p className="text-xs text-ink-muted md:text-sm">não foi possível carregar</p>
+                </>
+              )}
             </div>
+            {loyalty.status === "pronto" && (
             <div className="flex gap-1.5">
               {Array.from({ length: loyalty.goal }).map((_, i) => (
                 <span
@@ -535,9 +563,10 @@ export default function ReservasPage() {
                 />
               ))}
             </div>
+            )}
             {/* O resgate é registrado por quem entrega a recompensa. O botão
                 que havia aqui zerava os carimbos e nada chegava ao dono. */}
-            {loyalty.podeResgatar && (
+            {loyalty.status === "pronto" && loyalty.podeResgatar && (
               <p className="rounded-lg bg-gold/10 p-2 text-xs text-gold-strong md:text-sm">
                 {loyalty.reward} liberado — é só avisar no balcão no próximo atendimento.
               </p>
@@ -636,6 +665,32 @@ export default function ReservasPage() {
             <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted">
               Horários livres
             </p>
+            {estadoDaLista === "dia-fechado" ? (
+              <p className="text-sm text-ink-muted">A barbearia não abre neste dia. Escolha outra data.</p>
+            ) : estadoDaLista === "escolher-profissional" ? (
+              <p className="text-sm text-ink-muted">
+                Esta reserva não tem profissional definido. Fale com a barbearia para remarcar.
+              </p>
+            ) : estadoDaLista === "carregando" ? (
+              <LoadingRows rows={2} />
+            ) : estadoDaLista === "erro" ? (
+              <div className="flex flex-col items-start gap-2 text-sm text-ink-muted">
+                <span>Não conseguimos carregar os horários agora.</span>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setResposta(null);
+                    setTentativa((n) => n + 1);
+                  }}
+                >
+                  Tentar de novo
+                </Button>
+              </div>
+            ) : estadoDaLista === "sem-horario" ? (
+              <p className="text-sm text-ink-muted">
+                Nenhum horário livre neste dia. Escolha outro dia ou fale com a barbearia.
+              </p>
+            ) : (
             <div className="grid grid-cols-4 gap-2">
               {slots.map((slot) => (
                 <button
@@ -654,6 +709,7 @@ export default function ReservasPage() {
                 </button>
               ))}
             </div>
+            )}
           </div>
         </div>
       </Modal>
@@ -681,12 +737,16 @@ export default function ReservasPage() {
       >
         <div className="flex flex-col gap-3">
           <p className="text-sm text-ink">{refund?.label}</p>
-          <div className="flex items-center justify-between rounded-xl border border-border bg-surface-raised px-4 py-3 text-sm">
-            <span className="text-ink-muted">Valor a devolver</span>
-            <span className="font-display font-semibold text-ink">
-              {formatBRL(refund?.amount ?? 0)}
-            </span>
-          </div>
+          {/* Sem devolução, a frase acima já diz — repetir "R$ 0,00" numa
+              caixa é dizer duas vezes a mesma coisa. */}
+          {(refund?.amount ?? 0) > 0 && (
+            <div className="flex items-center justify-between rounded-xl border border-border bg-surface-raised px-4 py-3 text-sm">
+              <span className="text-ink-muted">Valor a devolver</span>
+              <span className="font-display font-semibold text-ink">
+                {formatBRL(refund?.amount ?? 0)}
+              </span>
+            </div>
+          )}
           <p className="text-xs text-ink-muted">
             Esta ação libera o horário na agenda e não pode ser desfeita.
           </p>

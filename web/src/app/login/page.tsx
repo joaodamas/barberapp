@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
@@ -31,6 +31,8 @@ import {
   type MetodoDeLogin,
 } from "@/lib/metodos-de-login";
 import { logoSemOtimizar } from "@/lib/logo-da-marca";
+import { ehNavegadorEmbutido } from "@/lib/navegador-embutido";
+import { AVISO_DE_COPIA_FALHOU, copiarOuSelecionar } from "@/lib/copiar-texto";
 
 type Method = MetodoDeLogin;
 type PhoneStep = "phone" | "code";
@@ -100,6 +102,16 @@ export default function LoginPage() {
 
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /* No navegador de dentro do Instagram/Facebook o Google recusa o login
+   * (403 disallowed_useragent). Lido do UA sem efeito: no servidor é `false`,
+   * e o cliente corrige na hidratação. */
+  const embutido = useSyncExternalStore(
+    () => () => {},
+    () => ehNavegadorEmbutido(navigator.userAgent),
+    () => false
+  );
+  const [linkCopiado, setLinkCopiado] = useState<"sim" | "nao" | null>(null);
+  const enderecoRef = useRef<HTMLParagraphElement>(null);
 
   /* Domínio da PLATAFORMA (topete.com.br), sem barbearia (29/09). Aqui a tela
    * tem a cara do Topete, e quem entra é mandado ao painel da barbearia dele,
@@ -204,6 +216,11 @@ export default function LoginPage() {
       recaptchaRef.current = null;
     };
   }, []);
+
+  async function copiarEndereco() {
+    const ok = await copiarOuSelecionar(window.location.href, enderecoRef.current);
+    setLinkCopiado(ok ? "sim" : "nao");
+  }
 
   async function handleGoogle() {
     setError(null);
@@ -447,7 +464,7 @@ export default function LoginPage() {
                 placeholder="(11) 99999-9999"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                className="rounded-xl border border-border bg-surface px-4 py-3 text-sm text-ink outline-none focus-visible:ring-2 focus-visible:ring-gold"
+                className="rounded-xl border border-border bg-surface px-4 py-3 text-sm text-ink outline-none focus-visible:ring-2 focus-visible:ring-gold-strong"
               />
               <Button
                 type="submit"
@@ -477,7 +494,7 @@ export default function LoginPage() {
                 placeholder="000000"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
-                className="rounded-xl border border-border bg-surface px-4 py-3 text-center text-lg tracking-[0.5em] text-ink outline-none focus-visible:ring-2 focus-visible:ring-gold"
+                className="rounded-xl border border-border bg-surface px-4 py-3 text-center text-lg tracking-[0.5em] text-ink outline-none focus-visible:ring-2 focus-visible:ring-gold-strong"
               />
               <Button type="submit" className="mt-1" disabled={busy || code.length < 6}>
                 Confirmar
@@ -514,7 +531,7 @@ export default function LoginPage() {
                 placeholder="voce@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="rounded-xl border border-border bg-surface px-4 py-3 text-sm text-ink outline-none focus-visible:ring-2 focus-visible:ring-gold"
+                className="rounded-xl border border-border bg-surface px-4 py-3 text-sm text-ink outline-none focus-visible:ring-2 focus-visible:ring-gold-strong"
               />
             </div>
             <div className="flex flex-col gap-1.5">
@@ -529,7 +546,7 @@ export default function LoginPage() {
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="rounded-xl border border-border bg-surface px-4 py-3 text-sm text-ink outline-none focus-visible:ring-2 focus-visible:ring-gold"
+                className="rounded-xl border border-border bg-surface px-4 py-3 text-sm text-ink outline-none focus-visible:ring-2 focus-visible:ring-gold-strong"
               />
             </div>
             <Button type="submit" disabled={busy || !email || password.length < 6}>
@@ -589,9 +606,40 @@ export default function LoginPage() {
           <div className="h-px flex-1 bg-border" />
         </div>
 
-        <Button variant="secondary" onClick={handleGoogle} disabled={busy}>
-          Continuar com Google
-        </Button>
+        {embutido ? (
+          /* Esconder o botão e dizer por quê: ele levaria a uma página de erro
+             do Google que a pessoa não sabe ler. */
+          <div className="flex flex-col gap-2 rounded-xl border border-border bg-surface-raised p-3 text-sm">
+            <p className="font-medium text-ink">Abra no navegador para entrar com Google</p>
+            <p className="text-xs text-ink-muted">
+              Este navegador de dentro do aplicativo não permite o login com Google. Copie o
+              endereço, abra no Safari ou no Chrome e entre por lá — ou use o e-mail acima.
+            </p>
+            <p
+              ref={enderecoRef}
+              className="break-all rounded-lg border border-border bg-surface px-3 py-2 text-xs text-ink"
+            >
+              {typeof window !== "undefined" ? window.location.href : ""}
+            </p>
+            <Button variant="secondary" onClick={() => void copiarEndereco()}>
+              Copiar o link
+            </Button>
+            {linkCopiado === "sim" && (
+              <p role="status" className="text-xs text-success">
+                Link copiado. Agora abra o Safari ou o Chrome e cole na barra de endereço.
+              </p>
+            )}
+            {linkCopiado === "nao" && (
+              <p role="status" className="text-xs text-ink-muted">
+                {AVISO_DE_COPIA_FALHOU}
+              </p>
+            )}
+          </div>
+        ) : (
+          <Button variant="secondary" onClick={handleGoogle} disabled={busy}>
+            Continuar com Google
+          </Button>
+        )}
       </Card>
       )}
 
