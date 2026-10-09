@@ -2,6 +2,7 @@ import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { getAuth } from "firebase-admin/auth";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { createHash } from "node:crypto";
+import { mutarClaims } from "./claims";
 
 /**
  * Troca obrigatória da senha no primeiro acesso.
@@ -75,10 +76,9 @@ export const changeInitialPassword = onCall<{ newPassword: string }>(async (requ
   const auth = getAuth();
   await auth.updateUser(uid, { password: nova });
 
-  const user = await auth.getUser(uid);
-  const claims = { ...(user.customClaims ?? {}) };
-  delete claims.mustChangePassword;
-  await auth.setCustomUserClaims(uid, claims);
+  await mutarClaims(uid, (claims) => {
+    delete claims.mustChangePassword;
+  });
 
   /* Derruba as sessões abertas com a senha antiga. Quem a tiver recebido junto
    * não continua dentro. O cliente entra de novo logo em seguida, com a senha

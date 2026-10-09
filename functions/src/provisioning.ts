@@ -2,6 +2,7 @@ import { CAMINHO_FINANCEIRO } from "./politicas-financeiras";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { limparAvisosDoUid } from "./avisos-por-uid";
 import { getAuth } from "firebase-admin/auth";
+import { mutarClaims } from "./claims";
 import { FieldValue, getFirestore, type Firestore } from "firebase-admin/firestore";
 import { featuresFor, toPlanId, type PlanId } from "./plans";
 import { RESERVED_SLUGS, TRIAL_DAYS } from "./signup";
@@ -440,18 +441,17 @@ export const grantShopRole = onCall<{
 
 export async function grantRole(uid: string, barbershopId: string, role: "owner" | "staff" | null) {
   const auth = getAuth();
-  const user = await auth.getUser(uid);
-  const claims = { ...(user.customClaims ?? {}) };
-  const barbershops = { ...((claims.barbershops as Record<string, string>) ?? {}) };
+  await mutarClaims(uid, (claims) => {
+    const barbershops = { ...((claims.barbershops as Record<string, string>) ?? {}) };
 
-  if (role) {
-    barbershops[barbershopId] = role;
-  } else {
-    delete barbershops[barbershopId];
-  }
+    if (role) {
+      barbershops[barbershopId] = role;
+    } else {
+      delete barbershops[barbershopId];
+    }
 
-  claims.barbershops = barbershops;
-  await auth.setCustomUserClaims(uid, claims);
+    claims.barbershops = barbershops;
+  });
   // O token em uso continua com o claim antigo até renovar; revogar força a
   // renovação na próxima requisição.
   await auth.revokeRefreshTokens(uid);

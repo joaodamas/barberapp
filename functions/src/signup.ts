@@ -2,6 +2,7 @@ import { CAMINHO_FINANCEIRO } from "./politicas-financeiras";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { exigirEdicao, vinculosDe } from "./acesso";
 import { getAuth } from "firebase-admin/auth";
+import { mutarClaims } from "./claims";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { featuresFor, type PlanId } from "./plans";
 import { politicasIniciais } from "./financial-events";
@@ -265,13 +266,12 @@ export const signUpBarbershop = onCall<SignUpInput>(async (request) => {
 
   // Fora da transação: o Auth não participa dela.
   const auth = getAuth();
-  const user = await auth.getUser(uid);
-  const claims = { ...(user.customClaims ?? {}) };
-  claims.barbershops = {
-    ...((claims.barbershops as Record<string, string>) ?? {}),
-    [shopRef.id]: "owner",
-  };
-  await auth.setCustomUserClaims(uid, claims);
+  await mutarClaims(uid, (claims) => {
+    claims.barbershops = {
+      ...((claims.barbershops as Record<string, string>) ?? {}),
+      [shopRef.id]: "owner",
+    };
+  });
   await auth.revokeRefreshTokens(uid);
 
   /* Para a tela entrar já logada no endereço novo — ver `entrada.ts`. Falhar
