@@ -63,7 +63,10 @@ export function useStaffComRemuneracao() {
           }
         : s;
     }),
-  } as typeof equipe;
+    /* A leitura de `staff_pay` PRONTA: salvar salário regrava o histórico a
+     * partir dela, e com a leitura falha os meses passados perderiam a folha. */
+    folhaPronta: pay.status === "pronto",
+  } as typeof equipe & { folhaPronta: boolean };
 }
 
 /** Comissões apuradas — escritas pelo servidor na conclusão do atendimento. */
@@ -153,10 +156,11 @@ export const useSubscribers = (opcoes?: { enabled?: boolean }) =>
  * É o lastro que faltava: antes, "receita de mensalista" saía de um status
  * marcado como `ativo`. Escritas só pelo servidor.
  */
-export const useSubscriptionInvoices = () =>
+export const useSubscriptionInvoices = (opcoes?: { enabled?: boolean }) =>
   useShopCollection<SubscriptionInvoiceDoc>("subscriptionInvoices", {
     orderByField: "dueDate",
     direction: "desc",
+    enabled: opcoes?.enabled ?? true,
   });
 
 export const useInventoryMovements = () =>

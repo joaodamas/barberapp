@@ -9,6 +9,7 @@ import { deleteField } from "firebase/firestore";
 import { formatBRL } from "@/lib/format";
 import type { ServiceDoc } from "@/lib/domain";
 import { separarAPartirDe } from "@/lib/a-partir-de";
+import { lerReais, reaisParaCampo, VALOR_ILEGIVEL } from "@/lib/reais";
 
 /**
  * Tabela editável do cardápio da barbearia.
@@ -48,7 +49,7 @@ export function EditorDeServicos({
    * Enquanto o dono digita, o campo mostra o valor CRU — formatar no meio da
    * digitação faria "1" virar "1,00" e o cursor pular para o fim, tornando
    * impossível chegar em "15". Fora de foco, mostra formatado. */
-  const [precoEmFoco, setPrecoEmFoco] = useState<string | null>(null);
+  const [precoEmFoco, setPrecoEmFoco] = useState<{ id: string; texto: string } | null>(null);
   const [status, setStatus] = useState<"carregando" | "pronto" | "erro">("carregando");
   const [erroDeEscrita, setErroDeEscrita] = useState<string | null>(null);
   const [aExcluir, setAExcluir] = useState<Servico | null>(null);
@@ -246,7 +247,7 @@ export function EditorDeServicos({
                 `type="text"` com `inputMode="decimal"`: `number` não aceita
                 exibir "100,00" formatado, e ainda traz as setinhas de incremento
                 que não fazem sentido em dinheiro. A vírgula é como se digita
-                preço em português, e `atualizar` já normaliza para ponto. */}
+                preço em português, e o `lerReais` lê o texto no blur. */}
             <div
               className={`order-5 flex min-w-0 flex-col gap-1 md:order-none md:col-span-1 ${
                 permiteDesativar ? "col-span-3" : "col-span-2"
@@ -260,12 +261,25 @@ export function EditorDeServicos({
                 aria-label="Preço"
                 type="text"
                 inputMode="decimal"
-                value={precoEmFoco === s.id ? s.price || "" : formatarPreco(s.price)}
-                onFocus={() => setPrecoEmFoco(s.id)}
-                onChange={(e) => atualizar(s.id, "price", e.target.value.replace(",", "."))}
+                value={precoEmFoco?.id === s.id ? precoEmFoco.texto : formatarPreco(s.price)}
+                onFocus={() =>
+                  setPrecoEmFoco({ id: s.id, texto: s.price ? reaisParaCampo(Number(s.price)) : "" })
+                }
+                onChange={(e) => setPrecoEmFoco({ id: s.id, texto: e.target.value })}
                 onBlur={() => {
+                  /* O texto cru só vira número aqui: converter a cada tecla
+                   * transformava "27,50" em 2750 (a vírgula sumia). Vazio vale
+                   * 0 (linha nova); texto ilegível NÃO grava — mostra o erro. */
+                  const texto = precoEmFoco?.id === s.id ? precoEmFoco.texto : "";
                   setPrecoEmFoco(null);
-                  salvarLinha(s);
+                  const preco = texto.trim() === "" ? 0 : lerReais(texto);
+                  if (preco === null) {
+                    setErroDeEscrita(VALOR_ILEGIVEL);
+                    return;
+                  }
+                  setErroDeEscrita(null);
+                  setServicos((prev) => prev.map((x) => (x.id === s.id ? { ...x, price: preco } : x)));
+                  void salvarLinha({ ...s, price: preco });
                 }}
                 placeholder="0,00"
                 className="w-full bg-transparent text-sm text-ink outline-none"

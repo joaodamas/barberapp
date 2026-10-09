@@ -242,7 +242,9 @@ describe("R1 · o modal de correção", () => {
   });
 
   it("mostra a mensagem do servidor, não uma genérica por cima", () => {
-    expect(MODAL).toContain("e instanceof Error ? e.message");
+    /* `mensagemDaFuncao` devolve o texto do HttpsError que nós lançamos, e só
+     * troca pela frase padrão o que é jargão (internal, rede). */
+    expect(MODAL).toContain("mensagemDaFuncao(e,");
   });
 
   it("o caso 1 é dito com as palavras do que aconteceu", () => {

@@ -5,12 +5,12 @@ import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { useServices } from "@/lib/db/use-shop-data";
-import { aplicarCombos } from "@/lib/combos";
+import { aplicarCombos, aplicarCombosComCongelados, diferencaDeServicos } from "@/lib/combos";
 import { calcularDesconto, lerNumeroDigitado } from "@/lib/desconto";
 import { formasAtivas, type FormaDePagamento } from "@/lib/formas-de-pagamento";
 import { formatBRL, formatPctPtBR } from "@/lib/format";
 import { chaveDeIdempotencia } from "@/lib/chave-de-idempotencia";
-import { mensagemDoErro } from "@/lib/direitos-do-titular";
+import { mensagemDaFuncao } from "@/lib/mensagem-da-funcao";
 import { useTenant } from "@/lib/tenant-context";
 import type { BookingDoc, TipoDeDesconto } from "@/lib/domain";
 import type { Doc } from "@/lib/db/repository";
@@ -54,7 +54,11 @@ export function EditarCobranca({
   const ativos = useMemo(() => servicos.filter((s) => s.active !== false), [servicos]);
   const catalogo = useMemo(() => servicos.map((s) => ({ ...s, id: s.id })), [servicos]);
   const formas = formasAtivas(tenant.policies);
-  const nomes = new Map(servicos.map((s) => [s.id, s.name]));
+  /* Serviço apagado do catálogo continua com o nome gravado na reserva. */
+  const nomes = new Map<string, string>([
+    ...(booking.serviceIds ?? []).map((id, i): [string, string] => [String(id), (booking as { serviceNames?: string[] }).serviceNames?.[i] ?? "Serviço"]),
+    ...servicos.map((s): [string, string] => [s.id, s.name]),
+  ]);
 
   const [ids, setIds] = useState<string[]>(() => (booking.serviceIds ?? []).map(String));
   const [adicionando, setAdicionando] = useState(false);
@@ -81,10 +85,18 @@ export function EditarCobranca({
   const inalterados = idsAtuais.length > 0 && idsAtuais.length === ids.length && idsAtuais.every((x, i) => x === ids[i]);
   const previa = inalterados
     ? { valor: Number(booking.value) || 0, combos: [] as string[] }
-    : aplicarCombos(
-        ids,
-        catalogo.map((s) => (idsAtuais.includes(s.id) && s.active === false ? { ...s, active: true } : s))
-      );
+    : idsAtuais.length > 0 && (Number(booking.value) || 0) > 0
+      ? (() => {
+          /* A mesma conta do servidor: o que fica vale a parte do preço
+           * gravado; só o que foi somado entra pelo preço de hoje. */
+          const { extras, remover } = diferencaDeServicos(idsAtuais, ids);
+          const c = aplicarCombosComCongelados(booking, extras, catalogo, remover);
+          return { valor: c.valor, combos: c.combos };
+        })()
+      : aplicarCombos(
+          ids,
+          catalogo.map((s) => (idsAtuais.includes(s.id) && s.active === false ? { ...s, active: true } : s))
+        );
   const descontoEmReais = (() => {
     if (modo === "sem") return 0;
     if (modo === "novo") return calcularDesconto({ valor: previa.valor, tipo, entrada: lerNumeroDigitado(texto) }).desconto;
@@ -125,7 +137,7 @@ export function EditarCobranca({
       );
       setFeito({ antes: r.antes, depois: r.depois });
     } catch (e) {
-      setErro(mensagemDoErro(e));
+      setErro(mensagemDaFuncao(e, "Não consegui editar a cobrança agora."));
     } finally {
       setSalvando(false);
     }

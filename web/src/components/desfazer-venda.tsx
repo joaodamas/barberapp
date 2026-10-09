@@ -9,6 +9,7 @@ import { formatBRL } from "@/lib/format";
 import { useTenant } from "@/lib/tenant-context";
 import { useInventoryMovements, useProducts, useRefunds, useStaff } from "@/lib/db/use-shop-data";
 import { chaveDeIdempotencia } from "@/lib/chave-de-idempotencia";
+import { mensagemDaFuncao } from "@/lib/mensagem-da-funcao";
 import { paymentMethodLabel } from "@/lib/payment-method";
 import { situacaoDaVenda, vendasEstornaveis, type VendaEstornavel } from "@/lib/estornos";
 import { plural } from "@/lib/plural";
@@ -101,7 +102,7 @@ export function DesfazerVenda() {
       setFeito({ valor: r.valor, unidades: r.quantidade ?? quantidade });
       setADesfazer(null);
     } catch (e) {
-      setErro(e instanceof Error ? e.message : "Não consegui registrar a devolução.");
+      setErro(mensagemDaFuncao(e, "Não consegui registrar a devolução."));
     } finally {
       setSalvando(false);
     }
