@@ -7,11 +7,11 @@ import { WelcomeHeading } from "@/components/welcome-heading";
 import { Pill } from "@/components/ui/pill";
 import { Button } from "@/components/ui/button";
 import { BarberPoleDivider } from "@/components/ui/barber-pole-divider";
-import { bookingStatusMeta } from "@/lib/booking-status";
+import { assinaturaAtivaDe, bookingStatusMeta } from "@/lib/booking-status";
 import { formatBRL, formatDatePtBR, toISODate } from "@/lib/format";
 import { useTenant } from "@/lib/tenant-context";
 import { useAuth } from "@/lib/auth-context";
-import { useLoyalty, useMyBookings, usePlans, useServices } from "@/lib/db/use-shop-data";
+import { useLoyalty, useMinhasAssinaturas, useMyBookings, usePlans, useServices } from "@/lib/db/use-shop-data";
 import { EM_ABERTO } from "@/lib/domain";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
@@ -44,6 +44,11 @@ export default function InicioPage() {
   const statusMeta = nextBooking ? bookingStatusMeta[nextBooking.status] : null;
 
   const loyalty = useLoyalty(user?.uid);
+  /* Mesma leitura do agendar: quem tem plano ativo não lê "a pagar no salão
+   * R$ 45" — o que o plano cobre não é cobrado de novo, e a cota do mês é
+   * decidida no fechamento, não aqui. */
+  const { items: minhasAssinaturas } = useMinhasAssinaturas(user?.uid);
+  const minhaAssinatura = assinaturaAtivaDe(minhasAssinaturas, user?.uid);
   /* A oferta de mensalista vem dos planos QUE A BARBEARIA CRIOU. Era um texto
    * fixo — "corte ilimitado a partir de R$ 149/mês" — mostrado em toda
    * barbearia, inclusive nas que não têm plano nenhum, enquanto a tela de
@@ -121,14 +126,23 @@ export default function InicioPage() {
             {statusMeta && <Pill tone={statusMeta.tone}>{statusMeta.label}</Pill>}
           </div>
           <BarberPoleDivider />
-          <div className="flex items-center justify-between text-sm md:text-base">
-            <span className="text-ink-muted">
-              {nextBooking.paymentMethod ? "Valor pago" : "A pagar no salão"}
-            </span>
-            <span className="font-display font-semibold text-ink md:text-lg">
-              {formatBRL(nextBooking.value)}
-            </span>
-          </div>
+          {minhaAssinatura && !nextBooking.paymentMethod ? (
+            <div className="flex flex-col gap-0.5 text-sm md:text-base">
+              <span className="text-ink">Mensalista · {minhaAssinatura.planName}</span>
+              <span className="text-xs text-ink-muted md:text-sm">
+                O que estiver incluído no plano não é cobrado no salão.
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between text-sm md:text-base">
+              <span className="text-ink-muted">
+                {nextBooking.paymentMethod ? "Valor pago" : "A pagar no salão"}
+              </span>
+              <span className="font-display font-semibold text-ink md:text-lg">
+                {formatBRL(nextBooking.value)}
+              </span>
+            </div>
+          )}
           <Link
             href="/reservas"
             className="text-sm font-medium text-gold-strong transition-opacity hover:opacity-80 md:text-base"
@@ -162,7 +176,7 @@ export default function InicioPage() {
       </Link>
       )}
 
-      {loyalty.ativo && (
+      {loyalty.ativo && loyalty.status !== "carregando" && (
       <section aria-labelledby="fidelidade" className="md:col-start-2 md:row-start-3">
         <h2
           id="fidelidade"
@@ -172,15 +186,27 @@ export default function InicioPage() {
         </h2>
         <Card className="flex flex-col gap-3 md:p-6">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-ink md:text-base">
-              {loyalty.stamps} de {loyalty.goal} carimbos
-            </p>
-            <p className="text-xs text-gold-strong md:text-sm">
-              {loyalty.podeResgatar
-                ? `${loyalty.reward} liberado — mostre no balcão`
-                : `faltam ${stampsLeft} para ${loyalty.reward}`}
-            </p>
+            {/* "0 de 10" enquanto carrega ou depois de falhar é afirmar um saldo
+                que ninguém leu: só o status "pronto" mostra os carimbos. */}
+            {loyalty.status === "pronto" ? (
+              <>
+                <p className="text-sm text-ink md:text-base">
+                  {loyalty.stamps} de {loyalty.goal} carimbos
+                </p>
+                <p className="text-xs text-gold-strong md:text-sm">
+                  {loyalty.podeResgatar
+                    ? `${loyalty.reward} liberado — mostre no balcão`
+                    : `faltam ${stampsLeft} para ${loyalty.reward}`}
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-ink md:text-base">— carimbos</p>
+                <p className="text-xs text-ink-muted md:text-sm">não foi possível carregar</p>
+              </>
+            )}
           </div>
+          {loyalty.status === "pronto" && (
           <div className="flex gap-1.5">
             {Array.from({ length: loyalty.goal }).map((_, i) => (
               <span
@@ -193,6 +219,7 @@ export default function InicioPage() {
               />
             ))}
           </div>
+          )}
         </Card>
       </section>
       )}

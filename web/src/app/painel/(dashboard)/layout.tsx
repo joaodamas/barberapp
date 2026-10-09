@@ -6,6 +6,7 @@ import { TenantLive } from "@/lib/tenant-live";
 import { PainelBottomNav } from "@/components/painel-bottom-nav";
 import { PainelSidebarNav } from "@/components/painel-sidebar-nav";
 import { CabecalhoDoPainel } from "@/components/cabecalho-do-painel";
+import { AvisoDeConexao } from "@/components/aviso-de-conexao";
 
 export default async function PainelDashboardLayout({
   children,
@@ -48,6 +49,7 @@ export default async function PainelDashboardLayout({
           últimos dias, o de leitura explica depois que venceu. */}
       <AvisoDeTrial tenant={tenant} />
       <AvisoModoLeitura />
+      <AvisoDeConexao />
       <div className="mx-auto flex min-h-full w-full max-w-md flex-1 flex-col md:h-full md:max-w-none md:flex-row md:overflow-hidden">
         <PainelSidebarNav />
         <div className="flex min-h-full w-full flex-1 flex-col md:h-full md:overflow-hidden">

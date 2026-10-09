@@ -6,12 +6,20 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
 import { EditorDePlanos } from "@/components/editor-de-planos";
+import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
+import { LoadingRows } from "@/components/ui/empty-state";
 import { Pill } from "@/components/ui/pill";
 import { formatBRL, formatDatePtBR, toISODate } from "@/lib/format";
 import { contar } from "@/lib/plural";
 import { rotuloDoMes } from "@/lib/db/use-financeiro";
 import { useTenant } from "@/lib/tenant-context";
-import { useClients, usePlans, useRefunds, useSubscriptionInvoices } from "@/lib/db/use-shop-data";
+import {
+  combineStatus,
+  useClients,
+  usePlans,
+  useRefunds,
+  useSubscriptionInvoices,
+} from "@/lib/db/use-shop-data";
 import { filtrarClientes } from "@/lib/clientes-busca";
 import { mascararWhatsapp } from "@/lib/whatsapp-numero";
 import {
@@ -26,6 +34,7 @@ import { paymentMethodLabel } from "@/lib/payment-method";
 import { formasAtivas, type FormaDePagamento } from "@/lib/formas-de-pagamento";
 import type { Doc } from "@/lib/db/repository";
 import type { ClientDoc, SubscriptionInvoiceDoc } from "@/lib/domain";
+import { mensagemDaFuncao } from "@/lib/mensagem-da-funcao";
 
 /**
  * G2 — contratar mensalista e receber a mensalidade.
@@ -55,11 +64,22 @@ export function GerirMensalistas({ competencia: mesCorrente }: { competencia: st
   const [competencia, setCompetencia] = useState(mesCorrente);
   const [emitindo, setEmitindo] = useState(false);
   const formasDeCobranca = formasAtivas(tenant.policies);
-  const { items: clientes } = useClients();
-  const { items: planos } = usePlans();
-  const { items: faturas, status } = useSubscriptionInvoices();
+  const lidoClientes = useClients();
+  const lidoPlanos = usePlans();
+  const lidoFaturas = useSubscriptionInvoices();
   /* Fatura devolvida não conta como recebida (08/10). */
-  const { items: refunds } = useRefunds();
+  const lidoRefunds = useRefunds();
+  const { items: clientes } = lidoClientes;
+  const { items: planos } = lidoPlanos;
+  const { items: faturas } = lidoFaturas;
+  const { items: refunds } = lidoRefunds;
+  /* Faturado, recebido e em aberto saem das quatro leituras juntas: se UMA
+   * falha, o total é parcial — e "Recebido R$ 0,00" com a tabela vazia dizia ao
+   * dono que ninguém pagou. Antes dos totais, o estado da leitura. */
+  const status = combineStatus(lidoClientes, lidoPlanos, lidoFaturas, lidoRefunds);
+  const erroDaLeitura = [lidoFaturas, lidoRefunds, lidoClientes, lidoPlanos].find(
+    (l) => l.status === "erro"
+  )?.error;
   const devolvidas = useMemo(() => devolvidoPorFatura(refunds), [refunds]);
 
   const hoje = toISODate(new Date());
@@ -116,7 +136,7 @@ export function GerirMensalistas({ competencia: mesCorrente }: { competencia: st
       setPlanoId(null);
       setBusca("");
     } catch (err) {
-      setErro((err as { message?: string })?.message ?? "Não foi possível contratar agora.");
+      setErro(mensagemDaFuncao(err, "Não foi possível contratar agora."));
     } finally {
       setSalvando(false);
     }
@@ -129,7 +149,7 @@ export function GerirMensalistas({ competencia: mesCorrente }: { competencia: st
       const { callFunction } = await import("@/lib/firebase");
       await callFunction("gerarFaturasDoMes", { barbershopId: tenant.id, competencia });
     } catch (err) {
-      setErro((err as { message?: string })?.message ?? "Não foi possível emitir agora.");
+      setErro(mensagemDaFuncao(err, "Não foi possível emitir agora."));
     } finally {
       setEmitindo(false);
     }
@@ -152,7 +172,7 @@ export function GerirMensalistas({ competencia: mesCorrente }: { competencia: st
       setAReceber(null);
     } catch (err) {
       setErroDoRecebimento(
-        (err as { message?: string })?.message ?? "Não foi possível registrar agora."
+        mensagemDaFuncao(err, "Não foi possível registrar agora.")
       );
     } finally {
       setRecebendo(false);
@@ -194,7 +214,8 @@ export function GerirMensalistas({ competencia: mesCorrente }: { competencia: st
               <>
                 <Button
                   variant="ghost"
-                  className="min-h-9 px-3 text-xs text-ink-muted"
+                  size="sm"
+                  className="text-ink-muted"
                   onClick={() => {
                     setADispensar(f);
                     setErroDaDispensa(null);
@@ -204,7 +225,7 @@ export function GerirMensalistas({ competencia: mesCorrente }: { competencia: st
                 </Button>
                 <Button
                   variant="secondary"
-                  className="min-h-9 px-3 text-xs"
+                  size="sm"
                   onClick={() => {
                     setAReceber(f);
                     setDataDoPagamento(hoje);
@@ -219,7 +240,7 @@ export function GerirMensalistas({ competencia: mesCorrente }: { competencia: st
                 cancelou no meio do mês. Antes o único caminho era
                 editar o banco à mão. */}
             {f.status === "paga" && (
-              <Button variant="ghost" className="min-h-9 px-3 text-xs" onClick={() => setAEstornar(f)}>
+              <Button variant="ghost" size="sm" onClick={() => setAEstornar(f)}>
                 Devolver
               </Button>
             )}
@@ -229,12 +250,81 @@ export function GerirMensalistas({ competencia: mesCorrente }: { competencia: st
     );
   }
 
+  /* Celular: um cartão por mensalidade, com "Receber" À VISTA. A tabela de
+   * 880px escondia as ações atrás de uma rolagem lateral que nada indicava —
+   * mesmo padrão do Hoje (`painel/(dashboard)/page.tsx`). */
+  function cartaoDaFatura(f: Doc<SubscriptionInvoiceDoc>, mostrarMes: boolean) {
+    const situacao = situacaoDaFatura(f, hoje, devolvidas.get(f.id) ?? 0);
+    const nome = clientes.find((c) => c.id === f.clientId)?.name ?? "Cliente";
+    return (
+      <Card key={f.id} className="flex flex-col gap-2 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium text-ink">{nome}</p>
+            <p className="truncate text-xs text-ink-muted">{f.planName}</p>
+            {mostrarMes && (
+              <p className="text-[11px] capitalize text-ink-muted">ref. {rotuloDoMes(f.competencia)}</p>
+            )}
+          </div>
+          <div className="shrink-0 text-right">
+            <p className="text-sm font-semibold tabular-nums text-ink">{formatBRL(f.amount)}</p>
+            <p className="text-xs text-ink-muted">vence {dataCurta(f.dueDate)}</p>
+          </div>
+        </div>
+        <div>
+          <Pill tone={situacao.tom}>{situacao.texto}</Pill>
+          {f.status === "paga" && (
+            <p className="mt-1 text-[11px] text-ink-muted">
+              {f.paymentMethod ? paymentMethodLabel[f.paymentMethod] : "—"}
+              {f.paidAt ? ` · ${dataCurta(f.paidAt)}` : ""}
+            </p>
+          )}
+        </div>
+        {f.status === "aberta" && (
+          <div className="flex gap-2">
+            <Button
+              className="flex-1"
+              onClick={() => {
+                setAReceber(f);
+                setDataDoPagamento(hoje);
+                setErroDoRecebimento(null);
+              }}
+            >
+              Receber
+            </Button>
+            <Button
+              variant="ghost"
+              className="text-ink-muted"
+              onClick={() => {
+                setADispensar(f);
+                setErroDaDispensa(null);
+              }}
+            >
+              Não cobrar
+            </Button>
+          </div>
+        )}
+        {f.status === "paga" && (
+          <div className="flex">
+            <Button variant="ghost" size="sm" className="px-0" onClick={() => setAEstornar(f)}>
+              Devolver
+            </Button>
+          </div>
+        )}
+      </Card>
+    );
+  }
+
   /* As DUAS tabelas (meses anteriores e o mês) usam as mesmas colunas, de
    * largura fixa: antes cada uma media o próprio conteúdo, e as colunas
    * pulavam de lugar de uma para a outra e de um mês para o outro (02/10). */
   function tabela(linhas: Doc<SubscriptionInvoiceDoc>[], mostrarMes: boolean) {
     return (
-      <div className="overflow-x-auto">
+      <>
+      <div className="flex flex-col gap-2 p-3 md:hidden">
+        {linhas.map((f) => cartaoDaFatura(f, mostrarMes))}
+      </div>
+      <div className="hidden overflow-x-auto md:block">
         <table className="w-full min-w-[880px] table-fixed text-sm">
           <colgroup>
             <col className="w-[22%]" />
@@ -259,6 +349,7 @@ export function GerirMensalistas({ competencia: mesCorrente }: { competencia: st
           <tbody>{linhas.map((f) => linhaDaFatura(f, mostrarMes))}</tbody>
         </table>
       </div>
+      </>
     );
   }
 
@@ -275,10 +366,32 @@ export function GerirMensalistas({ competencia: mesCorrente }: { competencia: st
       });
       setADispensar(null);
     } catch (err) {
-      setErroDaDispensa((err as { message?: string })?.message ?? "Não foi possível agora.");
+      setErroDaDispensa(mensagemDaFuncao(err, "Não foi possível agora."));
     } finally {
       setDispensando(false);
     }
+  }
+
+  if (status === "erro") {
+    return (
+      <ErroAoCarregar
+        oQue="as mensalidades"
+        erro={erroDaLeitura}
+        onTentarDeNovo={() => window.location.reload()}
+      />
+    );
+  }
+  if (status === "carregando") {
+    return (
+      <div className="flex flex-col gap-4" aria-busy="true" aria-label="Carregando as mensalidades">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 md:gap-4">
+          {[0, 1, 2].map((i) => (
+            <Card key={i} className="h-20 animate-pulse bg-surface-raised md:h-28" />
+          ))}
+        </div>
+        <LoadingRows rows={4} />
+      </div>
+    );
   }
 
   return (
@@ -319,14 +432,14 @@ export function GerirMensalistas({ competencia: mesCorrente }: { competencia: st
       </div>
 
       <div className="flex items-center gap-1">
-        <Button variant="ghost" aria-label="Mês anterior" className="min-h-9 px-2" onClick={() => setCompetencia((c) => mesVizinho(c, -1))}>
+        <Button variant="ghost" size="sm" aria-label="Mês anterior" className="px-2" onClick={() => setCompetencia((c) => mesVizinho(c, -1))}>
           <ChevronLeft size={16} />
         </Button>
         <p className="min-w-36 text-center text-sm font-medium capitalize text-ink">
           {rotuloDoMes(competencia)}
           {competencia === mesCorrente && <span className="ml-1 text-xs font-normal text-ink-muted">(este mês)</span>}
         </p>
-        <Button variant="ghost" aria-label="Próximo mês" className="min-h-9 px-2" onClick={() => setCompetencia((c) => mesVizinho(c, 1))}>
+        <Button variant="ghost" size="sm" aria-label="Próximo mês" className="px-2" onClick={() => setCompetencia((c) => mesVizinho(c, 1))}>
           <ChevronRight size={16} />
         </Button>
       </div>
@@ -373,7 +486,7 @@ export function GerirMensalistas({ competencia: mesCorrente }: { competencia: st
 
       {/* ---- As faturas da competência ---- */}
       <Card className="overflow-hidden p-0">
-        {status === "pronto" && doMes.length === 0 ? (
+        {doMes.length === 0 ? (
           /* Estado vazio diz QUAL período está sendo visto — a lição de P1-1.
              "Nenhuma mensalidade ainda" seria falso: pode haver de outro mês. */
           <div className="p-6 text-center">
@@ -401,6 +514,7 @@ export function GerirMensalistas({ competencia: mesCorrente }: { competencia: st
       <Modal
         open={contratando}
         onClose={() => setContratando(false)}
+        protegerFechamento={!!cliente || planoId !== null || busca.trim() !== ""}
         title="Novo mensalista"
         description="O cliente precisa estar cadastrado"
         footer={
@@ -437,6 +551,7 @@ export function GerirMensalistas({ competencia: mesCorrente }: { competencia: st
                     value={busca}
                     onChange={(e) => setBusca(e.target.value)}
                     placeholder="Nome ou WhatsApp"
+                    aria-label="Buscar cliente por nome ou WhatsApp"
                     className="min-h-11 flex-1 bg-transparent text-sm text-ink placeholder:text-ink-muted"
                   />
                 </div>

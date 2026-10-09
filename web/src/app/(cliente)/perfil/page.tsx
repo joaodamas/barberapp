@@ -365,7 +365,7 @@ export default function PerfilPage() {
               <div className="flex justify-between">
                 <span className="text-ink-muted">Fidelidade</span>
                 <span className="text-ink">
-                  {loyalty.stamps}/{loyalty.goal} carimbos
+                  {loyalty.status === "pronto" ? `${loyalty.stamps}/${loyalty.goal} carimbos` : "—"}
                 </span>
               </div>
             </div>
@@ -380,9 +380,9 @@ export default function PerfilPage() {
              "promoções", continua recebendo, e deixa de confiar no resto. */
           <div className="flex flex-col gap-3 text-sm text-ink-muted">
             <p>
-              Hoje a {barbershop.name} fala com você pelo WhatsApp que está no
-              seu cadastro — confirmação do horário e avisos sobre o
-              atendimento.
+              O Topete não envia mensagem sozinho. Quando precisa, a{" "}
+              {barbershop.name} fala com você pelo WhatsApp que está no seu
+              cadastro.
             </p>
             <p>
               Para não receber mais, é só pedir a ela na conversa. Quando as

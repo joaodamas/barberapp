@@ -4,8 +4,8 @@ import { createContext, useContext, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { CalendarDays, LogOut, Wallet, WifiOff } from "lucide-react";
-import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
+import { sairDaConta } from "@/components/sign-out-button";
 import { useAuth } from "@/lib/auth-context";
 import { useTenant } from "@/lib/tenant-context";
 import { useStaff } from "@/lib/db/use-shop-data";
@@ -13,6 +13,7 @@ import { mensagemDaFuncao } from "@/lib/mensagem-da-funcao";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { EstadoCentral } from "@/components/ui/estado-central";
+import { AvisoDeConexao } from "@/components/aviso-de-conexao";
 
 type Cadeira = { staffId: string; nome: string };
 const CadeiraContext = createContext<Cadeira | null>(null);
@@ -126,6 +127,7 @@ export function AreaDoBarbeiro({ children }: { children: React.ReactNode }) {
   return (
     <CadeiraContext.Provider value={{ staffId, nome }}>
       <div className="mx-auto flex min-h-full w-full max-w-3xl flex-1 flex-col overflow-y-auto md:h-full">
+        <AvisoDeConexao recuoDoTopo={false} />
         <header className="safe-top flex items-center justify-between gap-3 px-4 pb-2 pt-4">
           <div className="min-w-0 leading-tight">
             <p className="truncate font-display text-sm uppercase tracking-wider text-ink">{tenant.brand.shortName}</p>
@@ -133,7 +135,7 @@ export function AreaDoBarbeiro({ children }: { children: React.ReactNode }) {
           </div>
           <button
             type="button"
-            onClick={() => void signOut(auth).then(() => router.replace("/login"))}
+            onClick={() => void sairDaConta(tenant.id).then(() => router.replace("/login"))}
             className="flex min-h-11 items-center gap-1.5 rounded-xl px-3 text-xs text-ink-muted hover:text-ink"
           >
             <LogOut size={14} /> Sair

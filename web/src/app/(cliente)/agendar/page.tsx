@@ -35,6 +35,7 @@ import type { TimeSlot } from "@/lib/types";
 import { ConfirmeSeuEmail } from "@/components/confirme-seu-email";
 import { ehRecusaPorEmailNaoVerificado } from "@/lib/verificacao-de-email";
 import { aplicarCombos } from "@/lib/combos";
+import { mensagemDaFuncao } from "@/lib/mensagem-da-funcao";
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -297,8 +298,7 @@ export default function AgendarPage() {
         setPedirConfirmacaoDeEmail(true);
         return;
       }
-      const msg = (err as { message?: string })?.message;
-      setErroReserva(msg ?? "Não foi possível concluir. Tente de novo.");
+      setErroReserva(mensagemDaFuncao(err, "Não foi possível concluir. Tente de novo."));
     } finally {
       setConfirmando(false);
     }
@@ -480,7 +480,7 @@ export default function AgendarPage() {
         {step > 1 && step < 4 && (
           <button
             onClick={() => setStep((s) => (s - 1) as Step)}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted transition-colors hover:border-gold/60 hover:text-ink md:h-10 md:w-10"
+            className="alvo-toque flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-ink-muted transition-colors hover:border-gold/60 hover:text-ink md:h-10 md:w-10"
             aria-label="Voltar"
           >
             <ChevronLeft size={18} />
@@ -851,7 +851,7 @@ export default function AgendarPage() {
               placeholder="Como te chamam no salão"
               value={nome}
               onChange={(e) => setNome(e.target.value)}
-              className="min-h-12 rounded-xl border border-border bg-surface px-4 text-sm text-ink outline-none focus-visible:ring-2 focus-visible:ring-gold"
+              className="min-h-12 rounded-xl border border-border bg-surface px-4 text-sm text-ink outline-none focus-visible:ring-2 focus-visible:ring-gold-strong"
             />
           </div>
 
@@ -870,7 +870,7 @@ export default function AgendarPage() {
               onChange={(e) => setWhatsapp(mascararWhatsapp(e.target.value))}
               aria-invalid={whatsapp.length > 0 && !whatsappOk}
               aria-describedby="ajuda-whatsapp"
-              className="min-h-12 rounded-xl border border-border bg-surface px-4 text-sm text-ink outline-none focus-visible:ring-2 focus-visible:ring-gold"
+              className="min-h-12 rounded-xl border border-border bg-surface px-4 text-sm text-ink outline-none focus-visible:ring-2 focus-visible:ring-gold-strong"
             />
             <p id="ajuda-whatsapp" className="text-xs text-ink-muted">
               {whatsapp.length > 0 && !whatsappOk
@@ -1043,7 +1043,11 @@ export default function AgendarPage() {
       )}
 
       {step < 4 && (
-        <div className="fixed inset-x-0 bottom-16 z-10 mx-auto w-full max-w-md border-t border-border bg-canvas/95 px-4 py-3 backdrop-blur safe-bottom md:hidden">
+        /* Em cima da barra de abas, não por cima dela: a barra tem 56px de item
+         * + 1px de borda + a área segura do iPhone instalado. `bottom-16` (64px)
+         * a cobria no aparelho com a barra do home, e o `safe-bottom` aqui
+         * somava a margem uma segunda vez. */
+        <div className="fixed inset-x-0 bottom-[calc(60px+env(safe-area-inset-bottom))] z-10 mx-auto w-full max-w-md border-t border-border bg-canvas/95 px-4 py-3 backdrop-blur md:hidden">
           <div className="mb-2 flex items-center justify-between text-sm">
             <span className="text-ink-muted">
               {/* O `(s)` é o produto se recusando a concordar e devolvendo a

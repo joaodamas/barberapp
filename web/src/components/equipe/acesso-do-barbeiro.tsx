@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Copy, KeyRound, Mail, MessageCircle, UserX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
@@ -15,6 +15,7 @@ import {
   whatsappParaConvite,
 } from "@/lib/convite-equipe";
 import { mensagemDaFuncao } from "@/lib/mensagem-da-funcao";
+import { AVISO_DE_COPIA_FALHOU, copiarOuSelecionar } from "@/lib/copiar-texto";
 import type { Doc } from "@/lib/db/repository";
 import type { StaffDoc } from "@/lib/domain";
 
@@ -80,7 +81,7 @@ export function AcessoDoBarbeiro({ barbeiro }: { barbeiro: Doc<StaffDoc> }) {
             {ehODono ? (
               <span className="text-xs text-ink-muted">É a sua cadeira.</span>
             ) : (
-              <Button variant="ghost" className="min-h-9 px-2 text-xs" onClick={() => setTirando(true)}>
+              <Button variant="ghost" size="sm" onClick={() => setTirando(true)}>
                 <UserX size={14} /> Tirar acesso
               </Button>
             )}
@@ -91,10 +92,10 @@ export function AcessoDoBarbeiro({ barbeiro }: { barbeiro: Doc<StaffDoc> }) {
             <span className="text-xs text-ink-muted">
               vale até {new Date(pendente.expiraEmMs).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
             </span>
-            <Button variant="secondary" className="min-h-9 px-3 text-xs" onClick={() => setAberto(true)}>
+            <Button variant="secondary" size="sm" onClick={() => setAberto(true)}>
               Reenviar
             </Button>
-            <Button variant="ghost" className="min-h-9 px-2 text-xs" disabled={ocupado} onClick={cancelarConvite}>
+            <Button variant="ghost" size="sm" disabled={ocupado} onClick={cancelarConvite}>
               Cancelar convite
             </Button>
           </>
@@ -105,7 +106,7 @@ export function AcessoDoBarbeiro({ barbeiro }: { barbeiro: Doc<StaffDoc> }) {
             </span>
             <Button
               variant="secondary"
-              className="min-h-9 px-3 text-xs"
+              size="sm"
               disabled={!barbeiro.name?.trim()}
               title={!barbeiro.name?.trim() ? "Dê um nome ao barbeiro antes" : undefined}
               onClick={() => setAberto(true)}
@@ -158,7 +159,8 @@ function ConviteModal({ barbeiro, onClose }: { barbeiro: Doc<StaffDoc>; onClose:
   const [gerando, setGerando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [link, setLink] = useState<string | null>(null);
-  const [copiado, setCopiado] = useState(false);
+  const [copiado, setCopiado] = useState<"sim" | "nao" | null>(null);
+  const linkRef = useRef<HTMLParagraphElement>(null);
   /* O convite foi gerado para ir pelo WhatsApp: a tela passa a mostrar o
    * botão de envio, que abre a conversa no toque. */
   const [prontoParaWhatsApp, setProntoParaWhatsApp] = useState(false);
@@ -219,12 +221,8 @@ function ConviteModal({ barbeiro, onClose }: { barbeiro: Doc<StaffDoc>; onClose:
 
   async function copiar() {
     if (!link) return;
-    try {
-      await navigator.clipboard.writeText(link);
-      setCopiado(true);
-    } catch {
-      setCopiado(false);
-    }
+    const ok = await copiarOuSelecionar(link, linkRef.current);
+    setCopiado(ok ? "sim" : "nao");
   }
 
   return (
@@ -292,10 +290,17 @@ function ConviteModal({ barbeiro, onClose }: { barbeiro: Doc<StaffDoc>; onClose:
         {link && (
           <div className="flex flex-col gap-2 rounded-xl border border-border bg-surface-raised p-3">
             <p className="text-xs text-ink-muted">Link gerado — se preferir, copie e mande por onde quiser:</p>
-            <p className="break-all text-xs text-ink">{link}</p>
+            <p ref={linkRef} className="break-all text-xs text-ink">
+              {link}
+            </p>
+            {copiado === "nao" && (
+              <p role="status" className="text-xs text-ink-muted">
+                {AVISO_DE_COPIA_FALHOU}
+              </p>
+            )}
             <div className="flex flex-wrap gap-2">
-              <Button variant="secondary" className="min-h-9 px-3 text-xs" onClick={copiar}>
-                <Copy size={14} /> {copiado ? "Copiado" : "Copiar link"}
+              <Button variant="secondary" size="sm" onClick={copiar}>
+                <Copy size={14} /> {copiado === "sim" ? "Copiado" : "Copiar link"}
               </Button>
               {/* Para quem gerou pelo e-mail e prefere mandar pelo WhatsApp;
                   quem gerou pelo WhatsApp já tem o botão de envio acima. */}
@@ -304,7 +309,7 @@ function ConviteModal({ barbeiro, onClose }: { barbeiro: Doc<StaffDoc>; onClose:
                   href={linkDoWhatsApp(numero, textoDoConvite({ barbearia: tenant.brand.name, barbeiro: barbeiro.name, link }))}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex min-h-9 items-center gap-1 rounded-xl px-3 text-xs text-gold-strong underline-offset-2 hover:underline"
+                  className="alvo-toque inline-flex min-h-9 items-center gap-1 rounded-xl px-3 text-xs text-gold-strong underline-offset-2 hover:underline"
                 >
                   <MessageCircle size={14} /> Abrir no WhatsApp
                 </a>

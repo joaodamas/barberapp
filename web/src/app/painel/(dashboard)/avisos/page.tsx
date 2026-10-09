@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Copy, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -8,6 +8,7 @@ import { Pill } from "@/components/ui/pill";
 import { useShopCollection } from "@/lib/db/use-collection";
 import { useStaff } from "@/lib/db/use-shop-data";
 import { mensagemDoErro } from "@/lib/direitos-do-titular";
+import { AVISO_DE_COPIA_FALHOU, copiarOuSelecionar } from "@/lib/copiar-texto";
 import { useTenant } from "@/lib/tenant-context";
 import {
   ativarNotificacao,
@@ -56,20 +57,24 @@ export default function AvisosPage() {
   const [convite, setConvite] = useState<(Convite & { para: string }) | null>(null);
   const [gerando, setGerando] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
-  const [copiado, setCopiado] = useState(false);
+  const [copiado, setCopiado] = useState<"sim" | "nao" | null>(null);
+  const linkRef = useRef<HTMLParagraphElement>(null);
 
   async function gerar(alvo: "dono" | "barbeiro", staffId?: string, rotulo = "você") {
     setGerando(staffId ?? "dono");
     setErro(null);
-    setCopiado(false);
+    setCopiado(null);
     try {
       const { callFunction } = await import("@/lib/firebase");
       const r = await callFunction<{ barbershopId: string; alvo: string; staffId?: string }, Convite>(
         "criarConviteTelegram",
         { barbershopId: tenant.id, alvo, staffId }
       );
+      /* Gera e PARA: quem abre o Telegram é o botão "Abrir no Telegram", no
+       * toque do dono. `window.open` depois da espera do servidor é bloqueado
+       * em silêncio pelo Safari do iPhone — e o dono achava que o botão não
+       * fazia nada. */
       setConvite({ ...r, para: rotulo });
-      if (r.configurado && alvo === "dono") window.open(r.link, "_blank");
     } catch (e) {
       setErro(mensagemDoErro(e));
     } finally {
@@ -113,7 +118,7 @@ export default function AvisosPage() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button onClick={() => gerar("dono")} disabled={!!gerando}>
-            <Send size={16} /> {gerando === "dono" ? "Abrindo…" : "Conectar meu Telegram"}
+            <Send size={16} /> {gerando === "dono" ? "Gerando…" : "Conectar meu Telegram"}
           </Button>
           {barbeiros.map((b) => (
             <Button
@@ -137,7 +142,9 @@ export default function AvisosPage() {
             <p className="text-sm text-ink">
               Convite para <b>{convite.para}</b> — vale 15 minutos:
             </p>
-            <p className="break-all font-mono text-xs text-ink">{convite.link}</p>
+            <p ref={linkRef} className="break-all font-mono text-xs text-ink">
+              {convite.link}
+            </p>
             <div className="flex flex-wrap gap-2">
               <Button size="sm" onClick={() => window.open(convite.link, "_blank")}>
                 <Send size={14} /> Abrir no Telegram
@@ -146,15 +153,11 @@ export default function AvisosPage() {
                 variant="secondary"
                 size="sm"
                 onClick={async () => {
-                  try {
-                    await navigator.clipboard.writeText(convite.link);
-                    setCopiado(true);
-                  } catch {
-                    setCopiado(false);
-                  }
+                  const ok = await copiarOuSelecionar(convite.link, linkRef.current);
+                  setCopiado(ok ? "sim" : "nao");
                 }}
               >
-                <Copy size={14} /> {copiado ? "Copiado" : "Copiar"}
+                <Copy size={14} /> {copiado === "sim" ? "Copiado" : "Copiar"}
               </Button>
               <Button
                 variant="secondary"
@@ -171,6 +174,11 @@ export default function AvisosPage() {
                 Mandar pelo WhatsApp
               </Button>
             </div>
+            {copiado === "nao" && (
+              <p role="status" className="text-xs text-ink-muted">
+                {AVISO_DE_COPIA_FALHOU}
+              </p>
+            )}
           </div>
         )}
         {erro && (
@@ -212,7 +220,7 @@ export default function AvisosPage() {
                         aria-pressed={on}
                         onClick={() => chamar("ajustarAvisosTelegram", { chatId: c.chatId, avisos: { [t]: !on } })}
                         className={
-                          "min-h-9 rounded-full border px-3 text-xs " +
+                          "alvo-toque min-h-9 rounded-full border px-3 text-xs " +
                           (on ? "border-gold bg-gold/15 text-gold-strong" : "border-border text-ink-muted line-through")
                         }
                       >

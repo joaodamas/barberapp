@@ -5,6 +5,7 @@ import { Check, Copy, Download, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { tenantUrl, type Tenant } from "@/lib/tenant";
 import { matrizDoQr } from "@/lib/qr";
+import { AVISO_DE_COPIA_FALHOU, copiarOuSelecionar } from "@/lib/copiar-texto";
 
 /**
  * O passo que decide o trial.
@@ -27,19 +28,24 @@ export function PassoCompartilhar({
 }) {
   const link = tenantUrl(tenant.slug);
   const [copiado, setCopiado] = useState<string | null>(null);
+  const [falhouEm, setFalhouEm] = useState<string | null>(null);
+  const linkRef = useRef<HTMLDivElement>(null);
+  const msgRef = useRef<HTMLDivElement>(null);
 
   const mensagem =
     `Agora você pode agendar seu horário na ${tenant.brand.name} direto pelo link, ` +
     `sem precisar me chamar: ${link}\n\n` +
     `Dá pra ver os horários livres e escolher o que der certo pra você. 💈`;
 
-  async function copiar(texto: string, qual: string) {
-    try {
-      await navigator.clipboard.writeText(texto);
+  async function copiar(texto: string, qual: string, onde: HTMLElement | null) {
+    setFalhouEm(null);
+    const ok = await copiarOuSelecionar(texto, onde);
+    if (ok) {
       setCopiado(qual);
       setTimeout(() => setCopiado(null), 2000);
-    } catch {
+    } else {
       setCopiado(null);
+      setFalhouEm(qual);
     }
   }
 
@@ -56,8 +62,10 @@ export function PassoCompartilhar({
         titulo="Link do seu app"
         dica="Cole na bio do Instagram e no seu status do WhatsApp."
         valor={link}
+        refDoValor={linkRef}
+        aviso={falhouEm === "link" ? AVISO_DE_COPIA_FALHOU : null}
       >
-        <Button variant="secondary" onClick={() => copiar(link, "link")}>
+        <Button variant="secondary" onClick={() => copiar(link, "link", linkRef.current)}>
           {copiado === "link" ? <Check size={16} /> : <Copy size={16} />}
           {copiado === "link" ? "Copiado" : "Copiar"}
         </Button>
@@ -68,8 +76,10 @@ export function PassoCompartilhar({
         dica="Mande na lista de transmissão para seus clientes de sempre."
         valor={mensagem}
         multilinha
+        refDoValor={msgRef}
+        aviso={falhouEm === "msg" ? AVISO_DE_COPIA_FALHOU : null}
       >
-        <Button variant="secondary" onClick={() => copiar(mensagem, "msg")}>
+        <Button variant="secondary" onClick={() => copiar(mensagem, "msg", msgRef.current)}>
           {copiado === "msg" ? <Check size={16} /> : <Copy size={16} />}
           {copiado === "msg" ? "Copiado" : "Copiar"}
         </Button>
@@ -94,12 +104,15 @@ export function PassoCompartilhar({
 }
 
 function Bloco({
-  titulo, dica, valor, multilinha, children,
+  titulo, dica, valor, multilinha, refDoValor, aviso, children,
 }: {
   titulo: string;
   dica: string;
   valor: string;
   multilinha?: boolean;
+  /** Para selecionar o texto quando a cópia automática falha. */
+  refDoValor?: React.Ref<HTMLDivElement>;
+  aviso?: string | null;
   children: React.ReactNode;
 }) {
   return (
@@ -109,6 +122,7 @@ function Bloco({
         <p className="text-xs text-ink-muted">{dica}</p>
       </div>
       <div
+        ref={refDoValor}
         className={
           "rounded-xl border border-border bg-surface-raised px-4 py-3 text-sm text-ink " +
           (multilinha ? "whitespace-pre-wrap" : "truncate")
@@ -116,6 +130,11 @@ function Bloco({
       >
         {valor}
       </div>
+      {aviso && (
+        <p role="status" className="text-xs text-ink-muted">
+          {aviso}
+        </p>
+      )}
       <div className="flex flex-wrap gap-2">{children}</div>
     </div>
   );
