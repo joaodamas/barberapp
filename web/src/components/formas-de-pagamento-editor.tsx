@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatBRL } from "@/lib/format";
+import { lerReais } from "@/lib/reais";
 import {
   FORMAS_NATIVAS,
   idDaForma,
@@ -226,7 +227,7 @@ const NOME_DO_MEIO: Record<MeioDePagamento, string> = {
 
 /** Vírgula aceita, negativo não, e o teto é 100 — acima disso é digitação. */
 function paraTaxa(valor: string): number {
-  const n = Number(String(valor).replace(",", "."));
-  if (!Number.isFinite(n) || n < 0) return 0;
+  const n = lerReais(valor);
+  if (n === null) return 0;
   return Math.min(Math.round(n * 100) / 100, 100);
 }

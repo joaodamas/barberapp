@@ -8,6 +8,7 @@ import { Pill } from "@/components/ui/pill";
 import { Modal } from "@/components/ui/modal";
 import { formatBRL } from "@/lib/format";
 import { contar } from "@/lib/plural";
+import { lerReais, VALOR_ILEGIVEL } from "@/lib/reais";
 import { useProducts } from "@/lib/db/use-shop-data";
 import { useFeature, useTenant } from "@/lib/tenant-context";
 import { RecursoBloqueado } from "@/components/recurso-bloqueado";
@@ -64,8 +65,11 @@ function LojaConteudo() {
   const padraoDaCasa = policies.commissionSplit.barberPct;
   const impostoDaCasa = policies.taxRatePct;
   const { items: products, status, error } = useProducts();
-  const [simPrice, setSimPrice] = useState(45);
-  const [simCost, setSimCost] = useState(18);
+  /* Texto cru: ler a cada tecla com Number() perdia a vírgula ("27,5"). */
+  const [simPriceTxt, setSimPriceTxt] = useState("45");
+  const simPrice = lerReais(simPriceTxt) ?? 0;
+  const [simCostTxt, setSimCostTxt] = useState("18");
+  const simCost = lerReais(simCostTxt) ?? 0;
   const [modalOpen, setModalOpen] = useState(false);
   const [aReceber, setAReceber] = useState<Doc<ProductDoc> | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -79,8 +83,8 @@ function LojaConteudo() {
   );
 
   const preview = useMemo(() => {
-    const cost = Math.max(Number(form.cost) || 0, 0);
-    const rawPct = Number(form.profitPct) || 0;
+    const cost = Math.max(lerReais(form.cost) ?? 0, 0);
+    const rawPct = lerReais(form.profitPct) ?? 0;
     const profitPct = Math.min(Math.max(rawPct, 0), MAX_PROFIT_PCT);
     const clamped = rawPct !== profitPct;
     const price = cost / (1 - profitPct / 100);
@@ -100,7 +104,11 @@ function LojaConteudo() {
       setFormError("Informe o nome do produto.");
       return;
     }
-    if (!(Number(form.cost) > 0)) {
+    if (form.cost.trim() !== "" && lerReais(form.cost) === null) {
+      setFormError(VALOR_ILEGIVEL);
+      return;
+    }
+    if (!((lerReais(form.cost) ?? 0) > 0)) {
       setFormError("Informe um custo unitário maior que zero.");
       return;
     }
@@ -227,28 +235,24 @@ function LojaConteudo() {
             <label className="flex flex-col gap-1 text-xs text-ink-muted md:text-sm">
               Preço de venda
               <input
-                type="number"
-                min={0}
-                step="0.01"
+                inputMode="decimal"
                 /* `value={0}` renderiza o texto "0" no campo, e digitar depois
                  * dele produz "059,90" — o zero não sai porque ele não é
                  * placeholder, é conteúdo. Zero vira string vazia; o
                  * placeholder faz o papel visual que o zero fazia mal. */
-                value={simPrice || ""}
+                value={simPriceTxt}
                 placeholder="0,00"
-                onChange={(e) => setSimPrice(Number(e.target.value) || 0)}
+                onChange={(e) => setSimPriceTxt(e.target.value)}
                 className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ink md:py-2.5 md:text-base"
               />
             </label>
             <label className="flex flex-col gap-1 text-xs text-ink-muted md:text-sm">
               Custo do produto
               <input
-                type="number"
-                min={0}
-                step="0.01"
-                value={simCost || ""}
+                inputMode="decimal"
+                value={simCostTxt}
                 placeholder="0,00"
-                onChange={(e) => setSimCost(Number(e.target.value) || 0)}
+                onChange={(e) => setSimCostTxt(e.target.value)}
                 className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ink md:py-2.5 md:text-base"
               />
             </label>
@@ -306,9 +310,7 @@ function LojaConteudo() {
           <label className="flex flex-col gap-1 text-xs text-ink-muted">
             Custo unitário (R$) *
             <input
-              type="number"
-              min={0}
-              step="0.01"
+              inputMode="decimal"
               value={form.cost}
               onChange={(e) => setForm((f) => ({ ...f, cost: e.target.value }))}
               placeholder="0"
@@ -319,9 +321,7 @@ function LojaConteudo() {
           <label className="flex flex-col gap-1 text-xs text-ink-muted">
             Margem sobre o preço de venda (%)
             <input
-              type="number"
-              min={0}
-              max={MAX_PROFIT_PCT}
+              inputMode="decimal"
               value={form.profitPct}
               onChange={(e) => setForm((f) => ({ ...f, profitPct: e.target.value }))}
               className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ink"

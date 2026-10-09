@@ -6,6 +6,7 @@ import { Modal } from "@/components/ui/modal";
 import { formatBRL, formatPctPtBR } from "@/lib/format";
 import { useTenant } from "@/lib/tenant-context";
 import { chaveDeIdempotencia } from "@/lib/chave-de-idempotencia";
+import { mensagemDaFuncao } from "@/lib/mensagem-da-funcao";
 import { formasAtivas, type FormaDePagamento } from "@/lib/formas-de-pagamento";
 import type { PaymentMethod } from "@/lib/types";
 
@@ -106,7 +107,7 @@ export function CorrigirPagamento(params: {
       /* A mensagem do servidor é a que explica — "esse pagamento já teve
        * devolução", "é de outro mês". Trocá-la por uma genérica esconderia do
        * dono a única informação que o ajuda a decidir o que fazer. */
-      setErro(e instanceof Error ? e.message : "Não consegui corrigir o pagamento agora.");
+      setErro(mensagemDaFuncao(e, "Não consegui corrigir o pagamento agora."));
     } finally {
       setSalvando(false);
     }
