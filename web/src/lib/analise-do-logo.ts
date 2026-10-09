@@ -331,8 +331,40 @@ export function fracaoApagadaSobre(img: PixelsLike, hex: string): number {
   return apagados / opacos;
 }
 
+/**
+ * Fração de conteúdo fora do círculo inscrito acima da qual o aviso aparece.
+ * 2% deixa passar a serrilha da borda de um logo que já é redondo.
+ */
+export const FORA_DO_CIRCULO_MAXIMO = 0.02;
+
+/**
+ * Que fração do conteúdo cai FORA do círculo inscrito no quadrado — o que o
+ * selo redondo vai cortar. Conta pixel de conteúdo (o mesmo critério da caixa),
+ * não a caixa: um logo redondo enche o quadrado e não perde nada.
+ */
+export function fracaoForaDoCirculo(
+  img: PixelsLike,
+  fundo: FundoDetectado,
+  tolerancia = TOLERANCIA_DO_FUNDO
+): number {
+  const { width, height, data } = img;
+  const cx = width / 2;
+  const cy = height / 2;
+  const raio = Math.min(width, height) / 2;
+  let conteudo = 0;
+  let fora = 0;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (!ehConteudo(data, (y * width + x) * 4, fundo, tolerancia)) continue;
+      conteudo++;
+      if (Math.hypot(x + 0.5 - cx, y + 0.5 - cy) > raio) fora++;
+    }
+  }
+  return conteudo === 0 ? 0 : fora / conteudo;
+}
+
 export type AvisoDoLogo = {
-  id: "horizontal" | "baixa" | "contraste";
+  id: "horizontal" | "baixa" | "contraste" | "circulo";
   texto: string;
   /** Botão que a tela oferece junto do aviso. */
   acao?: "simbolo" | "monograma";
@@ -349,6 +381,8 @@ export function avisosDoLogo(e: {
   apagadoNoEscuro: number;
   /** SVG não tem resolução: nunca "borrado". */
   vetorial?: boolean;
+  /** Fração do conteúdo fora do círculo inscrito (`fracaoForaDoCirculo`). */
+  foraDoCirculo?: number;
 }): AvisoDoLogo[] {
   const avisos: AvisoDoLogo[] = [];
   if (e.altura > 0 && e.largura / e.altura > PROPORCAO_HORIZONTAL) {
@@ -363,6 +397,13 @@ export function avisosDoLogo(e: {
     avisos.push({
       id: "baixa",
       texto: `A imagem é pequena (menos de ${LADO_MINIMO_DO_CONTEUDO} px no lado menor). Ao ampliar para o ícone ela vai ficar borrada. Se puder, envie uma versão maior.`,
+    });
+  }
+  if ((e.foraDoCirculo ?? 0) > FORA_DO_CIRCULO_MAXIMO) {
+    avisos.push({
+      id: "circulo",
+      texto: "Parte do logo fica fora do círculo. Aproxime ou use 'Aproximar no símbolo'.",
+      acao: "simbolo",
     });
   }
   const claro = e.apagadoNoClaro > 0.6;

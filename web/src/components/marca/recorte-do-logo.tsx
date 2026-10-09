@@ -8,6 +8,7 @@ import {
   tamanhoDaFonte,
   type FonteDoLogo,
   ZOOM_MAXIMO,
+  ZOOM_MINIMO,
   type Enquadramento,
 } from "@/lib/recorte-do-logo";
 
@@ -28,7 +29,9 @@ export const XADREZ = {
  *
  * Desenha num `<canvas>` com a MESMA conta (`retanguloNoQuadrado`) que gera o
  * arquivo final — o que o dono vê aqui é exatamente o que sobe, só que menor.
- * O xadrez atrás mostra o que vai ficar transparente.
+ * O xadrez atrás mostra o que vai ficar transparente. Por cima vai a máscara
+ * do círculo: o que fica fora dele escurece, porque o selo do app corta ali.
+ * O arquivo salvo continua quadrado — a máscara é só da tela.
  */
 export function RecorteDoLogo({
   imagem,
@@ -56,6 +59,18 @@ export function RecorteDoLogo({
     ctx.imageSmoothingQuality = "high";
     const { dx, dy, dw, dh } = retanguloNoQuadrado(largura, altura, lado, enquadramento);
     ctx.drawImage(imagem, dx, dy, dw, dh);
+    /* Máscara: o quadrado todo menos o círculo inscrito, escurecido. */
+    const meio = lado / 2;
+    ctx.beginPath();
+    ctx.rect(0, 0, lado, lado);
+    ctx.arc(meio, meio, meio, 0, Math.PI * 2, true);
+    ctx.fillStyle = "rgba(15, 23, 42, 0.55)";
+    ctx.fill("evenodd");
+    ctx.beginPath();
+    ctx.arc(meio, meio, meio - 0.5, 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
+    ctx.lineWidth = Math.max(1, densidade);
+    ctx.stroke();
   }, [imagem, largura, altura, enquadramento]);
 
   const mudar = (e: Enquadramento) => onChange(limitarEnquadramento(largura, altura, e));
@@ -65,8 +80,8 @@ export function RecorteDoLogo({
       <canvas
         ref={canvas}
         role="img"
-        aria-label="Recorte do logo. Arraste para posicionar."
-        className="cursor-grab touch-none rounded-2xl border border-border active:cursor-grabbing"
+        aria-label="Recorte do logo. O que fica dentro do círculo é o que aparece no app. Arraste para posicionar."
+        className="cursor-grab touch-none rounded-superficie border border-border active:cursor-grabbing"
         style={{ width: LADO, height: LADO, ...XADREZ }}
         onPointerDown={(ev) => {
           ev.currentTarget.setPointerCapture(ev.pointerId);
@@ -89,7 +104,7 @@ export function RecorteDoLogo({
         <span className="sr-only">Aproximar</span>
         <input
           type="range"
-          min={1}
+          min={ZOOM_MINIMO}
           max={ZOOM_MAXIMO}
           step={0.01}
           value={enquadramento.zoom}

@@ -73,6 +73,15 @@ export const ARQUIVOS_DA_MARCA: readonly ArquivoDaMarca[] = [
   ...ICONES_DO_LOGO.map((i) => i.arquivo),
 ];
 
+/**
+ * Como o logo aparece como selo/avatar em todo o app: um círculo sobre o
+ * quadrado salvo (`object-cover` enche o círculo), com um anel de 1 px na cor
+ * de borda para o logo de fundo branco não sumir na tela clara. O arquivo
+ * continua quadrado — o ícone do celular e o favicon são mascarados pelo
+ * sistema. Sempre junto de largura e altura iguais.
+ */
+export const CLASSE_DO_LOGO_REDONDO = "shrink-0 rounded-full object-cover ring-1 ring-border";
+
 /** Fundo dos ícones: o logo transparente precisa de algo atrás na tela inicial. */
 export const FUNDOS_DO_ICONE = {
   claro: "#ffffff",
