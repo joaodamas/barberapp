@@ -1,6 +1,6 @@
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { loadWhatsappConfig, WHATSAPP_TOKEN } from "./config";
-import { sendTemplate } from "./client";
+import { normalizarNumero, sendTemplate } from "./client";
 import {
   dataPorExtenso,
   formaPagamento,
@@ -10,6 +10,34 @@ import {
 } from "./format";
 import { getFirestore } from "firebase-admin/firestore";
 import { localeDoDocumento } from "../locale";
+
+/**
+ * O número da reserva é de quem reservou? (09/10)
+ *
+ * O WhatsApp da reserva é o que a pessoa DIGITOU, e a confirmação sai da conta
+ * da barbearia para ele: com um número alheio, o app vira disparador de
+ * mensagem para terceiros. Só se envia quando há algum motivo para crer que o
+ * número é da pessoa:
+ *
+ * - a conta tem o telefone provado (`telefoneConfirmado`, que o SMS grava) E é
+ *   este número;
+ * - esse número já escreveu para a barbearia (`whatsapp_messages` recebida);
+ * - a reserva é de balcão: quem digitou foi a própria barbearia, no cadastro
+ *   dela, e não uma conta do app informando o número de alguém.
+ */
+export function numeroDaReservaConfere(params: {
+  origem: unknown;
+  numeroDaReserva: unknown;
+  cliente: { whatsapp?: unknown; telefoneConfirmado?: unknown } | null;
+  jaEscreveuParaALoja: boolean;
+}): boolean {
+  const numero = normalizarNumero(String(params.numeroDaReserva ?? ""));
+  if (!numero) return false;
+  if (params.origem === "balcao") return true;
+  if (params.jaEscreveuParaALoja) return true;
+  const doCadastro = normalizarNumero(String(params.cliente?.whatsapp ?? ""));
+  return params.cliente?.telefoneConfirmado === true && doCadastro === numero;
+}
 
 /**
  * Reserva criada → avisa o dono e o cliente.
@@ -81,7 +109,7 @@ export const notifyBookingCreated = onDocumentCreated(
       });
     }
 
-    if (reserva.clientWhatsapp) {
+    if (reserva.clientWhatsapp && (await numeroDoClienteConfere(db, barbershopId, reserva))) {
       await sendTemplate({
         barbershopId,
         config,
@@ -103,3 +131,24 @@ export const notifyBookingCreated = onDocumentCreated(
     }
   }
 );
+
+async function numeroDoClienteConfere(
+  db: FirebaseFirestore.Firestore,
+  barbershopId: string,
+  reserva: FirebaseFirestore.DocumentData
+): Promise<boolean> {
+  const numero = normalizarNumero(String(reserva.clientWhatsapp ?? ""));
+  if (!numero) return false;
+  if (reserva.origin === "balcao") return true;
+
+  const [cliente, recebida] = await Promise.all([
+    reserva.clientId ? db.doc(`barbershops/${barbershopId}/clients/${reserva.clientId}`).get() : null,
+    db.collection(`barbershops/${barbershopId}/whatsapp_messages`).where("de", "==", numero).limit(1).get(),
+  ]);
+  return numeroDaReservaConfere({
+    origem: reserva.origin,
+    numeroDaReserva: reserva.clientWhatsapp,
+    cliente: cliente?.exists ? cliente.data() ?? null : null,
+    jaEscreveuParaALoja: !recebida.empty,
+  });
+}
