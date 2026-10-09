@@ -315,6 +315,13 @@ export type Tenant = {
    */
   dominio?: string;
   /**
+   * A rede/franquia a que esta unidade pertence (09/10). Ausente na barbearia
+   * avulsa, que segue o caminho de sempre. Só o servidor grava (as regras
+   * negam ao dono); é público porque a vitrine e o seletor de unidades
+   * precisam saber.
+   */
+  redeId?: string;
+  /**
    * Plano contratado. Decide o que `acessoDaBarbearia` libera.
    *
    * Obrigatório e já normalizado: `tenant-shape` resolve ausência e valor

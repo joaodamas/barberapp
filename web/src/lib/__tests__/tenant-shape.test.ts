@@ -96,3 +96,17 @@ describe("documento da barbearia → Tenant", () => {
     expect(toTenant("shop1", { plan: "completo" }).features.advancedFinance).toBe(true);
   });
 });
+
+describe("a rede da unidade", () => {
+  it("redeId válido entra no Tenant; a barbearia avulsa não tem o campo", () => {
+    expect(toTenant("u1", { redeId: "rede-1" }).redeId).toBe("rede-1");
+    expect("redeId" in toTenant("u1", {})).toBe(false);
+  });
+
+  it("lixo no redeId é descartado, não repassado", () => {
+    expect("redeId" in toTenant("u1", { redeId: "a/b" })).toBe(false);
+    expect("redeId" in toTenant("u1", { redeId: 42 })).toBe(false);
+    expect("redeId" in toTenant("u1", { redeId: "" })).toBe(false);
+  });
+});
+

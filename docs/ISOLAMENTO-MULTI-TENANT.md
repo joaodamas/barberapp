@@ -106,7 +106,11 @@ Testado e negado para `bookings`, `payments`, `commissions`, `expenses` e
 Dois achados. **Nenhum vaza operação ou dinheiro de barbearia nenhuma** — mas os
 dois expõem o mapa comercial da plataforma.
 
-### D15 · A lista de todas as barbearias é enumerável, sem login
+### D15 · A lista de todas as barbearias é enumerável, sem login — FECHADO
+
+> **Fechado (verificado em 09/10/2026).** `firestore.rules` separa `get` público de
+> `list` só de `platformAdmin` em `barbershops` (e em `redes`, que já nasce assim).
+> O texto abaixo é o achado original, mantido como registro.
 
 `allow read: if true` no documento da barbearia vale também para a **listagem da
 coleção**. Uma requisição sem autenticação devolve todas as barbearias com nome,
@@ -115,7 +119,11 @@ slug, `status` e `plan`.
 Um concorrente lê, numa chamada: quantos clientes a plataforma tem, quem são,
 quem está **suspenso** e quem paga o **plano de cima**.
 
-### D16 · O índice de slugs também é enumerável
+### D16 · O índice de slugs também é enumerável — FECHADO
+
+> **Fechado (verificado em 09/10/2026).** `slugs/{slug}` tem `get` público e `list`
+> só de `platformAdmin`; `redes_slugs/{slug}` segue a mesma regra. O texto abaixo é
+> o achado original.
 
 Mesma origem, mesmo efeito.
 
@@ -128,7 +136,7 @@ alteração de produto, que esta fase não faz.
 |---|---|
 | Severidade | 🟡 exposição comercial, não vazamento de dado de cliente |
 | Correção | `allow get: if true; allow list: if isPlatformAdmin();` |
-| Decisão | pendente — junto com o próximo gate |
+| Decisão | **aplicada** — as regras atuais já separam `get` de `list` |
 
 ## 6. Cloud Functions — o `tenantId` arbitrário
 
@@ -203,6 +211,30 @@ Honestidade sobre o alcance:
   chama as functions de fora do app. O isolamento entre barbearias vale mesmo
   assim, porque as guardas leem o claim — mas o consumo é livre.
 - **Não testa a superfície de rede.** CSP, CORS e rate limit não entram aqui.
+
+---
+
+## 9. A rede / franquia (09/10/2026)
+
+O modelo é federado (ver `ARQUITETURA-REDE.md`): cada unidade segue sendo uma
+`barbershops/{id}` e o isolamento entre barbearias não muda. O que a rede
+acrescenta:
+
+- **Dono da rede = claims derivados.** `redes: {r: "dono"}` mais `barbershops[u] =
+  "owner"` em cada unidade da rede. As regras de unidade não ganharam exceção
+  nenhuma e continuam sem `get()`: o dono da rede lê as unidades dele pelo mesmo
+  vínculo `owner` de qualquer dono, e **não lê unidade de outra rede**.
+- **Claim `redes` sozinho não abre unidade.** Só dá leitura do contrato da
+  própria rede (`redes/{r}/private/contrato`).
+- **`barbershops.redeId` é do servidor.** Está na lista de campos proibidos ao
+  dono: sem isso ele se penduraria na rede de outro. É público (vitrine).
+- **`redes`, `redes_slugs` e o contrato têm `write: false`.** Só as callables de
+  plataforma (Admin SDK) escrevem; `list` é de `platformAdmin`.
+- **Teto de claims.** O Auth guarda 1000 bytes; `mutarClaims` recusa acima de 900
+  e a rede tem teto de 20 unidades.
+
+Coberto em `firestore-rules.test.ts` (bloco "a rede / franquia") e em
+`rede-transacao.test.ts`.
 
 ---
 

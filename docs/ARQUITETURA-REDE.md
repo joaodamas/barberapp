@@ -1,5 +1,21 @@
 # Arquitetura da rede/franquia — plano aprovado para a fase "demo" (09/10/2026)
 
+## Andamento
+
+| PR | Conteúdo | Estado |
+|---|---|---|
+| PR0 | `functions/src/claims.ts`: `mutarClaims` (teto de 900 bytes) e `papelNaBarbearia`; escritores soltos refatorados | #165 |
+| PR1 | `redes/{r}`, `private/contrato`, `redes_slugs`, `redeId` (proibido ao dono), `redeId` no Tenant, `rede.ts` (`sincronizarAcessoDaRede`, `criarRede`, `vincularUnidade`, `desvincularUnidade`, `definirDonoDaRede`) | este PR |
+| PR2+ | seletor de unidade, painel da rede, trava do gerente, ... | a fazer |
+
+Notas de implementação do PR1: o id da rede é automático (o slug fica em
+`redes_slugs`); `definirDonoDaRede` SUBSTITUI o dono (contrato com um dono só);
+`desvincularUnidade` e a troca de dono passam `unidadesRetiradas`/`donosRetirados`
+para a sincronização, que é sem estado e só toca em membros com
+`origem:"rede"` e o `redeId` da rede. A conferência de tamanho dos claims é feita
+para TODAS as contas antes de gravar a primeira. Falta, em produção, o papel
+`serviceAccountTokenCreator` para o seletor (PR2).
+
 Decisões do dono: (1) gerente de unidade = `owner` só daquela unidade (sem papel novo); (2) cliente único na rede (fase posterior, PRs 6–8); (3) dono da rede com uma conta, painel somado e seletor de unidade sem novo login.
 
 Modelo FEDERADO: cada unidade continua `barbershops/{id}` com o código de hoje. Tudo novo fica atrás de `shop.redeId`; sem `redeId` (O Siqueira) o caminho executado é o de hoje, linha por linha.

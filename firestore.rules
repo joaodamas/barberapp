@@ -50,6 +50,17 @@ service cloud.firestore {
       return roleIn(barbershopId) == 'owner';
     }
 
+    /* Dono de uma REDE (09/10): claim derivado `redes: { <redeId>: 'dono' }`,
+     * escrito só por `sincronizarAcessoDaRede`. Dá leitura do contrato da rede;
+     * o acesso às unidades vem dos vínculos `owner` que a mesma sincronização
+     * grava em `barbershops`, então nenhuma regra de unidade muda. Mesma trava
+     * da senha provisória de `memberships()`. */
+    function isRedeOwnerOf(redeId) {
+      return isSignedIn()
+          && request.auth.token.get('mustChangePassword', false) != true
+          && request.auth.token.get('redes', {}).get(redeId, null) == 'dono';
+    }
+
     function isStaffOf(barbershopId) {
       return roleIn(barbershopId) in ['owner', 'staff'];
     }
@@ -271,7 +282,16 @@ service cloud.firestore {
                                                       * gravado daqui derrubava
                                                       * a agenda das 7h. Nenhuma
                                                       * tela grava (08/10). */
-                                                     'locale'])
+                                                     'locale',
+                                                     /* A rede a que a unidade
+                                                      * pertence (09/10). Quem
+                                                      * liga e desliga é a
+                                                      * plataforma, por callable:
+                                                      * gravável, o dono se
+                                                      * pendurava na rede de
+                                                      * outro e herdava a
+                                                      * leitura dos donos dela. */
+                                                     'redeId'])
                         && marcaDoDonoValida(barbershopId));
 
       /* A MARCA que o dono edita em "Sua marca" (02/10).
@@ -736,6 +756,34 @@ service cloud.firestore {
       allow get: if true;
       allow list: if isPlatformAdmin();
       allow write: if isPlatformAdmin();
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* A rede / franquia (09/10)                                           */
+    /* ------------------------------------------------------------------ */
+
+    /* Vitrine da rede: nome, marca e a lista de unidades. Legível por `get`
+     * como a barbearia; listar todas as redes é enumerar clientes da
+     * plataforma. Só os callables de plataforma escrevem (Admin SDK). */
+    match /redes/{redeId} {
+      allow get: if true;
+      allow list: if isPlatformAdmin();
+      allow write: if false;
+
+      /* Contrato: quem são os donos, o teto de unidades, o vínculo com o Hub. */
+      match /private/{docId} {
+        allow read: if isPlatformAdmin() || isRedeOwnerOf(redeId);
+        allow write: if false;
+      }
+    }
+
+    /* Índice slug -> rede, em namespace SEPARADO de `slugs`: o servidor resolve
+     * o tenant por `slugs/{slug}` e uma rede ali seria confundida com uma
+     * barbearia. */
+    match /redes_slugs/{slug} {
+      allow get: if true;
+      allow list: if isPlatformAdmin();
+      allow write: if false;
     }
 
     /* ------------------------------------------------------------------ */
