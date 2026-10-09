@@ -24,14 +24,12 @@ import {
   caixaDoSimbolo,
   comMargem,
   fracaoApagadaSobre,
-  fracaoForaDoCirculo,
-  type FundoDetectado,
   removerFundo,
   type AnaliseDoLogo,
   type Caixa,
   type PixelsLike,
 } from "@/lib/analise-do-logo";
-import { svgDoMonograma } from "@/lib/monograma";
+import { svgDoMonogramaEstilo, type EstiloDoMonograma } from "@/lib/monograma";
 
 /**
  * Do arquivo escolhido aos PNG que vão para o Storage — a parte que só existe
@@ -223,26 +221,8 @@ export function apagamentoDoLogo(fonte: HTMLCanvasElement) {
   };
 }
 
-/**
- * Quanto do logo, no enquadramento dado, cai fora do círculo do selo (0 a 1).
- * Mede o recorte já desenhado numa cópia de 128 px — o que o dono vê no
- * enquadramento. `fundo` é o da imagem de origem (transparente se o fundo foi
- * removido ou se é monograma): sem ele a cor de fundo contaria como logo.
- * Sem ler pixel (canvas sujo), devolve 0 e o aviso simplesmente não aparece.
- */
-export function foraDoCirculoDoRecorte(imagem: FonteDoLogo, enquadramento: Enquadramento, fundo: FundoDetectado): number {
-  try {
-    const recorte = desenharRecorte(imagem, enquadramento, 128);
-    const pixels = lerPixels(recorte);
-    liberarCanvas(recorte);
-    return pixels ? fracaoForaDoCirculo(pixels, fundo) : 0;
-  } catch {
-    return 0;
-  }
-}
-
 /** O monograma desenhado em 512×512 — entra no mesmo caminho do logo enviado. */
-export function desenharMonograma(nome: string, cor: string): Promise<HTMLCanvasElement> {
+export function desenharMonograma(nome: string, cor: string, estilo: EstiloDoMonograma): Promise<HTMLCanvasElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
@@ -255,7 +235,7 @@ export function desenharMonograma(nome: string, cor: string): Promise<HTMLCanvas
       resolve(canvas);
     };
     img.onerror = () => reject(new Error("Não consegui desenhar o monograma."));
-    img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgDoMonograma(nome, cor))}`;
+    img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgDoMonogramaEstilo(nome, cor, estilo))}`;
   });
 }
 

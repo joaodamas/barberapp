@@ -1,9 +1,6 @@
-import { CLASSE_DO_LOGO_REDONDO } from "@/lib/logo-da-marca";
-
 /**
  * Três miniaturas do que o cliente vê: o topo do app, a tela de entrar e o
- * ícone na tela inicial do celular. O logo é um círculo nas duas primeiras
- * (como no app); no ícone do celular fica quadrado, e o sistema arredonda.
+ * ícone na tela inicial do celular.
  *
  * Réplicas simplificadas — mesmas proporções e textos das telas reais
  * (`(cliente)/layout.tsx`, `login/page.tsx`, os ícones de `ICONES_DO_LOGO`),
@@ -34,7 +31,7 @@ export function PreviaDaMarca({
             {/* <img> e não next/image: a prévia é `blob:`/`data:`, que o
                 otimizador não serve — e aqui não há o que otimizar. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={logo} alt="" width={32} height={32} className={`h-8 w-8 ${CLASSE_DO_LOGO_REDONDO}`} />
+            <img src={logo} alt="" width={32} height={32} className="h-8 w-8 shrink-0 object-contain" />
             <span className="truncate font-display text-sm uppercase tracking-wider text-ink">
               {nomeCurto || "—"}
             </span>
@@ -53,7 +50,7 @@ export function PreviaDaMarca({
       <figure className="flex min-w-0 flex-col gap-2">
         <div className="flex flex-col items-center gap-1.5 rounded-2xl border border-border bg-canvas px-4 py-5 text-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={logo} alt="" width={56} height={56} className={`h-14 w-14 ${CLASSE_DO_LOGO_REDONDO}`} />
+          <img src={logo} alt="" width={56} height={56} className="h-14 w-14 object-contain" />
           <p className="max-w-full truncate font-display text-base text-ink">{nome || "—"}</p>
           <p className="text-[11px] text-ink-muted">Entre com sua conta</p>
           <span className="mt-1 w-full rounded-xl bg-gold py-1.5 text-xs font-semibold text-ink">Entrar</span>

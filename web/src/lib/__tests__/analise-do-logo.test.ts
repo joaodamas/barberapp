@@ -7,12 +7,11 @@ import {
   comMargem,
   detectarFundo,
   fracaoApagadaSobre,
-  fracaoForaDoCirculo,
   removerFundo,
   temSobraRelevante,
   type PixelsLike,
 } from "@/lib/analise-do-logo";
-import { svgDoMonograma } from "@/lib/monograma";
+import { svgDoMonogramaEstilo, ESTILOS_DO_MONOGRAMA } from "@/lib/monograma";
 
 type Rgba = [number, number, number, number];
 
@@ -208,60 +207,22 @@ describe("avisosDoLogo", () => {
   });
 });
 
-describe("monograma", () => {
-  it("é um círculo com as iniciais e a cor da marca", () => {
-    const svg = svgDoMonograma("Navalha E2E", "#112233");
-    expect(svg).toContain(">NE</text>");
-    expect(svg).toContain("#112233");
-    expect(svg).toContain("<circle");
+describe("monograma em estilos", () => {
+  it("os três estilos usam as iniciais e a cor da marca", () => {
+    for (const { id } of ESTILOS_DO_MONOGRAMA) {
+      const svg = svgDoMonogramaEstilo("Navalha E2E", "#112233", id);
+      expect(svg).toContain(">NE</text>");
+      expect(svg).toContain("#112233");
+    }
+  });
+
+  it("só letra não tem fundo", () => {
+    const svg = svgDoMonogramaEstilo("Zé", "#112233", "letra");
     expect(svg).not.toContain("<rect");
-  });
-});
-
-describe("logo redondo", () => {
-  const PRETO_: Rgba = [0, 0, 0, 255];
-  const TRANSPARENTE: Rgba = [0, 0, 0, 0];
-
-  function disco(lado: number, raio: number) {
-    const img = imagem(lado, lado, TRANSPARENTE);
-    const c = lado / 2;
-    for (let y = 0; y < lado; y++)
-      for (let x = 0; x < lado; x++)
-        if (Math.hypot(x + 0.5 - c, y + 0.5 - c) <= raio) img.data.set(PRETO_, (y * lado + x) * 4);
-    return img;
-  }
-
-  it("um disco que enche o quadrado não perde nada no círculo", () => {
-    const img = disco(100, 50);
-    expect(fracaoForaDoCirculo(img, detectarFundo(img))).toBe(0);
+    expect(svg).not.toContain("<circle");
   });
 
-  it("um quadrado quase cheio perde os cantos: cerca de 16% da área fica fora", () => {
-    const img = imagem(100, 100, TRANSPARENTE);
-    retangulo(img, 2, 2, 96, 96, PRETO_);
-    const fora = fracaoForaDoCirculo(img, detectarFundo(img));
-    expect(fora).toBeGreaterThan(0.14);
-    expect(fora).toBeLessThan(0.19);
-  });
-
-  it("fundo sólido não conta como conteúdo nos cantos", () => {
-    const img = imagem(100, 100, BRANCO);
-    retangulo(img, 30, 30, 40, 40, PRETO);
-    expect(fracaoForaDoCirculo(img, detectarFundo(img))).toBe(0);
-  });
-
-  it("imagem só de fundo não vira NaN", () => {
-    const img = imagem(10, 10, BRANCO);
-    expect(fracaoForaDoCirculo(img, detectarFundo(img))).toBe(0);
-  });
-
-  it("avisa quando passa de 2% fora do círculo, com a ação de aproximar no símbolo", () => {
-    const base = { largura: 600, altura: 600, apagadoNoClaro: 0, apagadoNoEscuro: 0 };
-    expect(avisosDoLogo(base)).toEqual([]);
-    expect(avisosDoLogo({ ...base, foraDoCirculo: 0.02 })).toEqual([]);
-    const [a] = avisosDoLogo({ ...base, foraDoCirculo: 0.2 });
-    expect(a.id).toBe("circulo");
-    expect(a.texto).toBe("Parte do logo fica fora do círculo. Aproxime ou use 'Aproximar no símbolo'.");
-    expect(a.acao).toBe("simbolo");
+  it("quadrado arredondado desenha um rect", () => {
+    expect(svgDoMonogramaEstilo("Zé", "#112233", "quadrado")).toContain("<rect");
   });
 });

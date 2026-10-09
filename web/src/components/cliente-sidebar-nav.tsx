@@ -10,7 +10,7 @@ import { useAuth } from "@/lib/auth-context";
 import { SidebarUserFooter } from "@/components/sidebar-user-footer";
 import { OwnerPanelLink } from "@/components/owner-panel-link";
 import { useTenant } from "@/lib/tenant-context";
-import { CLASSE_DO_LOGO_REDONDO, logoSemOtimizar } from "@/lib/logo-da-marca";
+import { logoSemOtimizar } from "@/lib/logo-da-marca";
 
 export function ClienteSidebarNav() {
   const pathname = usePathname();
@@ -22,7 +22,7 @@ export function ClienteSidebarNav() {
     <aside
       className="hidden shrink-0 bg-surface/60 md:flex md:h-full md:w-64 md:flex-col md:overflow-hidden md:border-r md:border-border md:shadow-[8px_0_32px_-24px_rgba(15,23,42,0.28)]">
       <Link href="/" className="flex items-center gap-3 px-6 pb-6 pt-8">
-        <Image src={brand.logo} unoptimized={logoSemOtimizar(brand.logo)} alt="" width={38} height={38} priority className={CLASSE_DO_LOGO_REDONDO} />
+        <Image src={brand.logo} unoptimized={logoSemOtimizar(brand.logo)} alt="" width={38} height={38} priority className="shrink-0 rounded-md object-contain" />
         <div className="leading-tight">
           <p className="font-display text-base uppercase tracking-wider text-ink">
             {brand.shortName}
