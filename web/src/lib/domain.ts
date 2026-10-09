@@ -323,9 +323,14 @@ export type ClientDoc = {
    * as reservas, os carimbos e o plano para a conta.
    */
   mergedInto?: string | null;
-  /** Indício na CONTA: há um cadastro de balcão com o mesmo número. */
+  /**
+   * Indício no cadastro de BALCÃO (09/10): ids das contas do app que
+   * informaram o mesmo número. Fica onde o cliente não lê.
+   */
+  contasDoMesmoNumero?: string[];
+  /** Legado: o indício que ficava na conta, com o id do balcão. Sai na próxima reserva dela. */
   mesmoNumeroQue?: string;
-  /** O WhatsApp da conta foi provado (SMS) ou confirmado pelo dono. */
+  /** O WhatsApp da conta foi provado por SMS (o vínculo do dono não marca isto). */
   telefoneConfirmado?: boolean;
 };
 

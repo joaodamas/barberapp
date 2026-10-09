@@ -41,62 +41,67 @@ export const revisarAssinaturas = onSchedule(
     const barbearias = await db.collection("barbershops").get();
 
     for (const shop of barbearias.docs) {
-      const status = shop.get("status");
-      const nome = shop.get("brand.name") ?? shop.id;
+      /* Uma loja que falha não derruba a revisão das outras. */
+      try {
+        const status = shop.get("status");
+        const nome = shop.get("brand.name") ?? shop.id;
 
-      /* Isenta não tem cobrança para vencer: sem esta guarda, a fundadora
-       * entraria na régua de inadimplência no dia em que o DRY_RUN fosse
-       * desligado — o mesmo erro que `transicaoDoHub` já recusa vindo do Hub. */
-      if (isentoDeCobranca(shop.data() ?? {})) continue;
+        /* Isenta não tem cobrança para vencer: sem esta guarda, a fundadora
+         * entraria na régua de inadimplência no dia em que o DRY_RUN fosse
+         * desligado — o mesmo erro que `transicaoDoHub` já recusa vindo do Hub. */
+        if (isentoDeCobranca(shop.data() ?? {})) continue;
 
-      /* ---- Trial vencido → suspensa ---- */
-      if (status === "trial") {
-        const fim = shop.get("trial.endsAt");
-        const fimMs = fim?.toDate ? fim.toDate().getTime() : Date.parse(String(fim ?? ""));
-        if (!Number.isFinite(fimMs)) {
-          console.warn(`[assinaturas] ${nome}: trial sem data de fim válida`);
+        /* ---- Trial vencido → suspensa ---- */
+        if (status === "trial") {
+          const fim = shop.get("trial.endsAt");
+          const fimMs = fim?.toDate ? fim.toDate().getTime() : Date.parse(String(fim ?? ""));
+          if (!Number.isFinite(fimMs)) {
+            console.warn(`[assinaturas] ${nome}: trial sem data de fim válida`);
+            continue;
+          }
+          if (fimMs <= agora) {
+            decisoes.push(`${nome}: trial vencido → suspensa`);
+            if (!DRY_RUN) {
+              await shop.ref.update({
+                status: "suspenso",
+                suspendedAt: FieldValue.serverTimestamp(),
+                suspendedReason: "trial_vencido",
+              });
+            }
+          }
           continue;
         }
-        if (fimMs <= agora) {
-          decisoes.push(`${nome}: trial vencido → suspensa`);
-          if (!DRY_RUN) {
-            await shop.ref.update({
-              status: "suspenso",
-              suspendedAt: FieldValue.serverTimestamp(),
-              suspendedReason: "trial_vencido",
-            });
+
+        /* ---- Ativa com pagamento vencido → régua ---- */
+        if (status === "ativo") {
+          const billing = await shop.ref.collection("private").doc("billing").get();
+          const pagoAte = billing.get("paidUntil");
+          if (!pagoAte) continue;
+
+          const pagoAteMs = pagoAte?.toDate ? pagoAte.toDate().getTime() : Date.parse(String(pagoAte));
+          if (!Number.isFinite(pagoAteMs) || pagoAteMs > agora) continue;
+
+          const diasVencido = Math.floor((agora - pagoAteMs) / 86_400_000);
+          /* Sete dias de régua antes de suspender. Cartão recusado quase nunca é
+           * falta de dinheiro — é limite ou validade, e isso se resolve em dias. */
+          if (diasVencido >= 7) {
+            decisoes.push(`${nome}: ${diasVencido} dias vencido → suspensa`);
+            if (!DRY_RUN) {
+              await shop.ref.update({
+                status: "suspenso",
+                suspendedAt: FieldValue.serverTimestamp(),
+                suspendedReason: "inadimplencia",
+              });
+            }
+          } else {
+            decisoes.push(`${nome}: ${diasVencido} dias vencido → régua (estágio ${diasVencido})`);
+            if (!DRY_RUN) {
+              await billing.ref.set({ dunningStage: diasVencido }, { merge: true });
+            }
           }
         }
-        continue;
-      }
-
-      /* ---- Ativa com pagamento vencido → régua ---- */
-      if (status === "ativo") {
-        const billing = await shop.ref.collection("private").doc("billing").get();
-        const pagoAte = billing.get("paidUntil");
-        if (!pagoAte) continue;
-
-        const pagoAteMs = pagoAte?.toDate ? pagoAte.toDate().getTime() : Date.parse(String(pagoAte));
-        if (!Number.isFinite(pagoAteMs) || pagoAteMs > agora) continue;
-
-        const diasVencido = Math.floor((agora - pagoAteMs) / 86_400_000);
-        /* Sete dias de régua antes de suspender. Cartão recusado quase nunca é
-         * falta de dinheiro — é limite ou validade, e isso se resolve em dias. */
-        if (diasVencido >= 7) {
-          decisoes.push(`${nome}: ${diasVencido} dias vencido → suspensa`);
-          if (!DRY_RUN) {
-            await shop.ref.update({
-              status: "suspenso",
-              suspendedAt: FieldValue.serverTimestamp(),
-              suspendedReason: "inadimplencia",
-            });
-          }
-        } else {
-          decisoes.push(`${nome}: ${diasVencido} dias vencido → régua (estágio ${diasVencido})`);
-          if (!DRY_RUN) {
-            await billing.ref.set({ dunningStage: diasVencido }, { merge: true });
-          }
-        }
+      } catch (err) {
+        console.error(`[assinaturas] ${shop.id} falhou; as demais seguem`, err);
       }
     }
 

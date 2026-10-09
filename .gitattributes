@@ -1,0 +1,2 @@
+# Script de shell com CRLF não roda no Linux (Cloud Shell, runners).
+*.sh text eol=lf

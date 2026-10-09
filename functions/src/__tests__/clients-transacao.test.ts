@@ -262,8 +262,10 @@ describe("sem fusão por telefone não verificado (rodada E2E de 23/09)", () => 
     const conta = cs.find((c) => c.id === "uid-de-alguem")!;
     expect(antigo.active).toBe(true);
     expect(antigo.mergedInto ?? null).toBeNull();
-    // Indício para o dono conferir, não decisão.
-    expect(conta.mesmoNumeroQue).toBe(balcao.id);
+    // Indício para o dono conferir, não decisão — e no cadastro de balcão, que
+    // o cliente não lê (09/10), não na conta.
+    expect(antigo.contasDoMesmoNumero).toEqual(["uid-de-alguem"]);
+    expect(conta.mesmoNumeroQue).toBeUndefined();
   });
 
   it("🔒 o balcão nunca entrega a reserva a uma conta de app pelo número", async () => {
@@ -385,9 +387,53 @@ describe("vínculo do balcão à conta — com prova", () => {
     expect(segunda).toMatchObject({ vinculado: false, jaVinculado: true });
   });
 
-  it("depois do vínculo, o balcão marca na CONTA — não nasce um terceiro cadastro", async () => {
+  it("o vínculo do dono NÃO confirma o telefone, mas deixa o balcão reusar a conta (09/10)", async () => {
     const balcao = await balcaoComHistorico();
     await vincularCadastros({ db, barbershopId: SHOP, deId: balcao.id, paraUid: "uid-tadeu", via: "dono", por: "dono-1" });
+    const conta = (await clientes()).find((c) => c.id === "uid-tadeu")!;
+    expect(conta.telefoneConfirmado).not.toBe(true);
+    expect(conta.vinculadoPeloDono).toBe(true);
+
+    /* Sem duplicar: a próxima marcação de balcão com esse número cai na conta. */
+    await gravarComTravaDeHorario(pedido({ time: "17:00", name: "Tadeu", whatsapp: "11977776666" }));
+    const nova = (await reservas()).find((r) => r.time === "17:00")!;
+    expect(nova.clientId).toBe("uid-tadeu");
+    expect((await clientes()).filter((c) => c.active !== false)).toHaveLength(1);
+  });
+
+  it("🔒 conta vinculada pelo dono que troca o WhatsApp deixa de ser reusada pelo balcão", async () => {
+    const balcao = await balcaoComHistorico();
+    await vincularCadastros({ db, barbershopId: SHOP, deId: balcao.id, paraUid: "uid-tadeu", via: "dono", por: "dono-1" });
+    await gravarComTravaDeHorario(
+      pedido({ time: "16:00", uid: "uid-tadeu", origin: "app", whatsapp: "11955554444" })
+    );
+    const conta = (await clientes()).find((c) => c.id === "uid-tadeu")!;
+    expect(conta.vinculadoPeloDono).toBe(false);
+    await gravarComTravaDeHorario(pedido({ time: "17:00", name: "Outra pessoa", whatsapp: "11955554444" }));
+    const nova = (await reservas()).find((r) => r.time === "17:00")!;
+    expect(nova.clientId).not.toBe("uid-tadeu");
+  });
+
+  it("o indício legado (`mesmoNumeroQue` na conta) migra para o balcão antes de ser apagado", async () => {
+    await gravarComTravaDeHorario(pedido({ time: "15:00", name: "Seu Zé", whatsapp: "11944443333" }));
+    const [balcao] = await clientes();
+    await db.doc(`barbershops/${SHOP}/clients/uid-legado`).set({
+      uid: "uid-legado", name: "Zé", whatsapp: "11944443333", origin: "app", active: true, mesmoNumeroQue: balcao.id,
+    });
+
+    await gravarComTravaDeHorario(
+      pedido({ time: "16:00", uid: "uid-legado", origin: "app", name: "Zé", whatsapp: "11944443333" })
+    );
+    const cs = await clientes();
+    expect(cs.find((c) => c.id === balcao.id)!.contasDoMesmoNumero).toContain("uid-legado");
+    expect(cs.find((c) => c.id === "uid-legado")!.mesmoNumeroQue).toBeUndefined();
+  });
+
+  it("depois do vínculo POR SMS, o balcão marca na CONTA — não nasce um terceiro cadastro", async () => {
+    const balcao = await balcaoComHistorico();
+    await vincularCadastros({
+      db, barbershopId: SHOP, deId: balcao.id, paraUid: "uid-tadeu", via: "sms", por: "uid-tadeu", telefoneProvado: "11977776666",
+    });
 
     await gravarComTravaDeHorario(pedido({ time: "17:00", name: "Tadeu", whatsapp: "(11) 97777-6666" }));
     const nova = (await reservas()).find((r) => r.time === "17:00")!;
@@ -397,7 +443,9 @@ describe("vínculo do balcão à conta — com prova", () => {
 
   it("🔒 conta que troca o WhatsApp perde a confirmação, e o balcão para de reusá-la", async () => {
     const balcao = await balcaoComHistorico();
-    await vincularCadastros({ db, barbershopId: SHOP, deId: balcao.id, paraUid: "uid-tadeu", via: "dono", por: "dono-1" });
+    await vincularCadastros({
+      db, barbershopId: SHOP, deId: balcao.id, paraUid: "uid-tadeu", via: "sms", por: "uid-tadeu", telefoneProvado: "11977776666",
+    });
 
     await gravarComTravaDeHorario(
       pedido({ time: "16:00", uid: "uid-tadeu", origin: "app", whatsapp: "11955554444" })

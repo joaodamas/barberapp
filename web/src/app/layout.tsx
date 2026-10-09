@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
+import { RelatorDeErros } from "@/components/relator-de-erros";
 import { VinculoPeloTelefone } from "@/components/vinculo-pelo-telefone";
 import { AuthProvider } from "@/lib/auth-context";
 import { TenantProvider } from "@/lib/tenant-context";
@@ -144,6 +145,7 @@ export default async function RootLayout({
           </AuthProvider>
         </TenantProvider>
         <ServiceWorkerRegister />
+        <RelatorDeErros />
       </body>
     </html>
   );

@@ -327,7 +327,7 @@ service cloud.firestore {
                      * pública. A equipe precisa delas para fechar atendimento
                      * — a mesma leitura que tinha antes, só que agora não é de
                      * qualquer um. */
-                    || (docId == 'financeiro' && isStaffOf(barbershopId));
+                    || (docId == 'financeiro' && souBarbeiroAtivo(barbershopId));
         /* O dono edita taxas e comissão pela tela de Ajustes — e SÓ esses três
          * campos: o resto de `private/` é contrato e cobrança da plataforma. */
         allow write: if isPlatformAdmin()
@@ -374,12 +374,23 @@ service cloud.firestore {
          * de toda barbearia. A remuneração foi para `staff_pay`, e a ficha
          * pública não pode voltar a recebê-la. */
         allow read: if true;
+        /* `uid` (a conta ligada à cadeira) e `convitePendente` são do SERVIDOR
+         * (09/10): o aceite do convite grava o primeiro, a criação do convite o
+         * segundo. O dono gravando `uid` ligava a ficha à conta de QUALQUER
+         * pessoa cujo id ele soubesse — e revogar ou remover esse "barbeiro"
+         * reescrevia os claims e derrubava a sessão de terceiro; zerar `uid`
+         * antes de apagar contornava o "só o servidor remove ficha com conta".
+         * Na criação, `uid` só pode ser nulo. */
         allow create: if isOwnerOf(barbershopId)
+          && request.resource.data.get('uid', null) == null
+          && !('convitePendente' in request.resource.data)
           && !request.resource.data.keys().hasAny(['commissionPct', 'salary']);
         /* Ficha antiga ainda tem os campos: editar o nome continua valendo, e
          * REMOVÊ-los também (é o que a tela faz ao salvar a remuneração).
          * Gravar ou alterar, não. */
         allow update: if isOwnerOf(barbershopId)
+          && request.resource.data.get('uid', null) == resource.data.get('uid', null)
+          && request.resource.data.get('convitePendente', null) == resource.data.get('convitePendente', null)
           && !request.resource.data.diff(resource.data).addedKeys().hasAny(['commissionPct', 'salary'])
           && !request.resource.data.diff(resource.data).changedKeys().hasAny(['commissionPct', 'salary']);
         /* Ficha com conta ligada (`uid`) só sai pelo servidor (08/10):
@@ -602,7 +613,7 @@ service cloud.firestore {
        * O vínculo é por `uid` gravado no documento pelo servidor. */
       match /commissions/{commissionId} {
         allow read: if isOwnerOf(barbershopId)
-                    || (isStaffOf(barbershopId) && resource.data.uid == request.auth.uid)
+                    || (souBarbeiroAtivo(barbershopId) && resource.data.uid == request.auth.uid)
                     || ehDaMinhaCadeira(barbershopId, resource.data);
         allow write: if false;
       }
@@ -635,8 +646,12 @@ service cloud.firestore {
         return isSignedIn() && resource.data.clientId == request.auth.uid;
       }
 
+      /* Só o dono lê (09/10). O cliente lia o próprio pagamento, e com ele a
+       * taxa da maquininha e o líquido da casa (`feePct`, `feeAmount`,
+       * `netAmount`) — dado interno. O que o cliente vê do que pagou é o
+       * valor da própria reserva. */
       match /payments/{paymentId} {
-        allow read: if isOwnerOf(barbershopId) || ownsResource();
+        allow read: if isOwnerOf(barbershopId);
         allow write: if false;
       }
       match /refunds/{refundId} {

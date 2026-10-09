@@ -286,13 +286,16 @@ describe("as guardas dizem o que verificam", () => {
     }
   });
 
-  it("provisionBarbershop e grantShopRole exigem plataforma ou dono", () => {
+  it("provisionBarbershop e grantShopRole exigem plataforma", () => {
     const prov = HANDLERS.find((h) => h.nome === "provisionBarbershop")!;
     expect(/platformAdmin/.test(prov.corpo)).toBe(true);
 
     const grant = HANDLERS.find((h) => h.nome === "grantShopRole")!;
-    expect(/isPlatformAdmin|platformAdmin/.test(grant.corpo)).toBe(true);
-    expect(/callerRole !== "owner"/.test(grant.corpo)).toBe(true);
+    /* Só o suporte (09/10): dono ligava qualquer e-mail à loja sem consentimento. */
+    expect(/platformAdmin !== true/.test(grant.corpo)).toBe(true);
+    expect(/callerRole/.test(grant.corpo)).toBe(false);
+    expect(/emailVerified/.test(grant.corpo)).toBe(true);
+    expect(/limparAvisosDoUid/.test(grant.corpo)).toBe(true);
   });
 });
 

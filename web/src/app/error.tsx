@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { AlertTriangle } from "lucide-react";
+import { relatarErro } from "@/lib/erro-front-cliente";
 
 /**
  * O limite de erro do produto — o que aparece quando uma tela quebra ao render.
@@ -46,6 +47,9 @@ export default function ErroDeTela({
     /* O `digest` é o único elo entre o que o dono viu e o que está no log do
      * servidor. Sem ele no console, um relato de "quebrou" é irrastreável. */
     console.error("[tela]", error.digest ?? "", error);
+    /* E o mesmo erro vai ao log do servidor (`/api/erro`), onde vira o e-mail
+     * de alerta "Topete · erro no site". Só mensagem, digest e rota. */
+    relatarErro("tela", error, error.digest);
   }, [error]);
 
   return (
