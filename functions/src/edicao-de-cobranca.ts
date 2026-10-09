@@ -12,7 +12,7 @@ import {
   idDaComissaoDeCicloNovo,
   idDoEstornoDaComissaoDeServico,
 } from "./comissoes";
-import { dentroDaJanela } from "./correcao-de-pagamento";
+import { dentroDaJanela, diaDeCriacao } from "./correcao-de-pagamento";
 import { descontoAplicavel, ehCortesia } from "./desconto";
 import {
   calcularEventoFinanceiro,
@@ -26,7 +26,7 @@ import {
 } from "./financial-events";
 import { formasDoTenant, type FormaDePagamento } from "./formas-de-pagamento";
 import { metodoValido } from "./inventory";
-import { hojeNoFuso, localeDoDocumento } from "./locale";
+import { DEFAULT_LOCALE, hojeNoFuso, localeDoDocumento } from "./locale";
 import { idDoPagamento } from "./payments";
 import { politicasDe } from "./politicas-financeiras";
 
@@ -261,6 +261,8 @@ export function motivoDaRecusaDaEdicao(params: {
   /** O barbeiro da reserva é quem está editando? (só importa para o staff) */
   ehDoBarbeiro: boolean;
   dataDoPagamento: string;
+  /** O dia em que o pagamento foi criado (fuso da barbearia), se conhecido. */
+  criadoEm?: string | null;
   hoje: string;
   /**
    * O pedido mexe no desconto? Só importa para o barbeiro — ver
@@ -280,9 +282,13 @@ export function motivoDaRecusaDaEdicao(params: {
   if (params.jaEstornado) return "ja_estornado";
   if (params.papel === "staff") {
     if (!params.ehDoBarbeiro) return "barbeiro_de_outro";
-    if (params.dataDoPagamento !== params.hoje) return "barbeiro_outro_dia";
+    /* "No mesmo dia": o do atendimento OU o em que ele foi fechado — o das
+     * 23h50 fechado depois da meia-noite não pode virar "outro dia". */
+    if (params.dataDoPagamento !== params.hoje && params.criadoEm !== params.hoje) {
+      return "barbeiro_outro_dia";
+    }
     if (params.mexeuNoDesconto) return "desconto_so_dono";
-  } else if (!dentroDaJanela(params.dataDoPagamento, params.hoje)) {
+  } else if (!dentroDaJanela(params.dataDoPagamento, params.hoje, params.criadoEm)) {
     return "fora_da_janela";
   }
   if (params.viraCortesia) return "vira_cortesia";
@@ -425,6 +431,8 @@ export async function gravarEdicao(params: {
   formas?: FormaDePagamento[];
   padraoPct: number;
   hoje: string;
+  /** Fuso da barbearia, para o dia em que o pagamento foi criado. */
+  fuso?: string;
   chave: string;
   autor: string;
 }): Promise<ResultadoDaEdicao> {
@@ -491,6 +499,7 @@ export async function gravarEdicao(params: {
       papel: params.papel,
       ehDoBarbeiro: Boolean(params.staffIdDoAutor) && String(reserva.staffId ?? "") === params.staffIdDoAutor,
       dataDoPagamento: String(pagamentoSnap.get("date") ?? ""),
+      criadoEm: diaDeCriacao(pagamentoSnap.get("createdAt"), params.fuso ?? DEFAULT_LOCALE.timeZone),
       hoje: params.hoje,
       mexeuNoDesconto: barbeiroMexeuNoDesconto(params.desconto, descontoAtual),
       viraCortesia: ehCortesia({ valor: novo.value, desconto: desconto.amount }),
@@ -756,6 +765,7 @@ export const editarCobrancaDoAtendimento = onCall<EdicaoInput>(async (request) =
     formas: formasDoTenant(policies),
     padraoPct: padraoDaCasa(policies),
     hoje: hojeNoFuso(localeDoDocumento(shopSnap.data()).timeZone),
+    fuso: localeDoDocumento(shopSnap.data()).timeZone,
     chave,
     autor: uid,
   });

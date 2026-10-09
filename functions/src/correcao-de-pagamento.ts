@@ -7,7 +7,7 @@ import { idDoPagamento, valoresDoPagamento } from "./payments";
 import { formasDoTenant, type FormaDePagamento } from "./formas-de-pagamento";
 import { competenciaDe } from "./mensalistas";
 import { metodoValido } from "./inventory";
-import { hojeNoFuso, localeDoDocumento } from "./locale";
+import { DEFAULT_LOCALE, hojeNoFuso, localeDoDocumento } from "./locale";
 
 /**
  * R1 — corrigir o pagamento de um atendimento concluído.
@@ -160,8 +160,20 @@ export function camposDaCorrecao(params: {
  * **Não existe fechamento de mês no produto.** A janela é o mês corrente, e o
  * fechamento explícito está registrado como frente futura.
  */
-export function dentroDaJanela(dataDoPagamento: string, hoje: string): boolean {
-  return competenciaDe(String(dataDoPagamento)) === competenciaDe(String(hoje));
+export function dentroDaJanela(dataDoPagamento: string, hoje: string, criadoEm?: string | null): boolean {
+  const mesDeHoje = competenciaDe(String(hoje));
+  if (competenciaDe(String(dataDoPagamento)) === mesDeHoje) return true;
+  /* O atendimento de 30/09 fechado no dia 1º: o fato é de setembro, mas o
+   * pagamento nasceu em outubro, e o dono precisa conseguir corrigir o erro de
+   * quem acabou de fechar. */
+  return !!criadoEm && competenciaDe(criadoEm) === mesDeHoje;
+}
+
+/** O dia (`YYYY-MM-DD`) em que o documento foi criado, no fuso da barbearia. */
+export function diaDeCriacao(createdAt: unknown, timeZone: string): string | null {
+  const c = createdAt as { toDate?: () => Date } | null | undefined;
+  const d = typeof c?.toDate === "function" ? c.toDate() : null;
+  return d && !Number.isNaN(d.getTime()) ? hojeNoFuso(timeZone, d) : null;
 }
 
 /** Por que uma correção não pode acontecer. `null` = pode. */
@@ -194,6 +206,8 @@ export function motivoDaRecusa(params: {
   temReserva: boolean;
   statusDaReserva: string | null | undefined;
   dataDoPagamento: string;
+  /** O dia em que o pagamento foi criado (fuso da barbearia), se conhecido. */
+  criadoEm?: string | null;
   hoje: string;
   metodoAtual: PaymentMethod | null;
   metodoNovo: PaymentMethod;
@@ -217,7 +231,7 @@ export function motivoDaRecusa(params: {
    * revertida o trigger já apagou o pagamento. */
   if (params.statusDaReserva !== "completed") return "nao_concluido";
 
-  if (!dentroDaJanela(params.dataDoPagamento, params.hoje)) return "fora_da_janela";
+  if (!dentroDaJanela(params.dataDoPagamento, params.hoje, params.criadoEm)) return "fora_da_janela";
 
   /* Sem isso o `audit_log` registraria uma correção que não corrigiu nada, e o
    * histórico passaria a ter eventos que não distinguem "o dono conferiu" de
@@ -312,6 +326,8 @@ export async function gravarCorrecao(params: {
   formaId?: string | null;
   /** Hoje no fuso DA BARBEARIA. Define a janela do mês corrente. */
   hoje: string;
+  /** Fuso da barbearia, para o dia em que o pagamento foi criado. */
+  fuso?: string;
   chave: string;
   /** Quem corrigiu. Vai para o `audit_log`, nunca para o `PaymentDoc`. */
   autor: string | null;
@@ -380,6 +396,7 @@ export async function gravarCorrecao(params: {
       temReserva: reservaSnap.exists,
       statusDaReserva: reservaSnap.get("status") as string | null | undefined,
       dataDoPagamento: String(pagamentoSnap.get("date") ?? ""),
+      criadoEm: diaDeCriacao(pagamentoSnap.get("createdAt"), params.fuso ?? DEFAULT_LOCALE.timeZone),
       hoje: params.hoje,
       metodoAtual: (pagamentoSnap.get("paymentMethod") ?? null) as PaymentMethod | null,
       metodoNovo: params.metodo,
@@ -535,6 +552,7 @@ export const corrigirPagamentoDeAtendimento = onCall<CorrecaoInput>(async (reque
     formas,
     formaId: data.paymentFormId ? String(data.paymentFormId) : null,
     hoje,
+    fuso: localeDoDocumento(shopSnap.data()).timeZone,
     chave,
     autor: uid,
   });
