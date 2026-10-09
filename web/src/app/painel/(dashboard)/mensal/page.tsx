@@ -22,6 +22,7 @@ import {
   situacaoNaRegua,
 } from "@/lib/aviso-da-mensalidade";
 import { normalizarWhatsapp } from "@/lib/whatsapp-numero";
+import { contar } from "@/lib/plural";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
 import { Users } from "lucide-react";
@@ -194,7 +195,7 @@ function MensalConteudo() {
                   type="button"
                   disabled={count === 0 && !ativo}
                   aria-pressed={ativo}
-                  aria-label={`${stage}: ${count} ${count === 1 ? "mensalista" : "mensalistas"}`}
+                  aria-label={`${stage}: ${contar(count, "mensalista", "mensalistas")}`}
                   onClick={() => alternarRegua(stage)}
                   className="alvo-toque flex flex-1 flex-col items-center gap-1 disabled:cursor-default md:gap-2"
                 >
