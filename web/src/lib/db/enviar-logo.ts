@@ -81,8 +81,12 @@ export function desenharRecorte(imagem: FonteDoLogo, enquadramento: Enquadrament
 
 /* ── Ajudas automáticas (contas em `lib/analise-do-logo.ts`) ───────────── */
 
-/** Maior lado do canvas de trabalho: o arquivo final tem 512, então 2048 sobra. */
-const LADO_DE_TRABALHO = 2048;
+/** Maior lado do canvas de trabalho: o arquivo final tem 512, e o Safari do iPhone tem pouca memória de canvas. */
+const LADO_DE_TRABALHO = 1024;
+/** Maior lado da cópia onde rodam as contas de análise (fundo, caixa, símbolo). */
+const LADO_DE_ANALISE = 384;
+/** Maior lado da cópia usada para medir contraste. */
+const LADO_DO_CONTRASTE = 256;
 
 function lerPixels(canvas: HTMLCanvasElement): PixelsLike | null {
   try {
@@ -104,29 +108,80 @@ function canvasDePixels(pixels: PixelsLike): HTMLCanvasElement {
   return canvas;
 }
 
-/** A imagem escolhida num canvas de até 2048 px, e o que dá para saber dela. */
+/** Uma cópia de `origem` com o maior lado em no máximo `lado` px (ou `null` sem canvas). */
+function copiaReduzida(origem: HTMLCanvasElement, lado: number): HTMLCanvasElement | null {
+  const k = Math.min(1, lado / Math.max(origem.width, origem.height));
+  const c = document.createElement("canvas");
+  c.width = Math.max(1, Math.round(origem.width * k));
+  c.height = Math.max(1, Math.round(origem.height * k));
+  const ctx = c.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return null;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(origem, 0, 0, c.width, c.height);
+  return c;
+}
+
+/** Devolve a memória de um canvas que ninguém mais vai usar (Safari não a solta sozinho). */
+export function liberarCanvas(c: HTMLCanvasElement) {
+  c.width = 0;
+  c.height = 0;
+}
+
+/** Leva uma caixa medida na cópia reduzida de volta ao canvas de trabalho, sem cortar a borda. */
+function ampliarCaixa(c: Caixa, k: number, largura: number, altura: number): Caixa {
+  const x = Math.max(0, Math.floor(c.x * k));
+  const y = Math.max(0, Math.floor(c.y * k));
+  return {
+    x,
+    y,
+    w: Math.min(largura, Math.ceil((c.x + c.w) * k)) - x,
+    h: Math.min(altura, Math.ceil((c.y + c.h) * k)) - y,
+  };
+}
+
+/** A imagem escolhida num canvas de até 1024 px, e o que dá para saber dela. */
 export type BaseDoLogo = {
   canvas: HTMLCanvasElement;
-  pixels: PixelsLike | null;
+  /** Pixels do canvas de trabalho por pixel do arquivo original. */
+  escala: number;
+  /** SVG: não tem resolução, então o aviso de imagem pequena não vale. */
+  vetorial: boolean;
   analise: AnaliseDoLogo | null;
   /** O símbolo isolado (ou o quadrado de reserva) dentro da caixa do conteúdo. */
   simbolo: { caixa: Caixa; confiavel: boolean } | null;
 };
 
-export function prepararBase(imagem: HTMLImageElement): BaseDoLogo {
-  const escala = Math.min(1, LADO_DE_TRABALHO / Math.max(imagem.naturalWidth, imagem.naturalHeight));
+/**
+ * Desenha a imagem no canvas de trabalho. SVG é rasterizado AUMENTANDO até
+ * 1024 px: no tamanho intrínseco (às vezes 120 px) o PNG de 512 sairia borrado.
+ * As contas rodam numa cópia de 384 px; as caixas voltam ampliadas.
+ */
+export function prepararBase(imagem: HTMLImageElement, vetorial: boolean): BaseDoLogo {
+  const maior = Math.max(imagem.naturalWidth, imagem.naturalHeight);
+  const escala = vetorial ? LADO_DE_TRABALHO / maior : Math.min(1, LADO_DE_TRABALHO / maior);
   const canvas = document.createElement("canvas");
   canvas.width = Math.max(1, Math.round(imagem.naturalWidth * escala));
   canvas.height = Math.max(1, Math.round(imagem.naturalHeight * escala));
-  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas indisponível.");
   ctx.imageSmoothingQuality = "high";
   ctx.drawImage(imagem, 0, 0, canvas.width, canvas.height);
-  const pixels = lerPixels(canvas);
-  const analise = pixels ? analisar(pixels) : null;
-  const simbolo =
-    pixels && analise?.caixa ? caixaDoSimbolo(pixels, analise.fundo, analise.caixa) : null;
-  return { canvas, pixels, analise, simbolo };
+
+  const amostra = copiaReduzida(canvas, LADO_DE_ANALISE);
+  const pixels = amostra ? lerPixels(amostra) : null;
+  let analise: AnaliseDoLogo | null = null;
+  let simbolo: BaseDoLogo["simbolo"] = null;
+  if (pixels && amostra) {
+    const k = canvas.width / amostra.width;
+    const a = analisar(pixels);
+    analise = { ...a, caixa: a.caixa ? ampliarCaixa(a.caixa, k, canvas.width, canvas.height) : null };
+    if (a.caixa) {
+      const s = caixaDoSimbolo(pixels, a.fundo, a.caixa);
+      simbolo = { ...s, caixa: ampliarCaixa(s.caixa, k, canvas.width, canvas.height) };
+    }
+  }
+  if (amostra) liberarCanvas(amostra);
+  return { canvas, escala, vetorial, analise, simbolo };
 }
 
 /**
@@ -138,8 +193,9 @@ export function montarFonte(
   opcoes: { caixa: Caixa | null; semFundo: boolean }
 ): HTMLCanvasElement {
   let origem = base.canvas;
-  if (opcoes.semFundo && base.pixels && base.analise?.podeRemoverFundo) {
-    origem = canvasDePixels(removerFundo(base.pixels, base.analise.fundo));
+  if (opcoes.semFundo && base.analise?.podeRemoverFundo) {
+    const pixels = lerPixels(base.canvas);
+    if (pixels) origem = canvasDePixels(removerFundo(pixels, base.analise.fundo));
   }
   if (!opcoes.caixa) return origem;
   const c = comMargem(opcoes.caixa, 0.06, origem.width, origem.height);
@@ -149,12 +205,15 @@ export function montarFonte(
   const ctx = saida.getContext("2d");
   if (!ctx) throw new Error("Canvas indisponível.");
   ctx.drawImage(origem, c.x, c.y, c.w, c.h, 0, 0, c.w, c.h);
+  if (origem !== base.canvas) liberarCanvas(origem);
   return saida;
 }
 
-/** Quanto do conteúdo some sobre o fundo claro e o escuro do app (0 a 1). */
+/** Quanto do conteúdo some sobre o fundo claro e o escuro do app (0 a 1), medido numa cópia de 256 px. */
 export function apagamentoDoLogo(fonte: HTMLCanvasElement) {
-  const pixels = lerPixels(fonte);
+  const amostra = copiaReduzida(fonte, LADO_DO_CONTRASTE);
+  const pixels = amostra ? lerPixels(amostra) : null;
+  if (amostra) liberarCanvas(amostra);
   if (!pixels) return { claro: 0, escuro: 0 };
   return {
     claro: fracaoApagadaSobre(pixels, FUNDOS_DO_ICONE.claro),

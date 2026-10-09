@@ -17,11 +17,12 @@ import {
   desenharRecorte,
   enviarMarca,
   gerarArquivosDaMarca,
+  liberarCanvas,
   montarFonte,
   prepararBase,
   type BaseDoLogo,
 } from "@/lib/db/enviar-logo";
-import { avisosDoLogo } from "@/lib/analise-do-logo";
+import { avisosDoLogo, temSobraRelevante } from "@/lib/analise-do-logo";
 import {
   FORMATOS_DE_LOGO,
   FUNDOS_DO_ICONE,
@@ -90,7 +91,9 @@ export default function SuaMarcaPage() {
    * enquadra (`imagem`): aparado nas sobras, com ou sem fundo. O monograma
    * entra pelo mesmo `imagem`, e dali segue o caminho do logo enviado. */
   const [original, setOriginal] = useState<HTMLImageElement | null>(null);
-  const [aparar, setAparar] = useState(true);
+  const [vetorial, setVetorial] = useState(false);
+  /* `null` = automático: aparar só quando há sobra relevante (ver `aparando`). */
+  const [aparar, setAparar] = useState<boolean | null>(null);
   const [semFundo, setSemFundo] = useState(false);
   const [noSimbolo, setNoSimbolo] = useState(false);
   const [estiloMonograma, setEstiloMonograma] = useState<EstiloDoMonograma | null>(null);
@@ -125,23 +128,58 @@ export default function SuaMarcaPage() {
   const base = useMemo<BaseDoLogo | null>(() => {
     if (!original) return null;
     try {
-      return prepararBase(original);
+      return prepararBase(original, vetorial);
     } catch (e) {
       console.error("[marca] não consegui analisar a imagem", e);
       return null;
     }
-  }, [original]);
+  }, [original, vetorial]);
 
-  const caixaAparada = aparar && base?.analise?.caixa ? base.analise.caixa : null;
+  /* Canvas é memória que o Safari do iPhone não solta sozinho: devolve o da
+   * base quando ela é trocada, e o monograma antigo quando é redesenhado. */
+  useEffect(() => {
+    if (!base) return;
+    return () => liberarCanvas(base.canvas);
+  }, [base]);
+  useEffect(() => {
+    if (!canvasMonograma) return;
+    return () => liberarCanvas(canvasMonograma);
+  }, [canvasMonograma]);
+
+  const aparando =
+    aparar ??
+    (base?.analise?.caixa
+      ? temSobraRelevante(base.analise.caixa, base.canvas.width, base.canvas.height)
+      : false);
+  const caixaAparada = aparando && base?.analise?.caixa ? base.analise.caixa : null;
   const caixaEscolhida = noSimbolo && base?.simbolo ? base.simbolo.caixa : caixaAparada;
   const podeRemoverFundo = base?.analise?.podeRemoverFundo ?? false;
 
-  const imagem = useMemo<HTMLImageElement | HTMLCanvasElement | null>(() => {
-    if (estiloMonograma) return canvasMonograma;
-    if (!original) return null;
-    if (!base) return original;
-    return montarFonte(base, { caixa: caixaEscolhida, semFundo: semFundo && podeRemoverFundo });
+  /* Se o aparelho não der canvas (memória do Safari), o logo segue inteiro,
+   * como escolhido, e a tela avisa de leve que as ajudas não rodaram. */
+  const montada = useMemo<{ fonte: HTMLImageElement | HTMLCanvasElement | null; falhou: boolean }>(() => {
+    if (estiloMonograma) return { fonte: canvasMonograma, falhou: false };
+    if (!original) return { fonte: null, falhou: false };
+    if (!base) return { fonte: original, falhou: true };
+    try {
+      return {
+        fonte: montarFonte(base, { caixa: caixaEscolhida, semFundo: semFundo && podeRemoverFundo }),
+        falhou: false,
+      };
+    } catch (e) {
+      console.error("[marca] não consegui montar o recorte", e);
+      return { fonte: original, falhou: true };
+    }
   }, [estiloMonograma, canvasMonograma, original, base, caixaEscolhida, semFundo, podeRemoverFundo]);
+  const imagem = montada.fonte;
+
+  /* Recortes derivados (aparados, sem fundo) saem de cena quando a fonte muda. */
+  useEffect(() => {
+    if (!(imagem instanceof HTMLCanvasElement)) return;
+    return () => {
+      if (imagem !== base?.canvas && imagem !== canvasMonograma) liberarCanvas(imagem);
+    };
+  }, [imagem, base, canvasMonograma]);
 
   const enquadramento = ajuste.fonte === imagem ? ajuste.valor : ENQUADRAMENTO_INICIAL;
   const setEnquadramento = (valor: Enquadramento) => setAjuste({ fonte: imagem, valor });
@@ -180,15 +218,18 @@ export default function SuaMarcaPage() {
     if (!imagem) return [];
     const apagamento = imagem instanceof HTMLCanvasElement ? apagamentoDoLogo(imagem) : { claro: 0, escuro: 0 };
     const caixa = estiloMonograma ? null : noSimbolo && base?.simbolo ? base.simbolo.caixa : caixaAparada;
-    const largura = caixa?.w ?? (estiloMonograma ? 512 : base?.canvas.width ?? original?.naturalWidth ?? 0);
-    const altura = caixa?.h ?? (estiloMonograma ? 512 : base?.canvas.height ?? original?.naturalHeight ?? 0);
+    /* Medidas em pixels do ARQUIVO: a base de trabalho pode estar reduzida. */
+    const escala = base?.escala ?? 1;
+    const largura = estiloMonograma ? 512 : (caixa?.w ?? base?.canvas.width ?? original?.naturalWidth ?? 0) / escala;
+    const altura = estiloMonograma ? 512 : (caixa?.h ?? base?.canvas.height ?? original?.naturalHeight ?? 0) / escala;
     return avisosDoLogo({
+      vetorial: vetorial && !estiloMonograma,
       largura,
       altura,
       apagadoNoClaro: apagamento.claro,
       apagadoNoEscuro: apagamento.escuro,
     });
-  }, [imagem, estiloMonograma, noSimbolo, base, caixaAparada, original]);
+  }, [imagem, estiloMonograma, noSimbolo, base, caixaAparada, original, vetorial]);
   const avaliacao = avaliarCor(cor);
 
   const temLogoProprio = brand.logo !== MARCA_GERADA;
@@ -229,9 +270,10 @@ export default function SuaMarcaPage() {
     try {
       const nova = await carregarImagem(arquivo);
       setOriginal(nova);
+      setVetorial(arquivo.type === "image/svg+xml");
       setEstiloMonograma(null);
       setCanvasMonograma(null);
-      setAparar(true);
+      setAparar(null);
       setSemFundo(false);
       setNoSimbolo(false);
       setRemover(false);
@@ -446,7 +488,7 @@ export default function SuaMarcaPage() {
                 <p className="text-xs font-medium text-ink">Ajudas automáticas</p>
                 <div className="flex flex-wrap gap-2">
                   {base?.analise?.caixa && (
-                    <AjudaBotao ativo={aparar} onClick={() => setAparar((v) => !v)}>
+                    <AjudaBotao ativo={aparando} onClick={() => setAparar(!aparando)}>
                       <ScanSearch size={14} aria-hidden /> Recortar as sobras
                     </AjudaBotao>
                   )}
@@ -466,6 +508,12 @@ export default function SuaMarcaPage() {
                   {semFundo && " O fundo é apagado pela cor das bordas; se comer parte do desenho, desligue."}
                 </p>
               </div>
+            )}
+
+            {montada.falhou && (
+              <p role="status" className="text-xs text-ink-muted">
+                Neste aparelho não consegui aplicar as ajudas automáticas. O logo vai inteiro, como você escolheu.
+              </p>
             )}
 
             {avisosDoEnvio.length > 0 && (

@@ -37,7 +37,7 @@ export function PreviaEmTamanhoReal({
           >
             <div className="flex items-center gap-3">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={logo} alt="" width={38} height={38} className="h-[38px] w-[38px] shrink-0 rounded-lg object-contain" />
+              <img src={logo} alt="" width={38} height={38} className="h-[38px] w-[38px] shrink-0 rounded-md object-contain" />
               <div className="min-w-0 leading-tight">
                 <p className="truncate font-display text-base uppercase tracking-wider" style={{ color: t.tinta }}>
                   {nomeCurto || "—"}

@@ -125,6 +125,20 @@ export function caixaDoConteudo(img: PixelsLike, fundo: FundoDetectado, toleranc
   return caixaDoPerfil(colunas, linhas);
 }
 
+/**
+ * Há sobra que valha aparar? Só quando alguma borda de fundo passa de
+ * `minimo` (10%) do lado correspondente — senão aparar só mexe, sem ganho, no
+ * enquadramento de quem já subiu um logo justo.
+ */
+export function temSobraRelevante(caixa: Caixa, largura: number, altura: number, minimo = 0.1) {
+  return (
+    caixa.x / largura > minimo ||
+    (largura - caixa.x - caixa.w) / largura > minimo ||
+    caixa.y / altura > minimo ||
+    (altura - caixa.y - caixa.h) / altura > minimo
+  );
+}
+
 /** Alarga a caixa em `fracao` do maior lado, sem sair da imagem. */
 export function comMargem(caixa: Caixa, fracao: number, largura: number, altura: number): Caixa {
   const m = Math.round(Math.max(caixa.w, caixa.h) * fracao);
@@ -333,6 +347,8 @@ export function avisosDoLogo(e: {
   altura: number;
   apagadoNoClaro: number;
   apagadoNoEscuro: number;
+  /** SVG não tem resolução: nunca "borrado". */
+  vetorial?: boolean;
 }): AvisoDoLogo[] {
   const avisos: AvisoDoLogo[] = [];
   if (e.altura > 0 && e.largura / e.altura > PROPORCAO_HORIZONTAL) {
@@ -343,7 +359,7 @@ export function avisosDoLogo(e: {
       acao: "simbolo",
     });
   }
-  if (Math.min(e.largura, e.altura) < LADO_MINIMO_DO_CONTEUDO) {
+  if (!e.vetorial && Math.min(e.largura, e.altura) < LADO_MINIMO_DO_CONTEUDO) {
     avisos.push({
       id: "baixa",
       texto: `A imagem é pequena (menos de ${LADO_MINIMO_DO_CONTEUDO} px no lado menor). Ao ampliar para o ícone ela vai ficar borrada. Se puder, envie uma versão maior.`,

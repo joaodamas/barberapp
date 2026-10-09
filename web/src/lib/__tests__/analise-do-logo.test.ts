@@ -8,6 +8,7 @@ import {
   detectarFundo,
   fracaoApagadaSobre,
   removerFundo,
+  temSobraRelevante,
   type PixelsLike,
 } from "@/lib/analise-do-logo";
 import { svgDoMonogramaEstilo, ESTILOS_DO_MONOGRAMA } from "@/lib/monograma";
@@ -80,6 +81,14 @@ describe("caixaDoConteudo", () => {
 describe("comMargem", () => {
   it("alarga sem sair da imagem", () => {
     expect(comMargem({ x: 5, y: 5, w: 100, h: 50 }, 0.1, 120, 70)).toEqual({ x: 0, y: 0, w: 115, h: 65 });
+  });
+});
+
+describe("temSobraRelevante", () => {
+  it("só quando alguma borda passa de 10% do lado", () => {
+    expect(temSobraRelevante({ x: 5, y: 5, w: 90, h: 90 }, 100, 100)).toBe(false);
+    expect(temSobraRelevante({ x: 20, y: 5, w: 75, h: 90 }, 100, 100)).toBe(true);
+    expect(temSobraRelevante({ x: 5, y: 5, w: 90, h: 70 }, 100, 100)).toBe(true);
   });
 });
 
@@ -185,6 +194,10 @@ describe("avisosDoLogo", () => {
   it("lado menor abaixo de 256 px avisa de borrado", () => {
     expect(avisosDoLogo({ ...ok, largura: 300, altura: 255 }).map((a) => a.id)).toEqual(["baixa"]);
     expect(avisosDoLogo({ ...ok, largura: 300, altura: 256 })).toEqual([]);
+  });
+
+  it("SVG nunca avisa de resolução baixa", () => {
+    expect(avisosDoLogo({ ...ok, largura: 120, altura: 100, vetorial: true })).toEqual([]);
   });
 
   it("pouco contraste avisa em qual tema", () => {
