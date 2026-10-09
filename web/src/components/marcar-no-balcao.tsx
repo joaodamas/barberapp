@@ -57,6 +57,8 @@ export function MarcarNoBalcao({
   diaInicial,
   soBarbeiro,
   clienteInicial,
+  barbeiroInicial,
+  horaInicial,
 }: {
   open: boolean;
   onClose: () => void;
@@ -69,6 +71,10 @@ export function MarcarNoBalcao({
   soBarbeiro?: string;
   /** Cliente que já vem escolhido — "Marcar horário" na ficha de Clientes. */
   clienteInicial?: Doc<ClientDoc>;
+  /** "Livre · marcar" da grade por barbeiro: já vem com o barbeiro da coluna… */
+  barbeiroInicial?: string;
+  /** …e com a hora da linha. Quem abre remonta o componente (`key`) a cada vez. */
+  horaInicial?: string;
 }) {
   const tenant = useTenant();
   const { items: servicos } = useServices();
@@ -80,7 +86,7 @@ export function MarcarNoBalcao({
     const i = diaInicial ? dias.findIndex((d) => d.iso === diaInicial && !d.disabled) : -1;
     return i >= 0 ? i : firstBookableIndex(dias);
   });
-  const [hora, setHora] = useState<string | null>(null);
+  const [hora, setHora] = useState<string | null>(horaInicial ?? null);
   /* Encaixe do balcão (01/10): hora livre digitada, mesmo por cima de outro
    * cliente. Já nasce confirmado — quem decide que cabe é o barbeiro. */
   const [encaixando, setEncaixando] = useState(false);
@@ -94,7 +100,7 @@ export function MarcarNoBalcao({
   const [criandoNovo, setCriandoNovo] = useState(false);
 
   const [servicosEscolhidos, setServicosEscolhidos] = useState<string[]>([]);
-  const [barbeiroClicado, setBarbeiroClicado] = useState<string | null>(null);
+  const [barbeiroClicado, setBarbeiroClicado] = useState<string | null>(barbeiroInicial ?? null);
 
   const [resposta, setResposta] = useState<{ chave: string; slots: string[]; falhou: boolean } | null>(null);
   /* Cada "Tentar de novo" é uma busca nova: entra na chave, e a resposta que
