@@ -290,10 +290,18 @@ export function resumoDeDespesas(expenses: Doc<ExpenseDoc>[], periodo: Periodo) 
     if (valor > maiorCategoria.valor) maiorCategoria = { categoria, valor };
   }
 
+  /* "Recorrentes" é o que está VIGENTE no mês — a mesma conta do custo fixo do
+   * DRE. Recortar pelo mês do lançamento mostrava R$ 0 em novembro para o
+   * aluguel lançado em agosto, enquanto o DRE o contava: o dono achava que
+   * tinha esquecido e lançava em dobro. */
+  const vigentes = despesasRecorrentesVigentes(expenses, periodo.fim);
+
   return {
     lancamentos: doPeriodo.length,
     total: doPeriodo.reduce((s, e) => s + e.value, 0),
-    recorrentes: doPeriodo.filter((e) => e.recurring).reduce((s, e) => s + e.value, 0),
+    recorrentes: vigentes.reduce((s, e) => s + e.value, 0),
+    /** As vigentes lançadas antes do mês: valem nele mas não estão na lista. */
+    recorrentesDeAntes: vigentes.filter((e) => !dentroDoPeriodo(e.date, periodo)),
     maiorCategoria,
     /** A lista já recortada, para a tabela não refazer o filtro. */
     itens: doPeriodo,

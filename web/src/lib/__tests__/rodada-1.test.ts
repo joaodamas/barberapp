@@ -228,6 +228,25 @@ describe("P1-1 · resumo de despesas", () => {
     expect(resumoDeDespesas(comOutroMes, periodo).total).toBe(2550);
   });
 
+  it("recorrente lançada em mês anterior segue vigente — como no custo fixo do DRE", () => {
+    const aluguelDeAntes = {
+      id: "D98",
+      category: "Aluguel",
+      description: "Aluguel da sala",
+      supplier: "Imobiliária",
+      value: 1800,
+      date: "2026-01-05",
+      payment: "Boleto" as const,
+      recurring: true,
+    };
+    const r = resumoDeDespesas([aluguelDeAntes], periodo);
+    expect(r.recorrentes).toBe(1800);
+    expect(r.recorrentesDeAntes.map((e) => e.id)).toEqual(["D98"]);
+    // O total e a lista continuam sendo o que foi LANÇADO no mês.
+    expect(r.total).toBe(0);
+    expect(r.itens).toHaveLength(0);
+  });
+
   it("mês sem lançamento devolve zero, não NaN", () => {
     const vazio = resumoDeDespesas([], periodo);
     expect(vazio.total).toBe(0);
