@@ -318,6 +318,41 @@ export function movimentoDeDevolucao(params: {
  */
 export type ItemDaVenda = { productId: string; quantity: number };
 
+/**
+ * A chave de repetição não confere o pedido — a mesma falha que o #140 fechou
+ * na reserva (`divergenciaDaRepeticao`). Reusar a chave com OUTRO carrinho
+ * devolvia "venda registrada" sem registrar o que a tela mandou agora.
+ *
+ * `gravadas` são as quantidades dos movimentos que já existem sob a chave
+ * (`null` = a linha não existe). Qualquer diferença com o pedido é recusada;
+ * movimento antigo sem `quantity` numérico não é comparado.
+ */
+export function divergenciaDaVendaRepetida(
+  gravadas: Array<number | null>,
+  itens: ItemDaVenda[]
+): string | null {
+  const diferente =
+    gravadas.length !== itens.length ||
+    gravadas.some((q, i) => q === null || (Number.isFinite(q) && q !== itens[i]!.quantity));
+  return diferente
+    ? "Essa venda já foi registrada com outro pedido. Confira o estoque e a lista de vendas antes de tentar de novo."
+    : null;
+}
+
+/** O mesmo, para a entrada de estoque (produto, quantidade e custo da compra). */
+export function divergenciaDaEntradaRepetida(
+  gravada: { productId?: unknown; quantity?: unknown; unitCost?: unknown },
+  pedido: { productId: string; quantity: number; unitCost: number }
+): string | null {
+  const diferente =
+    gravada.productId !== pedido.productId ||
+    (typeof gravada.quantity === "number" && gravada.quantity !== pedido.quantity) ||
+    (typeof gravada.unitCost === "number" && gravada.unitCost !== pedido.unitCost);
+  return diferente
+    ? "Essa entrada já foi registrada com outros dados. Confira o estoque antes de tentar de novo."
+    : null;
+}
+
 export async function gravarVendaComTravaDeEstoque(params: {
   db: FirebaseFirestore.Firestore;
   shopRef: FirebaseFirestore.DocumentReference;
@@ -414,6 +449,11 @@ export async function gravarVendaComTravaDeEstoque(params: {
      * Basta UMA linha existir: a venda é atômica, então ou todas foram
      * gravadas ou nenhuma foi. */
     if (lidos.some((l) => l.jaExiste.exists)) {
+      const divergencia = divergenciaDaVendaRepetida(
+        lidos.map((l) => (l.jaExiste.exists ? Number(l.jaExiste.get("quantity")) : null)),
+        lidos.map((l) => l.item)
+      );
+      if (divergencia) throw new HttpsError("failed-precondition", divergencia);
       return {
         movementIds: lidos.map((l) => l.movementRef.id),
         value: lidos.reduce((s, l) => s + (Number(l.jaExiste.get("value")) || 0), 0),
@@ -743,6 +783,15 @@ export async function gravarCompraComEntradaDeEstoque(params: {
     ]);
 
     if (jaExiste.exists) {
+      const divergencia = divergenciaDaEntradaRepetida(
+        {
+          productId: jaExiste.get("productId"),
+          quantity: jaExiste.get("quantity"),
+          unitCost: jaExiste.get("unitCost"),
+        },
+        { productId, quantity, unitCost: params.unitCost }
+      );
+      if (divergencia) throw new HttpsError("failed-precondition", divergencia);
       return {
         movementId: movementRef.id,
         value: Number(jaExiste.get("value")) || 0,

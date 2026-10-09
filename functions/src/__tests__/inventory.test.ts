@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   custoMedioPonderado,
+  divergenciaDaEntradaRepetida,
+  divergenciaDaVendaRepetida,
   estoqueSuficiente,
   movimentoDeCompra,
   metodoValido,
@@ -273,5 +275,33 @@ describe("G1.5 · o movimento de compra", () => {
   it("não carrega cliente nem atendimento", () => {
     expect(compra.clientId).toBeNull();
     expect(compra.bookingId).toBeNull();
+  });
+});
+
+describe("repetição com a mesma chave e pedido diferente", () => {
+  const itens = [
+    { productId: "pomada", quantity: 2 },
+    { productId: "gel", quantity: 1 },
+  ];
+
+  it("a venda repetida igual passa; carrinho diferente é recusado", () => {
+    expect(divergenciaDaVendaRepetida([2, 1], itens)).toBeNull();
+    expect(divergenciaDaVendaRepetida([2, 3], itens)).not.toBeNull();
+    // Carrinho cresceu: a segunda linha não existe sob a chave.
+    expect(divergenciaDaVendaRepetida([2, null], itens)).not.toBeNull();
+    // Carrinho encolheu: sobraram movimentos gravados.
+    expect(divergenciaDaVendaRepetida([2, 1], [itens[0]!])).not.toBeNull();
+  });
+
+  it("movimento antigo sem quantidade legível não bloqueia o retry", () => {
+    expect(divergenciaDaVendaRepetida([Number.NaN, 1], itens)).toBeNull();
+  });
+
+  it("a entrada repetida confere produto, quantidade e custo", () => {
+    const gravada = { productId: "pomada", quantity: 10, unitCost: 18 };
+    expect(divergenciaDaEntradaRepetida(gravada, { productId: "pomada", quantity: 10, unitCost: 18 })).toBeNull();
+    expect(divergenciaDaEntradaRepetida(gravada, { productId: "pomada", quantity: 12, unitCost: 18 })).not.toBeNull();
+    expect(divergenciaDaEntradaRepetida(gravada, { productId: "pomada", quantity: 10, unitCost: 20 })).not.toBeNull();
+    expect(divergenciaDaEntradaRepetida(gravada, { productId: "gel", quantity: 10, unitCost: 18 })).not.toBeNull();
   });
 });
