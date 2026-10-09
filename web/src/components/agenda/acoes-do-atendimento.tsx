@@ -32,6 +32,7 @@ import type { BookingDoc, MotivoDoDesconto, SubscriberDoc, TipoDeDesconto } from
 /** O que o fechamento mostra do plano — o recorte de `planoDoAtendimento`. */
 type PlanoNoFechamento = Pick<SubscriberDoc, "planName" | "unlimited" | "servicesIncluded">;
 import type { Doc } from "@/lib/db/repository";
+import { mensagemDaFuncao } from "@/lib/mensagem-da-funcao";
 
 /**
  * O que o dono faz com UM atendimento — concluir, marcar falta, cancelar,
@@ -320,7 +321,7 @@ export function useAcoesDoAtendimento() {
     } catch (err) {
       console.error("[hoje] falha ao cancelar", err);
       setErroCancelar(
-        (err as { message?: string })?.message ?? "Não foi possível cancelar agora."
+        mensagemDaFuncao(err, "Não foi possível cancelar agora.")
       );
     } finally {
       setCancelando(false);
@@ -337,7 +338,7 @@ export function useAcoesDoAtendimento() {
       await callFunction("apagarSemanaDoFixo", { barbershopId: tenant.id, bookingId: booking.id });
       setAApagar(null);
     } catch (err) {
-      setErroApagar((err as { message?: string })?.message ?? "Não foi possível apagar agora.");
+      setErroApagar(mensagemDaFuncao(err, "Não foi possível apagar agora."));
     } finally {
       setApagando(false);
     }
@@ -393,7 +394,7 @@ export function useAcoesDoAtendimento() {
       setRespostaEncaixe({ booking, status: r.status, sugestoes });
     } catch (err) {
       setRespostaEncaixe({
-        erro: (err as { message?: string })?.message ?? "Não foi possível responder agora. Nada foi alterado.",
+        erro: mensagemDaFuncao(err, "Não foi possível responder agora. Nada foi alterado."),
       });
     } finally {
       setRespondendoEncaixe(false);
@@ -441,7 +442,7 @@ export function useAcoesDoAtendimento() {
             const href = linkDoAvisoDeCancelamento(cancelado);
             return href ? (
               <a href={href} target="_blank" rel="noopener noreferrer" className="self-start">
-                <Button variant="secondary">
+                <Button>
                   Avisar {cancelado.clientName.split(" ")[0]} no WhatsApp
                 </Button>
               </a>
@@ -868,7 +869,9 @@ export function useAcoesDoAtendimento() {
         <p className="mb-2 text-sm text-ink-muted">{devolucao?.label}</p>
         <p className="mb-5 text-sm text-ink-muted">
           O horário volta a ficar livre na agenda e sai da previsão do dia. O
-          cliente é avisado pelo WhatsApp em seguida.
+          Topete não avisa o cliente sozinho: depois de cancelar, aparece o
+          botão &ldquo;Avisar no WhatsApp&rdquo; com a mensagem pronta, e você
+          envia com um toque.
         </p>
         {erroCancelar && (
           <p className="mb-4 text-sm text-danger" role="alert">

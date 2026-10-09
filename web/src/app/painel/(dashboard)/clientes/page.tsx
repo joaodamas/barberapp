@@ -5,12 +5,19 @@ import { Search, Users } from "lucide-react";
 import { Pill } from "@/components/ui/pill";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
+import { Segmented } from "@/components/ui/segmented";
+import { MarcarNoBalcao } from "@/components/marcar-no-balcao";
 import { FidelidadeNaFicha } from "@/components/fidelidade-na-ficha";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
 import { formatBRL, formatDatePtBR, toISODate } from "@/lib/format";
 import { contar } from "@/lib/plural";
-import { mascararWhatsapp } from "@/lib/whatsapp-numero";
+import { mascararWhatsapp, normalizarWhatsapp } from "@/lib/whatsapp-numero";
+import {
+  filtrarFichas,
+  ROTULO_DO_FILTRO,
+  type FiltroDeClientes,
+} from "@/lib/filtro-de-clientes";
 import { combinaComBusca } from "@/lib/clientes-busca";
 import {
   listaDeClientes,
@@ -21,12 +28,14 @@ import {
 import { useTenant } from "@/lib/tenant-context";
 import { DireitosDoTitular } from "@/components/direitos-do-titular";
 import {
+  combineStatus,
   useBookings,
   useClients,
   useInventoryMovements,
   useRefunds,
   useSubscribers,
 } from "@/lib/db/use-shop-data";
+import { mensagemDaFuncao } from "@/lib/mensagem-da-funcao";
 
 /**
  * Clientes — D26.
@@ -54,15 +63,30 @@ import {
  * classe de defeito de `dueStage`, campo que envelhece e ninguém atualiza.
  */
 export default function ClientesPage() {
-  const { items: clientes, status, error } = useClients();
-  const { items: bookings } = useBookings();
-  const { items: movements } = useInventoryMovements();
-  const { items: subscribers } = useSubscribers();
+  const lidoClientes = useClients();
+  const lidoBookings = useBookings();
+  const lidoMovements = useInventoryMovements();
+  const lidoSubscribers = useSubscribers();
   /* Devoluções abatem o gasto da ficha (08/10). */
-  const { items: refunds } = useRefunds();
+  const lidoRefunds = useRefunds();
+  const { items: clientes } = lidoClientes;
+  const { items: bookings } = lidoBookings;
+  const { items: movements } = lidoMovements;
+  const { items: subscribers } = lidoSubscribers;
+  const { items: refunds } = lidoRefunds;
+  /* "Há 47 dias", visitas e gasto saem das CINCO leituras juntas. Só a lista
+   * era conferida: com os atendimentos falhando, todo cliente aparecia como
+   * "nunca veio" — o dono lia isso como "ninguém voltou". */
+  const status = combineStatus(lidoClientes, lidoBookings, lidoMovements, lidoSubscribers, lidoRefunds);
+  const error = [lidoClientes, lidoBookings, lidoMovements, lidoSubscribers, lidoRefunds].find(
+    (l) => l.status === "erro"
+  )?.error;
 
   const tenant = useTenant();
   const [busca, setBusca] = useState("");
+  const [filtro, setFiltro] = useState<FiltroDeClientes>("todos");
+  /* "Marcar horário" da ficha: abre o balcão já com este cliente. */
+  const [marcandoPara, setMarcandoPara] = useState<FichaDoCliente | null>(null);
   const [aberta, setAberta] = useState<FichaDoCliente | null>(null);
   const [vinculando, setVinculando] = useState<ParDeMesmoNumero | null>(null);
   const [salvandoVinculo, setSalvandoVinculo] = useState(false);
@@ -79,8 +103,8 @@ export default function ClientesPage() {
   );
 
   const encontrados = useMemo(
-    () => fichas.filter((f) => combinaComBusca(f.cliente, busca)),
-    [fichas, busca]
+    () => filtrarFichas(fichas, filtro).filter((f) => combinaComBusca(f.cliente, busca)),
+    [fichas, filtro, busca]
   );
 
   /* Conta do app e balcão com o mesmo número (02/10): os dois aparecem, mas
@@ -109,7 +133,7 @@ export default function ClientesPage() {
       });
       setVinculando(null);
     } catch (err) {
-      setErroDoVinculo((err as { message?: string })?.message ?? "Não foi possível vincular agora.");
+      setErroDoVinculo(mensagemDaFuncao(err, "Não foi possível vincular agora."));
     } finally {
       setSalvandoVinculo(false);
     }
@@ -119,7 +143,7 @@ export default function ClientesPage() {
     <div className="flex flex-col gap-6 pt-1 md:gap-8 md:pt-2">
       <div>
         <p className="text-sm text-ink-muted md:text-base">
-          {contar(clientes.length, "cadastrado", "cadastrados")}
+          {status === "pronto" ? contar(clientes.length, "cadastrado", "cadastrados") : "\u00a0"}
         </p>
         <h1 className="text-xl text-ink md:text-4xl md:tracking-tight">Clientes</h1>
       </div>
@@ -137,7 +161,7 @@ export default function ClientesPage() {
         />
       )}
 
-      {clientes.length > 0 && (
+      {status === "pronto" && clientes.length > 0 && (
         <>
           <div className="flex items-center gap-2 rounded-xl border border-border bg-surface px-3">
             <Search size={16} className="text-ink-muted" />
@@ -145,9 +169,20 @@ export default function ClientesPage() {
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
               placeholder="Buscar por nome ou WhatsApp"
+              aria-label="Buscar cliente por nome ou WhatsApp"
               className="min-h-11 flex-1 bg-transparent text-sm text-ink placeholder:text-ink-muted"
             />
           </div>
+
+          <Segmented
+            label="Filtrar clientes"
+            value={filtro}
+            onChange={setFiltro}
+            options={(Object.keys(ROTULO_DO_FILTRO) as FiltroDeClientes[]).map((v) => ({
+              value: v,
+              label: ROTULO_DO_FILTRO[v],
+            }))}
+          />
 
           {pares.length > 0 && (
             <div className="rounded-2xl border border-gold/40 bg-gold/5 p-3 text-sm text-ink md:p-4">
@@ -161,9 +196,13 @@ export default function ClientesPage() {
             </div>
           )}
 
-          {busca && encontrados.length === 0 && (
+          {(busca || filtro !== "todos") && encontrados.length === 0 && (
             <p className="text-sm text-ink-muted">
-              Ninguém com esse nome ou número.
+              {busca
+                ? "Ninguém com esse nome ou número neste filtro."
+                : filtro === "sumidos"
+                  ? "Ninguém sumido há 30 dias ou mais."
+                  : "Nenhum mensalista ativo."}
             </p>
           )}
 
@@ -216,7 +255,8 @@ export default function ClientesPage() {
                   </span>
                   <Button
                     variant="secondary"
-                    className="min-h-8 shrink-0 px-3 text-xs"
+                    size="sm"
+                    className="shrink-0"
                     onClick={() => {
                       setVinculando(parPorCadastro.get(f.cliente.id)!.par);
                       setErroDoVinculo(null);
@@ -277,6 +317,14 @@ export default function ClientesPage() {
         )}
       </Modal>
 
+      {marcandoPara && (
+        <MarcarNoBalcao
+          open
+          clienteInicial={marcandoPara.cliente}
+          onClose={() => setMarcandoPara(null)}
+        />
+      )}
+
       {/* ---- A ficha ---- */}
       <Modal
         open={!!aberta}
@@ -290,6 +338,37 @@ export default function ClientesPage() {
       >
         {aberta && (
           <div className="flex flex-col gap-4">
+            {/* Ações da ficha: falar com o cliente e marcar o próximo horário.
+                Sem WhatsApp no cadastro não há botão — e a ficha diz isso. */}
+            <div className="flex gap-2">
+              {normalizarWhatsapp(aberta.cliente.whatsapp) ? (
+                <a
+                  href={`https://wa.me/${normalizarWhatsapp(aberta.cliente.whatsapp)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1"
+                >
+                  <Button variant="secondary" className="w-full">
+                    WhatsApp
+                  </Button>
+                </a>
+              ) : (
+                <p className="flex-1 self-center text-xs text-ink-muted">
+                  Sem WhatsApp no cadastro: não dá para chamar por aqui.
+                </p>
+              )}
+              <Button
+                className="flex-1"
+                onClick={() => {
+                  const ficha = aberta;
+                  setAberta(null);
+                  setMarcandoPara(ficha);
+                }}
+              >
+                Marcar horário
+              </Button>
+            </div>
+
             <div className="grid grid-cols-2 gap-2">
               <Dado rotulo="Visitas" valor={String(aberta.visitas)} />
               <Dado

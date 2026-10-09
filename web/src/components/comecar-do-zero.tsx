@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { useTenant } from "@/lib/tenant-context";
 import { formatDatePtBR } from "@/lib/format";
+import { mensagemDaFuncao } from "@/lib/mensagem-da-funcao";
 import { contar, plural } from "@/lib/plural";
 
 /**
@@ -55,7 +56,7 @@ export function ComecarDoZero() {
       });
       setPrevia(r);
     } catch (e) {
-      setErro(e instanceof Error ? e.message : "Não consegui contar o que existe agora.");
+      setErro(mensagemDaFuncao(e, "Não consegui contar o que existe agora."));
     } finally {
       setCarregando(false);
     }
@@ -73,7 +74,7 @@ export function ComecarDoZero() {
       setFeito(r);
       setPalavra("");
     } catch (e) {
-      setErro(e instanceof Error ? e.message : "Não consegui apagar agora.");
+      setErro(mensagemDaFuncao(e, "Não consegui apagar agora."));
     } finally {
       setZerando(false);
     }

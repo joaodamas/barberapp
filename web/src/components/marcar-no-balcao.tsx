@@ -14,6 +14,7 @@ import { filtrarClientes } from "@/lib/clientes-busca";
 import { quemFaz } from "@/lib/quem-faz";
 import type { Doc } from "@/lib/db/repository";
 import type { ClientDoc } from "@/lib/domain";
+import { mensagemDaFuncao } from "@/lib/mensagem-da-funcao";
 
 /**
  * D13 — o dono marca um atendimento para quem chegou no balcão ou ligou.
@@ -55,6 +56,7 @@ export function MarcarNoBalcao({
   aoVerNaAgenda,
   diaInicial,
   soBarbeiro,
+  clienteInicial,
 }: {
   open: boolean;
   onClose: () => void;
@@ -65,6 +67,8 @@ export function MarcarNoBalcao({
   diaInicial?: string;
   /** Painel do barbeiro (05/10): ele marca só na própria agenda. */
   soBarbeiro?: string;
+  /** Cliente que já vem escolhido — "Marcar horário" na ficha de Clientes. */
+  clienteInicial?: Doc<ClientDoc>;
 }) {
   const tenant = useTenant();
   const { items: servicos } = useServices();
@@ -82,7 +86,9 @@ export function MarcarNoBalcao({
   const [encaixando, setEncaixando] = useState(false);
 
   const [busca, setBusca] = useState("");
-  const [clienteEscolhido, setClienteEscolhido] = useState<Doc<ClientDoc> | null>(null);
+  const [clienteEscolhido, setClienteEscolhido] = useState<Doc<ClientDoc> | null>(
+    clienteInicial ?? null
+  );
   const [nomeNovo, setNomeNovo] = useState("");
   const [whatsappNovo, setWhatsappNovo] = useState("");
   const [criandoNovo, setCriandoNovo] = useState(false);
@@ -225,6 +231,17 @@ export function MarcarNoBalcao({
     onClose();
   }
 
+  /* O que se perderia ao fechar: o toque no fundo apagava o formulário inteiro
+   * (limpar() roda em fechar). Com algo escolhido ou digitado, o modal pergunta
+   * antes. O dia que já vem de fora não conta como "preenchido". */
+  const temAlteracao =
+    hora !== null ||
+    servicosEscolhidos.length > 0 ||
+    (clienteEscolhido !== null && clienteEscolhido.id !== clienteInicial?.id) ||
+    busca.trim() !== "" ||
+    nomeNovo.trim() !== "" ||
+    whatsappNovo.trim() !== "";
+
   const clienteOk = clienteEscolhido !== null || (criandoNovo && nomeNovo.trim().length > 1);
   const podeConfirmar =
     !!dia && !!hora && clienteOk && servicosEscolhidos.length > 0 && !!barbeiroId;
@@ -255,12 +272,11 @@ export function MarcarNoBalcao({
       setPronto(true);
       aoMarcar?.(r);
     } catch (err) {
-      /* O erro do servidor aparece COMO ELE VEIO. Trocar por "não foi possível"
-       * esconderia justamente o que o dono precisa saber: horário tomado, teto
-       * de reservas do cliente, barbeiro que não faz o serviço. */
+      /* A recusa que o servidor escreveu em português aparece COMO ELA VEIO:
+       * horário tomado, teto de reservas do cliente, barbeiro que não faz o
+       * serviço. Só o jargão ("internal", "deadline-exceeded") é trocado. */
       setErro(
-        (err as { message?: string })?.message ??
-          "Não foi possível marcar agora. Tente de novo."
+        mensagemDaFuncao(err, "Não foi possível marcar agora. Tente de novo.")
       );
     } finally {
       setSalvando(false);
@@ -315,6 +331,7 @@ export function MarcarNoBalcao({
     <Modal
       open={open}
       onClose={fechar}
+      protegerFechamento={temAlteracao}
       title="Marcar atendimento"
       description="Para quem chegou no balcão ou ligou"
       footer={

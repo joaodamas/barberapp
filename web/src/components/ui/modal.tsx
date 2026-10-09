@@ -1,9 +1,17 @@
 "use client";
 
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
+
+/**
+ * Os modais abertos, do mais antigo ao mais novo. O listener de teclado vive no
+ * `document`, então com dois modais empilhados (um formulário e, por cima, a
+ * confirmação) um Esc fechava OS DOIS. Só o de cima responde.
+ */
+const pilhaDeModais: string[] = [];
 
 export function Modal({
   open,
@@ -13,6 +21,7 @@ export function Modal({
   children,
   footer,
   className,
+  protegerFechamento = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -21,9 +30,34 @@ export function Modal({
   children: React.ReactNode;
   footer?: React.ReactNode;
   className?: string;
+  /**
+   * Há algo digitado/escolhido que se perderia ao fechar. Com `true`, fechar
+   * pelo fundo, pelo Esc ou pelo X pede confirmação DENTRO do modal em vez de
+   * descartar em silêncio (o toque sem querer no fundo apagava o formulário do
+   * balcão inteiro). Botões do próprio consumidor ("Voltar", "Cancelar") seguem
+   * chamando `onClose` direto: ali a pessoa já decidiu.
+   */
+  protegerFechamento?: boolean;
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const id = useId();
+  /* O id na pilha vai por ref: o efeito do foco só pode depender de `open`. */
+  const idNaPilha = useRef(id);
+  const [confirmandoSaida, setConfirmandoSaida] = useState(false);
+  /* Refs pelo mesmo motivo de `onCloseRef`: o efeito do foco só depende de
+   * `open`, e precisa enxergar o valor de agora. */
+  const protegerRef = useRef(protegerFechamento);
+  const confirmandoRef = useRef(confirmandoSaida);
+  useEffect(() => {
+    protegerRef.current = protegerFechamento;
+    confirmandoRef.current = confirmandoSaida;
+  }, [protegerFechamento, confirmandoSaida]);
+
+  /* Fundo, X e Esc passam por aqui. */
+  function pedirParaFechar() {
+    if (protegerFechamento) setConfirmandoSaida(true);
+    else onClose();
+  }
 
   /* `onClose` numa ref, e FORA das dependências do efeito — este é o conserto
    * do bug que fazia todo campo de modal aceitar UM caractere só.
@@ -59,9 +93,15 @@ export function Modal({
     // Foco inicial dentro do diálogo, senão o teclado continua no fundo.
     dialogRef.current?.focus();
 
+    pilhaDeModais.push(idNaPilha.current);
+
     function onKeyDown(e: KeyboardEvent) {
+      // Empilhado: quem não está por cima não reage (nem Esc, nem Tab).
+      if (pilhaDeModais[pilhaDeModais.length - 1] !== idNaPilha.current) return;
       if (e.key === "Escape") {
-        onCloseRef.current();
+        if (confirmandoRef.current) setConfirmandoSaida(false);
+        else if (protegerRef.current) setConfirmandoSaida(true);
+        else onCloseRef.current();
         return;
       }
       if (e.key !== "Tab" || !dialogRef.current) return;
@@ -86,11 +126,15 @@ export function Modal({
     document.addEventListener("keydown", onKeyDown);
     return () => {
       document.removeEventListener("keydown", onKeyDown);
+      const posicao = pilhaDeModais.lastIndexOf(idNaPilha.current);
+      if (posicao >= 0) pilhaDeModais.splice(posicao, 1);
+      // Reaberto, o modal não pode voltar já perguntando se quer descartar.
+      setConfirmandoSaida(false);
       document.body.style.overflow = previousOverflow;
       previouslyFocused?.focus();
     };
-    /* Só `open`. Ver o comentário da ref acima: incluir `onClose` remontava o
-     * focus trap a cada tecla. */
+    /* Só `open`. Ver o comentário da ref acima:
+     * incluir `onClose` remontava o focus trap a cada tecla. */
   }, [open]);
 
   if (!open) return null;
@@ -107,7 +151,7 @@ export function Modal({
   return (
     <div
       className="fundo-escurece fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm sm:items-center sm:p-4"
-      onClick={onClose}
+      onClick={pedirParaFechar}
       role="presentation"
     >
       <Card
@@ -145,7 +189,7 @@ export function Modal({
               real. O pseudo-elemento devolve os 44px sem alargar o cabeçalho. */}
           <button
             aria-label={`Fechar ${title}`}
-            onClick={onClose}
+            onClick={pedirParaFechar}
             className="alvo-toque flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-surface-raised hover:text-ink md:h-8 md:w-8"
           >
             <X size={16} />
@@ -154,7 +198,29 @@ export function Modal({
 
         {children}
 
-        {footer && <div className="mt-5 flex justify-end gap-2">{footer}</div>}
+        {confirmandoSaida ? (
+          <div
+            role="alert"
+            className="mt-5 flex flex-col gap-3 rounded-xl border border-gold/40 bg-surface-raised p-4"
+          >
+            <div>
+              <p className="text-sm font-medium text-ink">Descartar o que você preencheu?</p>
+              <p className="mt-0.5 text-xs text-ink-muted">
+                Se fechar agora, o que foi escolhido ou digitado aqui se perde.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button autoFocus variant="secondary" onClick={() => setConfirmandoSaida(false)}>
+                Continuar editando
+              </Button>
+              <Button variant="danger" onClick={onClose}>
+                Descartar
+              </Button>
+            </div>
+          </div>
+        ) : (
+          footer && <div className="mt-5 flex justify-end gap-2">{footer}</div>
+        )}
       </Card>
     </div>
   );
