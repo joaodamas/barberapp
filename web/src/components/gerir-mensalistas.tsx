@@ -334,7 +334,7 @@ export function GerirMensalistas({ competencia: mesCorrente }: { competencia: st
             <col className="w-[112px]" />
             <col className="w-[270px]" />
           </colgroup>
-          <thead className="bg-surface-raised text-[11px] uppercase tracking-wide text-ink-muted">
+          <thead className="bg-surface-raised text-[12.5px] font-medium text-ink-muted">
             <tr>
               <th className="px-4 py-2 text-left font-medium md:pl-6">Cliente</th>
               <th className="px-4 py-2 text-left font-medium">Plano</th>
@@ -399,7 +399,7 @@ export function GerirMensalistas({ competencia: mesCorrente }: { competencia: st
       {/* ---- Faturado × recebido, separados ---- */}
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 md:gap-4">
         <Card className="flex flex-col gap-1 p-3 md:p-5">
-          <p className="text-[11px] uppercase tracking-wide text-ink-muted">Faturado</p>
+          <p className="text-[12.5px] font-medium text-ink-muted">Faturado</p>
           <p className="font-display text-lg font-semibold text-ink md:text-2xl">
             {formatBRL(resumo.faturado)}
           </p>
@@ -409,7 +409,7 @@ export function GerirMensalistas({ competencia: mesCorrente }: { competencia: st
           </p>
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:p-5">
-          <p className="text-[11px] uppercase tracking-wide text-ink-muted">Recebido</p>
+          <p className="text-[12.5px] font-medium text-ink-muted">Recebido</p>
           <p className="font-display text-lg font-semibold text-success md:text-2xl">
             {formatBRL(resumo.recebido)}
           </p>
@@ -421,7 +421,7 @@ export function GerirMensalistas({ competencia: mesCorrente }: { competencia: st
           </p>
         </Card>
         <Card className="flex flex-col gap-1 p-3 md:p-5">
-          <p className="text-[11px] uppercase tracking-wide text-ink-muted">Em aberto</p>
+          <p className="text-[12.5px] font-medium text-ink-muted">Em aberto</p>
           <p className="font-display text-lg font-semibold text-ink md:text-2xl">
             {formatBRL(resumo.emAberto)}
           </p>
@@ -530,7 +530,7 @@ export function GerirMensalistas({ competencia: mesCorrente }: { competencia: st
       >
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <p className="text-[11px] uppercase tracking-wide text-ink-muted">Cliente</p>
+            <p className="text-[12.5px] font-medium text-ink-muted">Cliente</p>
             {cliente ? (
               <div className="flex items-center justify-between gap-2 rounded-xl border border-gold/60 bg-gold/5 px-3 py-2">
                 <div className="min-w-0">
@@ -579,7 +579,7 @@ export function GerirMensalistas({ competencia: mesCorrente }: { competencia: st
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <p className="text-[11px] uppercase tracking-wide text-ink-muted">Plano</p>
+            <p className="text-[12.5px] font-medium text-ink-muted">Plano</p>
             <div className="flex flex-wrap gap-2">
               {planosAtivos.map((p) => (
                 <button
@@ -615,7 +615,7 @@ export function GerirMensalistas({ competencia: mesCorrente }: { competencia: st
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <p className="text-[11px] uppercase tracking-wide text-ink-muted">
+            <p className="text-[12.5px] font-medium text-ink-muted">
               Vence todo dia
             </p>
             <input

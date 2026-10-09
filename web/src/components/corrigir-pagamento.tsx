@@ -142,7 +142,7 @@ export function CorrigirPagamento(params: {
           </p>
         </div>
 
-        <p className="text-xs uppercase tracking-wider text-ink-muted">
+        <p className="text-[12.5px] font-medium text-ink-muted">
           Como o cliente pagou de verdade
         </p>
 

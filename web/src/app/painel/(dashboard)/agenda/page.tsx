@@ -1,24 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import {
-  CalendarClock,
-  CalendarPlus,
-  CalendarX,
-  Check,
-  ChevronLeft,
-  ChevronRight,
-  CreditCard,
-  FileText,
-  Eraser,
-  RotateCcw,
-  UserX,
-} from "lucide-react";
+import { CalendarClock, CalendarPlus, ChevronLeft, ChevronRight, FileText } from "lucide-react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
-import { Pill } from "@/components/ui/pill";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
 import { MarcarNoBalcao } from "@/components/marcar-no-balcao";
@@ -26,8 +13,12 @@ import { useAcoesDoAtendimento } from "@/components/agenda/acoes-do-atendimento"
 import { LiberacaoDaAgenda } from "@/components/agenda/liberacao-da-agenda";
 import { useBookings, useStaff } from "@/lib/db/use-shop-data";
 import { useAcesso, useTenant } from "@/lib/tenant-context";
-import { liquidacaoDoAtendimento, metaDoStatus } from "@/lib/booking-status";
-import { estaAtrasado } from "@/lib/action-center";
+import { liquidacaoDoAtendimento } from "@/lib/booking-status";
+import { estaAtrasado, minutosDeAtraso } from "@/lib/action-center";
+import { situacaoDoHorario } from "@/lib/situacao-do-horario";
+import { Situacao } from "@/components/agenda/situacao";
+import { AcoesDaLinha } from "@/components/agenda/acoes-da-linha";
+import { useAtalhosDaAgenda } from "@/components/agenda/atalhos-da-agenda";
 import { capacidadeDaData } from "@/lib/jornada";
 import { EM_ABERTO, OCCUPIES_SLOT, type BookingDoc } from "@/lib/domain";
 import { formatBRL, formatPhonePtBR, toISODate } from "@/lib/format";
@@ -134,6 +125,32 @@ export default function AgendaPage() {
   const visiveis = doDiaFiltrado.filter((b) => mostrarCancelados || !encerrados(b));
   const qtdEncerrados = doDiaFiltrado.filter(encerrados).length;
 
+  /* Atalhos de teclado da LISTA (desktop). A grade abre o atendimento numa
+   * janela e tem o próprio foco; aqui, cada atalho lê os mesmos fatos que o
+   * botão da linha — o teclado nunca oferece o que o mouse não oferece. */
+  const toleranciaMin = tenant.policies.booking.lateToleranceMinutes;
+  const atalhos = useAtalhosDaAgenda({
+    linhas: visiveis
+      .filter((b) => b.status !== "fit_in_requested" && !encerrados(b))
+      .map((b) => {
+        const f = fatosDaLinha(b, hoje, agora, toleranciaMin);
+        return { id: b.id, podeConcluir: f.podeConcluir, atrasado: f.atrasado, emAberto: f.emAberto };
+      }),
+    ativo: status === "pronto" && modo === "lista",
+    aoConcluir: (id) => {
+      const b = todas.find((x) => x.id === id);
+      if (b && podeEditar) atendimento.abrirConcluir(b);
+    },
+    aoNaoVeio: (id) => {
+      const b = todas.find((x) => x.id === id);
+      if (b && podeEditar) atendimento.abrirFalta(b);
+    },
+    aoRemarcar: (id) => {
+      const b = todas.find((x) => x.id === id);
+      if (b && podeEditar) atendimento.abrirRemarcar(b);
+    },
+  });
+
   /* Todos os pedidos de encaixe ainda respondíveis, de qualquer dia: é a fila
    * de decisões do barbeiro, e ela não pode depender do dia que ele está vendo. */
   const agoraHHmm = agora
@@ -186,8 +203,8 @@ export default function AgendaPage() {
     <div className="flex flex-col gap-4 pt-1 md:gap-6 md:pt-2">
       <div className="flex items-end justify-between gap-3">
         <div>
-          <p className="text-sm text-ink-muted md:text-base">Agenda</p>
-          <h1 className="text-xl text-ink first-letter:uppercase md:text-4xl md:tracking-tight">
+          <p className="text-[12.5px] font-medium text-ink-muted">Agenda</p>
+          <h1 className="text-[22px] font-semibold leading-[1.15] tracking-[-0.02em] text-ink first-letter:uppercase md:text-[28px]">
             {rotuloLongo}
           </h1>
         </div>
@@ -197,7 +214,7 @@ export default function AgendaPage() {
               lê: imprimir não edita nada. */}
           <Link
             href={`/painel/agenda/relatorio?mes=${dia.slice(0, 7)}`}
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border bg-surface-raised px-4 text-sm text-ink transition-colors hover:border-gold/60"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-controle border border-border bg-surface-raised px-4 text-sm text-ink transition-colors duration-150 hover:border-gold/60"
           >
             <FileText size={16} />
             {/* No celular o título do dia já disputa a linha. */}
@@ -221,7 +238,7 @@ export default function AgendaPage() {
           type="button"
           aria-label="Semana anterior"
           onClick={() => moverSemana(-1)}
-          className="flex h-10 w-8 shrink-0 items-center justify-center rounded-lg text-ink-muted hover:text-ink md:w-10"
+          className="flex h-10 w-8 shrink-0 items-center justify-center rounded-controle text-ink-muted transition-colors duration-150 hover:text-ink md:w-10"
         >
           <ChevronLeft size={18} />
         </button>
@@ -238,7 +255,7 @@ export default function AgendaPage() {
                 aria-label={`${rotuloCurto(iso)} ${iso.slice(8)}: ${fechado ? "fechado" : contar(n, "horário", "horários")}`}
                 onClick={() => escolher(iso)}
                 className={
-                  "flex min-h-16 min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl border px-0.5 py-1.5 text-center transition-colors " +
+                  "flex min-h-16 min-w-0 flex-col items-center justify-center gap-0.5 rounded-controle border px-0.5 py-1.5 text-center transition-colors duration-150 " +
                   (ativo
                     ? "border-gold bg-gold/10 text-ink"
                     : fechado
@@ -246,11 +263,11 @@ export default function AgendaPage() {
                       : "border-border bg-surface text-ink")
                 }
               >
-                <span className="text-[11px] uppercase text-ink-muted">{rotuloCurto(iso)}</span>
+                <span className="text-[12.5px] text-ink-muted first-letter:uppercase">{rotuloCurto(iso)}</span>
                 <span className={"text-base font-semibold " + (iso === hoje ? "text-gold-strong" : "")}>
                   {iso.slice(8)}
                 </span>
-                <span className="text-[11px] text-ink-muted">
+                <span className="text-[12.5px] text-ink-muted">
                   {fechado
                     ? "fechado"
                     : n > 0
@@ -267,7 +284,7 @@ export default function AgendaPage() {
           type="button"
           aria-label="Próxima semana"
           onClick={() => moverSemana(1)}
-          className="flex h-10 w-8 shrink-0 items-center justify-center rounded-lg text-ink-muted hover:text-ink md:w-10"
+          className="flex h-10 w-8 shrink-0 items-center justify-center rounded-controle text-ink-muted transition-colors duration-150 hover:text-ink md:w-10"
         >
           <ChevronRight size={18} />
         </button>
@@ -276,7 +293,7 @@ export default function AgendaPage() {
         <button
           type="button"
           onClick={() => setDiaEscolhido(null)}
-          className="-mt-2 self-start rounded-lg bg-gold/15 px-3 py-1.5 text-sm font-medium text-gold-strong"
+          className="-mt-2 self-start rounded-controle bg-gold/15 px-3 py-1.5 text-sm font-medium text-gold-strong"
         >
           Voltar para hoje
         </button>
@@ -286,7 +303,7 @@ export default function AgendaPage() {
 
       {pedidos.length > 0 && (
         <section className="flex flex-col gap-2">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
+          <h2 className="text-[15px] font-semibold text-ink">
             Pedidos de encaixe · {pedidos.length}
           </h2>
           {pedidos.map((p) => {
@@ -315,7 +332,7 @@ export default function AgendaPage() {
       {status === "carregando" && <LoadingRows rows={4} oQue="sua agenda" />}
       {status === "erro" && <ErroAoCarregar oQue="sua agenda" erro={error} />}
       {status === "pronto" && (
-        <div className="flex gap-1 self-start rounded-xl border border-border bg-surface p-1" role="tablist" aria-label="Como ver o dia">
+        <div className="flex gap-1 self-start rounded-controle border border-border bg-surface p-1" role="tablist" aria-label="Como ver o dia">
           {(["grade", "lista"] as const).map((m) => (
             <button
               key={m}
@@ -324,7 +341,7 @@ export default function AgendaPage() {
               aria-selected={modo === m}
               onClick={() => setModo(m)}
               className={
-                "min-h-9 rounded-lg px-3 text-xs font-medium " +
+                "min-h-9 rounded-controle px-3 text-[13px] font-medium transition-colors duration-150 " +
                 (modo === m ? "bg-gold text-ink" : "text-ink-muted hover:bg-surface-raised")
               }
             >
@@ -357,6 +374,7 @@ export default function AgendaPage() {
             }}
             podeEditar={podeEditar}
             mensalistas={mensalistas}
+            emEnvio={atendimento.emEnvio}
           />
         );
         return (
@@ -444,6 +462,8 @@ export default function AgendaPage() {
               gradeMin={tenant.schedule?.slotMinutes ?? 30}
               podeEditar={podeEditar}
               atendimento={atendimento}
+              escolhida={atalhos.selecionadoId === b.id}
+              aoEscolher={() => atalhos.selecionar(atalhos.selecionadoId === b.id ? null : b.id)}
             />
           ))}
         </div>
@@ -484,11 +504,30 @@ function fimDoHorario(time: string, minutos: number | undefined) {
 }
 
 /**
- * Um atendimento, com as ações que fazem sentido PARA ELE agora.
+ * Os fatos de uma linha, calculados num lugar só: a linha, o menu "Mais" e os
+ * atalhos de teclado leem o mesmo resultado.
  *
  * Mesmas regras da tela Hoje: concluir só o que já chegou (concluir é dizer que
  * o corte aconteceu); "não veio" só depois da tolerância; cancelar e remarcar
- * só o que está em aberto; corrigir e devolver só o concluído.
+ * só o que está em aberto.
+ */
+function fatosDaLinha(b: Doc<BookingDoc>, hoje: string, agora: Date | null, toleranciaMin: number) {
+  const pedido = b.status === "fit_in_requested";
+  const emAberto = EM_ABERTO.includes(b.status) && !pedido;
+  const inicio = new Date(`${b.date}T${b.time}:00`);
+  const jaChegou = b.date < hoje || (agora !== null && inicio.getTime() <= agora.getTime());
+  const podeConcluir = (emAberto || b.status === "no_show") && jaChegou;
+  const atrasado = !pedido && estaAtrasado({ booking: b, agora, toleranciaMin });
+  return { pedido, emAberto, inicio, podeConcluir, atrasado };
+}
+
+/**
+ * Um atendimento, com a ação principal à vista e o resto no "Mais".
+ *
+ * Corrigir e devolver só o concluído; cancelar, remarcar e apagar o fixo só o
+ * que está em aberto — as condições moram em `AcoesDaLinha`, iguais às de
+ * antes. A situação é texto com ponto, e o valor diz "no plano" quando o
+ * cliente não paga aquele corte (em vez do preço de tabela, que ele não paga).
  */
 function LinhaDaAgenda({
   barbeiro = null,
@@ -500,6 +539,8 @@ function LinhaDaAgenda({
   gradeMin,
   podeEditar,
   atendimento,
+  escolhida = false,
+  aoEscolher,
 }: {
   /** Nome do barbeiro, quando a barbearia tem mais de um. */
   barbeiro?: string | null;
@@ -513,158 +554,113 @@ function LinhaDaAgenda({
   gradeMin: number;
   podeEditar: boolean;
   atendimento: ReturnType<typeof useAcoesDoAtendimento>;
+  /** Linha escolhida pelos atalhos de teclado (só na lista). */
+  escolhida?: boolean;
+  aoEscolher?: () => void;
 }) {
-  const meta = metaDoStatus(b.status);
   const duracao = b.durationMin || gradeMin;
   const liquidacao = liquidacaoDoAtendimento(b);
-  const pedido = b.status === "fit_in_requested";
-  const emAberto = EM_ABERTO.includes(b.status) && !pedido;
-  const inicio = new Date(`${b.date}T${b.time}:00`);
-  const jaChegou = b.date < hoje || (agora !== null && inicio.getTime() <= agora.getTime());
-  const podeConcluir = (emAberto || b.status === "no_show") && jaChegou;
-  const atrasado = !pedido && estaAtrasado({ booking: b, agora, toleranciaMin });
+  const { pedido, emAberto, inicio, podeConcluir, atrasado } = fatosDaLinha(b, hoje, agora, toleranciaMin);
   const digitos = String(b.clientWhatsapp ?? "").replace(/\D/g, "");
   const servicos = ((b as { serviceNames?: string[] }).serviceNames ?? []).join(" + ");
   const encerrado = b.status.startsWith("cancelled") || b.status === "expired";
-
-  const botao =
-    "flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ink-muted transition-colors";
+  const situacao = situacaoDoHorario({
+    booking: b,
+    atrasado,
+    atrasoMin: agora ? minutosDeAtraso(b, agora) : null,
+  });
+  const noPlano = liquidacao.coberto || (emAberto && mensalista);
 
   return (
     <Card
+      data-linha-id={b.id}
+      onClick={
+        aoEscolher
+          ? (e) => {
+              /* Clicar na linha a escolhe para os atalhos — mas não quando o
+               * clique era num controle dela. */
+              if ((e.target as HTMLElement).closest("button, a, input")) return;
+              aoEscolher();
+            }
+          : undefined
+      }
       className={
-        "flex flex-col gap-2 py-3 " +
+        "flex flex-col gap-2 py-3 transition-colors duration-150 " +
         (pedido ? "border-gold/50 bg-gold/5 " : "") +
         (b.isFitIn && !pedido ? "border-l-4 border-l-encaixe " : "") +
-        (atrasado ? "border-danger/40 " : "") +
+        (escolhida ? "border-gold-strong bg-surface-raised " : "") +
         (encerrado ? "opacity-60" : "")
       }
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-ink md:text-base">
+          <p className="text-[14px] font-semibold tabular-nums text-ink md:text-[15px]">
             {b.time} – {fimDoHorario(b.time, duracao)}
             {b.isFitIn && !pedido && <EtiquetaEncaixe className="ml-2 align-middle" />}
           </p>
-          <p className="flex min-w-0 items-center gap-2 text-sm text-ink">
+          <p className="flex min-w-0 items-center gap-2 text-[14px] text-ink">
             <span className="truncate">{b.clientName}</span>
             {mensalista && <EtiquetaMensalista />}
           </p>
-          <p className="text-xs text-ink-muted">
+          <p className="text-[12.5px] text-ink-muted">
             {barbeiro && <span className="font-medium text-ink">{barbeiro} · </span>}
-            {servicos || "Serviço"} · {duracao} min · {formatBRL(b.value ?? 0)}
+            {servicos || "Serviço"} · {duracao} min ·{" "}
+            <span
+              className="tabular-nums"
+              title={noPlano && !liquidacao.coberto ? "Entra no plano se ainda houver cota no mês" : undefined}
+            >
+              {liquidacao.coberto ? "no plano" : noPlano ? "previsto no plano" : formatBRL(b.value ?? 0)}
+            </span>
           </p>
           {digitos && (
             <a
               href={`https://wa.me/${digitos}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="alvo-toque text-xs text-ink-muted underline-offset-2 hover:text-gold-strong hover:underline"
+              className="alvo-toque text-[12.5px] text-ink-muted underline-offset-2 transition-colors duration-150 hover:text-gold-strong hover:underline"
             >
               {formatPhonePtBR(digitos)}
             </a>
           )}
-          {atrasado && (
-            <p className="text-xs font-medium text-danger">Passou do horário — atendeu ou não veio?</p>
-          )}
         </div>
-        {pedido ? (
-          <Pill tone="gold">Encaixe pendente</Pill>
-        ) : (
-          !emAberto && <Pill tone={meta.tone}>{meta.label}</Pill>
-        )}
-      </div>
 
-      {podeEditar && !encerrado && (
-        <div className="flex flex-wrap gap-2">
-          {pedido && inicio.getTime() > (agora?.getTime() ?? 0) && (
-            <>
-              <Button
-                className="min-h-9 px-3 text-xs"
-                disabled={atendimento.respondendoEncaixe}
-                onClick={() => atendimento.responderEncaixe(b, true)}
-              >
-                Aprovar encaixe
-              </Button>
-              <Button
-                variant="secondary"
-                className="min-h-9 px-3 text-xs"
-                disabled={atendimento.respondendoEncaixe}
-                onClick={() => atendimento.responderEncaixe(b, false)}
-              >
-                Recusar
-              </Button>
-            </>
-          )}
-          {podeConcluir && (
-            <button
-              type="button"
-              onClick={() => atendimento.abrirConcluir(b)}
-              className={botao + " hover:border-success hover:text-success"}
-            >
-              <Check size={14} />
-              {b.status === "no_show" ? "Veio depois" : "Concluir"}
-            </button>
-          )}
-          {atrasado && (
-            <button
-              type="button"
-              onClick={() => atendimento.abrirFalta(b)}
-              className={botao + " hover:border-danger hover:text-danger"}
-            >
-              <UserX size={14} /> Não veio
-            </button>
-          )}
-          {emAberto && (
-            <button
-              type="button"
-              onClick={() => atendimento.abrirRemarcar(b)}
-              className={botao + " hover:border-gold hover:text-gold-strong"}
-            >
-              <CalendarClock size={14} /> Remarcar
-            </button>
-          )}
-          {emAberto && b.horarioFixoId && (
-            <button
-              type="button"
-              onClick={() => atendimento.abrirApagarSemana(b)}
-              className={botao + " hover:border-danger hover:text-danger"}
-            >
-              <Eraser size={14} /> Apagar agendamento
-            </button>
-          )}
-          {emAberto && (
-            <button
-              type="button"
-              onClick={() => atendimento.abrirCancelar(b)}
-              className={botao + " hover:border-danger hover:text-danger"}
-            >
-              <CalendarX size={14} /> Cancelar
-            </button>
-          )}
-          {b.status === "completed" && (b.edicoesDeCobranca?.length ?? 0) > 0 && (
-                <span className="text-xs text-ink-muted">Cobrança editada</span>
-              )}
-              {b.status === "completed" && !liquidacao.coberto && !liquidacao.cortesia && (
-            <button
-              type="button"
-              onClick={() => atendimento.abrirCorrecao(b)}
-              className={botao + " hover:border-gold hover:text-gold-strong"}
-            >
-              <CreditCard size={14} /> Editar cobrança
-            </button>
-          )}
-          {b.status === "completed" && !liquidacao.cortesia && (
-            <button
-              type="button"
-              onClick={() => atendimento.abrirEstorno(b)}
-              className={botao + " hover:border-gold hover:text-gold-strong"}
-            >
-              <RotateCcw size={14} /> Devolver
-            </button>
+        <div className="flex shrink-0 flex-col items-end gap-1.5">
+          {situacao && !atendimento.emEnvio.has(b.id) && <Situacao situacao={situacao} />}
+          {podeEditar && !encerrado && (
+            pedido ? (
+              inicio.getTime() > (agora?.getTime() ?? 0) && (
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    disabled={atendimento.respondendoEncaixe}
+                    onClick={() => atendimento.responderEncaixe(b, true)}
+                  >
+                    Aprovar encaixe
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={atendimento.respondendoEncaixe}
+                    onClick={() => atendimento.responderEncaixe(b, false)}
+                  >
+                    Recusar
+                  </Button>
+                </div>
+              )
+            ) : (
+              <AcoesDaLinha
+                booking={b}
+                liquidacao={liquidacao}
+                podeConcluir={podeConcluir}
+                atrasado={atrasado}
+                emAberto={emAberto}
+                comApagarSemana={!!b.horarioFixoId}
+                atendimento={atendimento}
+              />
+            )
           )}
         </div>
-      )}
+      </div>
     </Card>
   );
 }
@@ -727,14 +723,14 @@ function PedidoDeEncaixe({
             </a>
           )}
         </div>
-        <Pill tone="gold">Encaixe pendente</Pill>
+        <Situacao situacao={{ tom: "alerta", texto: "Encaixe pendente" }} />
       </div>
 
       {/* A sugestão da plataforma, pelo tempo dos serviços. É sugestão: quem
           sabe se a luzes tem pausa em que dá para cortar outro é o barbeiro. */}
       <p
         className={
-          "rounded-xl border px-3 py-2 text-xs " +
+          "rounded-controle border px-3 py-2 text-[12.5px] " +
           (sugestao.nivel === "nao-recomendado"
             ? "border-danger/40 bg-danger/5 text-danger"
             : sugestao.nivel === "apertado"
@@ -759,7 +755,7 @@ function PedidoDeEncaixe({
         {sugestao.nivel !== "vagou" && sugestao.alternativa && ` Melhor: ${sugestao.alternativa} está livre.`}
       </p>
 
-      <div className="rounded-xl border border-border bg-surface px-3 py-2">
+      <div className="rounded-controle border border-border bg-surface px-3 py-2">
         <p className={"text-xs font-semibold " + (pesado ? "text-danger" : "text-ink")}>
           {conflitos.length === 0
             ? "O horário vagou — dá para aprovar sem sobrepor ninguém."
@@ -790,7 +786,7 @@ function PedidoDeEncaixe({
         {podeEditar && (
           <>
             <Button
-              className="min-h-9 px-3 text-xs"
+              size="sm"
               disabled={atendimento.respondendoEncaixe}
               onClick={() => atendimento.responderEncaixe(p, true)}
             >
@@ -798,7 +794,7 @@ function PedidoDeEncaixe({
             </Button>
             <Button
               variant="secondary"
-              className="min-h-9 px-3 text-xs"
+              size="sm"
               disabled={atendimento.respondendoEncaixe}
               onClick={() => atendimento.responderEncaixe(p, false, livres)}
             >
@@ -807,7 +803,7 @@ function PedidoDeEncaixe({
           </>
         )}
         {aoVerDia && (
-          <Button variant="secondary" className="min-h-9 px-3 text-xs" onClick={aoVerDia}>
+          <Button variant="secondary" size="sm" onClick={aoVerDia}>
             Ver o dia
           </Button>
         )}

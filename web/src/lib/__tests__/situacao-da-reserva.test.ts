@@ -362,7 +362,12 @@ const AGENDAR = () => semComentarios(fonte("(cliente)/agendar/page.tsx"));
 describe("a guarda chega à tela Hoje", () => {
   it("a tela não indexa mais o mapa cru — era a linha que a derrubava", () => {
     expect(HOJE()).not.toContain("bookingStatusMeta[");
-    expect(HOJE()).toContain("metaDoStatus(");
+    /* A leitura do status mora em `situacaoDoHorario` (09/10), que a tela chama
+     * e que passa por `metaDoStatus` — a guarda continua a mesma. */
+    expect(HOJE()).toContain("situacaoDoHorario(");
+    const lib = readFileSync(new URL("../situacao-do-horario.ts", import.meta.url), "utf8");
+    expect(semComentarios(lib)).toContain("metaDoStatus(");
+    expect(semComentarios(lib)).not.toContain("bookingStatusMeta[");
   });
 
   it("a coluna de pagamento passa pela liquidação, e não pelo rótulo antigo", () => {

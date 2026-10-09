@@ -383,7 +383,7 @@ export function MarcarNoBalcao({
       <div className="flex flex-col gap-5">
         {/* ---- 1 · serviço ---- */}
         <section className="flex flex-col gap-2">
-          <p className="text-[11px] uppercase tracking-wide text-ink-muted">
+          <p className="text-[12.5px] font-medium text-ink-muted">
             O que vai fazer
           </p>
           <div className="flex flex-wrap gap-2">
@@ -425,7 +425,7 @@ export function MarcarNoBalcao({
             Com um barbeiro só a seção não pergunta nada — ele já vem escolhido. */}
         {ativos.length > 1 && (
         <section className="flex flex-col gap-2">
-          <p className="text-[11px] uppercase tracking-wide text-ink-muted">
+          <p className="text-[12.5px] font-medium text-ink-muted">
             Com quem
           </p>
           <div className="flex flex-wrap gap-2">
@@ -460,7 +460,7 @@ export function MarcarNoBalcao({
 
         {/* ---- 3 · quando ---- */}
         <section className="flex flex-col gap-2">
-          <p className="text-[11px] uppercase tracking-wide text-ink-muted">Quando</p>
+          <p className="text-[12.5px] font-medium text-ink-muted">Quando</p>
           <div className="flex gap-1.5 overflow-x-auto pb-1">
             {dias.slice(0, 14).map((d, i) => (
               <button
@@ -584,7 +584,7 @@ export function MarcarNoBalcao({
 
         {/* ---- 4 · quem ---- */}
         <section className="flex flex-col gap-2">
-          <p className="text-[11px] uppercase tracking-wide text-ink-muted">Para quem</p>
+          <p className="text-[12.5px] font-medium text-ink-muted">Para quem</p>
 
           {clienteEscolhido ? (
             <div className="flex items-center justify-between gap-2 rounded-xl border border-gold/60 bg-gold/5 px-3 py-2">

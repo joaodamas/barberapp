@@ -168,7 +168,7 @@ export function Modal({
         tabIndex={-1}
         padding="lg"
         className={cn(
-          "modal-gaveta max-h-[88dvh] w-full max-w-lg overflow-y-auto rounded-b-none rounded-t-3xl pb-[calc(1rem+env(safe-area-inset-bottom))] sm:max-h-[90vh] sm:rounded-2xl sm:pb-4 md:pb-6",
+          "modal-gaveta shadow-lg max-h-[88dvh] w-full max-w-lg overflow-y-auto rounded-b-none rounded-t-superficie pb-[calc(1rem+env(safe-area-inset-bottom))] sm:max-h-[90vh] sm:rounded-superficie sm:pb-4 md:pb-6",
           className
         )}
         onClick={(e) => e.stopPropagation()}
@@ -190,7 +190,7 @@ export function Modal({
           <button
             aria-label={`Fechar ${title}`}
             onClick={pedirParaFechar}
-            className="alvo-toque flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-surface-raised hover:text-ink md:h-8 md:w-8"
+            className="alvo-toque flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-controle text-ink-muted transition-colors duration-150 hover:bg-surface-raised hover:text-ink md:h-8 md:w-8"
           >
             <X size={16} />
           </button>

@@ -181,7 +181,7 @@ export function RemarcarAtendimento({
             )}
           </label>
         )}
-        <p className="text-[11px] uppercase tracking-wide text-ink-muted">Novo dia</p>
+        <p className="text-[12.5px] font-medium text-ink-muted">Novo dia</p>
         <div className="flex gap-1.5 overflow-x-auto pb-1">
           {dias.map((d) => (
             <button
@@ -217,7 +217,7 @@ export function RemarcarAtendimento({
           />
         </label>
 
-        <p className="text-[11px] uppercase tracking-wide text-ink-muted">Novo horário</p>
+        <p className="text-[12.5px] font-medium text-ink-muted">Novo horário</p>
         {semBarbeiro ? (
           <p className="text-xs text-ink-muted">
             {podeEscolherBarbeiro

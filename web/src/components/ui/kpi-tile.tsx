@@ -54,7 +54,7 @@ export function KpiTile({
     <Card padding="sm" className={cn(CAIXA, toneBorder[tone], className)}>
       <div className="flex items-center gap-1.5">
         <Icon size={12} className={toneText[tone]} aria-hidden />
-        <p className="text-[11px] uppercase tracking-wide text-ink-muted md:text-xs">
+        <p className="text-[12.5px] font-medium text-ink-muted">
           {label}
         </p>
       </div>

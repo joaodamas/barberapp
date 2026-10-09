@@ -110,7 +110,7 @@ export default function FinanceiroPage() {
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm text-ink-muted md:text-base">Fechamento de {rotuloDoMes(mes)}</p>
-          <h1 className="text-xl text-ink md:text-4xl md:tracking-tight">Financeiro</h1>
+          <h1 className="text-[22px] font-semibold leading-[1.15] tracking-[-0.02em] text-ink md:text-[28px]">Financeiro</h1>
         </div>
         {/* Dizia "Fechamento do mês" e levava à tela que o menu chama "Quanto
             sobrou" — o terceiro nome para o mesmo destino, e o mais confuso
@@ -253,7 +253,7 @@ export default function FinanceiroPage() {
         )}
 
         <div>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
+          <h3 className="mb-2 text-[15px] font-semibold text-ink">
             De onde vem o dinheiro
           </h3>
           <Card className="flex flex-col gap-3 md:p-6">
@@ -304,7 +304,7 @@ export default function FinanceiroPage() {
 
         <div>
           <div className="mb-2 flex items-center justify-between">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
+            <h3 className="text-[15px] font-semibold text-ink">
               Taxas por método
             </h3>
             <div className="flex gap-1 rounded-lg border border-border bg-surface p-0.5">
@@ -349,7 +349,7 @@ export default function FinanceiroPage() {
         </div>
 
         <div>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
+          <h3 className="mb-2 text-[15px] font-semibold text-ink">
             Relatórios detalhados
           </h3>
           {/* Os quatro rótulos são os do MENU, palavra por palavra. Três

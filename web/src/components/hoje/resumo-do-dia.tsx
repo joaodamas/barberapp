@@ -1,5 +1,5 @@
-import { AlertCircle, Check, Clock, Scissors } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { Button } from "@/components/ui/button";
 import { formatBRL, formatPctPtBR } from "@/lib/format";
 import { NAO_APURADO } from "@/lib/apuracao";
 import { contar, plural } from "@/lib/plural";
@@ -15,15 +15,22 @@ import {
 } from "@/lib/resumo-do-dia";
 
 /**
- * O topo da tela Hoje — "cockpit" (02/10, escolha do dono entre três opções).
+ * O topo da tela Hoje.
  *
- * À esquerda, o que pede ação AGORA: quem está na cadeira (com o botão que
- * conclui pelo mesmo fluxo da agenda), quem atrasou, ou o próximo. À direita,
- * os números do dia em 2×2, cada um com a legenda da população que conta.
+ * Os números do dia são UMA faixa, e não quatro cartões iguais: quatro caixas
+ * com o mesmo peso diziam "tudo aqui importa igual", e o olho não sabia por
+ * onde começar. Na faixa, o recebido abre (é a pergunta de quem acabou de
+ * chegar), com as formas em texto pequeno logo abaixo, e as divisórias finas
+ * separam sem emoldurar.
+ *
+ * Abaixo, "Agora": quem está na cadeira, quem atrasou, ou o próximo. O atraso
+ * era um cartão rosa grande que gritava mais que o resto da tela — agora é uma
+ * faixa compacta com um ponto vermelho, e o que ela pede (concluir ou "não
+ * veio") está na mesma linha. Os mesmos números e as mesmas ações de antes;
+ * mudou o peso de cada um.
  *
  * Previsão e recebido continuam SEM barra entre eles (F5/F6): o recebido é
- * caixa de todas as origens, a previsão é serviço da agenda. As mini barras do
- * recebido comparam formas de pagamento entre si — a mesma população.
+ * caixa de todas as origens, a previsão é serviço da agenda.
  */
 export function ResumoDoDiaTopo({
   dataLonga,
@@ -38,6 +45,7 @@ export function ResumoDoDiaTopo({
   nomeDoBarbeiro,
   aoConcluir,
   aoMarcarFalta,
+  emEnvio,
   temRelogio,
   linhasPorBarbeiro,
   amanha,
@@ -55,105 +63,112 @@ export function ResumoDoDiaTopo({
   nomeDoBarbeiro: (staffId: string | null) => string | null;
   aoConcluir: (bookingId: string) => void;
   aoMarcarFalta: (bookingId: string) => void;
-  /** No servidor não há relógio: o cartão "Agora" espera o primeiro tique. */
+  /** Reservas com conclusão/falta esperando o prazo do "Desfazer": id → texto. */
+  emEnvio?: ReadonlyMap<string, string>;
+  /** No servidor não há relógio: o bloco "Agora" espera o primeiro tique. */
   temRelogio: boolean;
   linhasPorBarbeiro: LinhaDoBarbeiro[];
   amanha: ResumoDeAmanha;
   aoVerAmanha: () => void;
 }) {
+  const formas = fatiasDoRecebido.filter((f) => f.valor > 0);
+  const pctFeitos = resumo.total > 0 ? Math.min(100, (resumo.feitos / resumo.total) * 100) : 0;
+
   return (
-    <div className="flex flex-col gap-3 md:gap-4">
+    <div className="flex flex-col gap-4">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wider text-gold-strong">Hoje</p>
-        <h1 className="text-xl font-semibold text-ink first-letter:uppercase md:text-3xl md:tracking-tight">
+        <p className="text-[12.5px] font-medium text-gold-strong">Hoje</p>
+        <h1 className="text-[22px] font-semibold leading-[1.15] tracking-[-0.02em] text-ink first-letter:uppercase md:text-[28px]">
           {dataLonga}
         </h1>
       </div>
 
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.4fr)] lg:items-stretch">
-        {!agendaIlegivel && temRelogio && (
-          <CartaoAgora
-            resumo={resumo}
-            nomeDoBarbeiro={nomeDoBarbeiro}
-            aoConcluir={aoConcluir}
-            aoMarcarFalta={aoMarcarFalta}
-            linhasPorBarbeiro={linhasPorBarbeiro}
-            amanha={amanha}
-            aoVerAmanha={aoVerAmanha}
-          />
-        )}
+      <section
+        aria-label="Números do dia"
+        className="grid grid-cols-2 rounded-superficie border border-border bg-surface md:grid-cols-4"
+      >
+        <Numero
+          rotulo="Recebido"
+          titulo="Atendimento, venda e mensalidade"
+          className="border-b border-r border-border md:border-b-0"
+        >
+          <Valor className="text-success">{pagamentosIlegiveis ? NAO_APURADO : formatBRL(recebido)}</Valor>
+          <Legenda>
+            {pagamentosIlegiveis
+              ? "pagamentos indisponíveis"
+              : formas.length > 0
+                ? formas.map((f) => `${f.forma} ${formatBRL(f.valor)}`).join(" · ")
+                : "atendimento, venda e mensalidade"}
+          </Legenda>
+        </Numero>
 
-        <section aria-label="Números do dia" className="grid grid-cols-2 gap-3">
-          <Bloco>
-            <Rotulo>Atendimentos</Rotulo>
-            <Valor>{agendaIlegivel ? NAO_APURADO : String(resumo.total)}</Valor>
-            {!agendaIlegivel && resumo.segmentos.length > 0 && (
+        <Numero rotulo="Atendimentos" className="border-b border-border md:border-b-0 md:border-r">
+          <Valor>
+            {agendaIlegivel ? NAO_APURADO : `${resumo.feitos}/${resumo.total}`}
+          </Valor>
+          {!agendaIlegivel && resumo.total > 0 && (
+            <div
+              role="progressbar"
+              aria-label="Atendimentos feitos"
+              aria-valuemin={0}
+              aria-valuemax={resumo.total}
+              aria-valuenow={resumo.feitos}
+              className="mt-1.5 h-1 overflow-hidden rounded-full bg-surface-raised"
+            >
               <div
-                role="img"
-                aria-label={`${contar(resumo.feitos, "feito", "feitos")}, ${resumo.pelaFrente} pela frente`}
-                className="mt-2 flex gap-0.5"
-              >
-                {resumo.segmentos.map((s) => (
-                  <i
-                    key={s.id}
-                    className={cn(
-                      "h-1.5 flex-1 rounded-sm",
-                      s.estado === "feito" ? "bg-gold" : s.estado === "falta" ? "bg-danger/40" : "bg-surface-raised"
-                    )}
-                  />
-                ))}
-              </div>
-            )}
-            {!agendaIlegivel && (
-              <Legenda>
-                {resumo.total === 0
-                  ? "nenhum marcado"
-                  : `${contar(resumo.feitos, "feito", "feitos")} · ${resumo.pelaFrente} pela frente`}
-              </Legenda>
-            )}
-          </Bloco>
-
-          <Bloco className="flex-row items-center gap-3">
-            {!agendaIlegivel && <Anel pct={ocupacaoPct} />}
-            <div className="min-w-0">
-              <Rotulo>Ocupação</Rotulo>
-              <Valor>{agendaIlegivel ? NAO_APURADO : formatPctPtBR(ocupacaoPct, 0)}</Valor>
-              {!agendaIlegivel && (
-                <Legenda destaque={horariosLivres <= 0 && ocupacaoPct >= 100}>
-                  {textoDeLivres(horariosLivres, ocupacaoPct)}
-                </Legenda>
-              )}
+                className="h-full rounded-full bg-ink-muted transition-[width] duration-200"
+                style={{ width: `${pctFeitos}%` }}
+              />
             </div>
-          </Bloco>
+          )}
+          {!agendaIlegivel && (
+            <Legenda>
+              {resumo.total === 0
+                ? "nenhum marcado"
+                : `${contar(resumo.pelaFrente, "pela frente", "pela frente")}${
+                    resumo.faltas > 0 ? ` · ${contar(resumo.faltas, "falta", "faltas")}` : ""
+                  }`}
+            </Legenda>
+          )}
+        </Numero>
 
-          <Bloco>
-            <Rotulo>Previsão do dia</Rotulo>
-            <Valor>{agendaIlegivel ? NAO_APURADO : formatBRL(previsao)}</Valor>
-            <Legenda>serviços agendados para hoje, já sem faltas e cancelamentos</Legenda>
-          </Bloco>
+        <Numero rotulo="Previsto" titulo="Serviços agendados para hoje, já sem faltas e cancelamentos" className="border-r border-border">
+          <Valor>{agendaIlegivel ? NAO_APURADO : formatBRL(previsao)}</Valor>
+          <Legenda>serviços do dia, sem faltas</Legenda>
+        </Numero>
 
-          <Bloco>
-            <Rotulo>Recebido hoje</Rotulo>
-            <Valor className="text-success">{pagamentosIlegiveis ? NAO_APURADO : formatBRL(recebido)}</Valor>
-            {!pagamentosIlegiveis && recebido > 0 && <BarrasDoRecebido fatias={fatiasDoRecebido} />}
-            <Legenda>atendimento, venda e mensalidade</Legenda>
-          </Bloco>
-        </section>
-      </div>
+        <Numero rotulo="Ocupação">
+          <Valor>{agendaIlegivel ? NAO_APURADO : formatPctPtBR(ocupacaoPct, 0)}</Valor>
+          {!agendaIlegivel && (
+            <Legenda destaque={horariosLivres <= 0 && ocupacaoPct >= 100}>
+              {textoDeLivres(horariosLivres, ocupacaoPct)}
+            </Legenda>
+          )}
+        </Numero>
+      </section>
+
+      {!agendaIlegivel && temRelogio && (
+        <Agora
+          resumo={resumo}
+          nomeDoBarbeiro={nomeDoBarbeiro}
+          aoConcluir={aoConcluir}
+          aoMarcarFalta={aoMarcarFalta}
+          emEnvio={emEnvio}
+          linhasPorBarbeiro={linhasPorBarbeiro}
+          amanha={amanha}
+          aoVerAmanha={aoVerAmanha}
+        />
+      )}
     </div>
   );
 }
 
-const BOTAO_PRINCIPAL =
-  "rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-surface hover:bg-ink/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold";
-const BOTAO_SECUNDARIO =
-  "rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:bg-surface-raised focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold";
-
-function CartaoAgora({
+function Agora({
   resumo,
   nomeDoBarbeiro,
   aoConcluir,
   aoMarcarFalta,
+  emEnvio,
   linhasPorBarbeiro,
   amanha,
   aoVerAmanha,
@@ -162,6 +177,7 @@ function CartaoAgora({
   nomeDoBarbeiro: (staffId: string | null) => string | null;
   aoConcluir: (bookingId: string) => void;
   aoMarcarFalta: (bookingId: string) => void;
+  emEnvio?: ReadonlyMap<string, string>;
   linhasPorBarbeiro: LinhaDoBarbeiro[];
   amanha: ResumoDeAmanha;
   aoVerAmanha: () => void;
@@ -172,96 +188,80 @@ function CartaoAgora({
     const n = nomeDoBarbeiro(a.staffId);
     return n ? ` · com ${n}` : "";
   };
-  /* A lista curta ocupa o espaço que sobraria: o que vem depois do foco. */
+  /* A lista curta é o que vem depois do foco. */
   const focoId = atrasado?.id ?? naCadeiraAgora?.id ?? proximo?.id;
   const depois = proximos.filter((p) => p.id !== focoId).slice(0, 3);
 
-  let cabeca: React.ReactNode;
-  let acoes: React.ReactNode = null;
   /* O dia acabou (nada na cadeira, atrasado ou pela frente) ou não há
    * "Depois" para mostrar: o espaço vai para o que vem amanhã (02/10). */
   const encerrado = !atrasado && !naCadeiraAgora && !proximo;
   const mostrarAmanha = encerrado || depois.length === 0;
   const mostrarPorBarbeiro = linhasPorBarbeiro.length > 1;
 
+  let faixa: React.ReactNode;
   if (atrasado) {
-    cabeca = (
-      <Foco
+    const texto = emEnvio?.get(atrasado.id);
+    faixa = (
+      <Faixa
+        ponto="bg-danger"
         rotulo={textoDeAtraso(atrasado.minutos)}
-        icone={<AlertCircle size={14} aria-hidden />}
-        tom="perigo"
+        tomDoRotulo="text-danger"
         nome={atrasado.cliente}
         linha={`${atrasado.hora} · ${atrasado.servico}${comBarbeiro(atrasado)}`}
+        acoes={
+          texto ? (
+            <span className="linha-muda text-[13px] text-ink-muted">{texto}</span>
+          ) : (
+            <>
+              <Button size="sm" onClick={() => aoConcluir(atrasado.id)}>
+                Concluir
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => aoMarcarFalta(atrasado.id)}>
+                Não veio
+              </Button>
+            </>
+          )
+        }
       />
-    );
-    acoes = (
-      <div className="flex flex-wrap gap-2">
-        <button type="button" onClick={() => aoConcluir(atrasado.id)} className={BOTAO_PRINCIPAL}>
-          Concluir atendimento
-        </button>
-        <button
-          type="button"
-          onClick={() => aoMarcarFalta(atrasado.id)}
-          className="rounded-xl border border-danger/40 bg-surface px-4 py-2.5 text-sm font-semibold text-danger hover:bg-danger/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger"
-        >
-          Não veio
-        </button>
-      </div>
     );
   } else if (naCadeiraAgora) {
     const pct = Math.min(100, Math.max(0, (naCadeiraAgora.minutos / naCadeiraAgora.duracaoMin) * 100));
-    cabeca = (
-      <>
-        <Foco
-          rotulo={`Na cadeira agora · há ${naCadeiraAgora.minutos} min`}
-          icone={<Scissors size={14} aria-hidden />}
-          tom="marca"
-          nome={naCadeiraAgora.cliente}
-          linha={`${naCadeiraAgora.servico}${comBarbeiro(naCadeiraAgora)}`}
-        />
-        <div
-          role="progressbar"
-          aria-label="Tempo do atendimento"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={Math.round(pct)}
-          className="h-1.5 overflow-hidden rounded-full bg-surface-raised"
-        >
-          <div className="h-full rounded-full bg-gold" style={{ width: `${pct}%` }} />
-        </div>
-        {naCadeira.length > 1 && (
-          <p className="text-xs text-ink-muted">
-            e mais {contar(naCadeira.length - 1, "atendimento", "atendimentos")} em andamento
-          </p>
-        )}
-      </>
-    );
-    acoes = (
-      <button type="button" onClick={() => aoConcluir(naCadeiraAgora.id)} className={BOTAO_PRINCIPAL}>
-        Concluir atendimento
-      </button>
-    );
-  } else if (proximo) {
-    cabeca = (
-      <Foco
-        rotulo={`Próximo · ${textoDeContagem(proximo.minutos)}`}
-        icone={<Clock size={14} aria-hidden />}
-        tom="neutro"
-        nome={proximo.cliente}
-        linha={`${proximo.hora} · ${proximo.servico}${comBarbeiro(proximo)}`}
+    const texto = emEnvio?.get(naCadeiraAgora.id);
+    faixa = (
+      <Faixa
+        ponto="bg-gold-strong"
+        rotulo={`Na cadeira · há ${naCadeiraAgora.minutos} min`}
+        nome={naCadeiraAgora.cliente}
+        linha={`${naCadeiraAgora.servico}${comBarbeiro(naCadeiraAgora)}${
+          naCadeira.length > 1 ? ` · e mais ${contar(naCadeira.length - 1, "em andamento", "em andamento")}` : ""
+        }`}
+        progresso={pct}
+        acoes={
+          texto ? (
+            <span className="linha-muda text-[13px] text-ink-muted">{texto}</span>
+          ) : (
+            <Button size="sm" onClick={() => aoConcluir(naCadeiraAgora.id)}>
+              Concluir
+            </Button>
+          )
+        }
       />
     );
-    acoes = (
-      <a href="#agenda-do-dia" className={BOTAO_SECUNDARIO}>
-        Ver na agenda
-      </a>
+  } else if (proximo) {
+    faixa = (
+      <Faixa
+        ponto="bg-ink-muted"
+        rotulo={`Próximo · ${textoDeContagem(proximo.minutos)}`}
+        nome={proximo.cliente}
+        linha={`${proximo.hora} · ${proximo.servico}${comBarbeiro(proximo)}`}
+        acoes={<LinkDaFaixa href="#agenda-do-dia">Ver na agenda</LinkDaFaixa>}
+      />
     );
   } else {
-    cabeca = (
-      <Foco
+    faixa = (
+      <Faixa
+        ponto="bg-ink-muted"
         rotulo={resumo.total > 0 ? "Dia encerrado" : "Agenda de hoje"}
-        icone={<Check size={14} aria-hidden />}
-        tom="neutro"
         nome={
           resumo.total > 0
             ? contar(resumo.feitos, "atendimento feito", "atendimentos feitos")
@@ -274,60 +274,45 @@ function CartaoAgora({
               : "Nada mais na agenda de hoje."
             : "Quem marcar pelo link aparece aqui."
         }
+        acoes={resumo.total > 0 ? <LinkDaFaixa href="#caixa-de-hoje">Ver o fechamento</LinkDaFaixa> : undefined}
       />
     );
-    if (resumo.total > 0) {
-      acoes = (
-        <a href="#caixa-de-hoje" className={BOTAO_SECUNDARIO}>
-          Ver o fechamento
-        </a>
-      );
-    }
   }
 
   return (
-    <section
-      aria-label="Agora"
-      /* Estica até a altura dos números ao lado (lg:items-stretch): o vão
-       * que sobrava embaixo do cartão virou "Por barbeiro" e "Amanhã", e a
-       * ação desce para o pé (mt-auto). */
-      className={cn(
-        "flex flex-col gap-4 rounded-2xl border p-4 md:p-5",
-        atrasado ? "border-danger/40 bg-danger/5" : "border-border bg-surface"
-      )}
-    >
-      <div className="flex flex-col gap-3">{cabeca}</div>
+    <section aria-label="Agora" className="rounded-superficie border border-border bg-surface">
+      {faixa}
       {depois.length > 0 && (
-        <div>
+        <div className="border-t border-border px-4 py-3">
           <TituloDoBloco>Depois</TituloDoBloco>
           <ul className="divide-y divide-border/70">
             {depois.map((p) => (
-              <li key={p.id} className="flex items-baseline gap-2 py-1.5 text-sm">
-                <b className="w-12 shrink-0 font-semibold tabular-nums text-ink">{p.hora}</b>
+              <li key={p.id} className="flex items-baseline gap-3 py-1.5 text-[14px]">
+                <span className="w-12 shrink-0 font-medium tabular-nums text-ink">{p.hora}</span>
                 <span className="min-w-0 flex-1 truncate text-ink">
                   {p.cliente} <span className="text-ink-muted">· {p.servico}</span>
                 </span>
-                <span className="shrink-0 text-xs tabular-nums text-ink-muted">{textoDeContagem(p.minutos)}</span>
+                <span className="shrink-0 text-[12.5px] tabular-nums text-ink-muted">{textoDeContagem(p.minutos)}</span>
               </li>
             ))}
           </ul>
         </div>
       )}
       {mostrarPorBarbeiro && (
-        <div>
+        <div className="border-t border-border px-4 py-3">
           <TituloDoBloco>Por barbeiro</TituloDoBloco>
           <ul className="divide-y divide-border/70">
             {linhasPorBarbeiro.map((l) => (
               <li
                 key={l.staffId ?? "sem-barbeiro"}
-                className="grid grid-cols-[minmax(0,1fr)_5.5rem_6.5rem] items-baseline gap-2 py-1.5 text-sm"
+                className="grid grid-cols-[minmax(0,1fr)_5.5rem_6.5rem] items-baseline gap-2 py-1.5 text-[14px]"
               >
                 <span className="min-w-0 truncate text-ink">{nomeDoBarbeiro(l.staffId) ?? "Sem barbeiro"}</span>
-                <span className="text-right text-xs tabular-nums text-ink-muted">
-                  <b className="font-semibold text-ink">{l.feitos}</b> {plural(l.feitos, "feito", "feitos")}
+                <span className="text-right text-[12.5px] tabular-nums text-ink-muted">
+                  <span className="font-medium text-ink">{l.feitos}</span> {plural(l.feitos, "feito", "feitos")}
                 </span>
-                <span className="text-right text-xs tabular-nums text-ink-muted">
-                  <b className="font-semibold text-ink">{l.pelaFrente}</b> pela frente
+                <span className="text-right text-[12.5px] tabular-nums text-ink-muted">
+                  <span className="font-medium text-ink">{l.pelaFrente}</span> pela frente
                 </span>
               </li>
             ))}
@@ -335,7 +320,7 @@ function CartaoAgora({
         </div>
       )}
       {mostrarAmanha && (
-        <div>
+        <div className="border-t border-border px-4 py-3">
           <div className="flex items-baseline justify-between gap-2">
             <TituloDoBloco>
               Amanhã{amanha.total > 0 ? ` · ${contar(amanha.total, "marcado", "marcados")}` : ""}
@@ -343,25 +328,25 @@ function CartaoAgora({
             <button
               type="button"
               onClick={aoVerAmanha}
-              className="text-xs font-semibold text-gold-strong hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+              className="alvo-toque text-[13px] font-medium text-gold-strong transition-colors duration-150 hover:underline"
             >
               Ver amanhã
             </button>
           </div>
           {amanha.total === 0 ? (
-            <p className="py-1.5 text-sm text-ink-muted">Nada marcado amanhã ainda.</p>
+            <p className="py-1.5 text-[14px] text-ink-muted">Nada marcado amanhã ainda.</p>
           ) : (
             <ul className="divide-y divide-border/70">
               {amanha.primeiros.map((p) => (
-                <li key={p.id} className="flex items-baseline gap-2 py-1.5 text-sm">
-                  <b className="w-12 shrink-0 font-semibold tabular-nums text-ink">{p.hora}</b>
+                <li key={p.id} className="flex items-baseline gap-3 py-1.5 text-[14px]">
+                  <span className="w-12 shrink-0 font-medium tabular-nums text-ink">{p.hora}</span>
                   <span className="min-w-0 flex-1 truncate text-ink">
                     {p.cliente} <span className="text-ink-muted">· {p.servico}</span>
                   </span>
                 </li>
               ))}
               {amanha.total > amanha.primeiros.length && (
-                <li className="py-1.5 pl-14 text-xs text-ink-muted">
+                <li className="py-1.5 pl-[3.75rem] text-[12.5px] text-ink-muted">
                   e mais {contar(amanha.total - amanha.primeiros.length, "horário", "horários")}
                 </li>
               )}
@@ -369,117 +354,103 @@ function CartaoAgora({
           )}
         </div>
       )}
-      {acoes && <div className="mt-auto flex pt-1">{acoes}</div>}
     </section>
   );
 }
 
-function Foco({
+/** A linha de foco: ponto, o que é, quem, e a ação — tudo na mesma faixa. */
+function Faixa({
+  ponto,
   rotulo,
-  icone,
-  tom,
+  tomDoRotulo = "text-ink-muted",
   nome,
   linha,
+  progresso,
+  acoes,
 }: {
+  ponto: string;
   rotulo: string;
-  icone: React.ReactNode;
-  tom: "perigo" | "marca" | "neutro";
+  tomDoRotulo?: string;
   nome: string;
   linha: string;
+  /** 0–100: quanto do atendimento em curso já passou. */
+  progresso?: number;
+  acoes?: React.ReactNode;
 }) {
   return (
-    <div className="min-w-0">
-      <p
-        className={cn(
-          "flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider",
-          tom === "perigo" ? "text-danger" : tom === "marca" ? "text-gold-strong" : "text-ink-muted"
+    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 px-4 py-3">
+      <div className="min-w-0 flex-1">
+        <p className={cn("flex items-center gap-2 text-[13px] font-medium", tomDoRotulo)}>
+          <i aria-hidden className={cn("h-2 w-2 shrink-0 rounded-full", ponto)} />
+          {rotulo}
+        </p>
+        <p className="mt-0.5 truncate text-[15px] font-semibold text-ink">
+          {nome} <span className="font-normal text-ink-muted">· {linha}</span>
+        </p>
+        {progresso !== undefined && (
+          <div
+            role="progressbar"
+            aria-label="Tempo do atendimento"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(progresso)}
+            className="mt-2 h-1 max-w-xs overflow-hidden rounded-full bg-surface-raised"
+          >
+            <div className="h-full rounded-full bg-gold-strong" style={{ width: `${progresso}%` }} />
+          </div>
         )}
-      >
-        {icone}
-        {rotulo}
-      </p>
-      <p className="mt-1.5 truncate font-display text-2xl font-semibold text-ink">{nome}</p>
-      <p className="truncate text-sm text-ink-muted">{linha}</p>
+      </div>
+      {acoes && <div className="flex shrink-0 items-center gap-2">{acoes}</div>}
     </div>
   );
 }
 
-function TituloDoBloco({ children }: { children: React.ReactNode }) {
-  return <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">{children}</p>;
+function LinkDaFaixa({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <a
+      href={href}
+      className="alvo-toque rounded-controle px-1 text-[13px] font-medium text-gold-strong transition-colors duration-150 hover:underline"
+    >
+      {children}
+    </a>
+  );
 }
 
-function Bloco({ children, className }: { children: React.ReactNode; className?: string }) {
+function TituloDoBloco({ children }: { children: React.ReactNode }) {
+  return <p className="mb-0.5 text-[12.5px] font-medium text-ink-muted">{children}</p>;
+}
+
+function Numero({
+  rotulo,
+  titulo,
+  className,
+  children,
+}: {
+  rotulo: string;
+  titulo?: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <div className={cn("flex min-w-0 flex-col rounded-2xl border border-border bg-surface p-4", className)}>
+    <div className={cn("flex min-w-0 flex-col px-4 py-3.5", className)} title={titulo}>
+      <p className="text-[12.5px] font-medium text-ink-muted">{rotulo}</p>
       {children}
     </div>
   );
 }
 
-function Rotulo({ children }: { children: React.ReactNode }) {
-  return <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted md:text-xs">{children}</p>;
-}
-
 function Valor({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <p className={cn("font-display text-xl font-semibold tabular-nums text-ink md:text-2xl", className)}>{children}</p>
+    <p className={cn("mt-0.5 text-[22px] font-semibold leading-tight tracking-[-0.01em] tabular-nums text-ink", className)}>
+      {children}
+    </p>
   );
 }
 
 function Legenda({ children, destaque }: { children: React.ReactNode; destaque?: boolean }) {
   return (
-    <p className={cn("mt-1 text-xs", destaque ? "font-semibold text-gold-strong" : "text-ink-muted")}>{children}</p>
-  );
-}
-
-function Anel({ pct }: { pct: number }) {
-  const r = 22;
-  const volta = 2 * Math.PI * r;
-  const p = Math.max(0, Math.min(100, pct));
-  return (
-    <svg
-      viewBox="0 0 56 56"
-      role="img"
-      aria-label={`Ocupação de ${Math.round(p)}%`}
-      className="h-11 w-11 shrink-0 -rotate-90 md:h-14 md:w-14"
-    >
-      <circle cx="28" cy="28" r={r} fill="none" strokeWidth="6" className="stroke-surface-raised" />
-      <circle
-        cx="28"
-        cy="28"
-        r={r}
-        fill="none"
-        strokeWidth="6"
-        strokeLinecap="round"
-        className="stroke-gold"
-        strokeDasharray={`${(p / 100) * volta} ${volta}`}
-      />
-    </svg>
-  );
-}
-
-function BarrasDoRecebido({ fatias }: { fatias: FatiaDoRecebido[] }) {
-  const maior = Math.max(1, ...fatias.map((f) => f.valor));
-  return (
-    <ul aria-label="Recebido por forma de pagamento" className="mt-2 flex flex-col gap-1.5">
-      {fatias.map((f) => (
-        <li key={f.forma} className="text-[11px] text-ink-muted">
-          <span className="flex justify-between gap-2">
-            <span>{f.forma}</span>
-            <span className="tabular-nums text-ink">{formatBRL(f.valor)}</span>
-          </span>
-          <span
-            role="img"
-            aria-label={`${f.forma}: ${formatBRL(f.valor)}`}
-            className="mt-0.5 block h-1.5 overflow-hidden rounded-full bg-surface-raised"
-          >
-            <i
-              className="block h-full rounded-full bg-success/70"
-              style={{ width: `${(Math.max(0, f.valor) / maior) * 100}%` }}
-            />
-          </span>
-        </li>
-      ))}
-    </ul>
+    <p className={cn("mt-1 text-[12.5px] leading-snug", destaque ? "font-medium text-gold-strong" : "text-ink-muted")}>
+      {children}
+    </p>
   );
 }

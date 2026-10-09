@@ -240,7 +240,7 @@ export default function DespesasPage() {
               ? `Lançamentos de ${rotuloDoMes(mes)} não apurados`
               : `${contar(resumo.lancamentos, "lançamento", "lançamentos")} em ${rotuloDoMes(mes)}`}
           </p>
-          <h1 className="text-xl text-ink md:text-3xl md:tracking-tight">Despesas</h1>
+          <h1 className="text-[22px] font-semibold leading-[1.15] tracking-[-0.02em] text-ink md:text-[28px]">Despesas</h1>
         </div>
         {/* Caixa alta no meio da frase é convenção de inglês. O resto do painel
             escreve "Marcar atendimento", "Adicionar produto", "Lançar
@@ -278,7 +278,7 @@ export default function DespesasPage() {
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-5">
           <div className="flex items-center gap-1.5">
             <CheckSquare size={12} className="text-gold-strong" />
-            <p className="text-[11px] uppercase tracking-wide text-ink-muted md:text-xs">Lançamentos</p>
+            <p className="text-[12.5px] font-medium text-ink-muted">Lançamentos</p>
           </div>
           <p className="font-display text-lg font-semibold text-ink md:text-2xl">
             {naoApurado ? NAO_APURADO : resumo.lancamentos}
@@ -292,7 +292,7 @@ export default function DespesasPage() {
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-5">
           <div className="flex items-center gap-1.5">
             <DollarSign size={12} className="text-danger" />
-            <p className="text-[11px] uppercase tracking-wide text-ink-muted md:text-xs">Total no mês</p>
+            <p className="text-[12.5px] font-medium text-ink-muted">Total no mês</p>
           </div>
           <p className="font-display text-lg font-semibold text-ink md:text-2xl">
             {naoApurado ? NAO_APURADO : formatBRL(total)}
@@ -302,7 +302,7 @@ export default function DespesasPage() {
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-5">
           <div className="flex items-center gap-1.5">
             <Repeat size={12} className="text-gold-strong" />
-            <p className="text-[11px] uppercase tracking-wide text-ink-muted md:text-xs">Recorrentes</p>
+            <p className="text-[12.5px] font-medium text-ink-muted">Recorrentes</p>
           </div>
           <p className="font-display text-lg font-semibold text-ink md:text-2xl">
             {naoApurado ? NAO_APURADO : formatBRL(recurringTotal)}
@@ -314,7 +314,7 @@ export default function DespesasPage() {
         <Card className="flex flex-col gap-1 p-3 md:gap-1.5 md:p-5">
           <div className="flex items-center gap-1.5">
             <Tag size={12} className="text-gold-strong" />
-            <p className="text-[11px] uppercase tracking-wide text-ink-muted md:text-xs">Maior categoria</p>
+            <p className="text-[12.5px] font-medium text-ink-muted">Maior categoria</p>
           </div>
           {/* O `—` deste cartão era o mais enganoso dos quatro: ele já é o
               placeholder de "não houve categoria", então erro e vazio ficavam
@@ -368,7 +368,7 @@ export default function DespesasPage() {
           cartão com valor e a lista sem a conta, e lançava de novo. */}
       {!naoApurado && resumo.recorrentesDeAntes.length > 0 && (
         <Card className="flex flex-col gap-2 p-3 md:p-4">
-          <p className="text-xs uppercase tracking-wide text-ink-muted">
+          <p className="text-[12.5px] font-medium text-ink-muted">
             Recorrentes de meses anteriores · valem em {rotuloDoMes(mes)}
           </p>
           {resumo.recorrentesDeAntes.map((e) => (
@@ -441,7 +441,7 @@ export default function DespesasPage() {
             </div>
           </Card>
         ))}
-        <div className="flex items-center justify-between px-1 pt-1 text-xs uppercase tracking-wide text-ink-muted">
+        <div className="flex items-center justify-between px-1 pt-1 text-[12.5px] font-medium text-ink-muted">
           <span>Total do mês</span>
           <span className="font-display text-sm font-semibold normal-case text-ink">
             {naoApurado ? NAO_APURADO : formatBRL(total)}
@@ -452,7 +452,7 @@ export default function DespesasPage() {
       <Card className="table-scroll hidden overflow-x-auto p-0 md:block">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ink-muted">
+            <tr className="border-b border-border text-left text-[12.5px] font-medium text-ink-muted">
               <th className="px-4 py-3 font-medium md:px-6">Data</th>
               <th className="px-4 py-3 font-medium">Descrição</th>
               <th className="px-4 py-3 font-medium">Fornecedor</th>
@@ -538,7 +538,7 @@ export default function DespesasPage() {
           </tbody>
           <tfoot>
             <tr className="border-t border-border">
-              <td className="px-4 py-3 text-xs uppercase tracking-wide text-ink-muted md:px-6" colSpan={5}>
+              <td className="px-4 py-3 text-[12.5px] font-medium text-ink-muted md:px-6" colSpan={5}>
                 Total do mês
               </td>
               {/* O rodapé era o quinto zero da tela e o mais autoritário
