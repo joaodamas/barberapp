@@ -24,7 +24,7 @@ import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
 import { MarcarNoBalcao } from "@/components/marcar-no-balcao";
 import { useAcoesDoAtendimento } from "@/components/agenda/acoes-do-atendimento";
 import { LiberacaoDaAgenda } from "@/components/agenda/liberacao-da-agenda";
-import { useBookings, useStaff } from "@/lib/db/use-shop-data";
+import { useBookings } from "@/lib/db/use-shop-data";
 import { useAcesso, useTenant } from "@/lib/tenant-context";
 import { liquidacaoDoAtendimento, metaDoStatus } from "@/lib/booking-status";
 import { estaAtrasado } from "@/lib/action-center";
@@ -33,9 +33,7 @@ import { EM_ABERTO, OCCUPIES_SLOT, type BookingDoc } from "@/lib/domain";
 import { formatBRL, formatPhonePtBR, toISODate } from "@/lib/format";
 import { contar } from "@/lib/plural";
 import { conflitosDoEncaixe, livresNoDia, recomendarEncaixe, type NivelDoEncaixe } from "@/lib/encaixe";
-import { GradeDoDia, type LivreEscolhido } from "@/components/agenda/grade-do-dia";
-import { FiltroDeBarbeiro, useFiltroDeBarbeiro } from "@/components/agenda/filtro-de-barbeiro";
-import { reservasDoFiltro } from "@/lib/grade-por-barbeiro";
+import { GradeDoDia } from "@/components/agenda/grade-do-dia";
 import { EtiquetaMensalista, useMensalistasAtivos } from "@/components/agenda/etiqueta-mensalista";
 import { EtiquetaEncaixe } from "@/components/agenda/etiqueta-encaixe";
 import type { Doc } from "@/lib/db/repository";
@@ -56,10 +54,6 @@ export default function AgendaPage() {
   const atendimento = useAcoesDoAtendimento();
   const mensalistas = useMensalistasAtivos();
   const [marcando, setMarcando] = useState(false);
-  /* O "Livre · marcar" de uma coluna abre o balcão já na hora e no barbeiro dela. */
-  const [livreEscolhido, setLivreEscolhido] = useState<LivreEscolhido | null>(null);
-  const { items: equipe } = useStaff();
-  const [filtro, setFiltro] = useFiltroDeBarbeiro(equipe, "agenda");
   const [mostrarCancelados, setMostrarCancelados] = useState(false);
   /* Grade é o padrão (pedido de 28/09: ver livre, ocupado e encaixes lado a
    * lado). A lista continua para quem prefere rolar. */
@@ -127,12 +121,8 @@ export default function AgendaPage() {
     .sort((a, b) => (a.time ?? "").localeCompare(b.time ?? ""));
   const encerrados = (b: Doc<BookingDoc>) =>
     b.status.startsWith("cancelled") || b.status === "expired";
-  /* O filtro por barbeiro vale para a lista e para a grade (a grade filtra por
-   * dentro, `montarGrade`). A fila de pedidos de encaixe abaixo NÃO: é decisão
-   * pendente, e esconder o pedido de outro barbeiro seria deixá-lo sem resposta. */
-  const doDiaFiltrado = reservasDoFiltro(doDia, filtro);
-  const visiveis = doDiaFiltrado.filter((b) => mostrarCancelados || !encerrados(b));
-  const qtdEncerrados = doDiaFiltrado.filter(encerrados).length;
+  const visiveis = doDia.filter((b) => mostrarCancelados || !encerrados(b));
+  const qtdEncerrados = doDia.filter(encerrados).length;
 
   /* Todos os pedidos de encaixe ainda respondíveis, de qualquer dia: é a fila
    * de decisões do barbeiro, e ela não pode depender do dia que ele está vendo. */
@@ -162,11 +152,6 @@ export default function AgendaPage() {
     });
     return { conflitos, livres, sugestao: recomendarEncaixe({ pedido: p, conflitos, grade, livres }) };
   };
-
-  /* Com mais de um barbeiro, o cartão diz de quem é o atendimento. */
-  const variosBarbeiros = equipe.filter((b) => b.active !== false).length > 1;
-  const nomeDoBarbeiro = (b: Doc<BookingDoc>) =>
-    variosBarbeiros ? (equipe.find((s) => s.id === b.staffId)?.name ?? null) : null;
 
   const moverSemana = (n: number) => {
     const d = new Date(`${dia}T12:00:00`);
@@ -334,8 +319,6 @@ export default function AgendaPage() {
         </div>
       )}
 
-      {status === "pronto" && <FiltroDeBarbeiro equipe={equipe} valor={filtro} aoMudar={setFiltro} />}
-
       {status === "pronto" && modo === "grade" && (() => {
         const pedidosDoDia = pedidos.filter((p) => p.date === dia);
         const ativosDoDia = doDia.filter((b) => !encerrados(b) && b.status !== "fit_in_requested");
@@ -346,15 +329,9 @@ export default function AgendaPage() {
             reservas={ativosDoDia}
             pedidos={pedidosDoDia.map((p) => ({ booking: p, nivel: analisar(p).sugestao.nivel as NivelDoEncaixe }))}
             schedule={tenant.schedule}
-            equipe={equipe}
-            openWeekdays={tenant.policies.openWeekdays}
-            filtro={filtro}
             selecionadoId={selecionadoId}
             aoSelecionar={(id) => setSelecionadoId((atual) => (atual === id ? null : id))}
-            aoMarcarLivre={(livre) => {
-              setLivreEscolhido(livre);
-              setMarcando(true);
-            }}
+            aoMarcarLivre={() => setMarcando(true)}
             podeEditar={podeEditar}
             mensalistas={mensalistas}
           />
@@ -401,7 +378,6 @@ export default function AgendaPage() {
                 ) : (
                   <LinhaDaAgenda
                     mensalista={mensalistas.has(selecionado.clientId)}
-                    barbeiro={nomeDoBarbeiro(selecionado)}
                     booking={selecionado}
                     hoje={hoje}
                     agora={agora}
@@ -436,7 +412,6 @@ export default function AgendaPage() {
             <LinhaDaAgenda
               key={b.id}
               mensalista={mensalistas.has(b.clientId)}
-              barbeiro={nomeDoBarbeiro(b)}
               booking={b}
               hoje={hoje}
               agora={agora}
@@ -462,15 +437,10 @@ export default function AgendaPage() {
       )}
 
       <MarcarNoBalcao
-        key={marcando ? `${dia}|${livreEscolhido?.barbeiroId ?? ""}|${livreEscolhido?.hora ?? ""}` : "fechado"}
+        key={marcando ? dia : "fechado"}
         open={marcando}
-        onClose={() => {
-          setMarcando(false);
-          setLivreEscolhido(null);
-        }}
+        onClose={() => setMarcando(false)}
         diaInicial={dia}
-        barbeiroInicial={livreEscolhido?.barbeiroId ?? undefined}
-        horaInicial={livreEscolhido?.hora}
       />
       {atendimento.modais}
     </div>
@@ -491,7 +461,6 @@ function fimDoHorario(time: string, minutos: number | undefined) {
  * só o que está em aberto; corrigir e devolver só o concluído.
  */
 function LinhaDaAgenda({
-  barbeiro = null,
   mensalista = false,
   booking: b,
   hoje,
@@ -501,8 +470,6 @@ function LinhaDaAgenda({
   podeEditar,
   atendimento,
 }: {
-  /** Nome do barbeiro, quando a barbearia tem mais de um. */
-  barbeiro?: string | null;
   /** Cliente com plano ativo — etiqueta ao lado do nome. */
   mensalista?: boolean;
   booking: Doc<BookingDoc>;
@@ -551,7 +518,6 @@ function LinhaDaAgenda({
             {mensalista && <EtiquetaMensalista />}
           </p>
           <p className="text-xs text-ink-muted">
-            {barbeiro && <span className="font-medium text-ink">{barbeiro} · </span>}
             {servicos || "Serviço"} · {duracao} min · {formatBRL(b.value ?? 0)}
           </p>
           {digitos && (
