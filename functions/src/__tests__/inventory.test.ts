@@ -8,6 +8,7 @@ import {
   movimentoDeCompra,
   metodoValido,
   movimentoDeVenda,
+  precoDaLinha,
   quantidadeValida,
   valorDaVenda,
 } from "../inventory";
@@ -331,5 +332,56 @@ describe("repetição com a mesma chave e pedido diferente", () => {
     expect(divergenciaDaEntradaRepetida(completa, igual)).toBeNull();
     expect(divergenciaDaEntradaRepetida(completa, { ...igual, supplier: "Outra" })).not.toBeNull();
     expect(divergenciaDaEntradaRepetida(completa, { ...igual, paymentMethod: null })).not.toBeNull();
+  });
+});
+
+describe("preço combinado na hora (só o dono) · precoDaLinha", () => {
+  it("sem pedido, vale o preço do cadastro", () => {
+    expect(precoDaLinha({ precoDeTabela: 45 })).toEqual({ ok: true, unitPrice: 45, alterado: false });
+    expect(precoDaLinha({ precoDeTabela: 45, pedido: null })).toEqual({ ok: true, unitPrice: 45, alterado: false });
+  });
+
+  it("preço diferente exige motivo e guarda o preço de tabela do instante", () => {
+    expect(precoDaLinha({ precoDeTabela: 45, pedido: 40, razao: "  desconto combinado  " })).toEqual({
+      ok: true,
+      unitPrice: 40,
+      alterado: true,
+      precoDeTabela: 45,
+      razao: "desconto combinado",
+    });
+    expect(precoDaLinha({ precoDeTabela: 45, pedido: 40 })).toEqual({ ok: false, erro: "sem_razao" });
+    expect(precoDaLinha({ precoDeTabela: 45, pedido: 40, razao: "ab" })).toEqual({ ok: false, erro: "sem_razao" });
+  });
+
+  it("o mesmo preço do cadastro não é desconto e não pede motivo", () => {
+    expect(precoDaLinha({ precoDeTabela: 45, pedido: 45 })).toEqual({ ok: true, unitPrice: 45, alterado: false });
+    expect(precoDaLinha({ precoDeTabela: 45, pedido: 45.001 })).toEqual({ ok: true, unitPrice: 45, alterado: false });
+  });
+
+  it("arredonda ao centavo", () => {
+    expect(precoDaLinha({ precoDeTabela: 45, pedido: 39.999, razao: "promoção" })).toMatchObject({
+      ok: true,
+      unitPrice: 40,
+    });
+  });
+
+  it("recusa zero, negativo, absurdo, texto e NaN", () => {
+    for (const pedido of [0, -5, 100001, "40", Number.NaN, Number.POSITIVE_INFINITY, {}, []]) {
+      expect(precoDaLinha({ precoDeTabela: 45, pedido, razao: "motivo" }), String(pedido)).toEqual({
+        ok: false,
+        erro: "preco_invalido",
+      });
+    }
+  });
+
+  it("a assinatura inclui o preço combinado SÓ quando ele existe", () => {
+    const pedido = { paymentMethod: "pix", formaId: "pix", clientId: null, staffId: null };
+    const semPreco = assinaturaDaVenda({ itens: [{ productId: "p1", quantity: 2 }], ...pedido });
+    // A venda a preço de tabela mantém a assinatura de sempre: as já gravadas continuam comparáveis.
+    expect(semPreco).toBe("p1:2|pix|pix||");
+    const comPreco = assinaturaDaVenda({ itens: [{ productId: "p1", quantity: 2, unitPrice: 40 }], ...pedido });
+    expect(comPreco).not.toBe(semPreco);
+    const outroPreco = assinaturaDaVenda({ itens: [{ productId: "p1", quantity: 2, unitPrice: 41 }], ...pedido });
+    expect(outroPreco).not.toBe(comPreco);
   });
 });

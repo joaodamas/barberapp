@@ -417,7 +417,41 @@ service cloud.firestore {
        * servidor só nome, preço e estoque, em vez de reabrir o custo. */
       match /products/{productId} {
         allow read: if isOwnerOf(barbershopId);
-        allow write: if isOwnerOf(barbershopId);
+
+        /* O cadastro tem forma (10/10): preço e custo são número ≥ 0, nome é
+         * texto curto. A venda CONGELA preço e custo no movimento, então editar o
+         * cadastro nunca reescreve o passado — mas um valor negativo ou um
+         * texto no lugar do número quebraria a próxima venda e o CMV. */
+        function produtoValido(p) {
+          return p.get('name', '') is string
+            && p.get('name', '').size() > 0
+            && p.get('name', '').size() <= 120
+            && p.get('price', 0) is number
+            && p.get('price', 0) >= 0
+            && p.get('cost', 0) is number
+            && p.get('cost', 0) >= 0
+            && p.get('minStock', 0) is number
+            && p.get('minStock', 0) >= 0
+            && p.get('archived', false) is bool;
+        }
+
+        allow create: if isOwnerOf(barbershopId)
+          && produtoValido(request.resource.data)
+          && request.resource.data.get('stock', 0) is number
+          && request.resource.data.get('stock', 0) >= 0
+          && request.resource.data.keys().hasOnly(['name', 'cost', 'price', 'stock', 'minStock', 'archived']);
+
+        /* O SALDO (`stock`) é do servidor: entrada, venda, devolução e ajuste
+         * gravam o movimento e o saldo na mesma transação. Editar o número
+         * direto era a reposição "sem custo, sem data, sem registro" (D19). O
+         * dono edita só o que é cadastro — e arquivar é uma flag, nunca um
+         * delete: o produto tem vendas e CMV no histórico. */
+        allow update: if isOwnerOf(barbershopId)
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['name', 'price', 'cost', 'minStock', 'archived'])
+          && produtoValido(request.resource.data);
+
+        allow delete: if isOwnerOf(barbershopId);
       }
 
       /* -------- cliente da barbearia (G3) -------- */

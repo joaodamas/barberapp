@@ -48,8 +48,9 @@ export {
   rescheduleBooking,
 } from "./booking";
 export { registrarVendaDeProduto, registrarEntradaDeEstoque } from "./inventory";
+export { ajustarEstoque } from "./ajuste-de-estoque";
 export { registrarEstorno } from "./refunds";
-export { corrigirPagamentoDeAtendimento } from "./correcao-de-pagamento";
+export { corrigirPagamentoDeAtendimento, corrigirPagamentoDeVenda } from "./correcao-de-pagamento";
 export { comecarDoZero } from "./comecar-do-zero";
 export { registrarMovimentoDeCaixa } from "./caixa";
 export { conferirFinanceiroDaNoite } from "./conferencia-financeira";

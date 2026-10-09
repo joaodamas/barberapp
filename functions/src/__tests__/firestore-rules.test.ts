@@ -1073,6 +1073,61 @@ describe("vitrine pública e o que não é vitrine (rodada E2E de 23/09)", () =>
     await assertSucceeds(getDoc(doc(as(DONO_ALFA), `barbershops/${ALFA}/products`, "pomada")));
   });
 
+  it("🔒 produto: o dono edita o cadastro, mas não o saldo, e com valores válidos", async () => {
+    const pomada = (db: ReturnType<typeof as>) =>
+      doc(db, `barbershops/${ALFA}/products`, "pomada");
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `barbershops/${ALFA}/products`, "pomada"), {
+        name: "Pomada",
+        cost: 18,
+        price: 45,
+        stock: 10,
+        minStock: 5,
+      });
+    });
+    const dono = as(DONO_ALFA);
+
+    // O que é cadastro, edita.
+    await assertSucceeds(updateDoc(pomada(dono), { name: "Pomada matte", price: 49.9, cost: 20, minStock: 3 }));
+    await assertSucceeds(updateDoc(pomada(dono), { archived: true }));
+    await assertSucceeds(updateDoc(pomada(dono), { archived: false }));
+    // Custo zero (brinde do fornecedor) é válido.
+    await assertSucceeds(updateDoc(pomada(dono), { cost: 0 }));
+
+    // O saldo é do servidor: entrada, venda, devolução e ajuste.
+    await assertFails(updateDoc(pomada(dono), { stock: 99 }));
+    await assertFails(updateDoc(pomada(dono), { name: "X", stock: 99 }));
+    // Campo que não existe no cadastro.
+    await assertFails(updateDoc(pomada(dono), { desconto: 10 }));
+
+    // Valor sem forma quebraria a próxima venda e o CMV.
+    await assertFails(updateDoc(pomada(dono), { price: -1 }));
+    await assertFails(updateDoc(pomada(dono), { cost: -5 }));
+    await assertFails(updateDoc(pomada(dono), { price: "45" }));
+    await assertFails(updateDoc(pomada(dono), { cost: "18" }));
+    await assertFails(updateDoc(pomada(dono), { minStock: -1 }));
+    await assertFails(updateDoc(pomada(dono), { name: "" }));
+    await assertFails(updateDoc(pomada(dono), { archived: "sim" }));
+
+    // Nem o dono de outra barbearia, nem o barbeiro.
+    await assertFails(updateDoc(pomada(as(DONO_BETA)), { price: 1 }));
+    await assertFails(updateDoc(pomada(as(BARBEIRO_ALFA)), { price: 1 }));
+  });
+
+  it("🔒 produto: o cadastro novo tem forma", async () => {
+    const dono = as(DONO_ALFA);
+    const novo = (id: string) => doc(dono, `barbershops/${ALFA}/products`, id);
+    await assertSucceeds(
+      setDoc(novo("p1"), { name: "Cera", cost: 10, price: 30, stock: 4, minStock: 2 })
+    );
+    await assertFails(setDoc(novo("p2"), { name: "Cera", cost: -10, price: 30, stock: 4, minStock: 2 }));
+    await assertFails(setDoc(novo("p3"), { name: "Cera", cost: 10, price: 30, stock: -4, minStock: 2 }));
+    await assertFails(setDoc(novo("p4"), { name: "Cera", cost: 10, price: 30, stock: 4, minStock: 2, extra: 1 }));
+    await assertFails(setDoc(doc(as(DONO_BETA), `barbershops/${ALFA}/products`, "p5"), {
+      name: "Cera", cost: 10, price: 30, stock: 4, minStock: 2,
+    }));
+  });
+
   it("🔒 senha provisória não trocada: nenhum papel", async () => {
     const PROVISORIO = { sub: "dono-provisorio", barbershops: { [ALFA]: "owner" }, mustChangePassword: true };
     await assertFails(getDoc(doc(as(PROVISORIO), `barbershops/${ALFA}/expenses`, "exp-1")));

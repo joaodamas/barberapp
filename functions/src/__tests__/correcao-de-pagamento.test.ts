@@ -7,8 +7,10 @@ import {
   dentroDaJanela,
   diaDeCriacao,
   FRASE_DA_RECUSA,
+  FRASE_DA_RECUSA_DA_VENDA,
   idDaCorrecao,
   motivoDaRecusa,
+  motivoDaRecusaDaVenda,
 } from "../correcao-de-pagamento";
 import { decidirEfeito, SEM_TAXA, type PaymentFees } from "../financial-events";
 import { valoresDoPagamento } from "../payments";
@@ -481,5 +483,109 @@ describe("R1 · permissão e rastro", () => {
      * hoje faria a correção do meio de pagamento alterar o valor recebido. */
     expect(FONTE).toContain('Number(pagamentoSnap.get("grossAmount"))');
     expect(FONTE).not.toMatch(/reservaSnap\.get\("value"\)/);
+  });
+});
+
+/* ================================================================== */
+/* A mesma correção, para a venda de produto                          */
+/* ================================================================== */
+
+describe("correção de VENDA · a régua de recusa", () => {
+  const PODE_VENDA = {
+    temMovimento: true,
+    tipoDoMovimento: "venda" as string | null | undefined,
+    temPagamento: true,
+    origemDoPagamento: "produto" as string | null | undefined,
+    jaDevolvida: false,
+    dataDoPagamento: "2026-10-05",
+    hoje: "2026-10-09",
+    metodoAtual: "pix" as const,
+    formaAtual: "pix" as string | null,
+    metodoNovo: "credit" as const,
+    formaNova: "credit_ap" as string | null,
+  };
+
+  it("o caso feliz passa", () => {
+    expect(motivoDaRecusaDaVenda(PODE_VENDA)).toBeNull();
+  });
+
+  it("recusa na ordem em que cada frase explica melhor", () => {
+    expect(motivoDaRecusaDaVenda({ ...PODE_VENDA, temMovimento: false })).toBe("venda_ausente");
+    expect(motivoDaRecusaDaVenda({ ...PODE_VENDA, tipoDoMovimento: "compra" })).toBe("nao_e_venda");
+    expect(motivoDaRecusaDaVenda({ ...PODE_VENDA, temPagamento: false })).toBe("sem_pagamento");
+    expect(motivoDaRecusaDaVenda({ ...PODE_VENDA, origemDoPagamento: "servico" })).toBe("nao_e_venda");
+    expect(motivoDaRecusaDaVenda({ ...PODE_VENDA, jaDevolvida: true })).toBe("ja_devolvida");
+    expect(motivoDaRecusaDaVenda({ ...PODE_VENDA, dataDoPagamento: "2026-08-10" })).toBe("fora_da_janela");
+    expect(motivoDaRecusaDaVenda({ ...PODE_VENDA, metodoNovo: "pix", formaNova: "pix" })).toBe("mesma_forma");
+  });
+
+  it("devolvida vence janela e forma: o estorno é o fato mais forte", () => {
+    expect(
+      motivoDaRecusaDaVenda({ ...PODE_VENDA, jaDevolvida: true, dataDoPagamento: "2026-08-10", metodoNovo: "pix" })
+    ).toBe("ja_devolvida");
+  });
+
+  it("pagamento sem origem gravada (anterior a G1.6) não é recusado por isso", () => {
+    expect(motivoDaRecusaDaVenda({ ...PODE_VENDA, origemDoPagamento: undefined })).toBeNull();
+  });
+
+  it("mesmo meio com forma diferente é correção; sem forma nova, é a mesma", () => {
+    const credito = { ...PODE_VENDA, metodoAtual: "credit" as const, formaAtual: "credit_ap" };
+    expect(motivoDaRecusaDaVenda({ ...credito, metodoNovo: "credit", formaNova: "credit_chip" })).toBeNull();
+    expect(motivoDaRecusaDaVenda({ ...credito, metodoNovo: "credit", formaNova: "credit_ap" })).toBe("mesma_forma");
+    expect(motivoDaRecusaDaVenda({ ...credito, metodoNovo: "credit", formaNova: null })).toBe("mesma_forma");
+  });
+
+  it("a exceção do mês anterior vale igual ao atendimento", () => {
+    // Venda de 30/09 registrada no dia 1º: o dono ainda corrige o erro de quem acabou de fechar.
+    expect(
+      motivoDaRecusaDaVenda({ ...PODE_VENDA, dataDoPagamento: "2026-09-30", hoje: "2026-10-01", criadoEm: "2026-10-01" })
+    ).toBeNull();
+    expect(
+      motivoDaRecusaDaVenda({ ...PODE_VENDA, dataDoPagamento: "2026-09-30", hoje: "2026-10-01", criadoEm: "2026-09-30" })
+    ).toBe("fora_da_janela");
+  });
+
+  it("toda recusa tem uma frase de balcão, sem jargão", () => {
+    for (const frase of Object.values(FRASE_DA_RECUSA_DA_VENDA)) {
+      expect(frase.length).toBeGreaterThan(10);
+      expect(frase).not.toMatch(/undefined|null|PaymentDoc|Firestore|error/i);
+    }
+  });
+});
+
+describe("correção de VENDA · a transação ALTERA, não reescreve", () => {
+  const corpo = FONTE.slice(FONTE.indexOf("export async function gravarCorrecaoDeVenda"));
+
+  it("🔒 update no pagamento e no movimento; set só no log novo", () => {
+    expect(corpo).toContain("tx.update(pagamentoRef, para)");
+    expect(corpo).toContain("tx.update(movimentoRef, { paymentMethod: params.metodo })");
+    expect(corpo).toContain("tx.set(logRef");
+    expect(corpo).not.toMatch(/tx\.set\(pagamentoRef/);
+    expect(corpo).not.toMatch(/tx\.set\(movimentoRef/);
+  });
+
+  it("🔒 as leituras vêm antes da primeira escrita", () => {
+    const primeiraEscrita = corpo.indexOf("tx.update(");
+    for (const leitura of ["tx.get(pagamentoRef)", "tx.get(movimentoRef)", "tx.get(logRef)", "tx.get(devolucoesQuery)"]) {
+      expect(corpo.indexOf(leitura), leitura).toBeGreaterThan(-1);
+      expect(corpo.indexOf(leitura), leitura).toBeLessThan(primeiraEscrita);
+    }
+  });
+
+  it("a conta da taxa é a do resto do produto, e o bruto sai do pagamento congelado", () => {
+    expect(corpo).toContain("camposDaCorrecao({");
+    expect(corpo).toContain('Number(pagamentoSnap.get("grossAmount"))');
+  });
+
+  it("🔒 dono-only, autenticado antes de tocar no banco", () => {
+    const porta = FONTE.slice(FONTE.indexOf("export const corrigirPagamentoDeVenda"));
+    expect(porta).toContain('papel !== "owner"');
+    expect(porta).toContain("vinculosDe(request)");
+    expect(porta.indexOf("unauthenticated")).toBeLessThan(porta.indexOf("contextoDaCorrecao("));
+  });
+
+  it("reaproveita o id derivado do log", () => {
+    expect(corpo).toContain("idDaCorrecao(movementId, params.chave)");
   });
 });

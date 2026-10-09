@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertTriangle, Package, Percent, Plus } from "lucide-react";
+import { AlertTriangle, ChevronDown, Package, Percent, Plus } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
@@ -14,14 +14,19 @@ import { useFeature, useTenant } from "@/lib/tenant-context";
 import { RecursoBloqueado } from "@/components/recurso-bloqueado";
 import { VenderProduto } from "@/components/vender-produto";
 import { EntradaDeEstoque } from "@/components/entrada-de-estoque";
+import { AjustarEstoque } from "@/components/ajustar-estoque";
+import { EditarProduto } from "@/components/editar-produto";
+import { HistoricoDoProduto } from "@/components/historico-do-produto";
 import { DesfazerVenda } from "@/components/desfazer-venda";
+import type { CorrecaoDeVenda } from "@/components/corrigir-venda";
 import { soAvisaSeGravou } from "@/lib/so-avisa-se-gravou";
-import { createDoc } from "@/lib/db/repository";
+import { createDoc, patchDoc } from "@/lib/db/repository";
 import type { Doc } from "@/lib/db/repository";
 import type { ProductDoc } from "@/lib/domain";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
 import { splitSale } from "@/lib/business-rules";
+import { pedeConfirmacaoParaArquivar, separarArquivados } from "@/lib/produtos";
 
 /* `profitPct` é margem sobre o PREÇO de venda (preço = custo ÷ (1 − m)), não
  * markup sobre o custo. 100% seria divisão por zero: limitamos e avisamos, em
@@ -72,10 +77,20 @@ function LojaConteudo() {
   const simCost = lerReais(simCostTxt) ?? 0;
   const [modalOpen, setModalOpen] = useState(false);
   const [aReceber, setAReceber] = useState<Doc<ProductDoc> | null>(null);
+  const [aAjustar, setAAjustar] = useState<Doc<ProductDoc> | null>(null);
+  const [aEditar, setAEditar] = useState<Doc<ProductDoc> | null>(null);
+  const [historicoDe, setHistoricoDe] = useState<Doc<ProductDoc> | null>(null);
+  const [aArquivar, setAArquivar] = useState<Doc<ProductDoc> | null>(null);
+  const [arquivadosAbertos, setArquivadosAbertos] = useState(false);
+  const [avisoDeErro, setAvisoDeErro] = useState<string | null>(null);
+  /* A venda certa de uma correção: remonta o Vender já preenchido. */
+  const [correcao, setCorrecao] = useState<CorrecaoDeVenda | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [formError, setFormError] = useState<string | null>(null);
 
-  const lowStock = products.filter((p) => p.stock < p.minStock);
+  const { ativos, arquivados } = useMemo(() => separarArquivados(products), [products]);
+  /* Arquivado não pede reposição: o aviso de mínimo é do que está à venda. */
+  const lowStock = ativos.filter((p) => p.stock < p.minStock);
 
   const simSplit = useMemo(
     () => splitSale({ price: simPrice, cost: simCost, barberPct: padraoDaCasa, taxPct: impostoDaCasa }),
@@ -131,6 +146,28 @@ function LojaConteudo() {
     if (!r.ok) setFormError(r.erro);
   }
 
+  /* Arquivar e reativar mudam só a flag. Nunca se exclui produto: ele tem
+   * vendas, movimentos e CMV no histórico. */
+  async function marcarArquivado(p: Doc<ProductDoc>, arquivado: boolean) {
+    setAvisoDeErro(null);
+    const r = await soAvisaSeGravou({
+      gravar: () => patchDoc(barbershopId, "products", p.id, { archived: arquivado }),
+      avisar: () => setAArquivar(null),
+    });
+    if (!r.ok) setAvisoDeErro(r.erro);
+  }
+
+  function pedirArquivamento(p: Doc<ProductDoc>) {
+    if (pedeConfirmacaoParaArquivar(p)) setAArquivar(p);
+    else void marcarArquivado(p, true);
+  }
+
+  function refazerVenda(c: Omit<CorrecaoDeVenda, "nonce">) {
+    setCorrecao({ ...c, nonce: Date.now() });
+    /* O Vender é o topo da página; a correção termina nele. */
+    document.getElementById("vender")?.scrollIntoView({ block: "start" });
+  }
+
   return (
     <div className="flex flex-col gap-6 pt-1 md:gap-10 md:pt-2">
       <div className="flex items-center justify-between gap-3">
@@ -148,14 +185,24 @@ function LojaConteudo() {
           O dono abre a Loja com alguém no balcão esperando, não para conferir
           margem. Cadastrar produto é tarefa de quando a caixa chega; vender é
           o gesto do dia — e o que ele faz primeiro precisa estar em cima. */}
-      <VenderProduto />
+      <div id="vender">
+        <VenderProduto key={correcao?.nonce ?? 0} inicial={correcao} />
+      </div>
 
       {/* D23 · logo abaixo de vender, porque é onde o erro é percebido.
           Quem registrou a venda errada descobre segundos depois, ainda com o
-          cliente na frente — e não no fechamento do mês. */}
-      <DesfazerVenda />
+          cliente na frente — e não no fechamento do mês. Daqui saem Devolver,
+          Corrigir forma e Corrigir venda. */}
+      <DesfazerVenda aoCorrigirVenda={refazerVenda} />
 
       <EntradaDeEstoque produto={aReceber} aoFechar={() => setAReceber(null)} />
+      {aAjustar && (
+        <AjustarEstoque key={aAjustar.id} produto={aAjustar} aoFechar={() => setAAjustar(null)} />
+      )}
+      {aEditar && <EditarProduto key={aEditar.id} produto={aEditar} aoFechar={() => setAEditar(null)} />}
+      {historicoDe && (
+        <HistoricoDoProduto key={historicoDe.id} produto={historicoDe} aoFechar={() => setHistoricoDe(null)} />
+      )}
 
       {lowStock.length > 0 && (
         <Card className="flex items-start gap-3 border-danger/30 md:p-5">
@@ -177,6 +224,11 @@ function LojaConteudo() {
           <h2 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-ink-muted md:mb-3 md:text-sm">
             <Package size={12} /> Produtos
           </h2>
+          {avisoDeErro && (
+            <p role="alert" className="mb-2 text-xs text-danger">
+              {avisoDeErro}
+            </p>
+          )}
           {status === "carregando" && <LoadingRows rows={3} oQue="seus produtos" />}
           {status === "erro" && <ErroAoCarregar oQue="seus produtos" erro={error} />}
           {status === "pronto" && products.length === 0 && (
@@ -188,42 +240,111 @@ function LojaConteudo() {
               onAction={openModal}
             />
           )}
-          {products.length > 0 && (
-          <Card className="flex flex-col gap-3 md:gap-4 md:p-6">
-            {products.map((p) => {
-              const belowMin = p.stock < p.minStock;
-              const margin = p.price - p.cost;
-              return (
-                <div
-                  key={p.id}
-                  className="flex items-center justify-between gap-3 border-b border-border pb-3 last:border-0 last:pb-0 md:pb-4"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm text-ink md:text-base">{p.name}</p>
-                    <p className="text-xs text-ink-muted md:text-sm">
-                      Custo {formatBRL(p.cost)} · Venda {formatBRL(p.price)} ·
-                      margem {formatBRL(margin)}
-                    </p>
+          {ativos.length > 0 && (
+            <Card className="flex flex-col gap-3 md:gap-4 md:p-6">
+              {ativos.map((p) => {
+                const belowMin = p.stock < p.minStock;
+                const margin = p.price - p.cost;
+                return (
+                  <div
+                    key={p.id}
+                    className="flex flex-col gap-2 border-b border-border pb-3 last:border-0 last:pb-0 md:pb-4"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm text-ink md:text-base">{p.name}</p>
+                        <p className="text-xs text-ink-muted md:text-sm">
+                          Custo {formatBRL(p.cost)} · Venda {formatBRL(p.price)} ·
+                          margem {formatBRL(margin)}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <Pill tone={belowMin ? "danger" : "neutral"}>{p.stock} un.</Pill>
+                        {/* G1.5 · a entrada mora AQUI, ao lado do estoque.
+                            É onde o dono olha quando a caixa chega — e onde ele
+                            antes editava o número na mão, sem custo nem data. O
+                            ajuste mora ao lado: "contei outro número" e "saiu
+                            sem venda" também são fatos, com motivo. */}
+                        <Button
+                          variant="secondary"
+                          onClick={() => setAReceber(p)}
+                          className="min-h-9 px-3 text-xs"
+                        >
+                          Dar entrada
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          onClick={() => setAAjustar(p)}
+                          className="min-h-9 px-3 text-xs"
+                        >
+                          Ajustar estoque
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      <Button variant="ghost" className="text-xs" onClick={() => setAEditar(p)}>
+                        Editar
+                      </Button>
+                      <Button variant="ghost" className="text-xs" onClick={() => setHistoricoDe(p)}>
+                        Histórico
+                      </Button>
+                      <Button variant="ghost" className="text-xs" onClick={() => pedirArquivamento(p)}>
+                        Arquivar
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <Pill tone={belowMin ? "danger" : "neutral"}>
-                      {p.stock} un.
-                    </Pill>
-                    {/* G1.5 · a entrada mora AQUI, ao lado do estoque.
-                        É onde o dono olha quando a caixa chega — e onde ele
-                        antes editava o número na mão, sem custo nem data. */}
-                    <Button
-                      variant="secondary"
-                      onClick={() => setAReceber(p)}
-                      className="min-h-9 px-3 text-xs"
+                );
+              })}
+            </Card>
+          )}
+          {status === "pronto" && products.length > 0 && ativos.length === 0 && (
+            <p className="text-sm text-ink-muted">Todos os produtos estão arquivados.</p>
+          )}
+
+          {arquivados.length > 0 && (
+            <div className="mt-4">
+              <button
+                type="button"
+                aria-expanded={arquivadosAbertos}
+                onClick={() => setArquivadosAbertos((x) => !x)}
+                className="mb-2 flex cursor-pointer items-center gap-1.5 text-[15px] font-semibold text-ink"
+              >
+                <ChevronDown
+                  size={14}
+                  className={`transition-transform ${arquivadosAbertos ? "" : "-rotate-90"}`}
+                />
+                Arquivados ({arquivados.length})
+              </button>
+              {arquivadosAbertos && (
+                <Card className="flex flex-col gap-3 md:gap-4 md:p-6">
+                  {arquivados.map((p) => (
+                    <div
+                      key={p.id}
+                      className="flex items-center justify-between gap-3 border-b border-border pb-3 last:border-0 last:pb-0 md:pb-4"
                     >
-                      Dar entrada
-                    </Button>
-                  </div>
-                </div>
-              );
-            })}
-          </Card>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm text-ink-muted md:text-base">{p.name}</p>
+                        <p className="text-xs text-ink-muted">
+                          {p.stock} un. em estoque · fora do Vender
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <Button variant="ghost" className="text-xs" onClick={() => setHistoricoDe(p)}>
+                          Histórico
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          onClick={() => void marcarArquivado(p, false)}
+                          className="min-h-9 px-3 text-xs"
+                        >
+                          Reativar
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </Card>
+              )}
+            </div>
           )}
         </section>
 
@@ -276,6 +397,41 @@ function LojaConteudo() {
           </Card>
         </section>
       </div>
+
+      <Modal
+        open={aArquivar !== null}
+        onClose={() => setAArquivar(null)}
+        title="Arquivar produto"
+        description={aArquivar?.name}
+        footer={
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={() => setAArquivar(null)} className="flex-1">
+              Cancelar
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => aArquivar && void marcarArquivado(aArquivar, true)}
+              className="flex-1"
+            >
+              Arquivar
+            </Button>
+          </div>
+        }
+      >
+        {aArquivar && (
+          <div className="flex flex-col gap-2 text-sm text-ink-muted">
+            <p>
+              Ainda há {aArquivar.stock} un. em estoque. Arquivado, o
+              produto sai de &ldquo;Vender&rdquo; e da lista principal — e o aviso de estoque mínimo
+              deixa de contá-lo.
+            </p>
+            <p>
+              Nada é apagado: as vendas, o histórico e o resultado do mês continuam. Você pode reativar
+              quando quiser, na seção Arquivados.
+            </p>
+          </div>
+        )}
+      </Modal>
 
       <Modal
         open={modalOpen}

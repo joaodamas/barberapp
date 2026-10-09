@@ -32,9 +32,37 @@ export type VendaEstornavel = {
   valorRestante: number;
   staffId: string | null;
   paymentMethod: string | null;
+  clientId: string | null;
+  /**
+   * O carrinho a que esta linha pertence. Uma venda de vários produtos grava um
+   * movimento por produto com id `venda_<chave>_<productId>`: as linhas do
+   * mesmo carrinho dividem a `<chave>`. Venda antiga (id sorteado) é carrinho
+   * de uma linha só.
+   */
+  carrinho: string;
   /** Já devolvida por inteiro. */
   encerrada: boolean;
 };
+
+/**
+ * A chave do carrinho de um movimento de venda.
+ *
+ * Deriva do id, e não de `assinaturaDoPedido`: dois carrinhos iguais (mesmos
+ * itens, forma, cliente e vendedor) têm a mesma assinatura e são vendas
+ * diferentes.
+ */
+export function carrinhoDe(movementId: string, productId: string): string {
+  const prefixo = "venda_";
+  const sufixo = `_${productId}`;
+  if (
+    movementId.startsWith(prefixo) &&
+    movementId.endsWith(sufixo) &&
+    movementId.length > prefixo.length + sufixo.length
+  ) {
+    return movementId.slice(prefixo.length, movementId.length - sufixo.length);
+  }
+  return movementId;
+}
 
 function centavos(v: number) {
   return Math.round(v * 100) / 100;
@@ -70,11 +98,17 @@ export function vendasEstornaveis(params: {
   refunds: Doc<RefundDoc>[];
   /** Quantas mostrar. O balcão não precisa de paginação; precisa das últimas. */
   limite?: number;
+  /** "Ver todas": só as vendas deste produto. */
+  produtoId?: string | null;
+  /** "Ver todas": só as vendas deste mês (`YYYY-MM`). */
+  mes?: string | null;
 }): VendaEstornavel[] {
   const devolvidas = devolucoesPorVenda(params.refunds);
 
   return params.movimentos
     .filter((m) => m.kind === "venda")
+    .filter((m) => !params.produtoId || m.productId === params.produtoId)
+    .filter((m) => !params.mes || String(m.date ?? "").startsWith(params.mes))
     .map((m) => {
       const quantidade = Number(m.quantity) || 0;
       const devolvida = devolvidas.get(m.id) ?? 0;
@@ -93,6 +127,8 @@ export function vendasEstornaveis(params: {
         valorRestante: centavos(unitPrice * resta),
         staffId: m.staffId ?? null,
         paymentMethod: m.paymentMethod ?? null,
+        clientId: m.clientId ?? null,
+        carrinho: carrinhoDe(m.id, m.productId),
         encerrada: resta === 0,
       };
     })

@@ -53,6 +53,11 @@ export type ProductDoc = {
   price: number;
   stock: number;
   minStock: number;
+  /**
+   * Fora de "Vender" e da lista principal da Loja. Nunca se exclui produto: ele
+   * tem vendas, movimentos e CMV no histórico. Ausente = ativo.
+   */
+  archived?: boolean;
 };
 
 /**
@@ -220,6 +225,14 @@ export type InventoryMovementDoc = {
    * resultado em direções opostas.
    */
   refundOf?: string;
+  /**
+   * Só no `ajuste` MANUAL (`ajustarEstoque`): por que o saldo mudou — `perda`,
+   * `uso_interno`, `vencido`, `contagem` ou `outro`. `quantity` é ASSINADA nele
+   * (negativa = saiu). Sem `refundOf`: não é devolução, não mexe na receita.
+   */
+  reason?: string;
+  /** O texto livre de `reason: "outro"`. */
+  reasonText?: string | null;
 };
 
 /**

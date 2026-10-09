@@ -90,6 +90,19 @@ export type InventoryMovementDoc = {
    */
   staffId: string | null;
   date: string;
+  /**
+   * Só em `kind: "ajuste"` manual (`ajustarEstoque`): por que o estoque mudou.
+   * Ausente nos demais — inclusive no ajuste de devolução, que tem `refundOf`.
+   */
+  reason?: string;
+  reasonText?: string | null;
+  /**
+   * Só na venda com PREÇO DIFERENTE do cadastro (desconto na hora, ou a mesma
+   * venda refeita): o preço de tabela no instante e o motivo. `unitPrice` é o
+   * praticado, congelado como sempre.
+   */
+  listPrice?: number;
+  priceReason?: string;
 };
 
 /** Os meios que o produto conhece. */
@@ -316,7 +329,68 @@ export function movimentoDeDevolucao(params: {
  * vendas concorrentes serem serializadas em vez de somarem em cima do mesmo
  * saldo.
  */
-export type ItemDaVenda = { productId: string; quantity: number };
+export type ItemDaVenda = {
+  productId: string;
+  quantity: number;
+  /**
+   * Preço unitário combinado, quando diferente do cadastro. SÓ O DONO pode
+   * mandá-lo (a callable confere), e exige `priceReason`.
+   */
+  unitPrice?: number | null;
+  priceReason?: string | null;
+};
+
+/**
+ * O preço desta linha: o do cadastro, ou o que o dono combinou na hora.
+ *
+ * Congelado no movimento como `unitPrice`, igual ao preço de tabela sempre foi:
+ * receita, taxa e comissão saem dele. O preço de tabela do momento fica ao lado
+ * (`listPrice`) e o motivo é obrigatório — desconto sem explicação é o buraco
+ * por onde a receita some sem rastro.
+ *
+ * `typeof` antes de qualquer conta, como em `quantidadeValida`: a string do
+ * formulário coagida viraria preço.
+ */
+export type PrecoDaLinha =
+  | { ok: true; unitPrice: number; alterado: false }
+  | { ok: true; unitPrice: number; alterado: true; precoDeTabela: number; razao: string }
+  | { ok: false; erro: "preco_invalido" | "sem_razao" };
+
+export function precoDaLinha(params: {
+  precoDeTabela: number;
+  pedido?: unknown;
+  razao?: unknown;
+}): PrecoDaLinha {
+  if (params.pedido === undefined || params.pedido === null) {
+    return { ok: true, unitPrice: params.precoDeTabela, alterado: false };
+  }
+  if (typeof params.pedido !== "number" || !Number.isFinite(params.pedido)) {
+    return { ok: false, erro: "preco_invalido" };
+  }
+  const preco = Math.round(params.pedido * 100) / 100;
+  /* Zero não é desconto, é brinde — e um pagamento de R$ 0 não pode ser
+   * devolvido nem tem taxa a corrigir. O teto barra o zero a mais digitado. */
+  if (preco <= 0 || preco > 100000) return { ok: false, erro: "preco_invalido" };
+
+  if (preco === Math.round(params.precoDeTabela * 100) / 100) {
+    return { ok: true, unitPrice: params.precoDeTabela, alterado: false };
+  }
+
+  const razao = typeof params.razao === "string" ? params.razao.trim() : "";
+  if (razao.length < 3) return { ok: false, erro: "sem_razao" };
+  return {
+    ok: true,
+    unitPrice: preco,
+    alterado: true,
+    precoDeTabela: params.precoDeTabela,
+    razao: razao.slice(0, 120),
+  };
+}
+
+export const FRASE_DO_PRECO: Record<"preco_invalido" | "sem_razao", string> = {
+  preco_invalido: "Preço inválido. Informe um valor maior que zero.",
+  sem_razao: "Diga por que o preço é diferente do cadastro.",
+};
 
 /**
  * A chave de repetição não confere o pedido — a mesma falha que o #140 fechou
@@ -362,7 +436,12 @@ export function assinaturaDaVenda(p: {
 }): string {
   const itens = [...p.itens]
     .sort((a, b) => a.productId.localeCompare(b.productId))
-    .map((i) => `${i.productId}:${i.quantity}`)
+    /* O preço combinado entra na assinatura SÓ quando existe: a venda ao preço
+     * de tabela mantém exatamente a assinatura de sempre, e as já gravadas
+     * continuam comparáveis. */
+    .map((i) =>
+      typeof i.unitPrice === "number" ? `${i.productId}:${i.quantity}@${i.unitPrice}` : `${i.productId}:${i.quantity}`
+    )
     .join(",");
   return [itens, p.paymentMethod, p.formaId ?? "", p.clientId ?? "", p.staffId ?? ""].join("|");
 }
@@ -534,23 +613,33 @@ export async function gravarVendaComTravaDeEstoque(params: {
           `${l.produtoSnap.get("name") ?? "Produto"}: estoque insuficiente, restam ${estoqueAntes} unidade(s).`
         );
       }
+      const preco = precoDaLinha({
+        precoDeTabela: Number(l.produtoSnap.get("price")) || 0,
+        pedido: l.item.unitPrice,
+        razao: l.item.priceReason,
+      });
+      if (!preco.ok) throw new HttpsError("invalid-argument", FRASE_DO_PRECO[preco.erro]);
+
       return {
         ...l,
         estoqueAntes,
         /* O custo é capturado AQUI, antes de qualquer escrita, e vai congelado
          * para o movimento. Daqui em diante esta venda não depende mais de
          * `products.cost` — é o que permitirá corrigir D3 sem reescrever nada. */
-        movimento: movimentoDeVenda({
-          productId: l.item.productId,
-          quantidade: l.item.quantity,
-          unitPrice: Number(l.produtoSnap.get("price")) || 0,
-          unitCost: Number(l.produtoSnap.get("cost")) || 0,
-          paymentMethod: params.paymentMethod,
-          clientId: params.clientId,
-          bookingId: params.bookingId,
-          staffId: params.vendedor?.staffId ?? null,
-          date: params.date,
-        }),
+        movimento: {
+          ...movimentoDeVenda({
+            productId: l.item.productId,
+            quantidade: l.item.quantity,
+            unitPrice: preco.unitPrice,
+            unitCost: Number(l.produtoSnap.get("cost")) || 0,
+            paymentMethod: params.paymentMethod,
+            clientId: params.clientId,
+            bookingId: params.bookingId,
+            staffId: params.vendedor?.staffId ?? null,
+            date: params.date,
+          }),
+          ...(preco.alterado ? { listPrice: preco.precoDeTabela, priceReason: preco.razao } : {}),
+        },
       };
     });
 
@@ -700,6 +789,11 @@ export const registrarVendaDeProduto = onCall<VendaInput>(async (request) => {
       );
     }
   }
+  /* Preço diferente do cadastro é decisão do DONO (desconto na hora, venda
+   * refeita). Quem vende em nome de um barbeiro vende ao preço de tabela. */
+  if (papel !== "owner" && itens.some((i) => i?.unitPrice !== undefined && i?.unitPrice !== null)) {
+    throw new HttpsError("permission-denied", "Só o dono muda o preço de uma venda.");
+  }
   /* O meio nasce NO FATO. Aceitar venda sem ele obrigaria a inferir depois — e
    * inferir meio de pagamento é exatamente o que a premissa N12 recusa. */
   if (!metodoValido(paymentMethod)) {
@@ -775,7 +869,13 @@ export const registrarVendaDeProduto = onCall<VendaInput>(async (request) => {
     vendedor,
     db,
     shopRef,
-    itens: itens.map((i) => ({ productId: String(i.productId), quantity: i.quantity })),
+    itens: itens.map((i) => ({
+      productId: String(i.productId),
+      quantity: i.quantity,
+      ...(i.unitPrice !== undefined && i.unitPrice !== null
+        ? { unitPrice: i.unitPrice, priceReason: i.priceReason ?? null }
+        : {}),
+    })),
     paymentMethod,
     clientId: request.data?.clientId ? String(request.data.clientId) : null,
     bookingId: request.data?.bookingId ? String(request.data.bookingId) : null,

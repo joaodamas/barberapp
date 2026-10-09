@@ -324,6 +324,74 @@ export function custoDoVendido(params: {
 }
 
 /**
+ * Perdas e uso interno de estoque — a linha do DRE que o ajuste de estoque cria.
+ *
+ * Universo: movimentos `ajuste` MANUAIS (sem `refundOf`) de quantidade
+ * NEGATIVA — perda/quebra, uso interno, vencido, diferença de contagem a menos
+ * e "outro". O custo é o `unitCost` CONGELADO no movimento, nunca o do cadastro
+ * de hoje: a pomada que quebrou em setembro custou o que custava em setembro.
+ *
+ * ## O que NÃO entra, e por quê
+ *
+ * - **Ajuste positivo** (contagem achou mais do que o sistema dizia): corrige a
+ *   quantidade e só. Não gera receita nem reduz custo — nenhum dinheiro entrou.
+ * - **Devolução** (`ajuste` com `refundOf`): já reduz o CMV em
+ *   `detalheDoCustoDoVendido`; contá-la aqui descontaria duas vezes.
+ *
+ * O custo é fechado em centavos POR MOVIMENTO e depois somado, para os filhos
+ * da tela somarem exatamente o cabeçalho (o defeito que o CMV já teve).
+ */
+export type LinhaDePerda = {
+  productId: string;
+  reason: string;
+  reasonText: string | null;
+  unidades: number;
+  custo: number;
+};
+
+export function perdasDeEstoque(params: {
+  movements: Doc<InventoryMovementDoc>[];
+  periodo: Periodo;
+}): { total: number; unidades: number; linhas: LinhaDePerda[]; semCustoCongelado: number } {
+  const porChave = new Map<string, LinhaDePerda>();
+  let total = 0;
+  let unidades = 0;
+  let semCusto = 0;
+
+  for (const m of params.movements) {
+    if (m.kind !== "ajuste" || m.refundOf) continue;
+    if (!dentroDoPeriodo(m.date, params.periodo)) continue;
+    const qtd = Number(m.quantity) || 0;
+    if (!(qtd < 0)) continue;
+
+    const saiu = -qtd;
+    const unitCost = Number(m.unitCost);
+    /* Sem custo congelado não se lê `products.cost` (reintroduziria o defeito
+     * que o D3 mata): a perda entra com custo zero, e o contador diz quantas. */
+    const custo = Number.isFinite(unitCost) ? centavos(saiu * unitCost) : 0;
+    if (!Number.isFinite(unitCost)) semCusto += saiu;
+
+    const reason = m.reason ?? "outro";
+    const reasonText = reason === "outro" ? (m.reasonText ?? null) : null;
+    const chave = `${m.productId}|${reason}`;
+    const linha = porChave.get(chave) ?? { productId: m.productId, reason, reasonText, unidades: 0, custo: 0 };
+    linha.unidades += saiu;
+    linha.custo = centavos(linha.custo + custo);
+    porChave.set(chave, linha);
+
+    total += custo;
+    unidades += saiu;
+  }
+
+  return {
+    total: centavos(total) + 0,
+    unidades,
+    linhas: [...porChave.values()],
+    semCustoCongelado: semCusto,
+  };
+}
+
+/**
  * Uma linha do detalhamento do CMV — o que a tela abre embaixo do cabeçalho.
  *
  * Os valores já vêm **em centavos fechados**: a soma assinada de

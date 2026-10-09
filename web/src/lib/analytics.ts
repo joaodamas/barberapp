@@ -33,6 +33,7 @@ import { valorCobrado } from "@/lib/desconto";
 import {
   comissaoDeProduto,
   custoDoVendido,
+  perdasDeEstoque as perdasDoPeriodo,
   receitaDeMensalidade,
   receitaDeProduto,
   receitaDeServico,
@@ -724,6 +725,12 @@ export function resultadoDoMes(params: {
   const custoVendido = custoDoVendido({ movements, periodo });
   const cmv = custoVendido.total;
 
+  /* Perdas e uso interno de estoque — ajuste manual de saída, ao custo
+   * congelado. Mercadoria que saiu sem venda é custo do mês, como o CMV; fica
+   * em linha PRÓPRIA para o dono ver quanto a quebra e o uso na cadeira
+   * custam, e não diluída no custo do vendido. Contagem a mais não entra. */
+  const perdasDeEstoque = perdasDoPeriodo({ movements, periodo }).total;
+
   /* Vem somado de `taxasDePagamento`, sobre os pagamentos CONGELADOS, e não
    * derivado das reservas com a taxa vigente hoje: mudar a taxa da maquininha
    * não pode reescrever o que já foi pago. Provado em produção — 1,99/3,49 →
@@ -796,7 +803,7 @@ export function resultadoDoMes(params: {
    * some exatamente onde ele seria conferido. */
   const tax = centavos((receita.bruta * policies.taxRatePct) / 100);
 
-  const variableCost = cmv + gatewayFees + commissions;
+  const variableCost = cmv + perdasDeEstoque + gatewayFees + commissions;
   const contributionMargin = receita.bruta - variableCost;
   const contributionMarginPct = safeDiv(contributionMargin, receita.bruta) * 100;
 
@@ -815,6 +822,7 @@ export function resultadoDoMes(params: {
   return {
     grossRevenue: receita.bruta,
     cmv,
+    perdasDeEstoque,
     gatewayFees,
     commissions,
     /** Só a parte de serviço, aberta por pessoa — é o que a tela detalha. */

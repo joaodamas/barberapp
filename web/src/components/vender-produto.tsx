@@ -4,7 +4,10 @@ import { useMemo, useState } from "react";
 import { Check, Minus, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import type { CorrecaoDeVenda } from "@/components/corrigir-venda";
 import { formatBRL } from "@/lib/format";
+import { lerReais, reaisParaCampo } from "@/lib/reais";
+import { estaArquivado } from "@/lib/produtos";
 import { useTenant } from "@/lib/tenant-context";
 import { useClients, useProducts, useStaff } from "@/lib/db/use-shop-data";
 import { filtrarClientes } from "@/lib/clientes-busca";
@@ -44,23 +47,69 @@ import type { ClientDoc } from "@/lib/domain";
 
 type Linha = { productId: string; quantity: number };
 
-export function VenderProduto({ aoVender }: { aoVender?: () => void }) {
+/** Preço combinado para uma linha, diferente do cadastro. */
+type Combinado = { unitPrice: number; motivo: string };
+
+const MOTIVO_DA_VENDA_ORIGINAL = "Preço da venda original (correção)";
+
+/**
+ * `inicial` é a VENDA CERTA de uma correção: o dono acabou de devolver o que
+ * estava errado, e o Vender abre com os mesmos itens, preços e forma para ele
+ * ajustar e confirmar. Monte com `key={inicial.nonce}` — o estado nasce da
+ * correção, sem efeito que o copie depois.
+ */
+export function VenderProduto({
+  aoVender,
+  inicial = null,
+}: {
+  aoVender?: () => void;
+  inicial?: CorrecaoDeVenda | null;
+}) {
   const tenant = useTenant();
   const formasDeCobranca = formasAtivas(tenant.policies);
   const { items: produtos } = useProducts();
   const { items: clientes } = useClients();
   const { items: equipe } = useStaff();
 
-  const [linhas, setLinhas] = useState<Linha[]>([]);
-  const [forma, setForma] = useState<FormaDePagamento | null>(null);
+  const [linhas, setLinhas] = useState<Linha[]>(() =>
+    (inicial?.linhas ?? []).map((l) => ({ productId: l.productId, quantity: l.quantity }))
+  );
+  const [forma, setForma] = useState<FormaDePagamento | null>(() =>
+    inicial
+      ? (formasDeCobranca.find((f) => f.id === inicial.formaId) ??
+        formasDeCobranca.find((f) => f.base === inicial.paymentMethod) ??
+        null)
+      : null
+  );
   const metodo = forma?.base ?? null;
-  const [vendedorClicado, setVendedorClicado] = useState<string | null>(null);
+  const [vendedorClicado, setVendedorClicado] = useState<string | null>(inicial?.staffId ?? null);
   const [busca, setBusca] = useState("");
-  const [cliente, setCliente] = useState<Doc<ClientDoc> | null>(null);
+  const [clienteId, setClienteId] = useState<string | null>(inicial?.clientId ?? null);
+  const cliente: Doc<ClientDoc> | null = clienteId
+    ? (clientes.find((c) => c.id === clienteId) ?? null)
+    : null;
   const [buscando, setBuscando] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
-  const [feito, setFeito] = useState<{ itens: number; valor: number } | null>(null);
+  const [feito, setFeito] = useState<{ itens: number; valor: number; corrigida: boolean } | null>(null);
+
+  /* Preço combinado por produto (só o dono vende aqui). Nasce da correção com o
+   * preço da venda original; o resto é decisão do dono, linha a linha. */
+  const [combinados, setCombinados] = useState<Record<string, Combinado>>(() => {
+    const mapa: Record<string, Combinado> = {};
+    for (const l of inicial?.linhas ?? []) {
+      mapa[l.productId] = { unitPrice: l.unitPrice, motivo: MOTIVO_DA_VENDA_ORIGINAL };
+    }
+    return mapa;
+  });
+  const [editandoPreco, setEditandoPreco] = useState<string | null>(null);
+  const [rascunhoPreco, setRascunhoPreco] = useState("");
+  const [rascunhoMotivo, setRascunhoMotivo] = useState("");
+  const [erroDoPreco, setErroDoPreco] = useState<string | null>(null);
+
+  /* A correção em andamento: devolução feita, venda certa por fazer. */
+  const [correcaoAtiva, setCorrecaoAtiva] = useState(inicial !== null);
+  const [desistiu, setDesistiu] = useState(false);
 
   /**
    * Chave de idempotência da tentativa atual.
@@ -71,8 +120,9 @@ export function VenderProduto({ aoVender }: { aoVender?: () => void }) {
    */
   const [chave, setChave] = useState(chaveDeIdempotencia);
 
+  /* Arquivado sai do Vender, mesmo com saldo. */
   const disponiveis = useMemo(
-    () => produtos.filter((p) => (p.stock ?? 0) > 0),
+    () => produtos.filter((p) => (p.stock ?? 0) > 0 && !estaArquivado(p)),
     [produtos]
   );
 
@@ -80,6 +130,8 @@ export function VenderProduto({ aoVender }: { aoVender?: () => void }) {
 
   function ajustar(id: string, delta: number) {
     setErro(null);
+    /* A linha saiu do carrinho: o preço combinado sai com ela. */
+    if (noCarrinho(id) + delta <= 0) voltarAoPrecoDeTabela(id);
     /* Carrinho novo, tentativa nova: o servidor recusa a mesma chave com outro
      * pedido. Só o retry do MESMO carrinho reaproveita a chave. */
     setChave(chaveDeIdempotencia());
@@ -97,15 +149,21 @@ export function VenderProduto({ aoVender }: { aoVender?: () => void }) {
     });
   }
 
-  const itensDoCarrinho = linhas.map((l) => ({
-    ...l,
-    produto: produtos.find((p) => p.id === l.productId),
-  }));
+  const itensDoCarrinho = linhas.map((l) => {
+    const produto = produtos.find((p) => p.id === l.productId);
+    const guardado = combinados[l.productId] ?? null;
+    /* Igual ao cadastro não é preço combinado: nada a justificar nem a enviar. */
+    const combinado = guardado && guardado.unitPrice !== produto?.price ? guardado : null;
+    return {
+      ...l,
+      produto,
+      combinado,
+      /* O preço que a venda vai praticar: o combinado, ou o do cadastro. */
+      preco: combinado?.unitPrice ?? produto?.price ?? 0,
+    };
+  });
   const totalItens = linhas.reduce((s, l) => s + l.quantity, 0);
-  const totalValor = itensDoCarrinho.reduce(
-    (s, i) => s + (i.produto?.price ?? 0) * i.quantity,
-    0
-  );
+  const totalValor = itensDoCarrinho.reduce((s, i) => s + i.preco * i.quantity, 0);
 
   const encontrados = useMemo(() => filtrarClientes(clientes, busca, 6), [clientes, busca]);
 
@@ -129,6 +187,65 @@ export function VenderProduto({ aoVender }: { aoVender?: () => void }) {
 
   const podeConfirmar = linhas.length > 0 && metodo !== null;
 
+  function abrirPreco(id: string, precoAtual: number) {
+    setEditandoPreco(id);
+    setRascunhoPreco(reaisParaCampo(precoAtual));
+    setRascunhoMotivo(combinados[id]?.motivo ?? "");
+    setErroDoPreco(null);
+  }
+
+  function aplicarPreco(id: string, precoDeTabela: number) {
+    const preco = lerReais(rascunhoPreco);
+    if (preco === null || !(preco > 0)) {
+      setErroDoPreco("Informe um preço maior que zero.");
+      return;
+    }
+    setChave(chaveDeIdempotencia());
+    if (preco === precoDeTabela) {
+      /* Igual ao cadastro: não há o que justificar. */
+      voltarAoPrecoDeTabela(id);
+      setEditandoPreco(null);
+      return;
+    }
+    if (rascunhoMotivo.trim().length < 3) {
+      setErroDoPreco("Diga por que o preço é diferente (ex.: desconto combinado).");
+      return;
+    }
+    setCombinados((c) => ({ ...c, [id]: { unitPrice: preco, motivo: rascunhoMotivo.trim() } }));
+    setEditandoPreco(null);
+  }
+
+  function voltarAoPrecoDeTabela(id: string) {
+    setChave(chaveDeIdempotencia());
+    setCombinados((c) => {
+      const resto = { ...c };
+      delete resto[id];
+      return resto;
+    });
+  }
+
+  /* Desistir da correção NÃO desfaz a devolução — ela já aconteceu. Limpa o
+   * carrinho e deixa o aviso com a saída à vista. */
+  function descartarCorrecao() {
+    setLinhas([]);
+    setCombinados({});
+    setEditandoPreco(null);
+    setChave(chaveDeIdempotencia());
+    setDesistiu(true);
+  }
+
+  function retomarCorrecao() {
+    if (!inicial) return;
+    setLinhas(inicial.linhas.map((l) => ({ productId: l.productId, quantity: l.quantity })));
+    const mapa: Record<string, Combinado> = {};
+    for (const l of inicial.linhas) {
+      mapa[l.productId] = { unitPrice: l.unitPrice, motivo: MOTIVO_DA_VENDA_ORIGINAL };
+    }
+    setCombinados(mapa);
+    setChave(chaveDeIdempotencia());
+    setDesistiu(false);
+  }
+
   async function confirmar() {
     if (!podeConfirmar || !metodo) return;
     setSalvando(true);
@@ -140,7 +257,11 @@ export function VenderProduto({ aoVender }: { aoVender?: () => void }) {
         { value: number; movementIds: string[] }
       >("registrarVendaDeProduto", {
         barbershopId: tenant.id,
-        itens: linhas,
+        itens: itensDoCarrinho.map((i) => ({
+          productId: i.productId,
+          quantity: i.quantity,
+          ...(i.combinado ? { unitPrice: i.combinado.unitPrice, priceReason: i.combinado.motivo } : {}),
+        })),
         paymentMethod: metodo,
         paymentFormId: forma?.id ?? null,
         clientId: cliente?.id ?? null,
@@ -148,10 +269,14 @@ export function VenderProduto({ aoVender }: { aoVender?: () => void }) {
         idempotencyKey: chave,
       });
 
-      setFeito({ itens: totalItens, valor: r.value });
+      setFeito({ itens: totalItens, valor: r.value, corrigida: correcaoAtiva });
+      setCorrecaoAtiva(false);
+      setDesistiu(false);
       setLinhas([]);
+      setCombinados({});
+      setEditandoPreco(null);
       setForma(null);
-      setCliente(null);
+      setClienteId(null);
       setVendedorClicado(null);
       setBusca("");
       setBuscando(false);
@@ -171,6 +296,37 @@ export function VenderProduto({ aoVender }: { aoVender?: () => void }) {
 
   return (
     <div className="flex flex-col gap-4">
+      {/* ---- Correção de venda: a devolução já foi registrada ---- */}
+      {inicial && correcaoAtiva && !desistiu && (
+        <Card className="flex flex-col gap-2 border-gold/50 p-3">
+          <p className="text-[12.5px] font-medium text-gold-strong">
+            Corrigindo uma venda
+          </p>
+          <p className="text-sm text-ink">
+            A devolução de <span className="tabular-nums">{formatBRL(inicial.valorDevolvido)}</span> já
+            está registrada. Ajuste os itens, o preço e a forma abaixo e confirme a venda certa.
+          </p>
+          <div>
+            <Button variant="ghost" size="sm" onClick={descartarCorrecao}>
+              Não refazer agora
+            </Button>
+          </div>
+        </Card>
+      )}
+      {inicial && correcaoAtiva && desistiu && (
+        <Card role="alert" className="flex flex-col gap-2 border-danger/40 p-3">
+          <p className="text-sm text-ink">
+            A devolução de <span className="tabular-nums">{formatBRL(inicial.valorDevolvido)}</span> continua
+            registrada: o dinheiro e as unidades já voltaram. A venda certa ainda NÃO foi feita.
+          </p>
+          <div>
+            <Button size="sm" onClick={retomarCorrecao}>
+              Registrar a venda certa agora
+            </Button>
+          </div>
+        </Card>
+      )}
+
       {/* ---- Produtos ---- */}
       <section className="flex flex-col gap-2">
         <div className="flex items-baseline justify-between">
@@ -257,10 +413,95 @@ export function VenderProduto({ aoVender }: { aoVender?: () => void }) {
             <span className="text-sm text-ink-muted">
               {totalItens} {totalItens === 1 ? "produto" : "produtos"}
             </span>
-            <span className="font-display text-xl font-semibold text-ink">
+            <span className="font-display text-xl font-semibold tabular-nums text-ink">
               {formatBRL(totalValor)}
             </span>
           </div>
+
+          {/* O preço de cada linha. Combinar outro preço (desconto na hora) é do
+              dono e pede motivo; o preço fica congelado na venda. */}
+          <ul className="flex flex-col divide-y divide-border">
+            {itensDoCarrinho.map((i) => (
+              <li key={i.productId} className="flex flex-col gap-1.5 py-2">
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span className="min-w-0 truncate text-ink">
+                    {i.quantity}× {i.produto?.name ?? "Produto"}
+                  </span>
+                  <span className="flex shrink-0 items-center gap-1">
+                    <span className="tabular-nums text-ink-muted">{formatBRL(i.preco)} cada</span>
+                    {editandoPreco !== i.productId && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => abrirPreco(i.productId, i.preco)}
+                      >
+                        Mudar preço
+                      </Button>
+                    )}
+                  </span>
+                </div>
+                {i.combinado && editandoPreco !== i.productId && (
+                  <p className="flex flex-wrap items-center gap-x-2 text-[11px] text-ink-muted">
+                    <span>
+                      Tabela hoje {formatBRL(i.produto?.price ?? 0)} · {i.combinado.motivo}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => voltarAoPrecoDeTabela(i.productId)}
+                      className="alvo-toque cursor-pointer text-gold-strong underline"
+                    >
+                      Usar o preço de tabela
+                    </button>
+                  </p>
+                )}
+                {editandoPreco === i.productId && (
+                  <div className="flex flex-col gap-1.5">
+                    <div className="grid grid-cols-[7rem_1fr] gap-2">
+                      <input
+                        autoFocus
+                        inputMode="decimal"
+                        value={rascunhoPreco}
+                        onChange={(e) => {
+                          setRascunhoPreco(e.target.value.replace(/[^\d.,]/g, ""));
+                          setErroDoPreco(null);
+                        }}
+                        aria-label="Preço por unidade"
+                        className="min-h-11 rounded-xl border border-border bg-surface px-3 text-sm tabular-nums text-ink"
+                      />
+                      <input
+                        value={rascunhoMotivo}
+                        onChange={(e) => {
+                          setRascunhoMotivo(e.target.value);
+                          setErroDoPreco(null);
+                        }}
+                        maxLength={120}
+                        placeholder="Motivo (ex.: desconto combinado)"
+                        aria-label="Motivo do preço diferente"
+                        className="min-h-11 rounded-xl border border-border bg-surface px-3 text-sm text-ink"
+                      />
+                    </div>
+                    {erroDoPreco && (
+                      <p role="alert" className="text-xs text-danger">
+                        {erroDoPreco}
+                      </p>
+                    )}
+                    <div className="flex gap-2">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setEditandoPreco(null)}
+                      >
+                        Cancelar
+                      </Button>
+                      <Button size="sm" onClick={() => aplicarPreco(i.productId, i.produto?.price ?? 0)}>
+                        Aplicar preço
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
 
           {/* Cliente — opcional, e a tela diz isso */}
           <div className="flex flex-col gap-1.5">
@@ -275,7 +516,7 @@ export function VenderProduto({ aoVender }: { aoVender?: () => void }) {
                     {cliente.whatsapp ? mascararWhatsapp(cliente.whatsapp) : "sem WhatsApp"}
                   </p>
                 </div>
-                <Button variant="ghost" onClick={() => { setCliente(null); setChave(chaveDeIdempotencia()); }}>
+                <Button variant="ghost" onClick={() => { setClienteId(null); setChave(chaveDeIdempotencia()); }}>
                   Tirar
                 </Button>
               </div>
@@ -296,7 +537,7 @@ export function VenderProduto({ aoVender }: { aoVender?: () => void }) {
                     key={c.id}
                     type="button"
                     onClick={() => {
-                      setCliente(c);
+                      setClienteId(c.id);
                       setChave(chaveDeIdempotencia());
                       setBuscando(false);
                     }}
@@ -409,7 +650,8 @@ export function VenderProduto({ aoVender }: { aoVender?: () => void }) {
         <Card className="flex items-center gap-3 border-success/40 bg-success/5 p-3">
           <Check size={18} className="shrink-0 text-success" />
           <p className="text-sm text-ink">
-            Venda de {formatBRL(feito.valor)} registrada. O estoque já foi baixado.
+            {feito.corrigida ? "Venda corrigida: venda certa de " : "Venda de "}
+            {formatBRL(feito.valor)} registrada. O estoque já foi baixado.
           </p>
         </Card>
       )}

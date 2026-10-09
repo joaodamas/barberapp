@@ -857,3 +857,118 @@ describe("3.1 · comissão de produto", () => {
     expect(c.movementId).toBe(r.movementIds[0]);
   });
 });
+
+/* ================================================================== */
+/* Preço combinado na hora — o dono refaz a venda, ou dá o desconto     */
+/* ================================================================== */
+
+function venderComPreco(params: {
+  unitPrice?: number | null;
+  priceReason?: string | null;
+  quantity?: number;
+  chave?: string;
+  vendedor?: typeof VENDEDOR;
+}) {
+  return gravarVendaComTravaDeEstoque({
+    db,
+    shopRef: shopRef(),
+    itens: [
+      {
+        productId: "pomada",
+        quantity: params.quantity ?? 2,
+        ...(params.unitPrice !== undefined ? { unitPrice: params.unitPrice, priceReason: params.priceReason } : {}),
+      },
+    ],
+    paymentMethod: "credit",
+    clientId: null,
+    bookingId: null,
+    date: HOJE,
+    chave: params.chave ?? "k-preco",
+    fees: TAXAS,
+    vendedor: params.vendedor,
+  });
+}
+
+describe("preço combinado · congelado na venda", () => {
+  it("o preço praticado, o de tabela e o motivo ficam no movimento", async () => {
+    await venderComPreco({ unitPrice: 40, priceReason: "desconto combinado" });
+
+    const [m] = await movimentos();
+    expect(m).toMatchObject({ unitPrice: 40, listPrice: 45, priceReason: "desconto combinado", value: 80 });
+    // O cadastro não mudou: o desconto é desta venda.
+    expect(await estoqueDe("pomada")).toBe(8);
+    expect((await shopRef().collection("products").doc("pomada").get()).get("price")).toBe(45);
+  });
+
+  it("receita, taxa e comissão saem do preço praticado, não do de tabela", async () => {
+    await venderComPreco({ unitPrice: 40, priceReason: "desconto combinado", vendedor: VENDEDOR });
+
+    const [p] = await pagamentos();
+    expect(p.grossAmount).toBe(80);
+    // 3,49% de R$ 80,00 = 2,792 → R$ 2,79
+    expect(p.feeAmount).toBe(2.79);
+
+    const [c] = await comissoes();
+    // lucro por unidade = 40 − 18 = 22 → 2 × 22 = 44 → 40% = 17,60
+    expect(c.commissionBase).toBe(44);
+    expect(c.commissionAmount).toBe(17.6);
+  });
+
+  it("preço igual ao do cadastro não pede motivo nem deixa marca", async () => {
+    await venderComPreco({ unitPrice: 45 });
+    const [m] = await movimentos();
+    expect(m.unitPrice).toBe(45);
+    expect(m).not.toHaveProperty("listPrice");
+    expect(m).not.toHaveProperty("priceReason");
+  });
+
+  it("🔒 preço diferente SEM motivo é recusado e não deixa rastro", async () => {
+    await expect(venderComPreco({ unitPrice: 40 })).rejects.toThrow(/por que o preço é diferente/);
+    await expect(venderComPreco({ unitPrice: 40, priceReason: "x" })).rejects.toThrow(/por que o preço é diferente/);
+    expect(await movimentos()).toHaveLength(0);
+    expect(await estoqueDe("pomada")).toBe(10);
+  });
+
+  it("🔒 preço zero, negativo ou absurdo é recusado", async () => {
+    for (const unitPrice of [0, -10, 1_000_000]) {
+      await expect(venderComPreco({ unitPrice, priceReason: "motivo" })).rejects.toThrow(/Preço inválido/);
+    }
+    expect(await movimentos()).toHaveLength(0);
+  });
+
+  it("a venda a preço de tabela segue igual: sem campos novos", async () => {
+    await venderComPreco({});
+    const [m] = await movimentos();
+    expect(m.unitPrice).toBe(45);
+    expect(m).not.toHaveProperty("listPrice");
+  });
+
+  it("🔒 a mesma chave com OUTRO preço é recusada; com o mesmo, é retry", async () => {
+    const a = await venderComPreco({ unitPrice: 40, priceReason: "desconto combinado", chave: "k1" });
+    const b = await venderComPreco({ unitPrice: 40, priceReason: "desconto combinado", chave: "k1" });
+    expect(a.repetida).toBe(false);
+    expect(b.repetida).toBe(true);
+    expect(await estoqueDe("pomada")).toBe(8);
+
+    await expect(
+      venderComPreco({ unitPrice: 30, priceReason: "desconto combinado", chave: "k1" })
+    ).rejects.toThrow(/outro pedido/);
+    await expect(venderComPreco({ chave: "k1" })).rejects.toThrow(/outro pedido/);
+    expect(await movimentos()).toHaveLength(1);
+  });
+
+  it("a devolução desfaz o valor praticado, não o de tabela", async () => {
+    const r = await venderComPreco({ unitPrice: 40, priceReason: "desconto combinado" });
+    const { gravarEstorno } = await import("../refunds");
+    const est = await gravarEstorno({
+      db,
+      shopRef: shopRef(),
+      ref: { origem: "produto", movementId: r.movementIds[0] },
+      chave: "dev",
+      reason: "Correção de venda",
+      quantidadePedida: 1,
+      date: HOJE,
+    });
+    expect(est.valor).toBe(40);
+  });
+});
