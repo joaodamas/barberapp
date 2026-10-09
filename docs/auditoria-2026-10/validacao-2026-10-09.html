@@ -1,0 +1,272 @@
+<title>Validação do Topete 09/10</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: relatório de uma coluna (máx. 960px), em ordem de prioridade; cada achado é uma linha com faixa de gravidade; P2 recolhidos. Paleta da marca Topete, a mesma do relatório de 08/10. */
+:root{
+ --bg:#F7F4EE; --surface:#FFFFFF; --ink:#16140F; --muted:#5E574A; --line:#E4DCCB;
+ --brass:#9A7430; --brass-soft:#F1E6CC; --good:#2F7A4F; --good-soft:#E3F1E8; --warn:#9A6A0B; --warn-soft:#FBEFD4; --bad:#B23A2E; --bad-soft:#F8E1DD;
+ --display:"Outfit",system-ui,sans-serif; --body:"Manrope",system-ui,sans-serif; --mono:"JetBrains Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+ --bg:#12110E; --surface:#1B1915; --ink:#F2EDE2; --muted:#AFA690; --line:#332F27;
+ --brass:#E0AE58; --brass-soft:#2E2617; --good:#6CC08E; --good-soft:#18291F; --warn:#E5B55A; --warn-soft:#2D2412; --bad:#F08A7D; --bad-soft:#331A17; color-scheme:dark}}
+:root[data-theme="dark"]{
+ --bg:#12110E; --surface:#1B1915; --ink:#F2EDE2; --muted:#AFA690; --line:#332F27;
+ --brass:#E0AE58; --brass-soft:#2E2617; --good:#6CC08E; --good-soft:#18291F; --warn:#E5B55A; --warn-soft:#2D2412; --bad:#F08A7D; --bad-soft:#331A17; color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font:15px/1.6 var(--body)}
+.wrap{max-width:960px;margin:0 auto;padding-inline:20px;padding-block:40px 64px;display:flex;flex-direction:column;gap:44px}
+h1,h2,h3{font-family:var(--display);line-height:1.2;text-wrap:balance;margin:0}
+h1{font-size:clamp(28px,5vw,40px);letter-spacing:-.02em}
+h2{font-size:24px;letter-spacing:-.01em}
+h3{font-size:16px;font-weight:600}
+p{margin:0;max-width:70ch}
+.eyebrow{font:600 12px var(--body);letter-spacing:.14em;text-transform:uppercase;color:var(--brass)}
+.muted{color:var(--muted)} .small{font-size:13px}
+.hero{display:flex;flex-direction:column;gap:14px;border-bottom:1px solid var(--line);padding-bottom:28px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.card b{font:700 26px var(--display);font-variant-numeric:tabular-nums}
+.sec{display:flex;flex-direction:column;gap:14px}
+.sec>header{display:flex;flex-direction:column;gap:6px}
+.list{display:flex;flex-direction:column;gap:10px}
+.f{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--warn);border-radius:10px;padding:13px 16px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.f.p0{border-left-color:var(--bad)} .f.p2{border-left-color:var(--line)}
+.f h3{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.f p{font-size:14px}
+.meta{display:flex;gap:8px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
+.tag{font:500 11px var(--mono);padding:1px 6px;border-radius:4px;white-space:nowrap}
+.t0{background:var(--bad-soft);color:var(--bad)} .t1{background:var(--warn-soft);color:var(--warn)} .t2{background:var(--brass-soft);color:var(--brass)}
+.c-exec{background:var(--good-soft);color:var(--good)} .c-lido{background:var(--brass-soft);color:var(--brass)} .c-prov{background:var(--bg);color:var(--muted);border:1px solid var(--line)}
+code{font:12px var(--mono);background:var(--bg);padding:1px 5px;border-radius:4px;word-break:break-all}
+.callout{background:var(--brass-soft);border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:8px}
+.scroll{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:600 11px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);background:var(--bg);white-space:nowrap}
+tr:last-child td{border-bottom:0}
+details{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 16px}
+details[open] summary{margin-bottom:10px}
+summary{cursor:pointer;font-weight:600}
+summary:focus-visible,a:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+ol.steps{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:10px}
+ul.ok{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px;font-size:14px}
+a{color:var(--brass)}
+</style>
+
+<div class="wrap">
+
+<header class="hero">
+ <span class="eyebrow">Topete · validação completa · 09/10/2026 · main em 356e8e1</span>
+ <h1>O núcleo aguenta. O que falta é acabamento, alarme e três peças para vender</h1>
+ <p class="muted">Seis frentes varreram a <code>main</code> em paralelo, já com as correções de 08/10: financeiro, agenda, segurança, telas, integrações com a esteira, e produto contra o mercado. Nenhuma frente achou P0 novo no código. O P0 de verdade é operacional: a produção continua em <code>705c8de</code> (04/10), sem nenhuma das 69 correções de 08/10, inclusive a do horário fixo.</p>
+ <p class="muted small">Cada achado traz a confiança: <span class="tag c-exec">provado rodando</span> <span class="tag c-lido">confirmado lendo</span> <span class="tag c-prov">provável</span>. Ficaram de fora os itens já registrados como restos conhecidos no handoff de 08/10.</p>
+ <div class="cards">
+  <div class="card"><span class="eyebrow">P0 operacional</span><b>3</b><span class="small muted">deploy, alarme e backup</span></div>
+  <div class="card"><span class="eyebrow">Dinheiro e agenda</span><b>13</b><span class="small muted">P1 que gravam valor ou horário errado</span></div>
+  <div class="card"><span class="eyebrow">Segurança</span><b>4</b><span class="small muted">1 P1 e 3 lacunas de acesso</span></div>
+  <div class="card"><span class="eyebrow">Qualidade percebida</span><b>15</b><span class="small muted">P1 de tela que o usuário sente</span></div>
+  <div class="card"><span class="eyebrow">Para vender</span><b>6</b><span class="small muted">lacunas P0 de produto</span></div>
+ </div>
+</header>
+
+<!-- 0 -->
+<section class="sec">
+ <header><span class="eyebrow">0 · Antes de qualquer código</span><h2>O que está em risco hoje, em produção</h2></header>
+ <div class="list">
+  <article class="f p0"><h3><span class="tag t0">P0</span> A produção está 5 dias atrás e roda o defeito do horário fixo</h3>
+   <p>As correções de 08/10 estão só no DEV. No Siqueira, mudar o fixo de um mensalista ainda apaga as 8 semanas dele. Além do deploy, falta contar quem já foi afetado (script <code>fixo-sem-semanas.mjs</code>) e também os atendimentos da manhã que o código antigo cancelou, que o script não mostra.</p>
+   <div class="meta"><span class="tag c-lido">confirmado</span><span>último deploy de PRD em 04/10 (<code>gh run list</code>)</span></div></article>
+  <article class="f p0"><h3><span class="tag t0">P0</span> Quando algo quebra, ninguém fica sabendo</h3>
+   <p>O Telegram da plataforma está desligado em PRD pelo <code>functions/.env</code> versionado. A conferência noturna do financeiro grava em <code>alertas_da_plataforma</code>, que nenhuma tela lê. Não há alerta no Cloud Monitoring descrito no repositório e não há coletor de erro no site. Se o painel cair às 9h de sábado, o aviso vem do Romulo.</p>
+   <div class="meta"><span class="tag c-lido">confirmado lendo</span><code>functions/.env:11</code><code>conferencia-financeira.ts:127</code><code>web/src/app/error.tsx</code></div>
+   <p class="small muted">Correção: <code>.env.axon-barber</code> com o chat id, política de alerta para erros das functions e um coletor mínimo de erro do front.</p></article>
+  <article class="f p0"><h3><span class="tag t0">P0</span> Backup de só 7 dias, sem PITR e sem restauração ensaiada</h3>
+   <p>Um defeito nos gatilhos financeiros descoberto no fechamento do mês, 10 dias depois, não teria mais backup anterior. O handoff de 05/10 pedia para ligar PITR e proteção contra exclusão. O pedido sumiu no de 08/10 sem registro de que foi feito.</p>
+   <div class="meta"><span class="tag c-prov">provável, a reconferir no console</span><code>docs/HANDOFF-2026-10-05.md:114</code></div></article>
+ </div>
+</section>
+
+<!-- 1 -->
+<section class="sec">
+ <header><span class="eyebrow">1 · Corrigir já</span><h2>Valor ou horário errado gravado</h2><p class="muted">Afetam o dia a dia do Siqueira assim que o uso crescer, ou já afetam.</p></header>
+ <div class="list">
+  <article class="f"><h3><span class="tag t1">P1</span> Digitar R$ 27,50 no preço de um serviço grava R$ 2.750</h3>
+   <p>O campo converte a cada tecla: a vírgula some, o 5 vira 275, o 0 vira 2750. Vale no painel e no onboarding, e o preço errado chega à vitrine e ao agendamento.</p>
+   <div class="meta"><span class="tag c-lido">confirmado lendo</span><code>components/servicos-editor.tsx:83</code><code>:263</code></div></article>
+  <article class="f"><h3><span class="tag t1">P1</span> Editar a cobrança reprecifica o corte pela tabela de hoje</h3>
+   <p>Corte marcado a R$ 40, hoje a R$ 45. O dono tira a barba lançada por engano e a cobrança vira R$ 45, não R$ 40. O #145 corrigiu isso no “adicionar serviço”, mas não aqui. Com serviço apagado do catálogo, nem dá para trocar a forma de pagamento.</p>
+   <div class="meta"><span class="tag c-exec">provado rodando</span><code>functions/src/edicao-de-cobranca.ts:170</code><code>:698</code></div></article>
+  <article class="f"><h3><span class="tag t1">P1</span> Cancelar o mensalista corta o plano no mesmo dia, mesmo com o mês pago</h3>
+   <p>O cliente paga outubro e cancela no dia 3. No dia 10, o corte sai avulso e é cobrado de novo. O inverso também acontece: “Gerar faturas” cria a fatura de outubro para quem já cancelou. A regra e o próprio template dizem que o plano vale até o fim do ciclo pago.</p>
+   <div class="meta"><span class="tag c-lido">confirmado lendo</span><code>financial-events.ts:583</code><code>plano-do-atendimento.ts:28</code><code>mensalistas.ts:287</code></div></article>
+  <article class="f"><h3><span class="tag t1">P1</span> O leitor de reais não chegou a cinco campos de dinheiro</h3>
+   <p>Estorno, entrada de estoque, formas de pagamento, planos e Loja ainda leem “1.500” como R$ 1,50 e “1.500,00” como zero. Planos e estorno mostram o valor com ponto (“89.90”).</p>
+   <div class="meta"><span class="tag c-lido">confirmado lendo</span><code>estornar-valor.tsx:74</code><code>entrada-de-estoque.tsx:50</code><code>formas-de-pagamento-editor.tsx:229</code><code>editor-de-planos.tsx:280</code><code>loja/page.tsx:82</code></div></article>
+  <article class="f"><h3><span class="tag t1">P1</span> Mudar o fixo cancela a semana que o cliente remarcou e devolve o dia em que ele não pode</h3>
+   <p>Fixo sexta 10h. O cliente passa a sexta 16/10 para segunda 19/10. O dono muda o fixo para 11h: a segunda some sem aviso e volta a sexta 16/10, o dia que o cliente tinha avisado que não vinha. O mesmo vale para “Tirar horário fixo”.</p>
+   <div class="meta"><span class="tag c-lido">confirmado lendo</span><code>booking.ts:1630</code><code>horario-fixo.ts:204</code><code>:565</code></div></article>
+  <article class="f"><h3><span class="tag t1">P1</span> A prévia do fixo esconde conflito e a confirmação solta as semanas antes de saber se as novas cabem</h3>
+   <p>Trocar corte (30 min) por corte+barba (60 min) num dia com outro cliente às 10h30: a prévia diz “já tem horário” nas 8 semanas. Ao confirmar, as antigas são canceladas primeiro, e nas 3 semanas com conflito o mensalista fica sem horário.</p>
+   <div class="meta"><span class="tag c-exec">provado rodando</span><code>horario-fixo.ts:253</code><code>:494</code></div></article>
+  <article class="f"><h3><span class="tag t1">P1</span> Salvar de novo um fixo quinzenal sem mudar nada dobra as semanas</h3>
+   <p>A tela manda a próxima data como início e o servidor não considera a fase da quinzena. Resultado: as sextas antigas (16/10, 30/10…) continuam e nascem as novas (09/10, 23/10…). O cliente fica com toda sexta reservada até o fim de novembro.</p>
+   <div class="meta"><span class="tag c-exec">provado rodando</span><code>components/horarios-fixos.tsx:89</code><code>horario-fixo.ts:486</code></div></article>
+  <article class="f"><h3><span class="tag t1">P1</span> Barbeiro desligado ou removido deixa os horários futuros presos</h3>
+   <p>As reservas e as 8 semanas de fixo dele continuam confirmadas. Nem o cliente nem o dono conseguem remarcar (“barbeiro não está disponível”), não há como trocar o barbeiro de uma reserva, e o fixo vira conflito toda madrugada. A remoção é um toque, sem confirmação.</p>
+   <div class="meta"><span class="tag c-lido">confirmado lendo</span><code>booking.ts:1510</code><code>equipe/page.tsx:116</code><code>convite-equipe.ts:540</code></div></article>
+  <article class="f"><h3><span class="tag t1">P1</span> Mudar a jornada da semana não avisa quem já marcou</h3>
+   <p>A tela de exceção por data avisa “já há N horários marcados”. A de jornada semanal não. Fechar a terça às 17h deixa de pé os avulsos das 17h30 e o fixo das 18h, que vira conflito toda madrugada.</p>
+   <div class="meta"><span class="tag c-lido">confirmado lendo</span><code>horarios/page.tsx:53</code><code>excecoes-de-agenda.tsx:174</code></div></article>
+  <article class="f"><h3><span class="tag t1">P1</span> Barbearia encerrada continua recebendo reserva pelo app</h3>
+   <p>Só o encaixe é recusado. O link segue oferecendo horários e gravando reservas que o dono não consegue cancelar. Não afeta o Siqueira, mas afeta toda conta que for encerrada.</p>
+   <div class="meta"><span class="tag c-lido">confirmado lendo</span><code>booking.ts:309</code><code>:1728</code></div></article>
+  <article class="f"><h3><span class="tag t1">P1</span> Fumaça do deploy ainda não entra logada</h3>
+   <p>Uma regra ou índice que quebre a leitura do dono passa verde, porque a fumaça usa funções com Admin SDK e só confere a hidratação do <code>/login</code>. Somado ao alarme ausente, a tela Hoje pode amanhecer quebrada sem ninguém saber.</p>
+   <div class="meta"><span class="tag c-lido">confirmado lendo</span><code>scripts/fumaca/fumaca.mjs:153</code></div></article>
+  <article class="f"><h3><span class="tag t1">P1</span> Remover barbeiro, apagar plano e tirar fixo: tudo com um toque e sem volta</h3>
+   <p>Remover leva o histórico de salário. Apagar plano não avisa que há mensalistas nele. Tirar fixo libera 8 semanas para outro cliente pegar.</p>
+   <div class="meta"><span class="tag c-lido">confirmado lendo</span><code>equipe/page.tsx:213</code><code>editor-de-planos.tsx:110</code><code>horarios-fixos.tsx:385</code></div></article>
+  <article class="f"><h3><span class="tag t1">P1</span> Agenda e Hoje não separam os barbeiros</h3>
+   <p>A grade é uma coluna só. Dois clientes às 10h com barbeiros diferentes parecem um encaixe sobreposto, o cartão não diz de quem é, e “Livre · marcar” só aparece quando ninguém está ocupado. Numa barbearia de 3 cadeiras, as vagas reais ficam escondidas. É também a lacuna nº 6 do produto.</p>
+   <div class="meta"><span class="tag c-lido">confirmado lendo</span><code>components/agenda/grade-do-dia.tsx:84</code><code>painel/(dashboard)/page.tsx:640</code></div></article>
+ </div>
+</section>
+
+<!-- 2 -->
+<section class="sec">
+ <header><span class="eyebrow">2 · Segurança e acesso</span><h2>Nenhum vazamento entre barbearias, mas uma porta aberta na equipe</h2></header>
+ <div class="list">
+  <article class="f"><h3><span class="tag t1">P1</span> O dono de qualquer barbearia consegue derrubar a sessão de qualquer conta</h3>
+   <p>A regra deixa o dono gravar o <code>uid</code> numa ficha de equipe da própria loja, e os uids de outros donos e do operador estão em documentos públicos. Com isso, revogar o acesso desse “barbeiro” derruba a sessão da vítima, inclusive de outra barbearia. É disponibilidade, não vazamento. Pela mesma raiz, zerar o <code>uid</code> e apagar a ficha deixa um ex-barbeiro com o papel para sempre.</p>
+   <div class="meta"><span class="tag c-lido">confirmado lendo</span><code>firestore.rules:377</code><code>convite-equipe.ts:459</code></div>
+   <p class="small muted">Correção: só o servidor grava <code>uid</code> em <code>staff</code>, e as callables conferem o vínculo antes de tocar na conta.</p></article>
+  <article class="f p2"><h3><span class="tag t2">P2</span> <code>grantShopRole</code> continua aberta ao dono</h3>
+   <p>Liga qualquer e-mail à loja sem consentimento nem e-mail confirmado. Pode até bloquear a exclusão de conta de terceiros (LGPD). Restringir ao operador.</p>
+   <div class="meta"><span class="tag c-lido">confirmado lendo</span><code>provisioning.ts:373</code></div></article>
+  <article class="f p2"><h3><span class="tag t2">P2</span> Ex-barbeiro e co-dono removidos ainda leem parte da casa</h3>
+   <p><code>commissions</code> e <code>private/financeiro</code> só olham o claim. O co-dono removido continua recebendo push e Telegram com os nomes dos clientes.</p>
+   <div class="meta"><span class="tag c-lido">confirmado lendo</span><code>firestore.rules:325</code><code>:604</code></div></article>
+  <article class="f p2"><h3><span class="tag t2">P2</span> O cliente lê a taxa da maquininha, o líquido e a comissão</h3>
+   <p>As regras de <code>payments</code> e <code>bookings</code> entregam ao cliente o que a própria exportação LGPD esconde por ser “dado do negócio”. Também dá para descobrir se um telefone é cliente de balcão daquela loja.</p>
+   <div class="meta"><span class="tag c-lido">confirmado lendo</span><code>firestore.rules:638</code><code>clients.ts:220</code></div></article>
+ </div>
+</section>
+
+<!-- 3 -->
+<section class="sec">
+ <header><span class="eyebrow">3 · Qualidade percebida</span><h2>O que separa “funciona” de “ferramenta de primeira”</h2><p class="muted">Nenhum destes perde dinheiro, mas todos passam a impressão de sistema amador.</p></header>
+ <div class="scroll"><table>
+  <thead><tr><th>Para quem</th><th>O que a pessoa vê</th><th>Onde</th></tr></thead>
+  <tbody>
+   <tr><td>Todos</td><td>Mensagem técnica em inglês (“internal”, “deadline-exceeded”) ao confirmar, remarcar, cancelar, estornar, vender e em cerca de 25 outros pontos. O tradutor <code>mensagemDaFuncao</code> já existe.</td><td><code>agendar/page.tsx:300</code> e outros</td></tr>
+   <tr><td>Todos</td><td>Nenhum aviso de “sem conexão”: o tablet mostra uma agenda velha como se fosse atual.</td><td><code>lib/db</code></td></tr>
+   <tr><td>Cliente</td><td>Remarcar mostra uma grade vazia para carregando, sem horário e erro, sem distinguir.</td><td><code>(cliente)/reservas/page.tsx:639</code></td></tr>
+   <tr><td>Cliente</td><td>Fidelidade aparece como “0 de 10” enquanto carrega e fica zerada se a leitura falha.</td><td><code>(cliente)/page.tsx:165</code></td></tr>
+   <tr><td>Cliente</td><td>Quem chega pelo link da bio vê spinner e depois esqueleto: a vitrine espera o login para carregar.</td><td><code>auth-guard.tsx:168</code></td></tr>
+   <tr><td>Cliente</td><td>“Continuar com Google” falha no navegador do Instagram, justamente onde o link é divulgado <span class="tag c-prov">provável</span></td><td><code>login/page.tsx:212</code></td></tr>
+   <tr><td>Cliente</td><td>No app instalado no iPhone, a barra “Continuar” cobre a barra de abas.</td><td><code>agendar/page.tsx:1046</code></td></tr>
+   <tr><td>Dono</td><td>Mensalidades com leitura falha mostram “Recebido R$ 0,00” e tabela vazia, sem aviso.</td><td><code>gerir-mensalistas.tsx:58</code></td></tr>
+   <tr><td>Dono</td><td>Mensalidades e Despesas no celular exigem rolagem lateral; o botão “Receber” fica fora da tela.</td><td><code>gerir-mensalistas.tsx:238</code></td></tr>
+   <tr><td>Dono</td><td>Clientes: se os atendimentos falham, todo mundo aparece como “nunca veio”.</td><td><code>clientes/page.tsx:33</code></td></tr>
+   <tr><td>Dono</td><td>Um toque fora do modal apaga o atendimento que estava sendo marcado no balcão.</td><td><code>ui/modal.tsx:63</code></td></tr>
+   <tr><td>Dono</td><td>A ficha do cliente não tem ação: nem WhatsApp, nem marcar, nem editar nome ou telefone, nem observações.</td><td><code>clientes/page.tsx:280</code></td></tr>
+   <tr><td>Dono</td><td>Duas telas prometem o que não acontece: “o cliente é avisado pelo WhatsApp” no cancelamento e “lembrete no WhatsApp” na assinatura.</td><td><code>acoes-do-atendimento.tsx:869</code><code>assinatura/page.tsx:54</code></td></tr>
+   <tr><td>Barbeiro</td><td>“Sair” não desliga as notificações: o próximo a usar o aparelho recebe os avisos da cadeira dele.</td><td><code>area-do-barbeiro.tsx:136</code></td></tr>
+   <tr><td>Escala</td><td>O painel escuta o histórico inteiro de reservas, pagamentos e clientes: cerca de 11 mil documentos por ano relidos a cada abertura no tablet.</td><td><code>lib/db/use-shop-data.ts:69</code></td></tr>
+  </tbody>
+ </table></div>
+</section>
+
+<!-- 4 -->
+<section class="sec">
+ <header><span class="eyebrow">4 · Para vender</span><h2>Três itens que o mercado considera obrigatórios na troca de sistema não existem</h2>
+  <p class="muted">O financeiro do Topete é o melhor entre os sistemas baratos do segmento, e a marca própria em todos os planos é diferencial. Mas a frente de produto concluiu que hoje ele é um sistema que o fundador implanta à mão.</p></header>
+ <div class="scroll"><table>
+  <thead><tr><th>Lacuna</th><th>Prioridade</th><th>Esforço</th><th>Por quê</th></tr></thead>
+  <tbody>
+   <tr><td><b>Lembrete automático ao cliente</b></td><td><span class="tag t0">P0</span></td><td>M</td><td>Não existe nenhum: nem push para o cliente, nem e-mail, nem “adicionar à agenda”. Push e e-mail na véspera não dependem da Meta. Concorrentes confirmam pelo WhatsApp.</td></tr>
+   <tr><td><b>Entrada sem o fundador</b></td><td><span class="tag t0">P0</span></td><td>M</td><td>Cadastro fechado (<code>CADASTRO_ABERTO = false</code>), teto de cerca de 20 domínios manuais sem o certificado curinga, provisionamento só pelo Hub.</td></tr>
+   <tr><td><b>Cobrança da assinatura com consequência</b></td><td><span class="tag t0">P0</span></td><td>M</td><td><code>revisarAssinaturas</code> em <code>DRY_RUN</code>, sem checkout, bloqueio por plano quase só na tela.</td></tr>
+   <tr><td><b>Termos e privacidade preenchidos</b></td><td><span class="tag t0">P0</span></td><td>P + jurídico</td><td>As páginas têm <code>[NOME COMPLETO]</code> e <code>[CPF]</code> em branco.</td></tr>
+   <tr><td><b>Agenda por barbeiro</b></td><td><span class="tag t0">P0</span> de 3 cadeiras para cima</td><td>M</td><td>Os planos de 6 e 10 barbeiros vendem para quem precisa ver quem atende.</td></tr>
+   <tr><td><b>Tirar as promessas falsas da tela</b></td><td><span class="tag t0">P0</span></td><td>P</td><td>O produto tem a regra “funcionalidade que mente é defeito”. Trocar por botão “Avisar no WhatsApp” com mensagem pronta.</td></tr>
+   <tr><td>Cobrança recorrente do mensalista</td><td><span class="tag t1">P1</span></td><td>G</td><td>BestBarbers e Cash Barber cobram automático e bloqueiam inadimplente. Hoje a baixa é manual.</td></tr>
+   <tr><td>Importar clientes por planilha e exportar CSV</td><td><span class="tag t1">P1</span></td><td>P/M</td><td>Quem troca de sistema não redigita 800 clientes. O motor de mesclagem já existe.</td></tr>
+   <tr><td>Caixa do dia e comissão devida menos paga</td><td><span class="tag t1">P1</span></td><td>M</td><td>Não há “contado × esperado” por forma, e o barbeiro vê “A receber” sem abater o já pago.</td></tr>
+   <tr><td>Comanda: pagamento dividido, gorjeta, produto no atendimento</td><td><span class="tag t1">P1</span></td><td>M</td><td>Metade no Pix e metade no dinheiro não tem como ser registrado.</td></tr>
+   <tr><td>Barbeiro completo: folga própria, push, comissão do dia</td><td><span class="tag t1">P1</span></td><td>P/M</td><td>O servidor já suporta jornada por barbeiro; falta a tela.</td></tr>
+   <tr><td>Login por SMS</td><td><span class="tag t1">P1</span></td><td>P</td><td>O código existe e está desligado. Junto com o Google falhando no Instagram, o cliente fica só com e-mail e senha.</td></tr>
+  </tbody>
+ </table></div>
+ <p class="small muted">Dados de concorrentes com fonte no relatório da frente de produto: Trinks, AppBarber, Booksy, BestBarbers, Cash Barber, Gendo, Avec. As notas do Reclame Aqui vieram do trecho do buscador e precisam ser conferidas antes de uso público.</p>
+</section>
+
+<!-- 5 -->
+<section class="sec">
+ <header><span class="eyebrow">5 · Menores</span><h2>P2, para entrar nos pacotes acima</h2></header>
+ <details><summary>Financeiro (6)</summary><ul class="ok">
+  <li>“Recebido até agora” na tela Hoje não desconta a devolução do dia (o #142 corrigiu só o Telegram). <code>painel/(dashboard)/page.tsx:196</code></li>
+  <li>Reajustar a mensalidade aumenta também faturas já vencidas, com a caixa marcada por padrão. <code>mensalistas.ts:824</code></li>
+  <li>A tela Despesas mostra “Recorrentes R$ 0,00” enquanto o DRE conta o aluguel, o que induz o relançamento em dobro. <code>despesas/page.tsx:96</code></li>
+  <li>Atendimento de 30/09 fechado no dia 1º não pode ser corrigido nem editado nunca (“é de outro mês”). <code>correcao-de-pagamento.ts:163</code></li>
+  <li>Serviço apagado aparece como código no DRE; barbeiro removido vira “—” no PDF. <code>analytics.ts:1004</code></li>
+  <li>Venda e entrada de estoque: a chave de repetição não confere o carrinho (mesmo defeito que o #140 corrigiu na reserva). <code>inventory.ts:416</code></li>
+ </ul></details>
+ <details><summary>Agenda (8)</summary><ul class="ok">
+  <li>O aviso “N semanas sem reserva” nunca se limpa e mostra os conflitos mais velhos. <code>horarios-fixos.tsx:48</code></li>
+  <li>A tela do fixo oferece horário que o servidor recusa (jornada da loja em vez da do barbeiro, sem duração do serviço). <code>horarios-fixos.tsx:69</code></li>
+  <li>O fixo cria horário no passado de hoje, e o painel pergunta “atendeu ou não veio?”. <code>horario-fixo.ts:99</code></li>
+  <li>Um avulso cancelado ou encaixe recusado antigo “resolve” a semana do fixo. <code>horario-fixo.ts:206</code></li>
+  <li>Duas remarcações de um horário marcado à mão recriam o fixo na semana. <code>booking.ts:1634</code></li>
+  <li>Remarcação pelo cliente não avisa a barbearia (push e Telegram). <code>push/gatilhos.ts:40</code></li>
+  <li>Na remarcação, o mensalista vê só 10 dias (o #140 corrigiu só o agendar). <code>reservas/page.tsx:149</code></li>
+  <li>No balcão, o teto de 3 reservas vale para o dono, com texto escrito para o cliente. <code>booking.ts:1019</code></li>
+ </ul></details>
+ <details><summary>Operação (6)</summary><ul class="ok">
+  <li><code>garantirHorariosFixos</code> com 60 s em série e consulta da loja fora do try: com 5 ou 6 lojas, as últimas perdem a 8ª semana. <code>horario-fixo.ts:606</code></li>
+  <li><code>reenviarAvisosAoHub</code> com 60 s e 15 s por chamada: Hub pendurado escoa a fila em horas. <code>hub/saida.ts:219</code></li>
+  <li>Um erro de payload no push apaga todos os aparelhos da loja. <code>push/push.ts:69</code></li>
+  <li><code>/api/health</code> só olha o Firestore; functions fora do ar passam verde. <code>api/health/route.ts</code></li>
+  <li>Rodada agendada que falha na leitura inicial não é repetida (agenda das 7h). <code>telegram/gatilhos.ts:139</code></li>
+  <li>Latente para quando o WhatsApp ligar: envio sem tempo-limite, trava de duplicidade que perde mensagem, e confirmação para número não verificado. <code>whatsapp/client.ts:141</code></li>
+ </ul></details>
+ <details><summary>Telas (polimento)</summary><ul class="ok">
+  <li>54 controles de 32–36px sem área de toque mínima, incluindo Não veio, Cancelar e Remarcar no Hoje.</li>
+  <li>Anel de foco e seleção com a cor da barbearia, com contraste incerto (o DS manda usar <code>gold-light</code>).</li>
+  <li>Mensalista vê “A pagar no salão R$ 45” na home e o barbeiro vê o preço cheio de quem tem plano.</li>
+  <li>Sem “Adicionar ao calendário” e “Como chegar” depois de confirmar.</li>
+  <li>Agenda sem seletor de data; Configurações, Horários e Marca não avisam ao sair sem salvar.</li>
+  <li>Página offline promete “atualiza sozinho” e não tenta de novo; o service worker espera a rede sem prazo.</li>
+  <li>Tela de erro manda o cliente “voltar ao painel”; Esc fecha dois modais empilhados; botão dentro de link em cerca de 20 lugares.</li>
+ </ul></details>
+</section>
+
+<!-- 6 -->
+<section class="sec">
+ <header><span class="eyebrow">6 · Conferido e sem defeito</span><h2>O que está sólido</h2></header>
+ <ul class="ok">
+  <li>Nenhuma barbearia lê ou grava dado de outra. Preço, status, barbeiro e desconto não são graváveis pelo cliente. Nenhum segredo vazou no repositório público.</li>
+  <li>As correções de 08/10 ficaram de pé nos caminhos principais: fixo (mudar, remover e recolocar, trocar barbeiro), chave de repetição da reserva, reentrega dos gatilhos financeiros, cota do plano na transação, acesso do barbeiro nas callables.</li>
+  <li>Trava de horário dentro da transação nos três caminhos; “Qualquer barbeiro” escolhe na transação; fuso coerente.</li>
+  <li>O pagamento só nasce com dinheiro; o estorno é fato novo; taxa e CMV vêm do valor congelado.</li>
+  <li>Esteira: PRD exige DEV verde do mesmo commit, janela conferida depois da aprovação, actions fixadas por SHA, <code>main</code> protegida com os checks obrigatórios.</li>
+  <li>Disciplina de tokens, campos a 16px no celular, modal acessível, <code>ErroAoCarregar</code> nas telas principais, poucas dependências no bundle.</li>
+ </ul>
+</section>
+
+<!-- 7 -->
+<section class="sec">
+ <header><span class="eyebrow">7 · Proposta</span><h2>Ordem de execução</h2></header>
+ <ol class="steps">
+  <li><b>Hoje à noite:</b> deploy de PRD com as correções de 08/10 e o WhatsApp comercial, contagem do fixo no Siqueira, e conferir backup e PITR no console.</li>
+  <li><b>Pacote dinheiro (1 PR):</b> preço do serviço, leitor de reais nos cinco campos, editar cobrança com preço congelado, cancelamento do mensalista até o fim do ciclo, e os P2 do financeiro.</li>
+  <li><b>Pacote fixo e agenda (1 PR):</b> os três caminhos do fixo, barbeiro desligado com horários presos, aviso na jornada semanal, loja encerrada.</li>
+  <li><b>Segurança (1 PR pequeno):</b> <code>uid</code> da equipe só pelo servidor, <code>grantShopRole</code> só para o operador, regras de comissão e financeiro com a ficha ativa.</li>
+  <li><b>Alarme:</b> Telegram da plataforma ligado em PRD, alerta de erro das functions, coletor de erro do front, fumaça logada.</li>
+  <li><b>Pacote acabamento:</b> <code>mensagemDaFuncao</code> em todos os erros, confirmações destrutivas, estados de remarcar, fidelidade e mensalidades, aviso de sem conexão, tirar as promessas falsas, Sair do barbeiro.</li>
+  <li><b>Produto:</b> agenda por barbeiro, lembrete por push e e-mail, depois entrada self-service e cobrança da assinatura.</li>
+ </ol>
+</section>
+
+</div>

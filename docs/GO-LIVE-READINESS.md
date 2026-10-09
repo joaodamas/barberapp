@@ -7,8 +7,9 @@ pendente coisa que já estava feita, e como feita coisa que nunca foi provada.
 Um inventário que erra nas duas direções é pior que nenhum — ele faz decidir
 com base em ficção.
 
-**Última revisão: 10/09/2026** — três pedidos do dono da barbearia piloto
-(§2.0), levantados por ele ao usar o produto pela primeira vez.
+**Última revisão: 09/10/2026** — validação completa em seis frentes
+(§1.1). A revisão anterior (10/09) trouxe os três pedidos do dono da barbearia
+piloto (§2.0).
 
 ---
 
@@ -32,6 +33,43 @@ Duas regras que dão sentido ao resto:
 E uma distinção que este documento mantém de propósito: **"não existe" é
 diferente de "está quebrado".** Funcionalidade ausente é escopo; funcionalidade
 que mente é defeito.
+
+### 1.1 Validação de 09/10 — classificação
+
+Seis frentes varreram a `main` em `356e8e1` (financeiro, agenda, segurança,
+telas, integrações e esteira, produto contra o mercado). Relatório:
+`docs/auditoria-2026-10/validacao-2026-10-09.html`. Nenhum P0 novo no código;
+o P0 era operacional: **PRD em `705c8de` (04/10), sem as 69 correções de 08/10.**
+
+**Corrigido e mesclado na `main` em 09/10 — tudo 🟡 até o deploy de PRD e a
+prova no domínio publicado:**
+
+| PR | O quê | O que provar no domínio |
+|---|---|---|
+| #153 | segurança: `staff.uid` só pelo servidor, `grantShopRole` só da plataforma, ex-barbeiro sem leitura de comissão e financeiro, cliente sem taxa/líquido | revogar e remover um barbeiro real; tela Clientes com o par conta/balcão |
+| #152 | monitoramento: erro do site e das functions vira e-mail (Cloud Monitoring), `/api/health` com functions | rodar `scripts/monitoramento/aplicar.sh` em PRD e receber um e-mail de teste |
+| #150 | logo: recorte das sobras, remover fundo, avisos, prévia real, monograma | trocar o logo d'O Siqueira pelo celular |
+| #156 | acabamento: mensagens honestas, estados de leitura, modal protegido, aviso sem conexão, offline | abrir o app do cliente com rede ruim e no navegador do Instagram |
+| #151 | agenda por barbeiro: colunas, filtro, recebido com devoluções | Agenda e Hoje com os barbeiros do Siqueira |
+| #154 | dinheiro: preço 27,50, leitores de reais e de percentual, editar cobrança congelada, cancelado coberto só com fatura paga | digitar 27,50 num serviço; editar uma cobrança depois de reajuste |
+| #155 | horário fixo: troca sem perder semana, remarcada preservada, troca de barbeiro, jornada avisa | mudar um fixo com conflito e ver o aviso de manhã |
+| #158 | régua do mensalista D-5…D+5 no app e no painel | um mensalista com fatura vencendo |
+| #157 | plano anual, fase 1, atrás de `ANUAL_DISPONIVEL = false` | só depois do Hub (`jpprojects-hub#1`) publicado |
+
+**Continua 🔴:** PRD sem nenhuma dessas correções até o deploy; o P0 do horário
+fixo de 08/10 (contar afetados com `fixo-sem-semanas.mjs`); `DRY_RUN` do
+expurgo; termos e privacidade com campos em branco; backup de 7 dias sem PITR
+(conferir no console).
+
+**Escopo para vender (não é defeito, entra como próxima rodada):** lembrete
+automático ao cliente (push/e-mail, sem depender da Meta), cadastro
+self-service (certificado curinga), cobrança da assinatura com consequência
+(`DRY_RUN` do billing), importar clientes, caixa do dia, comanda com pagamento
+dividido. Cartão 12x no anual depende de gateway no Hub.
+
+**⚪ registrado, não feito:** `staff.uid` ainda legível na ficha pública (sem
+exploração); `slotMinutes` por barbeiro na grade; fuso do navegador em
+`contarLiberaveis`; escutas sem limite de data em `use-shop-data.ts` (escala).
 
 ---
 
