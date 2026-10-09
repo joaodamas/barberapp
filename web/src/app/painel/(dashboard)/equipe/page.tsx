@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Plus, Trash2, UserPlus, Users } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { AcessoDoBarbeiro } from "@/components/equipe/acesso-do-barbeiro";
+import { ConfirmarSaidaDoBarbeiro, type Acao } from "@/components/equipe/confirmar-saida-do-barbeiro";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
 import { useServices, useStaffComRemuneracao } from "@/lib/db/use-shop-data";
@@ -108,9 +109,11 @@ export default function EquipePage() {
         await patchDoc(tenant.id, "staff", id, { [campo]: valor });
         if (historico) await putDoc(tenant.id, "staffPay", id, historico);
       }
+      return true;
     } catch (e) {
       console.error("[equipe] falha ao salvar", e);
       setErro("Não foi possível salvar. Verifique a conexão.");
+      return false;
     }
   }
 
@@ -120,18 +123,43 @@ export default function EquipePage() {
    * acesso e só então apaga. As regras só deixam apagar direto a ficha sem
    * conta, e nem essa a tela usa: um caminho só. */
   const [removendo, setRemovendo] = useState<string | null>(null);
+  /* Desligar e remover pedem confirmação, com o número de horários presos
+   * (09/10): eram um toque, sem pergunta. */
+  /* Guarda id e nome na abertura: ao remover, a escuta apaga a ficha antes da
+   * resposta chegar, e o modal não pode depender dela estar viva. */
+  const [aConfirmar, setAConfirmar] = useState<{ id: string; name: string; acao: Acao } | null>(null);
+  const [saindo, setSaindo] = useState(false);
+  function pedirSaida(b: { id: string; name: string }, acao: Acao) {
+    setErro(null);
+    setAConfirmar({ id: b.id, name: b.name, acao });
+  }
   async function remover(id: string) {
-    if (soloRestante || removendo) return;
+    if (soloRestante || removendo) return false;
     setErro(null);
     setRemovendo(id);
     try {
       const { callFunction } = await import("@/lib/firebase");
       await callFunction("removerBarbeiro", { barbershopId: tenant.id, staffId: id });
+      return true;
     } catch (e) {
       console.error("[equipe] falha ao remover", e);
       setErro(mensagemDaFuncao(e, "Não foi possível remover agora."));
+      return false;
     } finally {
       setRemovendo(null);
+    }
+  }
+
+  async function confirmarSaida() {
+    if (!aConfirmar) return;
+    const { id, acao } = aConfirmar;
+    setSaindo(true);
+    try {
+      const ok = acao === "remover" ? await remover(id) : await salvar(id, "active", false);
+      /* Falhou: o modal fica aberto com o erro dentro dele, para tentar de novo. */
+      if (ok) setAConfirmar(null);
+    } finally {
+      setSaindo(false);
     }
   }
 
@@ -211,7 +239,11 @@ export default function EquipePage() {
                   type="checkbox"
                   checked={b.active !== false}
                   disabled={ehOUltimoAtivo}
-                  onChange={(e) => salvar(b.id, "active", e.target.checked)}
+                  onChange={(e) =>
+                    e.target.checked
+                      ? salvar(b.id, "active", true)
+                      : pedirSaida(b, "desligar")
+                  }
                   className="h-4 w-4 accent-[var(--color-gold)]"
                 />
                 Atendendo
@@ -220,7 +252,7 @@ export default function EquipePage() {
               <button
                 type="button"
                 aria-label={`Remover ${b.name || "barbeiro"}`}
-                onClick={() => remover(b.id)}
+                onClick={() => pedirSaida(b, "remover")}
                 disabled={soloRestante || removendo === b.id}
                 title={
                   soloRestante
@@ -366,6 +398,17 @@ export default function EquipePage() {
         <p role="alert" className="text-sm text-danger">
           {erro}
         </p>
+      )}
+
+      {aConfirmar && (
+        <ConfirmarSaidaDoBarbeiro
+          barbeiro={{ id: aConfirmar.id, name: aConfirmar.name }}
+          acao={aConfirmar.acao}
+          trabalhando={saindo}
+          erro={erro}
+          onConfirmar={() => void confirmarSaida()}
+          onClose={() => setAConfirmar(null)}
+        />
       )}
 
       {ativos.length > 1 && (

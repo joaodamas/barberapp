@@ -1,6 +1,6 @@
 import { onDocumentCreated, onDocumentUpdated } from "firebase-functions/v2/firestore";
 import { getFirestore } from "firebase-admin/firestore";
-import { avisoDaCriacao } from "../telegram/gatilhos";
+import { avisoDaCriacao, remarcadaPeloCliente } from "../telegram/gatilhos";
 import { diaCurto } from "../telegram/mensagens";
 import { notificarEquipe } from "./push";
 
@@ -41,6 +41,20 @@ export const pushAoMudarReserva = onDocumentUpdated({ document: DOC, region: "so
   const antes = event.data?.before.data();
   const depois = event.data?.after.data();
   if (!antes || !depois) return;
+  if (remarcadaPeloCliente(antes, depois)) {
+    const shopRef = getFirestore().doc(`barbershops/${event.params.barbershopId}`);
+    const cliente = String(depois.clientName ?? "Cliente");
+    await notificarEquipe(
+      shopRef,
+      {
+        titulo: "🔄 Cliente remarcou",
+        corpo: `${cliente}\nDe ${diaCurto(String(antes.date))} às ${antes.time} para ${diaCurto(String(depois.date))} às ${depois.time}${depois.staffName ? ` · ${depois.staffName}` : ""}`,
+        tag: `reserva-${event.params.bookingId}`,
+      },
+      depois.staffId as string | undefined
+    );
+    return;
+  }
   if (antes.status === depois.status || depois.status !== "cancelled_by_client") return;
   if (antes.status === "fit_in_requested") return;
   const shopRef = getFirestore().doc(`barbershops/${event.params.barbershopId}`);

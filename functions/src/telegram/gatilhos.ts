@@ -7,6 +7,8 @@ import { TELEGRAM_BOT_TOKEN, tokenDoBot } from "./api";
 import { avisar, contatosDaLoja, desligarPorBloqueio, recebe, type Contato } from "./contatos";
 import {
   dadoDoBotao,
+  diaCurto,
+  esc,
   textoDaAgendaDoDia,
   textoDoCancelamento,
   textoDoEncaixe,
@@ -70,12 +72,57 @@ export const telegramAoCriarReserva = onDocumentCreated(
   }
 );
 
+/**
+ * O CLIENTE remarcou o próprio horário (09/10): data ou hora mudaram e quem
+ * gravou foi ele (`rescheduledBy`, gravado por `rescheduleBooking`). Remarcação
+ * feita pelo painel a equipe já sabe; sem este aviso, o horário que o cliente
+ * deixou livre e o que passou a ocupar só apareciam se alguém abrisse a agenda.
+ */
+export function remarcadaPeloCliente(
+  antes: { date?: unknown; time?: unknown },
+  depois: { date?: unknown; time?: unknown; status?: unknown; clientId?: unknown; rescheduledBy?: unknown }
+): boolean {
+  if (!depois.rescheduledBy || depois.rescheduledBy !== depois.clientId) return false;
+  if (!ABERTOS.includes(String(depois.status))) return false;
+  return antes.date !== depois.date || antes.time !== depois.time;
+}
+
+export function textoDaRemarcacao(
+  antes: { date: string; time: string },
+  r: ReservaResumo,
+  loja: string
+): string {
+  return [
+    `🔄 <b>Cliente remarcou</b> · ${esc(loja)}`,
+    `${esc(r.clientName ?? "Cliente")}`,
+    `De ${diaCurto(antes.date)} às ${esc(antes.time)}`,
+    `Para ${diaCurto(r.date)} às ${esc(r.time)}${r.staffName ? ` · com ${esc(r.staffName)}` : ""}`,
+    "",
+    "O horário antigo ficou livre na agenda.",
+  ].join("\n");
+}
+
 export const telegramAoMudarReserva = onDocumentUpdated(
   { document: DOC, secrets: [TELEGRAM_BOT_TOKEN], region: "southamerica-east1" },
   async (event) => {
     const antes = event.data?.before.data();
     const depois = event.data?.after.data();
     if (!antes || !depois || !tokenDoBot()) return;
+    if (remarcadaPeloCliente(antes, depois)) {
+      const shopRef = getFirestore().doc(`barbershops/${event.params.barbershopId}`);
+      const contatos = await contatosDaLoja(shopRef);
+      /* Mesma preferência do cancelamento: é o outro aviso de "mexeram no horário". */
+      if (!contatos.some((c) => recebe(c, "cancelamento", depois.staffId))) return;
+      const { nome } = await nomeDaLoja(shopRef);
+      await avisar({
+        shopRef,
+        contatos,
+        tipo: "cancelamento",
+        staffId: depois.staffId,
+        html: textoDaRemarcacao(antes as { date: string; time: string }, depois as ReservaResumo, nome),
+      });
+      return;
+    }
     /* Só o cancelamento do CLIENTE: o da loja foi a própria equipe que fez. */
     if (antes.status === depois.status || depois.status !== "cancelled_by_client") return;
     /* Pedido de encaixe desistido não é horário que ficou livre. */

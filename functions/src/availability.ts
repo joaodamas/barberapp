@@ -6,6 +6,7 @@ import { diaDaSemanaNoFuso, hojeNoFuso, instanteNoFuso, localeDoDocumento } from
 import { janelaLivre, janelasOcupadas, paraHora, paraMinutos } from "./agenda";
 import { jornadaDoDia, type ExcecaoDeAgenda, type JornadaDoDia } from "./jornada";
 import { QUALQUER_BARBEIRO, fazTodosOsServicos } from "./distribuicao";
+import { recusarSeEncerrada } from "./booking";
 
 /**
  * Horários livres de um dia.
@@ -90,6 +91,7 @@ export const availableSlots = onCall<{
   const shop = shopSnap.data() ?? {};
   const locale = localeDoDocumento(shop);
   const policies = shop.policies ?? {};
+  recusarSeEncerrada(shop);
 
   const equipe = await shopRef.collection("staff").where("active", "==", true).get();
   if (equipe.empty) return { slots: [], staffId: null };
