@@ -298,6 +298,16 @@ describe("02/10 · conta e balcão com o mesmo número", () => {
     expect(pares[0].conta.id).toBe("u1");
     expect(pares[0].balcao.id).toBe("b1");
   });
+  it("acha o par pelo indício gravado no balcão (09/10), sem depender da conta", () => {
+    const contaSemIndicio = cliente({ id: "u1", uid: "u1", name: "Bruno", whatsapp: "11988887777" });
+    const pares = paresDeMesmoNumero([{ ...balcao, contasDoMesmoNumero: ["u1", "u9"] }, contaSemIndicio]);
+    expect(pares).toHaveLength(1);
+    expect(pares[0].conta.id).toBe("u1");
+    expect(pares[0].balcao.id).toBe("b1");
+  });
+  it("o mesmo par pelos dois indícios aparece uma vez só", () => {
+    expect(paresDeMesmoNumero([{ ...balcao, contasDoMesmoNumero: ["u1"] }, conta])).toHaveLength(1);
+  });
   it("balcão já vinculado ou inativo não aparece", () => {
     expect(paresDeMesmoNumero([{ ...balcao, mergedInto: "u1" }, conta])).toHaveLength(0);
     expect(paresDeMesmoNumero([{ ...balcao, active: false }, conta])).toHaveLength(0);

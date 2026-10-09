@@ -213,8 +213,16 @@ export async function vincularCadastros(params: {
         whatsapp,
         active: true,
         /* A conta passa a ser A pessoa daquele número: o balcão pode reusá-la
-         * (`acharClientePorWhatsapp`). Trocar o WhatsApp depois desliga isto. */
-        telefoneConfirmado: true,
+         * (`acharClientePorWhatsapp`). Trocar o WhatsApp depois desliga isto.
+         *
+         * SÓ com prova (09/10). Pelo caminho do dono, o número é o que a
+         * própria conta digitou numa reserva — o dono confirma que é a mesma
+         * PESSOA, não que a conta controla a linha. Marcar confirmado ali
+         * fazia o balcão passar a entregar reservas de quem liga a quem
+         * apenas digitou o número. O dono ganha marca própria
+         * (`vinculadoPeloDono`): o balcão reaproveita a conta pelo número, sem
+         * que isso valha como telefone provado. */
+        ...(via === "sms" ? { telefoneConfirmado: true } : { vinculadoPeloDono: true }),
         ...(paraDados ? {} : { origin: "app", createdAt: FieldValue.serverTimestamp() }),
         ...(paraDados?.mesmoNumeroQue === deId ? { mesmoNumeroQue: FieldValue.delete() } : {}),
         updatedAt: FieldValue.serverTimestamp(),

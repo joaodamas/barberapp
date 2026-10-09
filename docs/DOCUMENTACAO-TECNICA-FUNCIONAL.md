@@ -615,7 +615,7 @@ o dono ver "salvo" com o dado no chão. A lista é nominal e não por prefixo:
 | Function | Quem pode | O que faz |
 |---|---|---|
 | `provisionBarbershop` | `platformAdmin` | cria barbearia para um dono que **já tem conta**; caminho assistido |
-| `grantShopRole` | `platformAdmin` ou `owner` daquela barbearia | concede ou revoga papel; idempotente |
+| `grantShopRole` | só `platformAdmin` (09/10); conceder exige e-mail verificado | concede ou revoga papel; idempotente |
 
 Ambas gravam claim e documento juntos — o claim fora da transação, com log
 explícito e orientação de reexecutar `grantShopRole` se falhar. Um dono não pode

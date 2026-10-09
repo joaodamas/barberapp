@@ -229,6 +229,25 @@ describe("P1-7 · o que a fonte precisa continuar dizendo", () => {
     expect(fonte).toMatch(/commissionPctDoBarbeiro:\s*pctCongelado\s*\?\?/);
   });
 
+  it("a reserva não guarda a % de comissão (09/10): o percentual vem do documento de comissão", () => {
+    /* A reserva é lida pelo cliente. O percentual que o barbeiro ganha mora no
+     * documento de comissão vigente, que a reconclusão relê. */
+    const congelado = fonte.slice(
+      fonte.indexOf("const congelado: CicloFinanceiro"),
+      fonte.indexOf("pagamento: brutoDoFatoCongelado(")
+    );
+    expect(congelado.length).toBeGreaterThan(100);
+    expect(congelado).not.toMatch(/commissionPct/);
+    expect(fonte).toMatch(/comissaoVigenteRef\(db, barbershopId, bookingId, depois\)\.get\(\)/);
+  });
+
+  it("o `commissionPct` legado sai da reserva na reversão e na reconclusão", () => {
+    /* O merge não apaga campo de mapa aninhado; sem o delete explícito, reservas
+     * antigas manteriam a % de comissão legível pelo cliente. */
+    const ocorrencias = fonte.match(/commissionPct:\s*FieldValue\.delete\(\)/g) ?? [];
+    expect(ocorrencias.length).toBeGreaterThanOrEqual(2);
+  });
+
   it("o pagamento é congelado ANTES de ser apagado", () => {
     /* Desde o desconto no fechamento (28/09) o congelado passa por
      * `brutoDoFatoCongelado`, que guarda o bruto de TABELA e o desconto — a
