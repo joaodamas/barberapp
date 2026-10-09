@@ -36,8 +36,8 @@ export function CabecalhoDoPainel() {
           className={CLASSE_DO_LOGO_REDONDO}
           priority
         />
-        <div className="leading-tight">
-          <p className="font-display text-sm uppercase tracking-wider text-ink">{brand.shortName}</p>
+        <div className="min-w-0 leading-tight">
+          <p className="line-clamp-2 break-words font-display text-sm font-semibold text-ink">{brand.name}</p>
           <p className="text-[11px] text-ink-muted">{brand.panelLabel}</p>
         </div>
       </Link>

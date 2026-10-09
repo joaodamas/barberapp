@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { CalendarClock, CalendarPlus, ChevronLeft, ChevronRight, FileText } from "lucide-react";
+import { useEffect, useState } from "react";
+import { CalendarClock, CalendarPlus, FileText, Inbox, Lightbulb, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
@@ -27,6 +27,9 @@ import { conflitosDoEncaixe, livresNoDia, recomendarEncaixe, type NivelDoEncaixe
 import { GradeDoDia, type LivreEscolhido } from "@/components/agenda/grade-do-dia";
 import { FiltroDeBarbeiro, useFiltroDeBarbeiro } from "@/components/agenda/filtro-de-barbeiro";
 import { reservasDoFiltro } from "@/lib/grade-por-barbeiro";
+import { rotuloDosPedidos } from "@/lib/barra-da-agenda";
+import { BarraFixa } from "@/components/agenda/barra-fixa";
+import { SeletorDeDia } from "@/components/agenda/seletor-de-dia";
 import { EtiquetaMensalista, useMensalistasAtivos } from "@/components/agenda/etiqueta-mensalista";
 import { EtiquetaEncaixe } from "@/components/agenda/etiqueta-encaixe";
 import type { Doc } from "@/lib/db/repository";
@@ -56,6 +59,8 @@ export default function AgendaPage() {
    * lado). A lista continua para quem prefere rolar. */
   const [modo, setModo] = useState<"grade" | "lista">("grade");
   const [selecionadoId, setSelecionadoId] = useState<string | null>(null);
+  /* A gaveta dos pedidos de encaixe (abre pelo contador da barra). */
+  const [gaveta, setGaveta] = useState(false);
   /* As ações de dentro da janela do atendimento: cada uma fecha a janela
    * antes de abrir o próprio diálogo (remarcar, cancelar, concluir…). */
   const atendimentoNaJanela: typeof atendimento = {
@@ -87,18 +92,6 @@ export default function AgendaPage() {
     const id = window.setInterval(tique, 60_000);
     return () => window.clearInterval(id);
   }, []);
-
-  /* Semana de segunda a domingo, a que contém o dia escolhido. */
-  const semana = useMemo(() => {
-    const base = new Date(`${dia}T12:00:00`);
-    const segunda = new Date(base);
-    segunda.setDate(base.getDate() - ((base.getDay() + 6) % 7));
-    return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(segunda);
-      d.setDate(segunda.getDate() + i);
-      return toISODate(d);
-    });
-  }, [dia]);
 
   const contaDoDia = (iso: string) =>
     todas.filter(
@@ -185,29 +178,15 @@ export default function AgendaPage() {
   const nomeDoBarbeiro = (b: Doc<BookingDoc>) =>
     variosBarbeiros ? (equipe.find((s) => s.id === b.staffId)?.name ?? null) : null;
 
-  const moverSemana = (n: number) => {
-    const d = new Date(`${dia}T12:00:00`);
-    d.setDate(d.getDate() + 7 * n);
-    escolher(toISODate(d));
-  };
-
-  const rotuloCurto = (iso: string) =>
-    new Date(`${iso}T12:00:00`).toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", "");
-  const rotuloLongo = new Date(`${dia}T12:00:00`).toLocaleDateString("pt-BR", {
-    weekday: "long",
-    day: "2-digit",
-    month: "long",
-  });
-
   return (
-    <div className="flex flex-col gap-4 pt-1 md:gap-6 md:pt-2">
-      <div className="flex items-end justify-between gap-3">
-        <div>
-          <p className="text-[12.5px] font-medium text-ink-muted">Agenda</p>
-          <h1 className="text-[22px] font-semibold leading-[1.15] tracking-[-0.02em] text-ink first-letter:uppercase md:text-[28px]">
-            {rotuloLongo}
-          </h1>
-        </div>
+    <div className="flex flex-col gap-4 pt-1 md:gap-5 md:pt-2">
+      {/* O título é fixo ("Agenda"): a data por extenso mudava de comprimento
+          conforme o dia e quebrava linha no celular, e a linha de cima da barra
+          fixa não pode mudar de altura. O dia vive na navegação de data. */}
+      <div className="flex h-11 items-center justify-between gap-3">
+        <h1 className="text-[22px] font-semibold leading-[1.15] tracking-[-0.02em] text-ink md:text-[28px]">
+          Agenda
+        </h1>
         <div className="flex shrink-0 items-center gap-2">
           {/* O mês do dia que está na tela: quem navegou até outubro quer o
               relatório de outubro. Aparece também no celular, e para quem só
@@ -230,82 +209,76 @@ export default function AgendaPage() {
         </div>
       </div>
 
-      <LiberacaoDaAgenda />
-
-      {/* A semana: um toque escolhe o dia; o número é quantos horários ele tem. */}
-      <div className="flex items-center gap-1.5">
-        <button
-          type="button"
-          aria-label="Semana anterior"
-          onClick={() => moverSemana(-1)}
-          className="flex h-10 w-8 shrink-0 items-center justify-center rounded-controle text-ink-muted transition-colors duration-150 hover:text-ink md:w-10"
-        >
-          <ChevronLeft size={18} />
-        </button>
-        <div className="grid min-w-0 flex-1 grid-cols-7 gap-1">
-          {semana.map((iso) => {
-            const ativo = iso === dia;
-            const fechado = !abre(iso);
-            const n = contaDoDia(iso);
-            return (
+      {/* A barra de ferramentas: colada no topo da área que rola e com altura que
+          não depende de dado. Era aqui que a tela "pulava": os pedidos de encaixe,
+          os avisos e a faixa da semana ficavam ACIMA dos chips e mudavam de
+          altura ao vivo, e o clique no barbeiro caía no chip vizinho ("Todos").
+          Agora tudo que varia mora ABAIXO dela. */}
+      <BarraFixa className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <div className="w-full sm:w-auto">
+            <SeletorDeDia
+              dia={dia}
+              hoje={hoje}
+              total={status === "pronto" ? contaDoDia(dia) : null}
+              aoMudar={escolher}
+            />
+          </div>
+          <div
+            className="flex gap-0.5 rounded-controle border border-border bg-surface p-0.5"
+            role="tablist"
+            aria-label="Como ver o dia"
+          >
+            {(["grade", "lista"] as const).map((m) => (
               <button
-                key={iso}
+                key={m}
                 type="button"
-                aria-pressed={ativo}
-                aria-label={`${rotuloCurto(iso)} ${iso.slice(8)}: ${fechado ? "fechado" : contar(n, "horário", "horários")}`}
-                onClick={() => escolher(iso)}
+                role="tab"
+                aria-selected={modo === m}
+                onClick={() => setModo(m)}
                 className={
-                  "flex min-h-16 min-w-0 flex-col items-center justify-center gap-0.5 rounded-controle border px-0.5 py-1.5 text-center transition-colors duration-150 " +
-                  (ativo
-                    ? "border-gold bg-gold/10 text-ink"
-                    : fechado
-                      ? "border-border text-ink-muted/60"
-                      : "border-border bg-surface text-ink")
+                  "h-9 min-w-16 rounded-controle px-3 text-[13px] font-medium transition-colors duration-150 " +
+                  (modo === m ? "bg-gold text-ink" : "text-ink-muted hover:bg-surface-raised")
                 }
               >
-                <span className="text-[12.5px] text-ink-muted first-letter:uppercase">{rotuloCurto(iso)}</span>
-                <span className={"text-base font-semibold " + (iso === hoje ? "text-gold-strong" : "")}>
-                  {iso.slice(8)}
-                </span>
-                <span className="text-[12.5px] text-ink-muted">
-                  {fechado
-                    ? "fechado"
-                    : n > 0
-                      ? n
-                      : tenant.policies.janela?.abertaAte && iso > tenant.policies.janela.abertaAte
-                        ? "não lib."
-                        : "–"}
-                </span>
+                {m === "grade" ? "Grade" : "Lista"}
               </button>
-            );
-          })}
+            ))}
+          </div>
+          {/* Largura reservada: de 2 para 1 pedido, ou para nenhum, nada ao lado
+              se mexe. Sem pedido o botão fica esmaecido (não há o que abrir). */}
+          <button
+            type="button"
+            disabled={pedidos.length === 0}
+            onClick={() => setGaveta(true)}
+            className={
+              "ml-auto inline-flex h-10 w-[12.5rem] shrink-0 items-center justify-center gap-2 rounded-controle border px-3 text-sm transition-colors duration-150 " +
+              (pedidos.length > 0
+                ? "cursor-pointer border-gold/60 bg-gold/10 font-medium text-gold-strong hover:bg-gold/20"
+                : "border-border text-ink-muted opacity-60")
+            }
+          >
+            <Inbox size={16} aria-hidden />
+            {rotuloDosPedidos(pedidos.length)}
+          </button>
         </div>
-        <button
-          type="button"
-          aria-label="Próxima semana"
-          onClick={() => moverSemana(1)}
-          className="flex h-10 w-8 shrink-0 items-center justify-center rounded-controle text-ink-muted transition-colors duration-150 hover:text-ink md:w-10"
-        >
-          <ChevronRight size={18} />
-        </button>
-      </div>
-      {dia !== hoje && (
-        <button
-          type="button"
-          onClick={() => setDiaEscolhido(null)}
-          className="-mt-2 self-start rounded-controle bg-gold/15 px-3 py-1.5 text-sm font-medium text-gold-strong"
-        >
-          Voltar para hoje
-        </button>
-      )}
+        <FiltroDeBarbeiro equipe={equipe} valor={filtro} aoMudar={setFiltro} />
+      </BarraFixa>
+
+      <LiberacaoDaAgenda />
 
       {atendimento.temAviso && <div className="flex flex-col">{atendimento.avisos}</div>}
 
-      {pedidos.length > 0 && (
-        <section className="flex flex-col gap-2">
-          <h2 className="text-[15px] font-semibold text-ink">
-            Pedidos de encaixe · {pedidos.length}
-          </h2>
+      {/* Os pedidos de encaixe moram numa gaveta: antes eram cartões enormes no
+          topo, e 2 virarem 1 durante o uso empurrava a tela inteira. Qualquer
+          resposta fecha a gaveta — o aviso do resultado fica na vista. */}
+      <Modal
+        open={gaveta && pedidos.length > 0}
+        onClose={() => setGaveta(false)}
+        title={`Pedidos de encaixe · ${pedidos.length}`}
+        className="sm:max-w-xl"
+      >
+        <div className="flex flex-col gap-3">
           {pedidos.map((p) => {
             const a = analisar(p);
             return (
@@ -317,8 +290,16 @@ export default function AgendaPage() {
                 sugestao={a.sugestao}
                 grade={grade}
                 podeEditar={podeEditar}
-                atendimento={atendimento}
+                atendimento={{
+                  ...atendimento,
+                  responderEncaixe: (b, aprovar, sugestoes) => {
+                    setGaveta(false);
+                    atendimento.responderEncaixe(b, aprovar, sugestoes);
+                  },
+                }}
+                nomeDoBarbeiro={nomeDoBarbeiro(p)}
                 aoVerDia={() => {
+                  setGaveta(false);
                   escolher(p.date);
                   setModo("grade");
                   setSelecionadoId(p.id);
@@ -326,32 +307,11 @@ export default function AgendaPage() {
               />
             );
           })}
-        </section>
-      )}
+        </div>
+      </Modal>
 
       {status === "carregando" && <LoadingRows rows={4} oQue="sua agenda" />}
       {status === "erro" && <ErroAoCarregar oQue="sua agenda" erro={error} />}
-      {status === "pronto" && (
-        <div className="flex gap-1 self-start rounded-controle border border-border bg-surface p-1" role="tablist" aria-label="Como ver o dia">
-          {(["grade", "lista"] as const).map((m) => (
-            <button
-              key={m}
-              type="button"
-              role="tab"
-              aria-selected={modo === m}
-              onClick={() => setModo(m)}
-              className={
-                "min-h-9 rounded-controle px-3 text-[13px] font-medium transition-colors duration-150 " +
-                (modo === m ? "bg-gold text-ink" : "text-ink-muted hover:bg-surface-raised")
-              }
-            >
-              {m === "grade" ? "Grade do dia" : "Lista"}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {status === "pronto" && <FiltroDeBarbeiro equipe={equipe} valor={filtro} aoMudar={setFiltro} />}
 
       {status === "pronto" && modo === "grade" && (() => {
         const pedidosDoDia = pedidos.filter((p) => p.date === dia);
@@ -670,6 +630,12 @@ function LinhaDaAgenda({
  * bate e o que o mesmo dia ainda tem livre (28/09 — "O horário já está
  * ocupado" sozinho não dizia se era um encaixe de 30 min dentro de um corte de
  * 90, ou 90 min por cima de três clientes).
+ *
+ * Formato compacto (a gaveta lista vários): a sugestão da plataforma é UMA
+ * linha discreta com ícone — antes era uma caixa colorida que, no "não
+ * recomendado", gritava em vermelho sobre um pedido que o barbeiro pode aprovar
+ * mesmo assim. Os detalhes (quem bate, o que está livre) ficam à mão, sem
+ * ocupar a tela.
  */
 function PedidoDeEncaixe({
   pedido: p,
@@ -679,6 +645,7 @@ function PedidoDeEncaixe({
   grade,
   podeEditar,
   atendimento,
+  nomeDoBarbeiro = null,
   aoVerDia,
 }: {
   pedido: Doc<BookingDoc>;
@@ -688,6 +655,8 @@ function PedidoDeEncaixe({
   grade: number;
   podeEditar: boolean;
   atendimento: ReturnType<typeof useAcoesDoAtendimento>;
+  /** Com mais de um barbeiro, de quem é o atendimento. */
+  nomeDoBarbeiro?: string | null;
   /** Sem ele, o botão "Ver o dia" some — dentro da janela, o dia já está atrás. */
   aoVerDia?: () => void;
 }) {
@@ -695,21 +664,23 @@ function PedidoDeEncaixe({
   const servicos = ((p as { serviceNames?: string[] }).serviceNames ?? []).join(" + ") || "Serviço";
   const digitos = String(p.clientWhatsapp ?? "").replace(/\D/g, "");
   const quando = new Date(`${p.date}T12:00:00`).toLocaleDateString("pt-BR", {
-    weekday: "long",
+    weekday: "short",
     day: "2-digit",
     month: "2-digit",
   });
-  const pesado = conflitos.length >= 2;
+  const naoRecomendado = sugestao.nivel === "nao-recomendado" || sugestao.nivel === "apertado";
+  const Icone = naoRecomendado ? AlertTriangle : Lightbulb;
 
   return (
-    <Card className="flex flex-col gap-3 border-gold/50 bg-gold/5 py-3">
+    <Card className="flex flex-col gap-2 border-gold/40 py-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-ink md:text-base">{p.clientName} pede encaixe</p>
-          <p className="text-sm text-ink first-letter:uppercase">
-            {quando} · {p.time} – {fimDoHorario(p.time, duracao)}
+          <p className="text-sm font-semibold text-ink">{p.clientName}</p>
+          <p className="text-sm tabular-nums text-ink">
+            <span className="first-letter:uppercase">{quando}</span> · {p.time} – {fimDoHorario(p.time, duracao)}
           </p>
           <p className="text-xs text-ink-muted">
+            {nomeDoBarbeiro && <span className="font-medium text-ink">{nomeDoBarbeiro} · </span>}
             {servicos} · {duracao} min · {formatBRL(p.value ?? 0)}
           </p>
           {digitos && (
@@ -728,59 +699,60 @@ function PedidoDeEncaixe({
 
       {/* A sugestão da plataforma, pelo tempo dos serviços. É sugestão: quem
           sabe se a luzes tem pausa em que dá para cortar outro é o barbeiro. */}
-      <p
-        className={
-          "rounded-controle border px-3 py-2 text-[12.5px] " +
-          (sugestao.nivel === "nao-recomendado"
-            ? "border-danger/40 bg-danger/5 text-danger"
-            : sugestao.nivel === "apertado"
-              ? "border-gold/50 bg-gold/10 text-gold-strong"
-              : "border-success/40 bg-success/5 text-success")
-        }
-      >
-        <span className="font-semibold">
-          {sugestao.nivel === "vagou"
-            ? "Sugestão: pode aprovar."
-            : sugestao.nivel === "cabe"
-              ? "Sugestão: dá para encaixar."
-              : sugestao.nivel === "apertado"
-                ? "Sugestão: apertado."
-                : "Sugestão: não recomendado."}
-        </span>{" "}
-        {sugestao.minutosSobrepostos > 0
-          ? `Passa ${sugestao.minutosSobrepostos} min por cima do que já está marcado${
-              conflitos.length > 1 ? `, com ${conflitos.length} clientes` : ""
-            }.`
-          : "Não sobrepõe ninguém."}
-        {sugestao.nivel !== "vagou" && sugestao.alternativa && ` Melhor: ${sugestao.alternativa} está livre.`}
+      <p className="flex items-start gap-2 text-[12.5px] text-ink-muted">
+        <Icone
+          size={14}
+          aria-hidden
+          className={"mt-0.5 shrink-0 " + (naoRecomendado ? "text-gold-strong" : "text-success")}
+        />
+        <span>
+          <span className="font-medium text-ink">
+            {sugestao.nivel === "vagou"
+              ? "Pode aprovar."
+              : sugestao.nivel === "cabe"
+                ? "Dá para encaixar."
+                : sugestao.nivel === "apertado"
+                  ? "Apertado."
+                  : "Não recomendado."}
+          </span>{" "}
+          {sugestao.minutosSobrepostos > 0
+            ? `Passa ${sugestao.minutosSobrepostos} min por cima do que já está marcado${
+                conflitos.length > 1 ? `, com ${conflitos.length} clientes` : ""
+              }.`
+            : "Não sobrepõe ninguém."}
+          {sugestao.nivel !== "vagou" && sugestao.alternativa && ` Melhor: ${sugestao.alternativa} está livre.`}
+        </span>
       </p>
 
-      <div className="rounded-controle border border-border bg-surface px-3 py-2">
-        <p className={"text-xs font-semibold " + (pesado ? "text-danger" : "text-ink")}>
+      <details className="text-xs text-ink-muted">
+        <summary className="cursor-pointer select-none py-1 hover:text-ink">
           {conflitos.length === 0
-            ? "O horário vagou — dá para aprovar sem sobrepor ninguém."
+            ? "O horário vagou"
             : `Bate com ${contar(conflitos.length, "atendimento", "atendimentos")}`}
-        </p>
-        {conflitos.map((c) => (
-          <p key={c.id} className="mt-0.5 text-xs text-ink-muted">
-            {c.time} – {fimDoHorario(c.time, c.durationMin || grade)} · {c.clientName} ·{" "}
-            {((c as { serviceNames?: string[] }).serviceNames ?? []).join(" + ") || "Serviço"}
+          {" · "}
+          {livres.length > 0 ? `${contar(livres.length, "horário livre", "horários livres")} no dia` : "sem horário livre no dia"}
+        </summary>
+        <div className="flex flex-col gap-0.5 pb-1 pl-1">
+          {conflitos.map((c) => (
+            <p key={c.id}>
+              {c.time} – {fimDoHorario(c.time, c.durationMin || grade)} · {c.clientName} ·{" "}
+              {((c as { serviceNames?: string[] }).serviceNames ?? []).join(" + ") || "Serviço"}
+            </p>
+          ))}
+          <p>
+            {livres.length > 0 ? (
+              <>
+                Livre nesse dia para {duracao} min:{" "}
+                <span className="font-medium text-ink">{livres.slice(0, 6).join(", ")}</span>
+                {livres.length > 6 && ` e mais ${livres.length - 6}`}. Ao recusar, a mensagem já oferece os
+                primeiros.
+              </>
+            ) : (
+              `Nenhum horário livre de ${duracao} min nesse dia.`
+            )}
           </p>
-        ))}
-      </div>
-
-      <p className="text-xs text-ink-muted">
-        {livres.length > 0 ? (
-          <>
-            Livre nesse dia para {duracao} min:{" "}
-            <span className="font-medium text-ink">{livres.slice(0, 6).join(", ")}</span>
-            {livres.length > 6 && ` e mais ${livres.length - 6}`}. Ao recusar, a mensagem já oferece os
-            primeiros.
-          </>
-        ) : (
-          `Nenhum horário livre de ${duracao} min nesse dia.`
-        )}
-      </p>
+        </div>
+      </details>
 
       <div className="flex flex-wrap gap-2">
         {podeEditar && (
@@ -790,7 +762,7 @@ function PedidoDeEncaixe({
               disabled={atendimento.respondendoEncaixe}
               onClick={() => atendimento.responderEncaixe(p, true)}
             >
-              Aprovar encaixe
+              Aprovar
             </Button>
             <Button
               variant="secondary"
