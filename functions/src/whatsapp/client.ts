@@ -38,9 +38,18 @@ export type WhatsappConfig = {
 /** Teto da chamada à Graph API: sem ele, uma Meta lenta segura o gatilho até o limite da function. */
 const TEMPO_LIMITE_MS = 10_000;
 
-/** Timeout ou falha de rede (o `fetch` lança `TimeoutError`/`TypeError`). */
+const CODIGOS_DE_CONEXAO = new Set(["ECONNREFUSED", "ENOTFOUND", "EAI_AGAIN"]);
+
+/**
+ * A conexão nem chegou a abrir (recusada, DNS): a Meta não recebeu nada, repetir
+ * é seguro. TIMEOUT não entra: a requisição pode ter chegado e a mensagem ter
+ * sido entregue; reenviar duplicaria. O `fetch` do Node lança `TypeError` com a
+ * causa em `error.cause.code`.
+ */
 export function erroPassageiro(error: unknown): boolean {
-  return error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError" || error instanceof TypeError);
+  if (!(error instanceof TypeError)) return false;
+  const code = (error.cause as { code?: unknown } | undefined)?.code;
+  return typeof code === "string" && CODIGOS_DE_CONEXAO.has(code);
 }
 
 /**
@@ -247,8 +256,8 @@ export async function sendTemplate(opts: {
     return { ok: true, messageId };
   } catch (error) {
     const erro = error instanceof Error ? error.message : String(error);
-    /* Passageiro só se o `fetch` em si falhou (timeout, rede caída) — a Meta
-     * não confirmou nada. Erro DEPOIS de a Meta responder (corpo ilegível,
+    /* Passageiro só se a conexão nem abriu (ver `erroPassageiro`); timeout NÃO.
+     * Erro DEPOIS de a Meta responder (corpo ilegível,
      * gravação do índice) não é: a mensagem pode ter saído, e repetir duplicaria. */
     await logRef.update({ status: "erro", erro, ...(!respondeu && erroPassageiro(error) ? { passageiro: true } : {}) });
     return { ok: false, erro };

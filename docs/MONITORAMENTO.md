@@ -28,6 +28,12 @@ As três primeiras são **alertas baseados em log**: no máximo um e-mail a cada
 dia sem novo erro (`autoClose`). Cada política traz, na própria notificação, um
 texto em português dizendo o que olhar.
 
+> **Uma queda gera mais de um e-mail.** Se o `/api/health` responder 503, o
+> próprio servidor registra um 5xx (severity ERROR) e chega também "erro nas
+> functions", além de "site fora do ar" (esta só depois de 5 minutos falhando em
+> 2+ regiões). É esperado: o primeiro diz o que quebrou, o segundo confirma que
+> continua fora. O limite de 10 min por política evita enxurrada.
+
 ### O que `/api/health` prova
 
 `GET /api/health` responde 200 só se **os dois** estiverem de pé:
@@ -35,7 +41,7 @@ texto em português dizendo o que olhar.
 - `checks.firestore` — o servidor do site lê o banco (leitura pública de `slugs`);
 - `checks.functions` — o callable `healthcheck` responde (HTTPS do protocolo
   callable, `POST https://southamerica-east1-<projeto>.cloudfunctions.net/healthcheck`
-  com `{"data":{}}`, limite de 6 s). O callable é anônimo e só devolve
+  com `{"data":{}}`, limite de 10 s). O callable é anônimo e só devolve
   `{ok, region}`.
 
 Qualquer falha vira HTTP 503 com `error` dizendo qual parte. O JP Projects Hub

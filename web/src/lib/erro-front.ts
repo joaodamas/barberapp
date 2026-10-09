@@ -81,6 +81,32 @@ export function tirarDadosPessoais(texto: string): string {
 const cortar = (v: unknown, max: number): string =>
   typeof v === "string" ? tirarDadosPessoais(v).replace(/\s+/g, " ").trim().slice(0, max) : "";
 
+/**
+ * O digest é um hash decimal do Next (ex.: "2847561930"): passar pelo filtro de
+ * dados pessoais o trocaria por "[número]" e perderia o elo com o log do
+ * servidor. Fica à parte: só vale se for curto e de caracteres seguros.
+ */
+export function digestValido(v: unknown): string {
+  return typeof v === "string" && /^[A-Za-z0-9-]{1,80}$/.test(v) ? v : "";
+}
+
+/**
+ * Erros do navegador que não são defeito nosso e só encheriam a caixa de
+ * entrada: ruído de layout, script de terceiro, chunk que o deploy trocou e
+ * rede caída do Firebase. Devolve true para NÃO reportar.
+ */
+export function deveIgnorarErro(mensagem: string, erro?: unknown): boolean {
+  const m = mensagem || "";
+  if (/ResizeObserver loop/i.test(m)) return true;
+  // "Script error." sem objeto de erro: erro de outra origem, sem informação.
+  if (/^Script error\.?$/i.test(m.trim()) && !erro) return true;
+  if (/ChunkLoadError|Loading chunk .* failed|Failed to fetch dynamically imported module/i.test(m)) return true;
+  if (/Failed to fetch|NetworkError|Load failed|network request failed|client is offline/i.test(m)) return true;
+  const code = (erro as { code?: unknown } | null | undefined)?.code;
+  if (typeof code === "string" && /^(unavailable|auth\/network-request-failed|deadline-exceeded)$|\/unavailable$/.test(code)) return true;
+  return false;
+}
+
 /** A rota só guarda o caminho: query e hash podem carregar token ou telefone. */
 function caminhoDe(v: unknown): string {
   if (typeof v !== "string") return "";
@@ -112,7 +138,7 @@ export function normalizarErro(corpo: unknown): ErroDoFront | null {
   return {
     tipo: cortar(c.tipo, LIMITES.tipo) || "desconhecido",
     mensagem,
-    digest: cortar(c.digest, LIMITES.digest),
+    digest: digestValido(c.digest),
     rota: caminhoDe(c.rota),
     userAgent: cortar(c.userAgent, LIMITES.userAgent),
   };

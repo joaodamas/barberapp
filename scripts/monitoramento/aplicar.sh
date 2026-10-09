@@ -71,7 +71,7 @@ CANAL="$(gcloud beta monitoring channels list --project "$PROJETO" \
 if [ -n "$CANAL" ]; then
   # Reaproveita, mas garante que o endereço é o pedido.
   alterar gcloud beta monitoring channels update "$CANAL" --project "$PROJETO" \
-    --channel-labels="email_address=$EMAIL" --quiet >/dev/null
+    --update-channel-labels="email_address=$EMAIL" --quiet >/dev/null
   anotar "canal de e-mail reaproveitado: $CANAL"
 else
   if [ "$SECO" = 1 ]; then

@@ -7,6 +7,8 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   criarRelator,
+  deveIgnorarErro,
+  digestValido,
   hostConhecido,
   montarLinhaDeLog,
   normalizarErro,
@@ -95,6 +97,38 @@ describe("normalizar o corpo", () => {
     expect(normalizarErro("texto")).toBeNull();
     expect(normalizarErro(null)).toBeNull();
     expect(normalizarErro({ mensagem: 42 })).toBeNull();
+  });
+});
+
+describe("digest", () => {
+  it("o hash decimal de 10 dígitos chega inteiro, sem virar [número]", () => {
+    const e = normalizarErro({ mensagem: "x", digest: "2847561930" });
+    expect(e!.digest).toBe("2847561930");
+    expect(digestValido("abc-123")).toBe("abc-123");
+  });
+
+  it("digest com caractere estranho ou longo demais é descartado", () => {
+    expect(digestValido("a@b.com")).toBe("");
+    expect(digestValido("x".repeat(81))).toBe("");
+    expect(digestValido(123)).toBe("");
+  });
+});
+
+describe("erros ignorados no navegador", () => {
+  it("ignora ruído, chunk trocado e rede caída", () => {
+    expect(deveIgnorarErro("ResizeObserver loop completed with undelivered notifications.")).toBe(true);
+    expect(deveIgnorarErro("Script error.", null)).toBe(true);
+    expect(deveIgnorarErro("ChunkLoadError: Loading chunk 12 failed.")).toBe(true);
+    expect(deveIgnorarErro("Failed to fetch dynamically imported module: https://x/a.js")).toBe(true);
+    expect(deveIgnorarErro("TypeError: Failed to fetch")).toBe(true);
+    expect(deveIgnorarErro("Backend didn't respond", { code: "unavailable" })).toBe(true);
+    expect(deveIgnorarErro("x", { code: "firestore/unavailable" })).toBe(true);
+  });
+
+  it("não ignora erro de verdade", () => {
+    expect(deveIgnorarErro("Cannot read properties of undefined (reading 'map')", new TypeError("x"))).toBe(false);
+    expect(deveIgnorarErro("Script error.", new Error("com objeto"))).toBe(false);
+    expect(deveIgnorarErro("x", { code: "permission-denied" })).toBe(false);
   });
 });
 

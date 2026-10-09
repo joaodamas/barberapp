@@ -15,7 +15,7 @@ import {
 export const dynamic = "force-dynamic";
 
 const LIMITE_MS = 8000;
-const LIMITE_FUNCTIONS_MS = 6000;
+const LIMITE_FUNCTIONS_MS = 10000;
 
 function erroDeRede(err: unknown, limiteMs: number): string {
   return err instanceof Error && err.name === "TimeoutError"
