@@ -158,7 +158,7 @@ function PlanoAtual({ plano, resposta }: { plano: PlanId; resposta: Resposta | n
         <h2 className="font-display text-2xl text-ink">{NOME_DO_PLANO[plano]}</h2>
         {doHub?.ciclo === "anual" && doHub.valorCiclo != null ? (
           <span className="text-sm text-ink">
-            {reais(doHub.valorCiclo)}/ano (equivale a {formatBRL(equivalenteMensalDoAnual(doHub.valorCiclo))}/mês)
+            {reais(doHub.valorCiclo)}/ano ({formatBRL(equivalenteMensalDoAnual(doHub.valorCiclo))}/mês)
           </span>
         ) : valor !== null ? (
           <span className="text-sm text-ink">{formatBRL(valor)}/mês</span>

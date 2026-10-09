@@ -172,7 +172,7 @@ Compatível com a v1: um Hub que ignora os campos novos lê o mensal como sempre
   recusa `ciclo: "anual"` (`invalid-argument`). Ligar as duas juntas quando o Hub
   publicar a v2.
 - Leitura: `assinatura` de `plataformaCobrancas` pode trazer `ciclo` e `valorCiclo`
-  (opcionais). A tela mostra "R$ 970/ano (equivale a R$ 80,83/mês)" e o próximo vencimento.
+  (opcionais). A tela mostra "R$ 970/ano (R$ 80,83/mês)" e o próximo vencimento.
 - O Hub decide a data da cobrança anual. Mudança mensal → anual no meio do mês só
   registra o pedido; o Topete não promete data nem desconto proporcional.
 

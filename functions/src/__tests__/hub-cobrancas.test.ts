@@ -62,7 +62,7 @@ describe("resposta do Hub", () => {
   it("resposta vazia não quebra e não inventa nada", () => {
     const r = lerRespostaDoHub(null);
     expect(r.boletos).toEqual([]);
-    expect(r.assinatura).toEqual({ plano: null, valor: null, ciclo: null, valorCiclo: null, status: null, proximoVencimento: null });
+    expect(r.assinatura).toEqual({ plano: null, valor: null, ciclo: null, valorCiclo: null, formaPagamento: null, status: null, proximoVencimento: null });
   });
 
   it("no máximo 12 boletos", () => {
