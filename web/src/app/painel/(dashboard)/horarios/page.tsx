@@ -168,7 +168,7 @@ export default function HorariosPage() {
                 ]
                   .filter(Boolean)
                   .join(" e ")}{" "}
-                {pendente.reservas + pendente.fixos === 1 ? "fica" : "ficam"} fora do expediente.
+                {plural(pendente.reservas + pendente.fixos, "fica", "ficam")} fora do expediente.
               </p>
               <p className="text-xs text-ink-muted">
                 Mudar a jornada <strong>não cancela</strong> nem remarca ninguém: quem já marcou continua com o
