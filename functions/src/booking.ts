@@ -238,6 +238,18 @@ export function refDoLimiteDiario(
   return db.doc(`limites_de_reserva/${uid}_${dia}`);
 }
 
+/**
+ * Barbearia encerrada não recebe reserva nova (09/10). O modo leitura deixa o
+ * cliente agendar de propósito, mas encerrar é o dono saindo: a agenda está na
+ * janela de exportação, e quem marcasse ali ficaria com um horário que ninguém
+ * vai atender. O fixo e o encaixe já recusam assim.
+ */
+export function recusarSeEncerrada(shop: FirebaseFirestore.DocumentData | undefined): void {
+  if (shop?.status === "encerrada") {
+    throw new HttpsError("failed-precondition", "Esta barbearia não está mais recebendo agendamentos.");
+  }
+}
+
 export const createBooking = onCall<CriarReservaInput>(async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Entre na sua conta para agendar.");
@@ -297,6 +309,7 @@ export const createBooking = onCall<CriarReservaInput>(async (request) => {
 
   const shop = shopSnap.data() ?? {};
   const policies = shop.policies ?? {};
+  recusarSeEncerrada(shop);
 
   /* Encaixe com a loja em modo leitura (revisão de 08/10): o pedido nascia
    * `fit_in_requested` e ficava esperando uma aprovação que ninguém consegue
@@ -928,6 +941,14 @@ type ReservaNoBalcaoInput = {
  * produto por decisão de 17/08, e reintroduzi-lo aqui de carona seria trazer de
  * volta pela porta lateral o que D14 acabou de tirar da frente.
  */
+/**
+ * O balcão não tem teto de reservas por cliente (09/10). O teto existe contra
+ * quem sequestra a agenda pelo app; quem marca no balcão é o dono ou o
+ * barbeiro, e a recusa saía com o texto escrito para o cliente ("Você já tem 3
+ * horários... cancele um antes de marcar outro") na tela de quem atende.
+ */
+const SEM_TETO_NO_BALCAO = Number.MAX_SAFE_INTEGER;
+
 export const createBookingAtCounter = onCall<ReservaNoBalcaoInput>(async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Entre na sua conta.");
@@ -969,7 +990,6 @@ export const createBookingAtCounter = onCall<ReservaNoBalcaoInput>(async (reques
 
   const shop = shopSnap.data() ?? {};
   const locale = localeDoDocumento(shop);
-  const policies = shop.policies ?? {};
 
   const pedido = await validarPedido({
     shopRef,
@@ -1016,7 +1036,7 @@ export const createBookingAtCounter = onCall<ReservaNoBalcaoInput>(async (reques
       time,
       duracaoDaReserva: pedido.duracaoDaReserva,
       slotMinutes: pedido.slotMinutes,
-      maxAtivas: policies.booking?.maxActivePerClient ?? 3,
+      maxAtivas: SEM_TETO_NO_BALCAO,
       hojeNaBarbearia: hojeNoFuso(locale.timeZone),
       seOcupado: encaixe ? "encaixar" : "recusar",
       documento: documentoDaReserva({
@@ -1054,7 +1074,7 @@ export const createBookingAtCounter = onCall<ReservaNoBalcaoInput>(async (reques
     time,
     duracaoDaReserva: pedido.duracaoDaReserva,
     slotMinutes: pedido.slotMinutes,
-    maxAtivas: policies.booking?.maxActivePerClient ?? 3,
+    maxAtivas: SEM_TETO_NO_BALCAO,
     hojeNaBarbearia: hojeNoFuso(locale.timeZone),
     seOcupado: encaixe ? "encaixar" : "recusar",
     cliente: {
@@ -1231,6 +1251,13 @@ export async function gravarComTravaDeHorario(params: {
   };
   /** Recebe quem a `escolha` definiu, a cada tentativa — vale a última. */
   aoEscolherBarbeiro?: (escolhido: { staffId: string; staffName: string }) => void;
+  /**
+   * Reservas que SAEM na mesma transação (09/10): a troca do horário fixo.
+   * Elas não contam na ocupação e são canceladas com `campos` junto com a
+   * gravação — se a nova não cabe, nada é cancelado. Só as que ainda estão
+   * confirmadas: uma que mudou de estado nesse meio-tempo segue ocupando.
+   */
+  liberando?: { ids: string[]; campos: Record<string, unknown> };
 }): Promise<string> {
   const { db, shopRef, date, time } = params;
   const bookingRef = params.idDaReserva
@@ -1241,6 +1268,7 @@ export async function gravarComTravaDeHorario(params: {
     /* Reiniciado a cada tentativa: a transação pode rodar mais de uma vez. */
     let virouEncaixe = false;
     let encaixadoNoBalcao = false;
+    let aLiberar: FirebaseFirestore.QueryDocumentSnapshot[] = [];
     let escolhido: { staffId: string; staffName: string; slotMinutes: number; duracaoDaReserva: number } | null =
       null;
     /* Repetição da MESMA tentativa: a reserva já existe, e o pedido já foi
@@ -1348,8 +1376,18 @@ export async function gravarComTravaDeHorario(params: {
        * discordar. */
       const doDia = await tx.get(shopRef.collection("bookings").where("date", "==", date));
 
+      aLiberar = doDia.docs.filter(
+        (d) =>
+          params.liberando?.ids.includes(d.id) &&
+          ["confirmed", "confirmed_by_client"].includes(String(d.data().status))
+      );
       const daCadeira = (id: string) =>
-        doDia.docs.filter((d) => d.data().staffId === id && OCUPAM_SLOT.includes(d.data().status));
+        doDia.docs.filter(
+          (d) =>
+            !aLiberar.some((l) => l.id === d.id) &&
+            d.data().staffId === id &&
+            OCUPAM_SLOT.includes(d.data().status)
+        );
       const cabe = (id: string, slotMinutes: number, duracao: number) =>
         horarioDisponivel({
           time,
@@ -1399,6 +1437,7 @@ export async function gravarComTravaDeHorario(params: {
 
     /* ---- FASE DE ESCRITA ---- */
     cadastro?.gravar(tx);
+    for (const d of aLiberar) tx.update(d.ref, params.liberando!.campos);
     if (limite) {
       tx.set(
         limite.ref,
@@ -1450,12 +1489,18 @@ export async function gravarComTravaDeHorario(params: {
  *
  * Aqui o novo horário disputa slot na mesma transação, igual a uma reserva
  * nova — senão remarcar seria a porta dos fundos para furar a fila.
+ *
+ * `staffId` troca o barbeiro da reserva e é só do DONO (09/10): barbeiro
+ * desligado ou removido deixava os horários futuros dele presos — remarcar
+ * recusava "não está disponível" e não havia outro caminho. O horário novo
+ * disputa a agenda do barbeiro novo na mesma transação.
  */
 export const rescheduleBooking = onCall<{
   barbershopId: string;
   bookingId: string;
   date: string;
   time: string;
+  staffId?: string;
 }>(async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Entre na sua conta.");
@@ -1500,6 +1545,7 @@ export const rescheduleBooking = onCall<{
 
   const shop = shopSnap.data() ?? {};
   const policies = shop.policies ?? {};
+  recusarSeEncerrada(shop);
   const locale = localeDoDocumento(shop);
 
   /* A mesma régua da criação — `jornadaDoBarbeiro` e `horariosDaJornada`.
@@ -1507,10 +1553,22 @@ export const rescheduleBooking = onCall<{
    * hora: remarcar para 23:00, para o meio do almoço ou para a folga do
    * barbeiro passava, e era a porta dos fundos da validação que a criação
    * fecha. */
-  const staffRef = booking.staffId ? shopRef.collection("staff").doc(String(booking.staffId)) : null;
+  const staffIdNovo = typeof request.data?.staffId === "string" ? request.data.staffId.trim() : "";
+  const trocaDeBarbeiro = staffIdNovo !== "" && staffIdNovo !== String(booking.staffId ?? "");
+  if (trocaDeBarbeiro && !ehDono) {
+    throw new HttpsError("permission-denied", "Só a barbearia troca o barbeiro de um horário.");
+  }
+  if (trocaDeBarbeiro) idSeguro(staffIdNovo, "Barbeiro");
+  const staffIdDaReserva = trocaDeBarbeiro ? staffIdNovo : booking.staffId ? String(booking.staffId) : "";
+  const staffRef = staffIdDaReserva ? shopRef.collection("staff").doc(staffIdDaReserva) : null;
   const barbeiroSnap = staffRef ? await staffRef.get() : null;
   if (barbeiroSnap && (!barbeiroSnap.exists || barbeiroSnap.get("active") === false)) {
-    throw new HttpsError("failed-precondition", "Esse barbeiro não está disponível. Fale com a barbearia.");
+    throw new HttpsError(
+      "failed-precondition",
+      trocaDeBarbeiro
+        ? "Esse barbeiro não está disponível para receber o horário."
+        : "Esse barbeiro não está disponível. Fale com a barbearia."
+    );
   }
   /* Reserva antiga, sem `staffId`: vale a jornada da loja. */
   const barbeiro = barbeiroSnap ?? { get: () => undefined };
@@ -1613,7 +1671,7 @@ export const rescheduleBooking = onCall<{
         .filter(
           (d) =>
             d.id !== bookingId &&
-            d.data().staffId === booking.staffId &&
+            String(d.data().staffId ?? "") === staffIdDaReserva &&
             OCUPAM_SLOT.includes(d.data().status)
         )
         .map((d) => ({ time: String(d.data().time), durationMin: d.data().durationMin })),
@@ -1627,12 +1685,33 @@ export const rescheduleBooking = onCall<{
       );
     }
 
+    const mudouDeHorario = atual.get("date") !== date || atual.get("time") !== time;
+    /* Só trocou o barbeiro (o dono): o horário é o mesmo, então não é
+     * remarcação — não gasta o teto e não marca a semana do fixo como movida. */
+    if (!mudouDeHorario && trocaDeBarbeiro) {
+      tx.update(bookingRef, {
+        staffId: staffIdDaReserva,
+        staffName: String(barbeiroSnap?.get("name") ?? ""),
+        barbeiroTrocadoEm: FieldValue.serverTimestamp(),
+      });
+      return;
+    }
+
     tx.update(bookingRef, {
       date,
       time,
       status: "confirmed",
-      rescheduledFrom: { date: booking.date, time: booking.time },
+      rescheduledFrom: { date: atual.get("date"), time: atual.get("time") },
+      /* A origem da PRIMEIRA remarcação, que não se sobrescreve (09/10):
+       * `rescheduledFrom` guarda só a última, e na segunda remarcação a
+       * rotina do fixo perdia a pista da data original e recriava a semana. */
+      origemDoFixo: atual.get("origemDoFixo") ?? { date: atual.get("date"), time: atual.get("time") },
       rescheduledAt: FieldValue.serverTimestamp(),
+      /* Quem remarcou: o aviso à barbearia só sai quando foi o cliente. */
+      rescheduledBy: uid,
+      ...(trocaDeBarbeiro
+        ? { staffId: staffIdDaReserva, staffName: String(barbeiroSnap?.get("name") ?? "") }
+        : {}),
       /* `increment` e não `contagem + 1`: o valor lido veio de antes da
        * transação, e duas remarcações concorrentes gravariam o mesmo número.
        * O contador é o que sustenta o limite — se ele erra, o limite não
