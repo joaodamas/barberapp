@@ -1,6 +1,7 @@
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { defineString } from "firebase-functions/params";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
+import { logarAlertaDaPlataforma } from "./alerta-da-plataforma";
 import { materializarConclusao } from "./financial-events";
 import { hojeNoFuso, localeDoDocumento } from "./locale";
 import { enviar, TELEGRAM_BOT_TOKEN } from "./telegram/api";
@@ -123,7 +124,7 @@ export const conferirFinanceiroDaNoite = onSchedule(
     }
 
     const resumo = { refeitos, pendentes, falhas };
-    console.error("[conferencia] o financeiro precisou de atenção", JSON.stringify(resumo));
+    logarAlertaDaPlataforma("conferencia_financeira", "[conferencia] o financeiro precisou de atenção", resumo);
     await db.collection("alertas_da_plataforma").add({
       tipo: "conferencia_financeira",
       ...resumo,

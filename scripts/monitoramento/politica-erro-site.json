@@ -1,0 +1,22 @@
+{
+  "displayName": "Topete · erro no site",
+  "documentation": {
+    "mimeType": "text/markdown",
+    "content": "**Alguém viu uma tela quebrar no navegador.**\n\nO erro chegou por `POST /api/erro` e foi registrado com `origem=\"front\"`. O que olhar:\n\n1. Abra o link \"Ver logs\" deste alerta. Os campos úteis: `message`, `rota` (a tela), `tenant` (a barbearia), `digest` (o mesmo \"código para suporte\" que a pessoa vê na tela) e `userAgent` (aparelho e navegador).\n2. Procure o `digest` nos logs do servidor (`severity>=ERROR`): quando o erro nasceu no servidor, a causa completa está lá.\n3. Se a rota e o aparelho se repetem logo depois de um deploy, a publicação é a suspeita: veja docs/DEPLOY.md para voltar a versão.\n\nNenhum dado pessoal é guardado (a mensagem passa por um filtro que tira e-mail e telefone). O navegador manda no máximo 5 erros por sessão. Máximo de um e-mail a cada 10 minutos; fecha sozinho depois de 1 dia."
+  },
+  "combiner": "OR",
+  "conditions": [
+    {
+      "displayName": "Log com origem=front (erro do navegador)",
+      "conditionMatchedLog": {
+        "filter": "jsonPayload.origem=\"front\" AND severity>=ERROR"
+      }
+    }
+  ],
+  "alertStrategy": {
+    "notificationRateLimit": { "period": "600s" },
+    "autoClose": "86400s"
+  },
+  "notificationChannels": ["__CANAL__"],
+  "enabled": true
+}

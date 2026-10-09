@@ -37,6 +37,24 @@ export function montarSaude({ checks, projectId, agora = new Date() }: {
   };
 }
 
+/** O endereço do callable `healthcheck` (HTTPS do protocolo callable). */
+export function urlDoHealthcheck(projectId: string, emEmulador = false): string {
+  return emEmulador
+    ? `http://127.0.0.1:5001/${projectId}/southamerica-east1/healthcheck`
+    : `https://southamerica-east1-${projectId}.cloudfunctions.net/healthcheck`;
+}
+
+/**
+ * Lê a resposta do callable `healthcheck`. O protocolo callable devolve
+ * `{"result":{"ok":true,...}}` com HTTP 200; erro vem como `{"error":{...}}`.
+ * HTTP 200 sem `result.ok` não conta: pode ser um proxy no meio.
+ */
+export function julgarFunctions(status: number, corpo: unknown): Pick<Verificacao, "ok" | "erro"> {
+  if (status !== 200) return { ok: false, erro: `functions respondeu HTTP ${status}` };
+  const result = (corpo as { result?: { ok?: unknown } } | null)?.result;
+  return result?.ok === true ? { ok: true } : { ok: false, erro: "functions respondeu sem result.ok" };
+}
+
 /**
  * Lê a resposta do Firestore. 200 quer dizer que respondeu. 404 SÓ conta
  * como "respondeu" quando é o DOCUMENTO que não existe — a REST também

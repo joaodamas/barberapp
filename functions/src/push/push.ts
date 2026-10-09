@@ -65,11 +65,12 @@ export const removerPush = onCall<{ barbershopId: string; token: string }>(async
   return { ok: true };
 });
 
-/** Erros do FCM que querem dizer "esse aparelho não existe mais". */
+/** Erros do FCM que querem dizer "esse aparelho não existe mais".
+ *  `invalid-argument` NÃO entra: aponta defeito no NOSSO corpo da mensagem, e
+ *  apagaria o aparelho de todo mundo por um bug nosso. */
 const APARELHO_SUMIU = new Set([
   "messaging/registration-token-not-registered",
   "messaging/invalid-registration-token",
-  "messaging/invalid-argument",
 ]);
 
 /**

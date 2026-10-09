@@ -35,6 +35,24 @@ export type WhatsappConfig = {
   token: string;
 };
 
+/** Teto da chamada à Graph API: sem ele, uma Meta lenta segura o gatilho até o limite da function. */
+const TEMPO_LIMITE_MS = 10_000;
+
+/** Timeout ou falha de rede (o `fetch` lança `TimeoutError`/`TypeError`). */
+export function erroPassageiro(error: unknown): boolean {
+  return error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError" || error instanceof TypeError);
+}
+
+/**
+ * Um registro existente trava o reenvio (é a idempotência do gatilho) — menos
+ * quando o envio anterior falhou por erro passageiro: nesse caso nada saiu, e
+ * a nova tentativa precisa passar. Erro definitivo (número inválido, template
+ * recusado) continua travando.
+ */
+export function podeRetomar(registro: FirebaseFirestore.DocumentData | undefined): boolean {
+  return registro?.status === "erro" && registro?.passageiro === true;
+}
+
 export type EnvioResultado =
   | { ok: true; messageId: string | null }
   | { ok: false; erro: string; codigo?: number; duplicado?: boolean };
@@ -138,12 +156,15 @@ export async function sendTemplate(opts: {
     return { ok: false, erro };
   }
 
-  // A trava: se já existe registro com esta chave, alguém já enviou.
-  try {
-    await logRef.create({ ...base, to, status: "enviando" });
-  } catch {
-    return { ok: false, erro: "Já enviado — retry ignorado.", duplicado: true };
-  }
+  // A trava: se já existe registro com esta chave, alguém já enviou — a menos
+  // que a tentativa anterior tenha morrido de erro passageiro (ver `podeRetomar`).
+  const liberado = await db.runTransaction(async (tx) => {
+    const atual = await tx.get(logRef);
+    if (atual.exists && !podeRetomar(atual.data())) return false;
+    tx.set(logRef, { ...base, to, status: "enviando" });
+    return true;
+  });
+  if (!liberado) return { ok: false, erro: "Já enviado — retry ignorado.", duplicado: true };
 
   const corpo = {
     messaging_product: "whatsapp",
@@ -159,6 +180,7 @@ export async function sendTemplate(opts: {
     },
   };
 
+  let respondeu = false;
   try {
     const r = await fetch(
       `https://graph.facebook.com/${VERSAO_API}/${config.phoneNumberId}/messages`,
@@ -169,8 +191,17 @@ export async function sendTemplate(opts: {
           authorization: `Bearer ${config.token}`,
         },
         body: JSON.stringify(corpo),
+        signal: AbortSignal.timeout(TEMPO_LIMITE_MS),
       }
     );
+    respondeu = true;
+    /* 5xx da Meta: nada foi entregue e repetir é seguro. Marca como passageiro
+     * para a trava de duplicidade deixar a nova tentativa passar. */
+    if (r.status >= 500) {
+      const erro = `Meta respondeu HTTP ${r.status}`;
+      await logRef.update({ status: "erro", erro, passageiro: true });
+      return { ok: false, erro };
+    }
     const resposta = (await r.json()) as {
       error?: { message?: string; error_user_msg?: string; code?: number };
       messages?: { id?: string }[];
@@ -216,7 +247,10 @@ export async function sendTemplate(opts: {
     return { ok: true, messageId };
   } catch (error) {
     const erro = error instanceof Error ? error.message : String(error);
-    await logRef.update({ status: "erro", erro });
+    /* Passageiro só se o `fetch` em si falhou (timeout, rede caída) — a Meta
+     * não confirmou nada. Erro DEPOIS de a Meta responder (corpo ilegível,
+     * gravação do índice) não é: a mensagem pode ter saído, e repetir duplicaria. */
+    await logRef.update({ status: "erro", erro, ...(!respondeu && erroPassageiro(error) ? { passageiro: true } : {}) });
     return { ok: false, erro };
   }
 }

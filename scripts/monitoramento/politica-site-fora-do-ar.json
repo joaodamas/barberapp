@@ -1,0 +1,33 @@
+{
+  "displayName": "Topete · site fora do ar",
+  "documentation": {
+    "mimeType": "text/markdown",
+    "content": "**A verificação de disponibilidade falhou em 2 ou mais regiões.**\n\nEla chama `https://__DOMINIO__/api/health` de 5 em 5 minutos. A resposta diz qual parte caiu:\n\n```\ncurl -s https://__DOMINIO__/api/health\n```\n\n- `checks.firestore.ok=false`: o site não consegue ler o banco (veja o status do Firebase e as regras publicadas por último).\n- `checks.functions.ok=false`: as functions não respondem (veja os logs do serviço `healthcheck` e o último deploy de functions).\n- sem resposta nenhuma: o site/Hosting/DNS. Confira o domínio na Cloudflare e o último release do Hosting.\n\nO alerta fecha sozinho quando a verificação volta a passar."
+  },
+  "combiner": "OR",
+  "conditions": [
+    {
+      "displayName": "Verificação /api/health falhando em mais de 1 região",
+      "conditionThreshold": {
+        "filter": "metric.type=\"monitoring.googleapis.com/uptime_check/check_passed\" AND metric.label.check_id=\"__CHECK_ID__\" AND resource.type=\"uptime_url\"",
+        "aggregations": [
+          {
+            "alignmentPeriod": "600s",
+            "perSeriesAligner": "ALIGN_NEXT_OLDER",
+            "crossSeriesReducer": "REDUCE_COUNT_FALSE",
+            "groupByFields": ["resource.label.*"]
+          }
+        ],
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 1,
+        "duration": "60s",
+        "trigger": { "count": 1 }
+      }
+    }
+  ],
+  "alertStrategy": {
+    "autoClose": "86400s"
+  },
+  "notificationChannels": ["__CANAL__"],
+  "enabled": true
+}
