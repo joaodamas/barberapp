@@ -161,6 +161,20 @@ describe("D2 · a assinatura precisa estar valendo NA competência do corte", ()
     expect(r.tipo).toBe("plano");
   });
 
+  it("🔒 cancelada de verdade (status cancelado) NO MÊS ainda cobre — o mês está pago", () => {
+    /* `cancelarMensalista` grava `status: "cancelado"`; o teste acima usava
+     * "ativo" + canceledAt, combinação que o produto nunca produz, e por isso
+     * o plano era cortado no dia do cancelamento sem teste nenhum reclamar. */
+    const r = corte({ ...ILIMITADO, status: "cancelado", canceledAt: "2026-09-20" });
+    expect(r.tipo).toBe("plano");
+  });
+
+  it("cancelada de verdade, corte no mês SEGUINTE: avulso", () => {
+    expect(
+      corte({ ...ILIMITADO, status: "cancelado", canceledAt: "2026-08-30" })
+    ).toMatchObject({ tipo: "avulso", motivo: "plano_inativo" });
+  });
+
   it("cancelada no mês ANTERIOR não cobre mais", () => {
     expect(corte({ ...ILIMITADO, status: "ativo", canceledAt: "2026-08-30" })).toMatchObject({
       tipo: "avulso",

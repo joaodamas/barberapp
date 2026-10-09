@@ -2,6 +2,7 @@ import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
 import { idSeguro, vinculosDe } from "./acesso";
 import { exigirCadeiraAtiva } from "./convite-equipe";
+import { assinaturaDaCompetencia, competenciaDe } from "./mensalistas";
 
 /**
  * "Este cliente é mensalista?" — a pergunta do fechamento, para o barbeiro (08/10).
@@ -24,8 +25,29 @@ export type PlanoNoFechamento = {
 };
 
 /** O recorte que sai daqui — nada de preço, vencimento ou horário fixo. */
-export function recorteDoPlano(assinatura: Record<string, unknown> | undefined): PlanoNoFechamento | null {
-  if (!assinatura || assinatura.status !== "ativo") return null;
+export function recorteDoPlano(
+  assinatura: Record<string, unknown> | undefined,
+  /** Competência do atendimento: é o que deixa a cancelada com o mês pago valer. */
+  competencia?: string
+): PlanoNoFechamento | null {
+  if (!assinatura) return null;
+  /* Cancelar não corta o plano no mesmo dia: o ciclo pago vale até o fim dele
+   * (`assinaturaDaCompetencia`). Sem a competência, só a ativa é plano. */
+  const canceladaQueVale =
+    assinatura.status === "cancelado" &&
+    !!competencia &&
+    !!assinatura.canceledAt &&
+    assinaturaDaCompetencia(
+      [
+        {
+          status: "cancelado" as const,
+          startedAt: String(assinatura.startedAt ?? ""),
+          canceledAt: String(assinatura.canceledAt),
+        },
+      ],
+      competencia
+    ) !== null;
+  if (assinatura.status !== "ativo" && !canceladaQueVale) return null;
   const inclusos = Number(assinatura.servicesIncluded);
   return {
     planName: String(assinatura.planName ?? "Plano"),
@@ -53,11 +75,16 @@ export const planoDoAtendimento = onCall<{ barbershopId: string; bookingId: stri
 
   const clientId = reserva.get("clientId") as string | null | undefined;
   if (!clientId) return { plano: null };
-  const ativas = await shopRef
-    .collection("subscriptions")
-    .where("clientId", "==", clientId)
-    .where("status", "==", "ativo")
-    .limit(1)
-    .get();
-  return { plano: recorteDoPlano(ativas.docs[0]?.data()) };
+  const assinaturas = await shopRef.collection("subscriptions").where("clientId", "==", clientId).get();
+  const competencia = competenciaDe(String(reserva.get("date") ?? ""));
+  const escolhida = assinaturaDaCompetencia(
+    assinaturas.docs.map((d) => ({
+      status: d.get("status") as "ativo" | "suspenso" | "cancelado",
+      startedAt: String(d.get("startedAt") ?? ""),
+      canceledAt: (d.get("canceledAt") as string | null | undefined) ?? null,
+      dados: d.data(),
+    })),
+    competencia
+  );
+  return { plano: recorteDoPlano(escolhida?.dados, competencia) };
 });

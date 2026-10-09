@@ -284,7 +284,12 @@ export function decidirCobertura(params: {
 
   const competencia = competenciaDe(params.data);
 
-  if (assinatura.status !== "ativo") {
+  /* Cancelada com o ciclo pago ainda vale até o fim dele (`plano_cancelado`:
+   * "continua valendo até {{3}}"): quem decide é `valeNaCompetencia`, logo
+   * abaixo. Recusar aqui todo `status !== "ativo"` cortava o plano no mesmo
+   * dia do cancelamento, com o mês pago. Suspensa continua sem cobrir. */
+  const canceladaAindaVale = assinatura.status === "cancelado" && !!assinatura.canceledAt;
+  if (assinatura.status !== "ativo" && !canceladaAindaVale) {
     return { tipo: "avulso", motivo: "plano_inativo", valorCoberto: 0 };
   }
   /* Reaproveita a régua de faturamento em vez de reimplementar o recorte: a
@@ -358,6 +363,27 @@ export function valeNaCompetencia(
   if (competenciaDe(assinatura.startedAt) > competencia) return false;
   if (!assinatura.canceledAt) return true;
   return competenciaDe(assinatura.canceledAt) >= competencia;
+}
+
+/**
+ * Qual das assinaturas de um cliente responde pelo atendimento desta
+ * competência?
+ *
+ * Só havia a procura por `status == "ativo"`: quem cancelou no dia 20 perdia a
+ * cobertura no mesmo dia, com o mês pago. Agora a cancelada cuja competência
+ * ainda vale (`valeNaCompetencia`) também entra. Preferência: a ativa que vale,
+ * depois a cancelada que vale, depois a ativa que não vale (para
+ * `decidirCobertura` dar o motivo `plano_inativo` de sempre).
+ */
+export function assinaturaDaCompetencia<
+  T extends Pick<SubscriptionDoc, "status" | "startedAt" | "canceledAt">
+>(assinaturas: T[], competencia: string): T | null {
+  const ativa = assinaturas.find((a) => a.status === "ativo");
+  if (ativa && valeNaCompetencia(ativa, competencia)) return ativa;
+  const cancelada = assinaturas.find(
+    (a) => a.status === "cancelado" && !!a.canceledAt && valeNaCompetencia(a, competencia)
+  );
+  return cancelada ?? ativa ?? null;
 }
 
 /* ================================================================== */
@@ -539,6 +565,9 @@ export async function emitirFaturasDaCompetencia(params: {
 
   for (const a of assinaturas.docs) {
     const dados = a.data() as SubscriptionDoc;
+    /* Emissão e cobertura respondem pela MESMA régua (`valeNaCompetencia`):
+     * quem cancelou no meio do mês é cobrado por ele e coberto até o fim dele;
+     * a partir do seguinte, nem fatura nem cobertura. */
     if (!valeNaCompetencia(dados, params.competencia)) continue;
 
     const faturaRef = params.shopRef
