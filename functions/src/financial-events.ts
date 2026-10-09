@@ -341,9 +341,16 @@ export function decidirEfeito(
 export type CicloFinanceiro = {
   /** Id do evento que desfez a conclusão. Presença = a reserva já foi revertida. */
   revertidoEm: string;
-  /** CONGELADOS da comissão vigente no momento da reversão. */
+  /**
+   * CONGELADOS da comissão vigente no momento da reversão.
+   *
+   * O percentual NÃO é gravado aqui (09/10): a reserva é lida pelo cliente, e a
+   * % que o barbeiro ganha é dado interno. Ele mora no documento de comissão
+   * vigente (`comissaoVigenteId`), que a reconclusão relê. `commissionPct`
+   * existe só nas reservas revertidas antes desta mudança.
+   */
   comissao: {
-    commissionPct: number;
+    commissionPct?: number;
     commissionBase: number;
     staffId: string;
     uid: string | null;
@@ -705,7 +712,6 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
         descontoDaReserva: descontoDaReservaCongelado(atual.data()),
         comissao: comissaoSnap.exists
           ? {
-              commissionPct: Number(comissaoSnap.get("commissionPct")) || 0,
               commissionBase: Number(comissaoSnap.get("commissionBase")) || 0,
               staffId: String(comissaoSnap.get("staffId") ?? ""),
               uid: (comissaoSnap.get("uid") ?? null) as string | null,
@@ -736,7 +742,7 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
               uid: congelado.comissao.uid,
               staffName: congelado.comissao.staffName,
               date: String(depois.date ?? ""),
-              commissionPct: congelado.comissao.commissionPct,
+              commissionPct: Number(comissaoSnap.get("commissionPct")) || 0,
               commissionBase: congelado.comissao.commissionBase,
               commissionAmount: Number(comissaoSnap.get("commissionAmount")) || 0,
             }),
@@ -859,7 +865,18 @@ export async function materializarConclusao(params: {
    * `padraoPct` continua sendo o de hoje de propósito: ele só é consultado
    * quando o barbeiro não tem percentual próprio, e nesse caminho o valor
    * congelado já vem resolvido em `commissionPct`. */
-  const pctCongelado = reconclusao ? ciclo?.comissao?.commissionPct ?? null : null;
+  /* O percentual congelado vem do documento de comissão que a reversão
+   * negou (09/10); a reserva não o guarda mais. Reserva revertida antes disso
+   * ainda o traz em `cicloFinanceiro`, e vale como reserva. */
+  const comissaoRevertida = reconclusao
+    ? await comissaoVigenteRef(db, barbershopId, bookingId, depois).get()
+    : null;
+  const pctDoDocumento = comissaoRevertida?.exists
+    ? Number(comissaoRevertida.get("commissionPct"))
+    : null;
+  const pctCongelado = reconclusao
+    ? (Number.isFinite(pctDoDocumento) ? pctDoDocumento : null) ?? ciclo?.comissao?.commissionPct ?? null
+    : null;
 
   // Gravado como `null` no cadastro inicial, não ausente.
   const pctDoCadastro = pctCongelado !== null
