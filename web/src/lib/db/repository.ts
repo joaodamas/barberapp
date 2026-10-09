@@ -141,7 +141,7 @@ export function subscribeToCollection<T extends DocumentData>(
           (snapshot) => {
             /* De quando são os dados, para o aviso "Sem conexão — mostrando
              * dados de HH:MM": só conta o que veio do servidor. */
-            if (!snapshot.metadata.fromCache) registrarLeituraDoServidor();
+            if (snapshot.metadata?.fromCache === false) registrarLeituraDoServidor();
             const items = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
             nova.ultimo = items;
             nova.ouvintes.forEach((fn) => fn(items));
