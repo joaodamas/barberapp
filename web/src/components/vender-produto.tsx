@@ -311,7 +311,7 @@ export function VenderProduto({
           </p>
           <p className="text-sm text-ink">
             A devolução de <span className="tabular-nums">{formatBRL(inicial.valorDevolvido)}</span> já
-            está registrada. Ajuste os itens, o preço e a forma abaixo e confirme a venda certa. Se a correção era só tirar unidades, não precisa vender de novo: toque em "Não refazer agora".
+            está registrada. Ajuste os itens, o preço e a forma abaixo e confirme a venda certa. Se a correção era só tirar unidades, não precisa vender de novo: toque em “Não refazer agora”.
           </p>
           <div>
             <Button variant="ghost" size="sm" onClick={descartarCorrecao}>
