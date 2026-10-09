@@ -553,6 +553,11 @@ jobs:
           # Repositório público (08/10): em produção o log mostra só o
           # veredito — nada do console nem dos endereços do site dos clientes.
           DETALHE: ${{ inputs.ambiente == 'dev' && 'completo' || 'resumo' }}
+          # Opcionais (docs/MONITORAMENTO.md): a conta de teste de uma barbearia
+          # isolada. Segredo inexistente chega vazio, e o passo do painel logado
+          # é pulado com aviso — nunca falha por falta de conta.
+          FUMACA_EMAIL: ${{ secrets.FUMACA_EMAIL }}
+          FUMACA_SENHA: ${{ secrets.FUMACA_SENHA }}
         run: |
           # A identidade do build é a mesma de `next.config.ts`: 12 caracteres.
           export BUILD_ESPERADO="${BUILD_ESPERADO:0:12}"

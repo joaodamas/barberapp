@@ -5,6 +5,8 @@ import { ZoomIn, ZoomOut } from "lucide-react";
 import {
   limitarEnquadramento,
   retanguloNoQuadrado,
+  tamanhoDaFonte,
+  type FonteDoLogo,
   ZOOM_MAXIMO,
   type Enquadramento,
 } from "@/lib/recorte-do-logo";
@@ -33,14 +35,13 @@ export function RecorteDoLogo({
   enquadramento,
   onChange,
 }: {
-  imagem: HTMLImageElement;
+  imagem: FonteDoLogo;
   enquadramento: Enquadramento;
   onChange: (e: Enquadramento) => void;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const arraste = useRef<{ x: number; y: number; inicio: Enquadramento } | null>(null);
-  const largura = imagem.naturalWidth;
-  const altura = imagem.naturalHeight;
+  const { largura, altura } = tamanhoDaFonte(imagem);
 
   useEffect(() => {
     const c = canvas.current;
