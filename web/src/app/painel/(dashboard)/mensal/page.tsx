@@ -1,17 +1,28 @@
 "use client";
 
 import { useState } from "react";
-import { useFeature } from "@/lib/tenant-context";
+import { useFeature, useTenant } from "@/lib/tenant-context";
 import { RecursoBloqueado } from "@/components/recurso-bloqueado";
-import { CalendarClock } from "lucide-react";
+import { CalendarClock, MessageCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
-import { formatBRL, formatDatePtBR, safePct, toISODate } from "@/lib/format";
-import { usePlans, useSubscribers, useSubscriptionInvoices } from "@/lib/db/use-shop-data";
+import { formatBRL, formatDatePtBR, safePct } from "@/lib/format";
+import { useClients, usePlans, useSubscribers, useSubscriptionInvoices } from "@/lib/db/use-shop-data";
 import { GerirMensalistas } from "@/components/gerir-mensalistas";
 import { HorariosFixos } from "@/components/horarios-fixos";
 import { mesAtual } from "@/lib/db/use-financeiro";
-import { resumoDasFaturas } from "@/lib/mensalidade";
+import { estagioDaFatura, type EstagioDaRegua } from "@/lib/mensalidade";
+import {
+  contagemPorEstagio,
+  faturaRelevante,
+  hojeNoFuso,
+  mensagemDeLembrete,
+  precisaLembrarHoje,
+  situacaoNaRegua,
+} from "@/lib/aviso-da-mensalidade";
+import { normalizarWhatsapp } from "@/lib/whatsapp-numero";
+import { contar } from "@/lib/plural";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
 import { Users } from "lucide-react";
@@ -31,6 +42,9 @@ const STATUS_META: Record<
 const RULER_STAGES = ["D-5", "D-3", "D-1", "D0", "D+1", "D+3", "D+5"] as const;
 
 type Filter = "todos" | SubscriberStatus;
+
+/** Recorte pela régua: um marco, ou "quem precisa de lembrete hoje". */
+type FiltroDaRegua = EstagioDaRegua | "lembrar" | null;
 
 const FILTER_LABELS: Record<Filter, string> = {
   todos: "Todos",
@@ -58,9 +72,14 @@ export default function MensalPage() {
 }
 
 function MensalConteudo() {
+  const tenant = useTenant();
   const [filter, setFilter] = useState<Filter>("todos");
+  const [filtroDaRegua, setFiltroDaRegua] = useState<FiltroDaRegua>(null);
   const { items: subscribers, status, error } = useSubscribers();
   const { items: faturas } = useSubscriptionInvoices();
+  /* Só para o telefone do botão "Lembrar": sem a leitura, o botão some — o
+   * resto da tela não depende dela. */
+  const { items: clientes } = useClients();
   /* O vazio AFIRMAVA que não havia planos sem nunca ter lido `plans`. Ler é a
    * condição para poder afirmar — a mesma régua do `ErroAoCarregar`: só se diz
    * "não há" depois de ter lido. Mesmo filtro de `GerirMensalistas`, que é
@@ -76,17 +95,37 @@ function MensalConteudo() {
   };
   const mrrPct = Math.round(safePct(mrr.billed, mrr.contracted));
 
-  const filtered =
-    filter === "todos" ? subscribers : subscribers.filter((s) => s.status === filter);
-
-  /* A régua vem das faturas, não do campo morto. Mesma fonte que
-     `GerirMensalistas` usa logo acima — uma conta só para os dois blocos. */
+  /* A régua vem das faturas, não do campo morto, e do dia NO FUSO DA LOJA. */
   const competencia = mesAtual();
-  const reguaPorEstagio = resumoDasFaturas(
-    faturas,
-    competencia,
-    toISODate(new Date())
-  ).porEstagio;
+  const hoje = hojeNoFuso(tenant.locale.timeZone);
+
+  /* Uma fatura por mensalista: a aberta mais antiga (dívida velha não some
+   * quando o mês vira) ou, não havendo, a paga do mês. Cancelado fica fora da
+   * cobrança. Os números do topo e a lista saem da MESMA conta — contar uma
+   * coisa e filtrar outra faria o número prometer linhas que não aparecem. */
+  const faturaDe = (subscriptionId: string, st: SubscriberStatus) =>
+    st === "cancelado"
+      ? null
+      : faturaRelevante(faturas.filter((f) => f.subscriptionId === subscriptionId), hoje);
+  const reguaPorEstagio = contagemPorEstagio(
+    subscribers.map((s) => faturaDe(s.id, s.status)),
+    hoje
+  );
+  const quantosLembrar = subscribers.filter((s) =>
+    precisaLembrarHoje(faturaDe(s.id, s.status), hoje)
+  ).length;
+
+  const filtered = subscribers
+    .filter((s) => filter === "todos" || s.status === filter)
+    .filter((s) => {
+      if (!filtroDaRegua) return true;
+      const f = faturaDe(s.id, s.status);
+      if (filtroDaRegua === "lembrar") return precisaLembrarHoje(f, hoje);
+      return f !== null && estagioDaFatura(f, hoje) === filtroDaRegua;
+    });
+
+  const alternarRegua = (f: Exclude<FiltroDaRegua, null>) =>
+    setFiltroDaRegua((atual) => (atual === f ? null : f));
 
   return (
     <div className="flex flex-col gap-6 pt-1 md:gap-10 md:pt-2">
@@ -147,23 +186,39 @@ function MensalConteudo() {
                  derivada de `dueDate` das FATURAS, que é o documento que sabe a
                  competência e responde certo em qualquer data. */
               const count = reguaPorEstagio[stage] ?? 0;
+              const ativo = filtroDaRegua === stage;
               return (
-                <div key={stage} className="flex flex-1 flex-col items-center gap-1 md:gap-2">
+                /* Clicável: o número filtra a lista logo abaixo. Sem ninguém
+                   no marco, não há o que filtrar — fica desabilitado. */
+                <button
+                  key={stage}
+                  type="button"
+                  disabled={count === 0 && !ativo}
+                  aria-pressed={ativo}
+                  aria-label={`${stage}: ${contar(count, "mensalista", "mensalistas")}`}
+                  onClick={() => alternarRegua(stage)}
+                  className="alvo-toque flex flex-1 flex-col items-center gap-1 disabled:cursor-default md:gap-2"
+                >
                   <div
                     className={
                       "flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold transition-colors md:h-11 md:w-11 md:text-sm " +
-                      (count > 0
-                        ? "bg-gold text-ink"
-                        : "border border-border text-ink-muted/50")
+                      (ativo
+                        ? "bg-gold text-ink ring-2 ring-gold-strong ring-offset-2 ring-offset-surface"
+                        : count > 0
+                          ? "bg-gold text-ink"
+                          : "border border-border text-ink-muted/50")
                     }
                   >
                     {count > 0 ? count : ""}
                   </div>
                   <span className="text-[11px] text-ink-muted md:text-xs">{stage}</span>
-                </div>
+                </button>
               );
             })}
           </div>
+          <p className="text-[11px] text-ink-muted md:text-xs">
+            Toque num número para ver só quem está naquele marco.
+          </p>
         </Card>
       </div>
 
@@ -212,6 +267,19 @@ function MensalConteudo() {
           <h2 className="text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
             Mensalistas
           </h2>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+          <button
+            type="button"
+            aria-pressed={filtroDaRegua === "lembrar"}
+            onClick={() => alternarRegua("lembrar")}
+            className={`alvo-toque rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors ${
+              filtroDaRegua === "lembrar"
+                ? "border-gold bg-gold text-ink"
+                : "border-border bg-surface text-ink-muted hover:text-ink"
+            }`}
+          >
+            Precisa lembrar hoje ({quantosLembrar})
+          </button>
           <div className="flex gap-1 rounded-lg border border-border bg-surface p-0.5">
             {(Object.keys(FILTER_LABELS) as Filter[]).map((f) => (
               <button
@@ -225,10 +293,11 @@ function MensalConteudo() {
               </button>
             ))}
           </div>
+          </div>
         </div>
 
         <Card className="table-scroll overflow-x-auto p-0">
-          <table className="w-full min-w-[520px] text-sm">
+          <table className="w-full min-w-[680px] text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ink-muted">
                 <th className="px-4 py-3 font-medium md:px-6">Cliente</th>
@@ -237,12 +306,26 @@ function MensalConteudo() {
                 {/* As outras duas tabelas do painel — a agenda de Hoje e as
                     mensalidades logo acima nesta mesma tela — chamam a coluna
                     de "Situação". Esta era a única em inglês. */}
-                <th className="px-4 py-3 font-medium md:px-6">Situação</th>
+                <th className="px-4 py-3 font-medium">Situação</th>
+                <th className="px-4 py-3 font-medium md:px-6">Mensalidade</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((s) => {
                 const meta = STATUS_META[s.status];
+                const fatura = faturaDe(s.id, s.status);
+                const naRegua = situacaoNaRegua(fatura, hoje);
+                const telefone = normalizarWhatsapp(
+                  clientes.find((c) => c.id === s.clientId)?.whatsapp ?? ""
+                );
+                /* O dono revisa e envia no próprio WhatsApp: é um link, e o
+                   produto não manda nada sozinho. */
+                const lembrar =
+                  fatura && naRegua?.estagio && telefone
+                    ? `https://wa.me/${telefone}?text=${encodeURIComponent(
+                        mensagemDeLembrete(fatura, hoje, s.name, tenant.brand.name)
+                      )}`
+                    : null;
                 return (
                   <tr
                     key={s.id}
@@ -261,8 +344,25 @@ function MensalConteudo() {
                           ? `todo dia ${s.billingDay}`
                           : "—"}
                     </td>
-                    <td className="px-4 py-3 md:px-6">
+                    <td className="px-4 py-3">
                       <Pill tone={meta.tone}>{meta.label}</Pill>
+                    </td>
+                    <td className="px-4 py-3 md:px-6">
+                      {naRegua ? (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Pill tone={naRegua.tom}>{naRegua.rotulo}</Pill>
+                          {lembrar && (
+                            <a href={lembrar} target="_blank" rel="noopener noreferrer">
+                              <Button variant="secondary" size="sm">
+                                <MessageCircle size={14} />
+                                Lembrar no WhatsApp
+                              </Button>
+                            </a>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-ink-muted">—</span>
+                      )}
                     </td>
                   </tr>
                 );
@@ -272,9 +372,10 @@ function MensalConteudo() {
                   {/* Vazio de FILTRO, não de dado: existe mensalista, só não
                       neste status. Sem dizer a saída, o dono lê como se a
                       lista tivesse sumido. */}
-                  <td colSpan={4} className="px-4 py-6 text-center text-sm text-ink-muted md:px-6">
-                    Nenhum mensalista neste status. Toque em &quot;Todos&quot; para
-                    ver a lista inteira.
+                  <td colSpan={5} className="px-4 py-6 text-center text-sm text-ink-muted md:px-6">
+                    {filtroDaRegua
+                      ? "Ninguém neste recorte da régua. Toque de novo no filtro para desfazê-lo."
+                      : "Nenhum mensalista neste status. Toque em “Todos” para ver a lista inteira."}
                   </td>
                 </tr>
               )}

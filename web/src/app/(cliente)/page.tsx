@@ -17,6 +17,7 @@ import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
 import { CalendarPlus } from "lucide-react";
 import { VitrineDaBarbearia } from "@/components/vitrine-da-barbearia";
+import { AvisoDaMensalidade } from "@/components/aviso-da-mensalidade";
 
 export default function InicioPage() {
   const tenant = useTenant();
@@ -91,6 +92,9 @@ export default function InicioPage() {
       </Link>
 
       <section aria-labelledby="proximo-agendamento" className="md:col-start-1 md:row-start-2">
+        {/* Dentro da coluna, e não como filho solto da grade: os filhos têm
+            linha fixa, e um item automático cairia no fim da página. */}
+        <AvisoDaMensalidade className="mb-4 md:mb-6" />
         <h2
           id="proximo-agendamento"
           className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted md:mb-3 md:text-sm"
