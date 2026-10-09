@@ -8,7 +8,7 @@ import { cn } from "@/lib/cn";
 import { itemAtivo, painelNavItems, rotaAtiva } from "@/lib/nav-items";
 import { SidebarUserFooter } from "@/components/sidebar-user-footer";
 import { useAcesso, useTenant } from "@/lib/tenant-context";
-import { logoSemOtimizar } from "@/lib/logo-da-marca";
+import { CLASSE_DO_LOGO_REDONDO, logoSemOtimizar } from "@/lib/logo-da-marca";
 
 export function PainelSidebarNav() {
   const pathname = usePathname();
@@ -35,7 +35,7 @@ export function PainelSidebarNav() {
         href="/painel"
         className="flex items-center gap-3 px-6 pb-6 pt-8"
       >
-        <Image src={brand.logo} unoptimized={logoSemOtimizar(brand.logo)} alt="" width={38} height={38} priority className="shrink-0 rounded-md object-contain" />
+        <Image src={brand.logo} unoptimized={logoSemOtimizar(brand.logo)} alt="" width={38} height={38} priority className={CLASSE_DO_LOGO_REDONDO} />
         <div className="leading-tight">
           <p className="font-display text-base uppercase tracking-wider text-ink">
             {brand.shortName}
