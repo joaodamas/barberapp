@@ -7,8 +7,8 @@ import * as logger from "firebase-functions/logger";
 export const MARCADOR_ALERTA = "alertaDaPlataforma" as const;
 
 /** Os campos estruturados do log de um alerta. Puro, testado. */
-export function camposDoAlerta(tipo: string, resumo: Record<string, unknown>) {
-  return { [MARCADOR_ALERTA]: true as const, tipo, ...resumo };
+export function camposDoAlerta(tipo: string, resumo: Record<string, unknown>): Record<string, unknown> {
+  return { [MARCADOR_ALERTA]: true, tipo, ...resumo };
 }
 
 /**

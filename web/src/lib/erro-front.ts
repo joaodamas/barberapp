@@ -147,7 +147,11 @@ export type RelatorDeErros = (erro: EntradaDoRelator) => boolean;
  */
 export function criarRelator(
   enviar: (erro: ErroDoFront) => void,
-  { maximo = MAXIMO_POR_SESSAO, rota = () => "", userAgent = () => "" } = {},
+  {
+    maximo = MAXIMO_POR_SESSAO,
+    rota = (): string => "",
+    userAgent = (): string => "",
+  }: { maximo?: number; rota?: () => string; userAgent?: () => string } = {},
 ): RelatorDeErros {
   const vistas = new Set<string>();
   let enviados = 0;
