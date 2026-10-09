@@ -133,8 +133,8 @@ export default function FluxoCaixaPage() {
       {apuracao.ok("caixaDoMes") && fluxo.porOrigem.receita_avulsa > 0 && (
         <p className="text-xs text-ink-muted">
           &quot;Entrou&quot; inclui {formatBRL(fluxo.porOrigem.receita_avulsa)} de outras receitas
-          (venda de equipamento, aluguel de cadeira, parcerias). Parcela que ainda não venceu não
-          conta.
+          (venda de equipamento, aluguel de cadeira, parcerias). Receita com data futura ainda não
+          entrou e não conta.
         </p>
       )}
 

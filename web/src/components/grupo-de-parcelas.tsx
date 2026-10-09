@@ -66,6 +66,7 @@ export function GrupoDeParcelas({
   categorias,
   hoje,
   substantivo,
+  onAviso,
 }: {
   /** `null` = fechado. */
   grupoId: string | null;
@@ -77,6 +78,8 @@ export function GrupoDeParcelas({
   /** `AAAA-MM-DD`. */
   hoje: string;
   substantivo: "despesa" | "receita";
+  /** Quando o servidor ainda não confirmou (offline) ou recusou depois: a tela avisa. */
+  onAviso: (aviso: { tipo: "pendente" | "recusada"; texto: string } | null) => void;
 }) {
   const [tela, setTela] = useState<Tela>({ tipo: "lista" });
   const [escopo, setEscopo] = useState<EscopoDoGrupo>("so_esta");
@@ -108,8 +111,26 @@ export function GrupoDeParcelas({
     setErro(null);
     try {
       const { noServidor } = await gravarEmLote(barbershopId, colecao, operacoes);
-      await esperarServidorOuSeguir(noServidor);
+      const situacao = await esperarServidorOuSeguir(noServidor);
       fechar();
+      if (situacao === "pendente") {
+        onAviso({
+          tipo: "pendente",
+          texto: `A alteração nas parcelas de "${base}" está guardada neste aparelho e vai sincronizar quando a conexão voltar.`,
+        });
+        noServidor.then(
+          () => onAviso(null),
+          (e) => {
+            console.error("[parcelas] servidor recusou depois", e);
+            onAviso({
+              tipo: "recusada",
+              texto: `A alteração nas parcelas de "${base}" não foi aceita pelo servidor e não foi salva. Tente de novo.`,
+            });
+          }
+        );
+      } else {
+        onAviso(null);
+      }
     } catch (error) {
       console.error("[parcelas] falha ao aplicar no grupo", error);
       setErro("Não foi possível salvar. Verifique a conexão e tente de novo.");

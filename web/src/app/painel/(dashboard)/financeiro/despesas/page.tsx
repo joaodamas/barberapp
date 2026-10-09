@@ -34,6 +34,7 @@ import {
   planejarParcelas,
   PARCELAS_MAX,
   PARCELAS_MIN,
+  parcelasComCentavo,
 } from "@/lib/parcelamento";
 import { esperarServidorOuSeguir } from "@/lib/db/sem-esperar-servidor";
 import { lerReais, reaisParaCampo, VALOR_ILEGIVEL } from "@/lib/reais";
@@ -90,12 +91,17 @@ export default function DespesasPage() {
   /* O grupo de parcelas aberto em "ver parcelas". */
   const [grupoAberto, setGrupoAberto] = useState<string | null>(null);
   const hoje = todayISO();
+  /* A parcela que está sendo editada (se for uma): o formulário mostra só o
+   * valor e a data DELA, sem tipo, nº de parcelas nem prévia. */
+  const parcelaEmEdicao = editingId ? (expenses.find((e) => e.id === editingId)?.parcela ?? null) : null;
 
   const [saving, setSaving] = useState(false);
   /* Id da despesa nova, escolhido na primeira tentativa e mantido nas
    * seguintes: salvar duas vezes (rede lenta, offline) sobrescreve o mesmo
    * lançamento em vez de criar outro. Zera ao abrir o diálogo de novo. */
   const [idDoRascunho, setIdDoRascunho] = useState<string | null>(null);
+  /* Com que tipo e nº de parcelas o rascunho nasceu: se mudou, é outro id. */
+  const [assinaturaDoRascunho, setAssinaturaDoRascunho] = useState<string | null>(null);
   /* O que a tela diz depois que o diálogo fecha sem o servidor ter
    * confirmado. "Salvo" seria mentira; silêncio esconderia uma gravação que
    * ainda pode ser recusada. */
@@ -179,7 +185,19 @@ export default function DespesasPage() {
       setFormError("Informe a data.");
       return;
     }
+    const plano = parcelado
+      ? planejarParcelas({ modo: form.modo, valor: value, n: nParcelas, primeira: form.date })
+      : null;
+    if (plano && !parcelasComCentavo(plano)) {
+      setFormError("Cada parcela precisa ser de pelo menos R$ 0,01. Aumente o valor ou diminua as parcelas.");
+      return;
+    }
     setFormError(null);
+    /* Tipo ou nº de parcelas diferente da tentativa anterior = outro lançamento
+     * (ids novos), senão uma Única viraria uma parcela do grupo anterior. */
+    const assinatura = `${form.tipo}:${parcelado ? nParcelas : 0}`;
+    const reaproveita = idDoRascunho !== null && assinatura === assinaturaDoRascunho;
+    const rascunho = reaproveita ? idDoRascunho : null;
 
     const fields = {
       category: form.category,
@@ -197,19 +215,14 @@ export default function DespesasPage() {
     setSaving(true);
     try {
       let noServidor: Promise<unknown>;
-      if (parcelado) {
+      if (plano) {
         /* N documentos num lote atômico. O id do grupo é escolhido na primeira
          * tentativa e mantido (`idDoRascunho`), e cada parcela tem id
          * derivado dele: repetir o clique ou a rede sobrescreve as mesmas
          * parcelas em vez de criar um segundo grupo. */
-        const grupoId = idDoRascunho ?? (await novoIdDe(barbershopId, "expenses"));
+        const grupoId = rascunho ?? (await novoIdDe(barbershopId, "expenses"));
         setIdDoRascunho(grupoId);
-        const plano = planejarParcelas({
-          modo: form.modo,
-          valor: value,
-          n: nParcelas,
-          primeira: form.date,
-        });
+        setAssinaturaDoRascunho(assinatura);
         noServidor = (
           await gravarEmLote(
             barbershopId,
@@ -233,8 +246,9 @@ export default function DespesasPage() {
          * tratado em "ver parcelas". */
         noServidor = patchDoc(barbershopId, "expenses", editingId, fields);
       } else {
-        const id = idDoRascunho ?? (await novoIdDe(barbershopId, "expenses"));
+        const id = rascunho ?? (await novoIdDe(barbershopId, "expenses"));
         setIdDoRascunho(id);
+        setAssinaturaDoRascunho(assinatura);
         noServidor = (await gravarNovo(barbershopId, "expenses", id, fields)).noServidor;
       }
       /* Offline, o servidor não responde nunca — e esperar por ele deixava o
@@ -418,7 +432,7 @@ export default function DespesasPage() {
           ))}
           <p className="text-xs text-ink-muted">
             Recorrente se repete sozinha todo mês, a partir da data do lançamento. Se uma delas
-            foi relançada, desmarque o &quot;recorrente&quot; dela — senão o custo fixo soma as
+            foi relançada, troque-a para &quot;Única&quot; em Editar — senão o custo fixo soma as
             duas. Se são contas diferentes (luz e água, por exemplo), está certo.
           </p>
         </Card>
@@ -664,8 +678,8 @@ export default function DespesasPage() {
             tipo={form.tipo}
             onTipo={(tipo) => setForm((f) => ({ ...f, tipo }))}
             permiteRecorrente
-            permiteParcelada={!editingId || expenses.some((e) => e.id === editingId && e.parcela)}
-            bloqueado={Boolean(editingId && expenses.some((e) => e.id === editingId && e.parcela))}
+            permiteParcelada={!editingId}
+            parcelaExistente={parcelaEmEdicao}
             parcelas={form.parcelas}
             onParcelas={(parcelas) => setForm((f) => ({ ...f, parcelas }))}
             modo={form.modo}
@@ -673,13 +687,6 @@ export default function DespesasPage() {
             valor={lerReais(form.value)}
             primeira={form.date}
           />
-          {/* Editar uma parcela mexe só nela; o grupo todo se trata em "ver parcelas". */}
-          {editingId && expenses.some((e) => e.id === editingId && e.parcela) && (
-            <p role="note" className="rounded-controle border border-gold/40 bg-gold/5 p-3 text-xs text-ink md:col-span-2">
-              Esta é uma parcela de um lançamento parcelado: o que você mudar aqui vale só para ela.
-              Para mudar o grupo, use &quot;ver parcelas&quot; na lista.
-            </p>
-          )}
 
           <label className="flex flex-col gap-1 text-xs text-ink-muted md:col-span-2">
             Descrição *
@@ -717,7 +724,7 @@ export default function DespesasPage() {
           </label>
 
           <label className="flex flex-col gap-1 text-xs text-ink-muted">
-            {rotuloDoValor(form.tipo, form.modo)}
+            {rotuloDoValor(form.tipo, form.modo, Boolean(parcelaEmEdicao))}
             {/* Texto, não `number`: o campo numérico do navegador não aceita
                 "1.500,50", e o que ele entrega para "1.500" depende do
                 aparelho. Quem lê é `lerReais`. */}
@@ -732,7 +739,7 @@ export default function DespesasPage() {
           </label>
 
           <label className="flex flex-col gap-1 text-xs text-ink-muted">
-            Data
+            {parcelaEmEdicao ? "Data desta parcela" : form.tipo === "parcelada" ? "Data da primeira parcela" : "Data"}
             <input
               type="date"
               value={form.date}
@@ -763,7 +770,7 @@ export default function DespesasPage() {
           {editingId &&
             expenses.some((e) => e.id === editingId && e.recurring && e.date < `${mes}-01`) && (
               <p role="note" className="rounded-lg border border-gold/40 bg-gold/5 p-3 text-xs text-ink md:col-span-2">
-                Esta recorrente vem de meses anteriores. Mudar o valor ou desmarcar aqui muda o custo
+                Esta recorrente vem de meses anteriores. Mudar o valor ou trocar para &quot;Única&quot; aqui muda o custo
                 fixo de todos os meses desde o lançamento, inclusive os já fechados. Para reajustar só
                 daqui para frente, lance uma nova recorrente (mesma categoria e descrição) com a data
                 de hoje e o valor novo — a mais recente substitui a antiga — e não mexa nesta.
@@ -798,6 +805,7 @@ export default function DespesasPage() {
         categorias={expenseCategories}
         hoje={hoje}
         substantivo="despesa"
+        onAviso={setSincronia}
       />
 
       <Modal

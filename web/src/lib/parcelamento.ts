@@ -82,6 +82,11 @@ export function planejarParcelas(params: {
   };
 }
 
+/** Toda parcela tem de valer pelo menos 1 centavo (R$ 0,05 em 10x daria parcela zero). */
+export function parcelasComCentavo(plano: PlanoDeParcelas): boolean {
+  return plano.valores.every((v) => centavosDe(v) >= 1);
+}
+
 /** "Máquina Wahl · 3/10" */
 export function descricaoDaParcela(base: string, numero: number, total: number): string {
   return `${base} · ${numero}/${total}`;

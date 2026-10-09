@@ -32,6 +32,7 @@ import {
   planejarParcelas,
   PARCELAS_MAX,
   PARCELAS_MIN,
+  parcelasComCentavo,
 } from "@/lib/parcelamento";
 
 type Receita = OtherIncomeDoc & { id: string };
@@ -76,6 +77,7 @@ export default function ReceitasPage() {
   const [saving, setSaving] = useState(false);
   /* Mantido entre tentativas: salvar de novo sobrescreve o mesmo grupo. */
   const [idDoRascunho, setIdDoRascunho] = useState<string | null>(null);
+  const [assinaturaDoRascunho, setAssinaturaDoRascunho] = useState<string | null>(null);
   const [sincronia, setSincronia] = useState<{ tipo: "pendente" | "recusada"; texto: string } | null>(null);
 
   const mes = mesAtual();
@@ -84,7 +86,7 @@ export default function ReceitasPage() {
     () => items.filter((i) => dentroDoPeriodo(i.date, mesPeriodo(mes))),
     [items, mes]
   );
-  const total = doMes.reduce((s, i) => s + i.value, 0);
+  const total = doMes.reduce((s, i) => s + (Number(i.value) || 0), 0);
 
   const acesso = useAcesso();
   if (!acesso.features.advancedFinance) {
@@ -133,7 +135,16 @@ export default function ReceitasPage() {
     if (parcelado && !parcelasValidas(n)) {
       return setFormError(`O número de parcelas vai de ${PARCELAS_MIN} a ${PARCELAS_MAX}.`);
     }
+    const plano = parcelado
+      ? planejarParcelas({ modo: form.modo, valor: value, n, primeira: form.date })
+      : null;
+    if (plano && !parcelasComCentavo(plano)) {
+      return setFormError("Cada parcela precisa ser de pelo menos R$ 0,01. Aumente o valor ou diminua as parcelas.");
+    }
     setFormError(null);
+    /* Tipo ou nº de parcelas diferente da tentativa anterior = outro lançamento. */
+    const assinatura = `${form.tipo}:${parcelado ? n : 0}`;
+    const rascunho = idDoRascunho !== null && assinatura === assinaturaDoRascunho ? idDoRascunho : null;
 
     const campos = {
       category: form.category,
@@ -148,10 +159,10 @@ export default function ReceitasPage() {
     setSaving(true);
     try {
       let noServidor: Promise<unknown>;
-      if (parcelado) {
-        const grupoId = idDoRascunho ?? (await novoIdDe(barbershopId, "otherIncomes"));
+      if (plano) {
+        const grupoId = rascunho ?? (await novoIdDe(barbershopId, "otherIncomes"));
         setIdDoRascunho(grupoId);
-        const plano = planejarParcelas({ modo: form.modo, valor: value, n, primeira: form.date });
+        setAssinaturaDoRascunho(assinatura);
         noServidor = (
           await gravarEmLote(
             barbershopId,
@@ -172,8 +183,9 @@ export default function ReceitasPage() {
       } else if (editingId) {
         noServidor = patchDoc(barbershopId, "otherIncomes", editingId, campos);
       } else {
-        const id = idDoRascunho ?? (await novoIdDe(barbershopId, "otherIncomes"));
+        const id = rascunho ?? (await novoIdDe(barbershopId, "otherIncomes"));
         setIdDoRascunho(id);
+        setAssinaturaDoRascunho(assinatura);
         noServidor = (await gravarNovo(barbershopId, "otherIncomes", id, campos)).noServidor;
       }
       const situacao = await esperarServidorOuSeguir(noServidor);
@@ -216,7 +228,7 @@ export default function ReceitasPage() {
     }
   }
 
-  const editandoParcela = Boolean(editingId && items.some((i) => i.id === editingId && i.parcela));
+  const parcelaEmEdicao = editingId ? (items.find((i) => i.id === editingId)?.parcela ?? null) : null;
 
   return (
     <div className="flex flex-col gap-6 pt-1 md:gap-8 md:pt-2">
@@ -347,8 +359,8 @@ export default function ReceitasPage() {
             tipo={form.tipo}
             onTipo={(tipo) => setForm((f) => ({ ...f, tipo }))}
             permiteRecorrente={false}
-            permiteParcelada={!editingId || editandoParcela}
-            bloqueado={editandoParcela}
+            permiteParcelada={!editingId}
+            parcelaExistente={parcelaEmEdicao}
             parcelas={form.parcelas}
             onParcelas={(parcelas) => setForm((f) => ({ ...f, parcelas }))}
             modo={form.modo}
@@ -356,12 +368,6 @@ export default function ReceitasPage() {
             valor={lerReais(form.value)}
             primeira={form.date}
           />
-          {editandoParcela && (
-            <p role="note" className="rounded-controle border border-gold/40 bg-gold/5 p-3 text-xs text-ink md:col-span-2">
-              Esta é uma parcela de um lançamento parcelado: o que você mudar aqui vale só para ela.
-              Para mudar o grupo, use &quot;ver parcelas&quot; na lista.
-            </p>
-          )}
 
           <label className="flex flex-col gap-1 text-xs text-ink-muted md:col-span-2">
             Descrição *
@@ -394,7 +400,7 @@ export default function ReceitasPage() {
             />
           </label>
           <label className="flex flex-col gap-1 text-xs text-ink-muted">
-            {rotuloDoValor(form.tipo, form.modo)}
+            {rotuloDoValor(form.tipo, form.modo, Boolean(parcelaEmEdicao))}
             <input
               type="text"
               inputMode="decimal"
@@ -405,7 +411,7 @@ export default function ReceitasPage() {
             />
           </label>
           <label className="flex flex-col gap-1 text-xs text-ink-muted">
-            {form.tipo === "parcelada" ? "Data da primeira parcela" : "Data"}
+            {parcelaEmEdicao ? "Data desta parcela" : form.tipo === "parcelada" ? "Data da primeira parcela" : "Data"}
             <input
               type="date"
               value={form.date}
@@ -451,6 +457,7 @@ export default function ReceitasPage() {
         categorias={incomeCategories}
         hoje={hojeISO}
         substantivo="receita"
+        onAviso={setSincronia}
       />
 
       <Modal

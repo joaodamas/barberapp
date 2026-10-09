@@ -120,8 +120,8 @@ export function movimentosDeCaixa(params: {
   cashEntries: Doc<CashEntryDoc>[];
   periodo: Periodo;
   /**
-   * `AAAA-MM-DD` de hoje. Com ele, PARCELA (de despesa ou de receita) com data
-   * depois de hoje não é movimento de caixa ainda — o modelo não guarda
+   * `AAAA-MM-DD` de hoje. Com ele, PARCELA de despesa e QUALQUER receita avulsa
+   * com data depois de hoje não é movimento de caixa ainda — o modelo não guarda
    * "paga", então o que ainda não venceu não é afirmado como saído/entrado.
    * Sem ele, vale a data lançada para tudo (comportamento anterior).
    */
@@ -202,7 +202,9 @@ export function movimentosDeCaixa(params: {
    * por trás (é D24 outra vez: o dono grava direto), então nenhuma outra seção
    * a repete — a exclusividade se mantém. Parcela entra na data dela. */
   for (const r of params.otherIncomes ?? []) {
-    if (!dentroDoPeriodo(r.date, params.periodo) || aindaNaoVenceu(r)) continue;
+    /* Receita avulsa com data futura (parcela ou não) ainda não entrou: o
+     * produto não guarda "recebida", então vale a data. */
+    if (!dentroDoPeriodo(r.date, params.periodo) || (params.hoje && r.date > params.hoje)) continue;
     out.push({
       date: r.date,
       origem: "receita_avulsa",

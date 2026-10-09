@@ -822,10 +822,18 @@ export function resultadoDoMes(params: {
   const result = resultBeforeTax - tax;
 
   const totalCost = variableCost + fixedCost + tax;
-  const marginPct = safeDiv(result, receita.bruta) * 100;
+  /* Sobre bruta + outras receitas: com receita avulsa a conta fecha em
+   * (bruta + outras − custo) / (bruta + outras). Sem elas, é a de sempre. */
+  const marginPct = safeDiv(result, receita.bruta + outrasReceitas) * 100;
 
   const diasNoMes = Number(periodo.fim.slice(-2));
-  const breakEvenDay = breakEvenDayFor(receita.bruta, totalCost, diasNoMes);
+  /* As outras receitas abatem o custo a cobrir; se já o cobrem, o equilíbrio
+   * está no dia 1 — e a pílula "no verde" da tela não contradiz o texto. */
+  const custoACobrir = totalCost - outrasReceitas;
+  const breakEvenDay =
+    outrasReceitas > 0 && custoACobrir <= 0
+      ? 1
+      : breakEvenDayFor(receita.bruta, outrasReceitas > 0 ? custoACobrir : totalCost, diasNoMes);
 
   return {
     grossRevenue: receita.bruta,

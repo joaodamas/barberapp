@@ -21,6 +21,7 @@ import {
   descricaoDaParcela,
   dividirEmCentavos,
   idDaParcela,
+  parcelasComCentavo,
   parcelasDoGrupo,
   parcelasValidas,
   planejarParcelas,
@@ -299,8 +300,26 @@ describe("DRE: Outras receitas", () => {
     expect(c.result).toBe(r.result);
   });
 
-  it("ilegível a coleção, o resultado não é apurado", () => {
+  it("margem e equilíbrio contam as outras receitas, sem contradizer o 'no verde'", () => {
+    const r = dre([], [rec("1", 500, "2026-08-10")]);
+    expect(r.marginPct).toBe(100); // 500 de resultado sobre 500 de base
+    expect(r.breakEvenDay).toBe(1); // sem custo a cobrir
+    const cobre = dre(parcelasDeDespesa(3000, 10, "2026-07-20"), [rec("1", 500, "2026-08-10")]);
+    expect(cobre.result).toBe(200);
+    expect(cobre.breakEvenDay).toBe(1);
+    const nao = dre(parcelasDeDespesa(3000, 10, "2026-07-20"), [rec("1", 100, "2026-08-10")]);
+    expect(nao.result).toBe(-200);
+    expect(nao.breakEvenDay).toBeNull();
+  });
+
+  it("parcela mínima de 1 centavo", () => {
+    expect(parcelasComCentavo(planejarParcelas({ modo: "total", valor: 0.05, n: 10, primeira: "2026-10-09" }))).toBe(false);
+    expect(parcelasComCentavo(planejarParcelas({ modo: "total", valor: 0.1, n: 10, primeira: "2026-10-09" }))).toBe(true);
+  });
+
+  it("ilegível a coleção, o custo total continua apurado; o resultado não", () => {
     const a = apuracaoDe(["otherIncomes"]);
+    expect(a.ok("custoTotal")).toBe(true);
     expect(a.ok("resultado")).toBe(false);
     expect(a.ok("outrasReceitas")).toBe(false);
     expect(a.ok("cmv")).toBe(true);
@@ -330,6 +349,17 @@ describe("fluxo de caixa: parcela entra na própria data", () => {
     expect(r.porOrigem.receita_avulsa).toBe(400);
     expect(r.porOrigem.despesa).toBe(0);
     expect(r.saldo).toBe(400);
+  });
+
+  it("receita avulsa ÚNICA com data futura também não entra até a data", () => {
+    const unica: Doc<OtherIncomeDoc> = {
+      id: "u", category: "Venda de equipamento", description: "Cadeira", payer: "—", value: 700,
+      date: "2026-08-25", payment: "Pix",
+    };
+    const antes = movimentosDeCaixa({ ...base, expenses: [], otherIncomes: [unica], periodo: P, hoje: "2026-08-10" });
+    expect(antes).toHaveLength(0);
+    const depois = movimentosDeCaixa({ ...base, expenses: [], otherIncomes: [unica], periodo: P, hoje: "2026-08-25" });
+    expect(depois).toHaveLength(1);
   });
 
   it("despesa sem `parcela` e futura continua valendo pela data lançada", () => {

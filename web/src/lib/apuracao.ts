@@ -111,11 +111,17 @@ const CUSTO_VARIAVEL: readonly FonteFinanceira[] = [
 /* Despesa recorrente e eventual saem de `expenses`; a folha fixa, de `staff`. */
 const CUSTO_FIXO: readonly FonteFinanceira[] = ["expenses", "staff"];
 
-const RESULTADO: readonly FonteFinanceira[] = [
-  "otherIncomes", // "Outras receitas" entra no resultado, fora da receita bruta
+/* O custo total não depende das receitas avulsas: se só elas caírem, o custo
+ * continua apurado. */
+const CUSTO_TOTAL: readonly FonteFinanceira[] = [
   ...RECEITA,
   ...CUSTO_VARIAVEL,
   ...CUSTO_FIXO,
+];
+
+const RESULTADO: readonly FonteFinanceira[] = [
+  "otherIncomes", // "Outras receitas" entra no resultado, fora da receita bruta
+  ...CUSTO_TOTAL,
 ];
 
 /* O caixa é o dinheiro que se moveu, e ele se move por sete portas. */
@@ -153,7 +159,7 @@ export const FONTES_DA_GRANDEZA = {
   despesasEventuais: ["expenses"],
   despesasDoMes: ["expenses"],
   custoFixo: CUSTO_FIXO,
-  custoTotal: RESULTADO,
+  custoTotal: CUSTO_TOTAL,
 
   /* --- resultado --- */
   margemDeContribuicao: [...RECEITA, ...CUSTO_VARIAVEL],

@@ -57,7 +57,10 @@ export function useFinanceiro(mes: string, horizonte: Horizonte = "mensal") {
   const periodo = mesPeriodo(mes);
   const status = combineStatus(
     bookings, expenses, movements, subscribers, services, products, staff,
-    commissions, payments, refunds, invoices, cashEntries, otherIncomes
+    commissions, payments, refunds, invoices, cashEntries,
+    /* Receita avulsa espera carregar, mas NÃO derruba a tela se falhar: o erro dela
+     * segue em `fontesIlegiveis` e suprime só os números que dependem dela. */
+    { status: otherIncomes.status === "erro" ? ("pronto" as const) : otherIncomes.status }
   );
 
   /* Quais coleções NÃO puderam ser lidas — D3/D4.

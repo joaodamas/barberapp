@@ -20,7 +20,8 @@ const TIPOS: Array<{ valor: TipoDeLancamento; rotulo: string; dica: string }> = 
 ];
 
 /** O rótulo do campo de valor muda com o que o dono está informando. */
-export function rotuloDoValor(tipo: TipoDeLancamento, modo: ModoDoValor): string {
+export function rotuloDoValor(tipo: TipoDeLancamento, modo: ModoDoValor, editandoParcela = false): string {
+  if (editandoParcela) return "Valor desta parcela (R$) *";
   if (tipo !== "parcelada") return "Valor (R$) *";
   return modo === "total" ? "Valor total (R$) *" : "Valor de cada parcela (R$) *";
 }
@@ -37,7 +38,7 @@ export function ParcelamentoCampos({
   onTipo,
   permiteRecorrente,
   permiteParcelada = true,
-  bloqueado,
+  parcelaExistente,
   parcelas,
   onParcelas,
   modo,
@@ -50,8 +51,8 @@ export function ParcelamentoCampos({
   permiteRecorrente: boolean;
   /** Editando um lançamento que não é parcela, não há como "virar" parcelado. */
   permiteParcelada?: boolean;
-  /** Editando um lançamento existente, o tipo não muda. */
-  bloqueado?: boolean;
+  /** Editando UMA parcela: o tipo e a divisão não se aplicam, só o valor e a data dela. */
+  parcelaExistente?: { numero: number; total: number } | null;
   parcelas: string;
   onParcelas: (v: string) => void;
   modo: ModoDoValor;
@@ -69,6 +70,15 @@ export function ParcelamentoCampos({
       ? previaDoParcelamento(planejarParcelas({ modo, valor, n, primeira }), formatBRL)
       : null;
 
+  if (parcelaExistente) {
+    return (
+      <p role="note" className="rounded-controle border border-gold/40 bg-gold/5 p-3 text-xs text-ink md:col-span-2">
+        Parcela {parcelaExistente.numero} de {parcelaExistente.total} · o que você mudar aqui vale só
+        para ela. Use &quot;ver parcelas&quot; para mudar as próximas ou o grupo todo.
+      </p>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-3 md:col-span-2">
       <div role="radiogroup" aria-label="Tipo de lançamento" className="flex flex-wrap gap-2">
@@ -78,7 +88,7 @@ export function ParcelamentoCampos({
             type="button"
             role="radio"
             aria-checked={tipo === t.valor}
-            disabled={bloqueado}
+            
             onClick={() => onTipo(t.valor)}
             className={cn(
               "flex min-h-11 flex-col items-start rounded-controle border px-3 py-1.5 text-left transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60",
