@@ -278,13 +278,25 @@ export function decidirCobertura(params: {
    * afirmação dele vence a decisão do servidor.
    */
   metodoInformado?: string | null;
+  /**
+   * A fatura da competência do atendimento está PAGA? Decisão do produto
+   * (09/10): a assinatura cancelada só segue cobrindo o mês se o mês foi pago.
+   * Sem fatura paga, depois do cancelamento o corte é avulso.
+   */
+  competenciaPaga?: boolean;
 }): Cobertura {
   const { assinatura } = params;
   if (!assinatura) return { tipo: "avulso", motivo: "sem_plano", valorCoberto: 0 };
 
   const competencia = competenciaDe(params.data);
 
-  if (assinatura.status !== "ativo") {
+  /* Cancelada com o ciclo pago ainda vale até o fim dele (`plano_cancelado`:
+   * "continua valendo até {{3}}"): quem decide é `valeNaCompetencia`, logo
+   * abaixo. Recusar aqui todo `status !== "ativo"` cortava o plano no mesmo
+   * dia do cancelamento, com o mês pago. Suspensa continua sem cobrir. */
+  const canceladaAindaVale =
+    assinatura.status === "cancelado" && !!assinatura.canceledAt && params.competenciaPaga === true;
+  if (assinatura.status !== "ativo" && !canceladaAindaVale) {
     return { tipo: "avulso", motivo: "plano_inativo", valorCoberto: 0 };
   }
   /* Reaproveita a régua de faturamento em vez de reimplementar o recorte: a
@@ -358,6 +370,35 @@ export function valeNaCompetencia(
   if (competenciaDe(assinatura.startedAt) > competencia) return false;
   if (!assinatura.canceledAt) return true;
   return competenciaDe(assinatura.canceledAt) >= competencia;
+}
+
+/**
+ * Qual das assinaturas de um cliente responde pelo atendimento desta
+ * competência?
+ *
+ * Só havia a procura por `status == "ativo"`: quem cancelou no dia 20 perdia a
+ * cobertura no mesmo dia, com o mês pago. Agora a cancelada cuja competência
+ * ainda vale (`valeNaCompetencia`) E cuja fatura da competência está PAGA
+ * (`competenciaPaga`) também entra. Preferência: a ativa que vale,
+ * depois a cancelada que vale, depois a ativa que não vale (para
+ * `decidirCobertura` dar o motivo `plano_inativo` de sempre).
+ */
+export function assinaturaDaCompetencia<
+  T extends Pick<SubscriptionDoc, "status" | "startedAt" | "canceledAt"> & {
+    /** A fatura DESTA competência está paga? Só então a cancelada segue cobrindo. */
+    competenciaPaga?: boolean;
+  }
+>(assinaturas: T[], competencia: string): T | null {
+  const ativa = assinaturas.find((a) => a.status === "ativo");
+  if (ativa && valeNaCompetencia(ativa, competencia)) return ativa;
+  const cancelada = assinaturas.find(
+    (a) =>
+      a.status === "cancelado" &&
+      !!a.canceledAt &&
+      a.competenciaPaga === true &&
+      valeNaCompetencia(a, competencia)
+  );
+  return cancelada ?? ativa ?? null;
 }
 
 /* ================================================================== */
@@ -539,6 +580,9 @@ export async function emitirFaturasDaCompetencia(params: {
 
   for (const a of assinaturas.docs) {
     const dados = a.data() as SubscriptionDoc;
+    /* Emissão e cobertura respondem pela MESMA régua (`valeNaCompetencia`):
+     * quem cancelou no meio do mês é cobrado por ele e coberto até o fim dele;
+     * a partir do seguinte, nem fatura nem cobertura. */
     if (!valeNaCompetencia(dados, params.competencia)) continue;
 
     const faturaRef = params.shopRef
@@ -788,6 +832,16 @@ export function valorDoMensalValido(valor: unknown): number | null {
   return Math.round(n * 100) / 100;
 }
 
+/**
+ * O reajuste "na fatura já emitida" só alcança o mês atual em diante.
+ *
+ * Marcado por padrão, ele subia também a fatura vencida de meses anteriores —
+ * dívida que o cliente já tinha pelo valor antigo passava a custar o novo.
+ */
+export function faturaAceitaReajuste(competenciaDaFatura: unknown, hoje: string): boolean {
+  return String(competenciaDaFatura ?? "") >= competenciaDe(hoje);
+}
+
 export const ajustarValorDoMensal = onCall<{
   barbershopId: string;
   subscriptionId: string;
@@ -811,6 +865,9 @@ export const ajustarValorDoMensal = onCall<{
 
   const db = getFirestore();
   const shopRef = db.doc(`barbershops/${barbershopId}`);
+  const shopSnap = await shopRef.get();
+  if (!shopSnap.exists) throw new HttpsError("not-found", "Barbearia não encontrada.");
+  const hoje = hojeNoFuso(localeDoDocumento(shopSnap.data()).timeZone);
   const ref = shopRef.collection("subscriptions").doc(String(subscriptionId));
 
   return db.runTransaction(async (tx) => {
@@ -829,7 +886,7 @@ export const ajustarValorDoMensal = onCall<{
               .where("subscriptionId", "==", String(subscriptionId))
               .where("status", "==", "aberta")
           )
-        ).docs
+        ).docs.filter((f) => faturaAceitaReajuste(f.get("competencia"), hoje))
       : [];
 
     tx.update(ref, { price: valor, priceAjustadoEm: FieldValue.serverTimestamp(), priceAjustadoPor: uid });

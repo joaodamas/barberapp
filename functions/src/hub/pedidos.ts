@@ -2,7 +2,7 @@ import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { idSeguro, vinculosDe } from "../acesso";
 import { toPlanId, type PlanId } from "../plans";
-import { isentoDeCobranca, montarEvento, type CorpoDoEvento } from "./contrato";
+import { cicloDoPedido, isentoDeCobranca, montarEvento, type CorpoDoEvento } from "./contrato";
 import { enfileirarSeNovo } from "./saida";
 
 /**
@@ -57,6 +57,7 @@ async function registrarPedido(
       plano: corpo.plano ?? null,
       valor: corpo.valor ?? null,
       ciclo: corpo.ciclo ?? null,
+      valorCiclo: corpo.valorCiclo ?? null,
       motivo: corpo.motivo ?? null,
       eventoId: corpo.eventoId,
       por: uid,
@@ -67,14 +68,20 @@ async function registrarPedido(
       action: `barbershop.${corpo.evento}`,
       by: uid,
       at: FieldValue.serverTimestamp(),
-      detail: { plano: corpo.plano ?? null, valor: corpo.valor ?? null, motivo: corpo.motivo ?? null },
+      detail: {
+        plano: corpo.plano ?? null,
+        valor: corpo.valor ?? null,
+        ciclo: corpo.ciclo ?? null,
+        valorCiclo: corpo.valorCiclo ?? null,
+        motivo: corpo.motivo ?? null,
+      },
     });
     return { registrado: true, eventoId: corpo.eventoId };
   });
 }
 
 /** O dono escolhe o plano ao fim do teste. Vira `plano_escolhido` no Hub. */
-export const escolherPlano = onCall<{ barbershopId: string; plano: string }>(async (request) => {
+export const escolherPlano = onCall<{ barbershopId: string; plano: string; ciclo?: string }>(async (request) => {
   const barbershopId = idSeguro(request.data?.barbershopId, "Barbearia");
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Entre na sua conta.");
@@ -90,15 +97,21 @@ export const escolherPlano = onCall<{ barbershopId: string; plano: string }>(asy
     throw new HttpsError("invalid-argument", `Plano "${bruto}" não existe. Use: agenda, crescimento ou gestao.`);
   }
 
+  /* Ciclo desconhecido, ou anual com a trava desligada, para aqui: mandar ao
+   * Hub um anual que ele ainda não entende viraria cobrança mensal. */
+  const c = cicloDoPedido(request.data?.ciclo);
+  if (!c.ok) throw new HttpsError("invalid-argument", c.erro);
+  const ciclo = c.ciclo;
+
   const agora = new Date();
   const r = await registrarPedido(
     barbershopId,
     uid,
     (shop) =>
-      montarEvento({ evento: "plano_escolhido", barbershopId, ...shop, ocorridoEm: agora, plano }),
+      montarEvento({ evento: "plano_escolhido", barbershopId, ...shop, ocorridoEm: agora, plano, ciclo }),
     true
   );
-  return { ok: true, plano, ...r };
+  return { ok: true, plano, ciclo, ...r };
 });
 
 /** O dono pede para encerrar. Vira `pediu_cancelamento` no Hub; nada é encerrado aqui. */

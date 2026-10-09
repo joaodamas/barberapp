@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { valorDoMensalValido } from "../mensalistas";
+import { faturaAceitaReajuste, valorDoMensalValido } from "../mensalistas";
+
+describe("faturaAceitaReajuste — só o mês atual em diante", () => {
+  it("a fatura vencida de mês anterior não sobe", () => {
+    expect(faturaAceitaReajuste("2026-09", "2026-10-09")).toBe(false);
+  });
+  it("a do mês atual e as futuras acompanham o novo valor", () => {
+    expect(faturaAceitaReajuste("2026-10", "2026-10-09")).toBe(true);
+    expect(faturaAceitaReajuste("2026-11", "2026-10-09")).toBe(true);
+  });
+});
 
 /** O valor novo de um mensalista (30/09): só número positivo, em centavos. */
 describe("valorDoMensalValido", () => {

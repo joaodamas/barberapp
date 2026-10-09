@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { recebe, type Contato } from "../telegram/contatos";
-import { avisoDaCriacao } from "../telegram/gatilhos";
+import { avisoDaCriacao, remarcadaPeloCliente } from "../telegram/gatilhos";
 import {
   dadoDoBotao,
   diaCurto,
@@ -49,6 +49,21 @@ describe("quando a reserva nova vira aviso", () => {
   it("balcão e horário fixo não avisam (o dono já sabe; o fixo viraria 8 avisos)", () => {
     expect(avisoDaCriacao({ status: "confirmed", origin: "balcao" })).toBeNull();
     expect(avisoDaCriacao({ status: "confirmed", origin: "app", horarioFixoId: "sub1" })).toBeNull();
+  });
+});
+
+describe("quando a remarcação do cliente avisa a barbearia (09/10)", () => {
+  const antes = { date: "2026-10-16", time: "10:00" };
+  const depois = { date: "2026-10-19", time: "10:00", status: "confirmed", clientId: "c1", rescheduledBy: "c1" };
+  it("o cliente mudou data ou hora do próprio horário", () => {
+    expect(remarcadaPeloCliente(antes, depois)).toBe(true);
+    expect(remarcadaPeloCliente(antes, { ...depois, date: "2026-10-16", time: "11:00" })).toBe(true);
+  });
+  it("remarcação do painel, sem mudança de horário ou de reserva fechada não avisa", () => {
+    expect(remarcadaPeloCliente(antes, { ...depois, rescheduledBy: "dono" })).toBe(false);
+    expect(remarcadaPeloCliente(antes, { ...depois, date: "2026-10-16" })).toBe(false);
+    expect(remarcadaPeloCliente(antes, { ...depois, status: "cancelled_by_client" })).toBe(false);
+    expect(remarcadaPeloCliente(antes, { ...depois, rescheduledBy: undefined })).toBe(false);
   });
 });
 

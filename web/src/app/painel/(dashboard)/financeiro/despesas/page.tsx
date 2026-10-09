@@ -9,7 +9,7 @@ import { Modal } from "@/components/ui/modal";
 import { formatBRL, formatDateShortPtBR } from "@/lib/format";
 import { contar } from "@/lib/plural";
 import { NAO_APURADO } from "@/lib/apuracao";
-import { LinhaDeErro } from "@/components/ui/erro-ao-carregar";
+import { ErroAoCarregar, LinhaDeErro } from "@/components/ui/erro-ao-carregar";
 import { mesPeriodo, recorrentesRepetidasPorCategoria, resumoDeDespesas } from "@/lib/analytics";
 import { mesAtual, rotuloDoMes } from "@/lib/db/use-financeiro";
 import {
@@ -362,8 +362,95 @@ export default function DespesasPage() {
         </Card>
       )}
 
-      <Card className="table-scroll overflow-x-auto p-0">
-        <table className="w-full min-w-[720px] text-sm">
+      {/* Recorrente lançada em mês anterior vale neste mês (é o que o cartão
+          "Recorrentes" e o custo fixo do DRE contam) mas não está na tabela,
+          que lista o que foi LANÇADO no mês. Sem esta linha o dono via o
+          cartão com valor e a lista sem a conta, e lançava de novo. */}
+      {!naoApurado && resumo.recorrentesDeAntes.length > 0 && (
+        <Card className="flex flex-col gap-2 p-3 md:p-4">
+          <p className="text-xs uppercase tracking-wide text-ink-muted">
+            Recorrentes de meses anteriores · valem em {rotuloDoMes(mes)}
+          </p>
+          {resumo.recorrentesDeAntes.map((e) => (
+            <div key={e.id} className="flex items-center justify-between gap-3 text-sm">
+              <span className="min-w-0 text-ink">
+                {e.description}
+                <span className="block text-xs text-ink-muted">desde {formatDateShortPtBR(e.date)}</span>
+              </span>
+              <span className="flex shrink-0 items-center gap-2">
+                <span className="font-medium text-ink">{formatBRL(e.value)}</span>
+                <button
+                  type="button"
+                  aria-label={`Editar ${e.description}`}
+                  onClick={() => openEditModal(e)}
+                  className="flex h-11 w-11 items-center justify-center rounded-lg text-ink-muted/70 transition-colors hover:bg-surface-raised hover:text-ink md:h-8 md:w-8"
+                >
+                  <Pencil size={13} />
+                </button>
+              </span>
+            </div>
+          ))}
+        </Card>
+      )}
+
+      {/* Abaixo de md a tabela de 7 colunas obrigava a rolar de lado: vira
+          lista de cartões, como o Hoje faz. */}
+      <div className="flex flex-col gap-2 md:hidden">
+        {status === "carregando" && <div className="h-16 animate-pulse rounded-xl bg-surface-raised" />}
+        {naoApurado && <ErroAoCarregar oQue="os lançamentos" erro={error} />}
+        {status === "pronto" && sorted.length === 0 && (
+          <Card className="p-4 text-center text-sm text-ink-muted">
+            Nenhuma despesa lançada em {rotuloDoMes(mes)}. Use &quot;Nova despesa&quot; para registrar
+            aluguel, luz e fornecedores.
+          </Card>
+        )}
+        {sorted.map((e) => (
+          <Card key={e.id} className="flex items-start justify-between gap-3 p-3">
+            <div className="min-w-0">
+              <p className="text-sm text-ink">
+                {e.description}
+                {e.recurring && (
+                  <Pill tone="gold" className="ml-2">
+                    <Repeat size={10} /> mensal
+                  </Pill>
+                )}
+              </p>
+              <p className="text-xs text-ink-muted">
+                {formatDateShortPtBR(e.date)} · <span className="text-gold-strong">{e.category}</span> · {e.payment}
+                {e.supplier && e.supplier !== "—" ? ` · ${e.supplier}` : ""}
+              </p>
+            </div>
+            <div className="flex shrink-0 flex-col items-end">
+              <span className="whitespace-nowrap text-sm font-medium text-ink">{formatBRL(e.value)}</span>
+              <div className="flex items-center">
+                <button
+                  aria-label="Editar"
+                  onClick={() => openEditModal(e)}
+                  className="flex h-11 w-11 items-center justify-center rounded-lg text-ink-muted/70 transition-colors hover:bg-surface-raised hover:text-ink"
+                >
+                  <Pencil size={13} />
+                </button>
+                <button
+                  aria-label="Excluir"
+                  onClick={() => setPendingDelete(e)}
+                  className="flex h-11 w-11 items-center justify-center rounded-lg text-ink-muted/70 transition-colors hover:bg-danger/10 hover:text-danger"
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            </div>
+          </Card>
+        ))}
+        <div className="flex items-center justify-between px-1 pt-1 text-xs uppercase tracking-wide text-ink-muted">
+          <span>Total do mês</span>
+          <span className="font-display text-sm font-semibold normal-case text-ink">
+            {naoApurado ? NAO_APURADO : formatBRL(total)}
+          </span>
+        </div>
+      </div>
+
+      <Card className="table-scroll hidden overflow-x-auto p-0 md:block">
+        <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ink-muted">
               <th className="px-4 py-3 font-medium md:px-6">Data</th>
@@ -569,6 +656,17 @@ export default function DespesasPage() {
             />
             Recorrente (repete todo mês — entra como custo fixo no resultado)
           </label>
+          {/* Sem data de fim no modelo: mudar a recorrente antiga muda o custo
+              de TODOS os meses desde o lançamento, inclusive os já fechados. */}
+          {editingId &&
+            expenses.some((e) => e.id === editingId && e.recurring && e.date < `${mes}-01`) && (
+              <p role="note" className="rounded-lg border border-gold/40 bg-gold/5 p-3 text-xs text-ink md:col-span-2">
+                Esta recorrente vem de meses anteriores. Mudar o valor ou desmarcar aqui muda o custo
+                fixo de todos os meses desde o lançamento, inclusive os já fechados. Para reajustar só
+                daqui para frente, lance uma nova recorrente (mesma categoria e descrição) com a data
+                de hoje e o valor novo — a mais recente substitui a antiga — e não mexa nesta.
+              </p>
+            )}
 
           <label className="flex flex-col gap-1 text-xs text-ink-muted md:col-span-2">
             Observações

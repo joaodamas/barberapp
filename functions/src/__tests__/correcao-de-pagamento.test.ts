@@ -5,6 +5,7 @@ import {
   CAMPOS_CORRIGIVEIS,
   camposDaCorrecao,
   dentroDaJanela,
+  diaDeCriacao,
   FRASE_DA_RECUSA,
   idDaCorrecao,
   motivoDaRecusa,
@@ -164,6 +165,21 @@ describe("R1 · a janela é o mês corrente, pelo `date` do pagamento", () => {
 
   it("recusa o mês anterior, ainda que por um dia", () => {
     expect(dentroDaJanela("2026-07-31", "2026-08-01")).toBe(false);
+    // O atendimento de 30/09 fechado no dia 1º: o pagamento nasceu em outubro.
+    expect(dentroDaJanela("2026-09-30", "2026-10-01", "2026-10-01")).toBe(true);
+    // Criado em setembro, hoje em outubro: continua fora.
+    expect(dentroDaJanela("2026-09-30", "2026-10-01", "2026-09-30")).toBe(false);
+    expect(dentroDaJanela("2026-09-30", "2026-10-01", null)).toBe(false);
+    // A exceção é só para o mês imediatamente anterior: julho fechado em outubro continua fora.
+    expect(dentroDaJanela("2026-07-15", "2026-10-01", "2026-10-01")).toBe(false);
+    expect(dentroDaJanela("2025-12-31", "2026-01-02", "2026-01-02")).toBe(true);
+  });
+
+  it("o dia de criação é o do fuso da barbearia, não o do servidor (UTC)", () => {
+    const ts = { toDate: () => new Date("2026-10-01T02:00:00Z") };
+    expect(diaDeCriacao(ts, "America/Sao_Paulo")).toBe("2026-09-30");
+    expect(diaDeCriacao(ts, "UTC")).toBe("2026-10-01");
+    expect(diaDeCriacao(undefined, "UTC")).toBeNull();
   });
 
   it("recusa o mesmo mês de outro ano", () => {

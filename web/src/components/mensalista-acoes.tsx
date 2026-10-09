@@ -6,7 +6,7 @@ import { Modal } from "@/components/ui/modal";
 import { Pill } from "@/components/ui/pill";
 import { RemarcarAtendimento } from "@/components/agenda/remarcar-atendimento";
 import { useShopCollection } from "@/lib/db/use-collection";
-import { mensagemDoErro } from "@/lib/direitos-do-titular";
+import { mensagemDaFuncao } from "@/lib/mensagem-da-funcao";
 import { formatBRL, formatDatePtBR, toISODate } from "@/lib/format";
 import { useTenant } from "@/lib/tenant-context";
 import { lerReais, reaisParaCampo } from "@/lib/reais";
@@ -55,7 +55,7 @@ export function ValorDoMensal({ assinatura, onClose }: { assinatura: Doc<Subscri
       });
       onClose();
     } catch (e) {
-      setErro(mensagemDoErro(e));
+      setErro(mensagemDaFuncao(e, "Não consegui salvar o valor agora."));
     } finally {
       setSalvando(false);
     }
@@ -91,8 +91,8 @@ export function ValorDoMensal({ assinatura, onClose }: { assinatura: Doc<Subscri
         <label className="flex items-start gap-2 text-xs text-ink">
           <input type="checkbox" checked={naAberta} onChange={(e) => setNaAberta(e.target.checked)} className="mt-0.5" />
           <span>
-            Aplicar também na mensalidade que já foi emitida e ainda não foi paga.
-            <span className="block text-ink-muted">Mensalidade paga não muda.</span>
+            Aplicar também na mensalidade já emitida e ainda não paga, do mês atual em diante.
+            <span className="block text-ink-muted">Mensalidade paga ou vencida de mês anterior não muda.</span>
           </span>
         </label>
         {erro && (
@@ -141,7 +141,7 @@ export function SemanasDoMensalista({
       setAviso(`${formatDatePtBR(aPular.date)} apagado da agenda. Os próximos continuam fixos.`);
       setAPular(null);
     } catch (e) {
-      setErro(mensagemDoErro(e));
+      setErro(mensagemDaFuncao(e, "Não consegui concluir agora. Tente de novo."));
     } finally {
       setTrabalhando(false);
     }

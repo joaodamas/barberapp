@@ -1,6 +1,13 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { FieldValue } from "firebase-admin/firestore";
-import { PRECOS_POR_PLANO, toPlanId, type PlanId } from "../plans";
+import {
+  ANUAL_DISPONIVEL,
+  PRECOS_POR_PLANO,
+  equivalenteMensalDoAnual,
+  toPlanId,
+  type CicloDoPlano,
+  type PlanId,
+} from "../plans";
 import { validateSlug } from "../signup";
 import { camposDeEncerramento, camposDeReabertura } from "../data-deletion";
 
@@ -330,6 +337,24 @@ export const PRECO_MENSAL: Record<PlanId, number> = {
   gestao: PRECOS_POR_PLANO.gestao.mensal,
 };
 
+/**
+ * O ciclo que o dono pediu. Ausente é mensal; qualquer coisa fora de
+ * mensal/anual é recusada (não vira mensal em silêncio: o dono pediu outra
+ * coisa). Anual com a trava desligada também é recusado.
+ */
+export function cicloDoPedido(
+  bruto: unknown,
+  anualDisponivel: boolean = ANUAL_DISPONIVEL
+): { ok: true; ciclo: CicloDoPlano } | { ok: false; erro: string } {
+  if (bruto === undefined || bruto === null || bruto === "") return { ok: true, ciclo: "mensal" };
+  if (bruto === "mensal") return { ok: true, ciclo: "mensal" };
+  if (bruto === "anual") {
+    if (!anualDisponivel) return { ok: false, erro: "O plano anual ainda não está disponível." };
+    return { ok: true, ciclo: "anual" };
+  }
+  return { ok: false, erro: `Ciclo "${String(bruto)}" não existe. Use: mensal ou anual.` };
+}
+
 export type CorpoDoEvento = {
   produto: "barber";
   evento: EventoDoTopete;
@@ -340,7 +365,11 @@ export type CorpoDoEvento = {
   ocorridoEm: string;
   plano?: PlanId;
   valor?: number;
-  ciclo?: "mensal";
+  ciclo?: CicloDoPlano;
+  /** Total do ciclo em R$ (97|197|247 no mensal, 970|1970|2470 no anual). `valor` é o equivalente por mês. */
+  valorCiclo?: number;
+  /** Fase 1: só à vista (Pix ou boleto). */
+  formaPagamento?: "avista";
   motivo?: string;
   /** Barbearia sem cobrança (`isentoDeCobranca`): o Hub registra com valor 0 e não gera boleto. */
   isento?: true;
@@ -362,8 +391,13 @@ export type CorpoDoEvento = {
 export function idDoEvento(
   evento: EventoDoTopete,
   barbershopId: string,
-  extra?: { plano?: string; dia?: string }
+  extra?: { plano?: string; dia?: string; ciclo?: CicloDoPlano }
 ): string {
+  /* O mensal mantém o id v1 (sem ciclo): pedidos já registrados continuam
+   * deduplicando. Só o anual leva o ciclo no id. */
+  if (evento === "plano_escolhido" && extra?.ciclo === "anual") {
+    return `${evento}:${barbershopId}:${extra.plano}:anual:${extra.dia}`;
+  }
   if (evento === "plano_escolhido") return `${evento}:${barbershopId}:${extra?.plano}:${extra?.dia}`;
   if (evento === "pediu_cancelamento") return `${evento}:${barbershopId}:${extra?.dia}`;
   return `${evento}:${barbershopId}`;
@@ -397,6 +431,8 @@ export function montarEvento(p: {
   nome: string;
   ocorridoEm: Date;
   plano?: PlanId;
+  /** Só vale em `plano_escolhido`; ausente é mensal. */
+  ciclo?: CicloDoPlano;
   motivo?: string | null;
   hubTenantId?: string | null;
   /** Isenta: o evento leva `isento: true` e valor 0. */
@@ -408,6 +444,7 @@ export function montarEvento(p: {
     eventoId: idDoEvento(p.evento, p.barbershopId, {
       plano: p.plano,
       dia: diaEmSaoPaulo(p.ocorridoEm),
+      ciclo: p.ciclo,
     }),
     externoId: p.barbershopId,
     slug: p.slug,
@@ -417,8 +454,12 @@ export function montarEvento(p: {
   if (p.evento === "plano_escolhido") {
     if (!p.plano) throw new Error("plano_escolhido exige o plano");
     corpo.plano = p.plano;
-    corpo.valor = PRECO_MENSAL[p.plano];
-    corpo.ciclo = "mensal";
+    const ciclo = p.ciclo ?? "mensal";
+    const total = ciclo === "anual" ? PRECOS_POR_PLANO[p.plano].anual : PRECO_MENSAL[p.plano];
+    corpo.ciclo = ciclo;
+    corpo.valorCiclo = total;
+    corpo.valor = ciclo === "anual" ? equivalenteMensalDoAnual(total) : total;
+    corpo.formaPagamento = "avista";
   }
   if (p.isento) {
     corpo.isento = true;
@@ -427,9 +468,10 @@ export function montarEvento(p: {
      * viraria cobrança. */
     if (p.plano) {
       corpo.plano = p.plano;
-      corpo.ciclo = "mensal";
+      corpo.ciclo = corpo.ciclo ?? "mensal";
     }
     if (corpo.plano) corpo.valor = 0;
+    if (corpo.valorCiclo !== undefined) corpo.valorCiclo = 0;
   }
   if (p.evento === "pediu_cancelamento" && p.motivo) {
     corpo.motivo = String(p.motivo).trim().slice(0, 300);

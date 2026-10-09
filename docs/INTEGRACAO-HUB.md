@@ -130,15 +130,51 @@ Corpo (`montarEvento` em `hub/contrato.ts`):
 |---|---|---|
 | `cadastrada` | na transação que cria a barbearia: `signUpBarbershop`, `provisionBarbershop` e `/plataforma/provisionar` | `cadastrada:{id}` |
 | `onboarding_concluido` | na transação de `completeOnboardingStep` que grava `onboarding.completedAt` (passo `compartilhar`) | `onboarding_concluido:{id}` |
-| `plano_escolhido` | callable `escolherPlano({ barbershopId, plano })`, só o dono; leva `plano`, `valor` (R$/mês) e `ciclo: "mensal"` | `plano_escolhido:{id}:{plano}:{AAAA-MM-DD}` |
+| `plano_escolhido` | callable `escolherPlano({ barbershopId, plano, ciclo? })`, só o dono; contrato v2 (abaixo) | mensal: `plano_escolhido:{id}:{plano}:{AAAA-MM-DD}`; anual: `plano_escolhido:{id}:{plano}:anual:{AAAA-MM-DD}` |
 | `pediu_cancelamento` | callable `pedirCancelamento({ barbershopId, motivo? })`, só o dono | `pediu_cancelamento:{id}:{AAAA-MM-DD}` |
 
 O dia no id faz o toque duplo virar um aviso só; outro dia, outro pedido. O
 pedido fica também em `barbershops/{id}/pedidos_plataforma/{eventoId}` (o dono
 lê) para a tela mostrar "pedido enviado". A tela ainda não existe.
 
-`valor` vem de `PRECO_MENSAL` em `hub/contrato.ts` (agenda 97, crescimento 197,
-gestao 247). **TODO:** ler de `plans.ts` quando o preço entrar lá.
+`valor` mensal vem de `PRECO_MENSAL` em `hub/contrato.ts`, que lê `plans.ts`
+(agenda 97, crescimento 197, gestao 247).
+
+#### `plano_escolhido` — contrato v2 (plano anual, Fase 1)
+
+Compatível com a v1: um Hub que ignora os campos novos lê o mensal como sempre.
+
+```json
+{
+  "produto": "barber",
+  "evento": "plano_escolhido",
+  "eventoId": "plano_escolhido:{barbershopId}:{plano}:anual:2026-10-09",
+  "externoId": "<barbershopId>", "slug": "...", "nome": "...",
+  "ocorridoEm": "2026-10-09T14:00:00-03:00",
+  "plano": "agenda",
+  "ciclo": "anual",
+  "valor": 80.83,
+  "valorCiclo": 970,
+  "formaPagamento": "avista",
+  "hubTenantId": "..."
+}
+```
+
+- `ciclo`: `"mensal"` ou `"anual"`. `valorCiclo`: total do ciclo (mensal 97|197|247;
+  anual 970|1970|2470). `valor`: R$ por mês equivalente — no anual,
+  `valorCiclo / 12` arredondado a centavos (80,83 / 164,17 / 205,83); no mensal,
+  igual a `valorCiclo`. `formaPagamento`: só `"avista"` (Pix ou boleto).
+- **`eventoId`:** o mensal **mantém o id v1, sem ciclo**, para não quebrar a
+  deduplicação dos pedidos já registrados; só o anual leva `:anual:` no id.
+- Barbearia isenta: `valor` e `valorCiclo` 0, como antes.
+- **Trava `ANUAL_DISPONIVEL`** (`functions/src/plans.ts` e `web/src/lib/platform.ts`,
+  hoje `false`): desligada, a tela não mostra o seletor anual e `escolherPlano`
+  recusa `ciclo: "anual"` (`invalid-argument`). Ligar as duas juntas quando o Hub
+  publicar a v2.
+- Leitura: `assinatura` de `plataformaCobrancas` pode trazer `ciclo` e `valorCiclo`
+  (opcionais). A tela mostra "R$ 970/ano (R$ 80,83/mês)" e o próximo vencimento.
+- O Hub decide a data da cobrança anual. Mudança mensal → anual no meio do mês só
+  registra o pedido; o Topete não promete data nem desconto proporcional.
 
 **A barbearia criada pelo próprio Hub também manda `cadastrada`.** É
 idempotente lá, e é o que liga o cliente do Hub ao id daqui caso a resposta do

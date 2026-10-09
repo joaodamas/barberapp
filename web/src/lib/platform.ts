@@ -39,6 +39,13 @@ export function platformWhatsappUrl(mensagem: string) {
  */
 export const CADASTRO_ABERTO = false;
 
+/**
+ * Trava do plano anual (Fase 1). Falso: a tela e a landing não mostram o
+ * seletor anual e `escolherPlano` recusa o ciclo anual. Ligar só quando o Hub
+ * publicar o contrato v2 de `plano_escolhido`. Espelho em `functions/src/plans.ts`.
+ */
+export const ANUAL_DISPONIVEL = false;
+
 const MENSAGEM_DE_CADASTRO =
   "Olá! Quero conhecer o Topete na minha barbearia.";
 

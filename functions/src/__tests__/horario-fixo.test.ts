@@ -2,6 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   datasDoHorarioFixo,
   diaDaSemanaDe,
+  faseDaQuinzena,
+  foiRemarcada,
+  horarioFixoMudou,
+  semanaDe,
+  somenteDatasFuturas,
   semanaJaResolvida,
   horarioFixoValido,
   idDaOcorrencia,
@@ -10,6 +15,7 @@ import {
   ocorrenciaLiberavel,
   versaoDoHorario,
 } from "../horario-fixo";
+import { liberavelNaTroca } from "../booking";
 
 const base = { hora: "17:00", staffId: "barbeiro-1", serviceIds: ["corte"] };
 
@@ -192,5 +198,121 @@ describe("lojaRecebeReservaDoFixo — rotina não reserva em loja parada (07/10)
   it("isenta segue recebendo mesmo marcada como suspensa, mas encerrada não", () => {
     expect(lojaRecebeReservaDoFixo({ status: "suspenso", isento: { motivo: "Barbearia fundadora" } })).toBe(true);
     expect(lojaRecebeReservaDoFixo({ status: "encerrada", isento: true })).toBe(false);
+  });
+});
+
+describe("remarcação do cliente não é liberada nem recriada (09/10)", () => {
+  const SP = "America/Sao_Paulo";
+  const agora = new Date("2026-10-08T21:00:00Z");
+
+  it("sexta remarcada para segunda: mudar ou tirar o fixo a preserva; plano encerrado não", () => {
+    const remarcada = {
+      date: "2026-10-19",
+      time: "10:00",
+      status: "confirmed",
+      rescheduledFrom: { date: "2026-10-16", time: "10:00" },
+    };
+    expect(foiRemarcada(remarcada)).toBe(true);
+    expect(foiRemarcada({ origemDoFixo: { date: "2026-10-16" } })).toBe(true);
+    expect(foiRemarcada({ ...remarcada, rescheduledFrom: undefined })).toBe(false);
+    /* A regra de "liberável" em si não olha remarcação: quem preserva é o chamador. */
+    expect(ocorrenciaLiberavel(remarcada, SP, agora)).toBe(true);
+  });
+
+  it("liberavelNaTroca exige aberta, não remarcada e no futuro", () => {
+    const ok = { date: "2026-10-16", time: "10:00", status: "confirmed" };
+    expect(liberavelNaTroca(ok, SP, agora)).toBe(true);
+    expect(liberavelNaTroca({ ...ok, rescheduledFrom: { date: "2026-10-09" } }, SP, agora)).toBe(false);
+    expect(liberavelNaTroca({ ...ok, date: "2026-10-08" }, SP, agora)).toBe(false);
+    expect(liberavelNaTroca({ ...ok, status: "completed" }, SP, agora)).toBe(false);
+  });
+
+  it("semanaDe: segunda a domingo é a mesma semana", () => {
+    expect(semanaDe("2026-10-12")).toBe(semanaDe("2026-10-18"));
+    expect(semanaDe("2026-10-18")).not.toBe(semanaDe("2026-10-19"));
+    expect(semanaDe("2026-10-13")).toBe(semanaDe("2026-10-16"));
+  });
+
+  it("a data de origem segue resolvida mesmo se o documento foi liberado", () => {
+    const liberadaRemarcada = {
+      date: "2026-10-19",
+      status: "cancelled_by_shop",
+      liberadaPeloFixo: true,
+      rescheduledFrom: { date: "2026-10-16" },
+    };
+    expect(semanaJaResolvida("2026-10-16", [liberadaRemarcada])).toBe(true);
+  });
+
+  it("trocou o dia da semana: a remarcada da mesma semana resolve a data nova", () => {
+    const remarcada = { date: "2026-10-19", status: "confirmed", rescheduledFrom: { date: "2026-10-16" } };
+    /* Terça 13/10 é da semana da sexta 16/10; terça 20/10 não. */
+    expect(semanaJaResolvida("2026-10-13", [remarcada])).toBe(true);
+    expect(semanaJaResolvida("2026-10-20", [remarcada])).toBe(false);
+  });
+
+  it("duas remarcações: a origem da primeira (origemDoFixo) continua valendo", () => {
+    const duasVezes = {
+      date: "2026-10-20",
+      status: "confirmed",
+      rescheduledFrom: { date: "2026-10-19" },
+      origemDoFixo: { date: "2026-10-16" },
+    };
+    expect(semanaJaResolvida("2026-10-16", [duasVezes])).toBe(true);
+    expect(semanaJaResolvida("2026-10-16", [{ ...duasVezes, origemDoFixo: undefined }])).toBe(false);
+  });
+});
+
+describe("cancelamento só resolve a semana se for do próprio fixo (09/10)", () => {
+  const fixo = { subscriptionId: "sub1", hora: "10:00" };
+
+  it("avulso cancelado em outro horário, ou encaixe recusado, não resolve", () => {
+    const avulso = { date: "2026-10-16", time: "16:00", status: "cancelled_by_client" };
+    expect(semanaJaResolvida("2026-10-16", [avulso], fixo)).toBe(false);
+    const encaixe = { date: "2026-10-16", time: "15:00", status: "cancelled_by_shop", cancelReason: "Recusado" };
+    expect(semanaJaResolvida("2026-10-16", [encaixe], fixo)).toBe(false);
+  });
+
+  it("cancelamento de ocorrência do mesmo fixo, ou no mesmo horário, resolve", () => {
+    const doFixo = { date: "2026-10-16", time: "09:00", status: "cancelled_by_client", horarioFixoId: "sub1" };
+    expect(semanaJaResolvida("2026-10-16", [doFixo], fixo)).toBe(true);
+    const mesmaHora = { date: "2026-10-16", time: "10:00", status: "cancelled_by_client" };
+    expect(semanaJaResolvida("2026-10-16", [mesmaHora], fixo)).toBe(true);
+  });
+
+  it("horário marcado à mão em outra hora continua resolvendo", () => {
+    expect(semanaJaResolvida("2026-10-16", [{ date: "2026-10-16", time: "16:00", status: "confirmed" }], fixo)).toBe(
+      true
+    );
+  });
+});
+
+describe("quinzenal: a fase faz parte do horário (09/10)", () => {
+  const q = { ...base, diaDaSemana: 5, frequencia: "quinzenal" as const };
+
+  it("mesma quinzena não muda; a outra fase muda", () => {
+    const a = { ...q, inicio: "2026-10-09" };
+    expect(faseDaQuinzena(a)).toBe(faseDaQuinzena({ ...q, inicio: "2026-10-23" }));
+    expect(faseDaQuinzena(a)).not.toBe(faseDaQuinzena({ ...q, inicio: "2026-10-16" }));
+    expect(horarioFixoMudou(a, { ...q, inicio: "2026-10-23" })).toBe(false);
+    expect(horarioFixoMudou(a, { ...q, inicio: "2026-10-16" })).toBe(true);
+  });
+
+  it("semanal não tem fase; a versão segue ignorando a âncora", () => {
+    const s = { ...base, diaDaSemana: 5, frequencia: "semanal" as const, inicio: "2026-10-09" };
+    expect(horarioFixoMudou(s, { ...s, inicio: "2026-10-16" })).toBe(false);
+    expect(horarioFixoMudou(s, { ...s, hora: "11:00" })).toBe(true);
+    expect(horarioFixoMudou(undefined, s)).toBe(false);
+    expect(horarioFixoMudou(s, null)).toBe(false);
+  });
+});
+
+describe("somenteDatasFuturas — o fixo de hoje que já passou não nasce (09/10)", () => {
+  const SP = "America/Sao_Paulo";
+  /* 09/10/2026 às 14:00 em São Paulo = 17:00 UTC. */
+  const agora = new Date("2026-10-09T17:00:00Z");
+
+  it("hoje às 10h sai; hoje às 16h e as próximas ficam", () => {
+    expect(somenteDatasFuturas(["2026-10-09", "2026-10-16"], "10:00", SP, agora)).toEqual(["2026-10-16"]);
+    expect(somenteDatasFuturas(["2026-10-09", "2026-10-16"], "16:00", SP, agora)).toEqual(["2026-10-09", "2026-10-16"]);
   });
 });

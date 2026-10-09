@@ -9,6 +9,7 @@ import { formatBRL, formatDatePtBR } from "@/lib/format";
 import { useTenant } from "@/lib/tenant-context";
 import { useCashEntries, useStaff } from "@/lib/db/use-shop-data";
 import { chaveDeIdempotencia } from "@/lib/chave-de-idempotencia";
+import { mensagemDaFuncao } from "@/lib/mensagem-da-funcao";
 import { PAYMENT_METHODS, paymentMethodLabel } from "@/lib/payment-method";
 import {
   EXPLICACAO_DO_TIPO,
@@ -124,7 +125,7 @@ export function LivroCaixa({ competencia }: { competencia?: string }) {
       });
       setAberto(false);
     } catch (e) {
-      setErro(e instanceof Error ? e.message : "Não consegui registrar o movimento.");
+      setErro(mensagemDaFuncao(e, "Não consegui registrar o movimento."));
     } finally {
       setSalvando(false);
     }

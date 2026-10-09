@@ -42,4 +42,13 @@ describe("recorteDoPlano", () => {
     expect(recorteDoPlano({ ...assinatura, status: "cancelado" })).toBeNull();
     expect(recorteDoPlano(undefined)).toBeNull();
   });
+
+  it("cancelada com o mês pago ainda é plano naquela competência, e só nela", () => {
+    const cancelada = { ...assinatura, status: "cancelado", startedAt: "2026-01-10", canceledAt: "2026-10-05" };
+    expect(recorteDoPlano(cancelada, "2026-10", true)).toMatchObject({ planName: "Ilimitado" });
+    expect(recorteDoPlano(cancelada, "2026-11", true)).toBeNull();
+    // Sem a fatura do mês paga, cancelada não é plano.
+    expect(recorteDoPlano(cancelada, "2026-10", false)).toBeNull();
+    expect(recorteDoPlano(cancelada, "2026-10")).toBeNull();
+  });
 });

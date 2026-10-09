@@ -47,8 +47,19 @@ function horario(over: Partial<HorarioFixo> = {}): HorarioFixo {
 const ASSINATURA = "assinatura-1";
 const CLIENTE = "cliente-1";
 
-function garantir(h: HorarioFixo, subscriptionId = ASSINATURA) {
+/** Soma dias a uma data `YYYY-MM-DD`, sem depender do fuso da máquina. */
+function maisDias(iso: string, n: number): string {
+  const [a, m, d] = iso.split("-").map(Number);
+  return new Date(Date.UTC(a, m - 1, d + n)).toISOString().slice(0, 10);
+}
+
+function garantir(
+  h: HorarioFixo,
+  subscriptionId = ASSINATURA,
+  opcoes: { simular?: boolean; substituir?: boolean } = {}
+) {
   return garantirReservasDoFixo({
+    ...opcoes,
     db,
     shopRef: shopRef(),
     shop: {
@@ -60,8 +71,9 @@ function garantir(h: HorarioFixo, subscriptionId = ASSINATURA) {
   });
 }
 
-function liberar(motivo: string, subscriptionId = ASSINATURA) {
+function liberar(motivo: string, subscriptionId = ASSINATURA, preservarRemarcadas = false) {
   return liberarOcorrenciasFuturas({
+    preservarRemarcadas,
     db,
     shopRef: shopRef(),
     subscriptionId,
@@ -190,6 +202,140 @@ describe("tirar e recolocar o mesmo fixo", () => {
 
     const r = await garantir(h);
     expect(r.find((x) => x.data === h.inicio)?.resultado).toBe("desmarcada");
+  });
+});
+
+describe("trocar o horário sem perder a semana (09/10)", () => {
+  it("onde o novo não cabe a antiga fica; onde cabe, é trocada na mesma gravação", async () => {
+    const h = horario();
+    await garantir(h);
+    await db.doc(`barbershops/${SHOP}/services/longo`).set({ name: "Longo", price: 80, durationMin: 60, active: true });
+    /* Outro cliente às 15:30: o corte de 30 min das 15:00 cabe, o de 60 não. */
+    await shopRef().collection("bookings").doc("outro").set({
+      clientId: "outro-cliente",
+      staffId: "barbeiro-a",
+      date: h.inicio,
+      time: "15:30",
+      durationMin: 30,
+      status: "confirmed",
+    });
+    const novo = horario({ serviceIds: ["longo"] });
+
+    /* Sem tratar a versão antiga como liberada, a prévia via as 8 semanas
+     * presas ao horário antigo. */
+    const cega = await garantir(novo, ASSINATURA, { simular: true });
+    expect(cega.every((x) => x.resultado === "conflito")).toBe(true);
+
+    const previa = await garantir(novo, ASSINATURA, { simular: true, substituir: true });
+    expect(previa.find((x) => x.data === h.inicio)?.resultado).toBe("conflito");
+    expect(previa.filter((x) => x.resultado === "criada")).toHaveLength(7);
+
+    const r = await garantir(novo, ASSINATURA, { substituir: true });
+    expect(r.find((x) => x.data === h.inicio)?.resultado).toBe("conflito");
+    expect(r.filter((x) => x.resultado === "criada")).toHaveLength(7);
+
+    const antigaDoConflito = await shopRef()
+      .collection("bookings")
+      .doc(idDaOcorrencia(ASSINATURA, versaoDoHorario(h), h.inicio))
+      .get();
+    expect(antigaDoConflito.get("status")).toBe("confirmed");
+    const antigaTrocada = await shopRef()
+      .collection("bookings")
+      .doc(idDaOcorrencia(ASSINATURA, versaoDoHorario(h), maisDias(h.inicio, 7)))
+      .get();
+    expect(antigaTrocada.get("status")).toBe("cancelled_by_shop");
+    expect(antigaTrocada.get("liberadaPeloFixo")).toBe(true);
+
+    const ativas = await ativasDoCliente();
+    expect(ativas).toHaveLength(8);
+    expect(ativas.filter((b) => b.durationMin === 60)).toHaveLength(7);
+  });
+
+  it("a semana que o cliente remarcou não é liberada, e a data de origem não vira fixo novo", async () => {
+    const h = horario();
+    await garantir(h);
+    const id = idDaOcorrencia(ASSINATURA, versaoDoHorario(h), h.inicio);
+    await shopRef()
+      .collection("bookings")
+      .doc(id)
+      .update({ date: maisDias(h.inicio, 3), rescheduledFrom: { date: h.inicio, time: "15:00" } });
+
+    expect(await liberar("Horário fixo alterado", ASSINATURA, true)).toBe(7);
+    const r = await garantir(horario({ hora: "16:00" }));
+    expect(r.find((x) => x.data === h.inicio)?.resultado).toBe("cliente-ja-marcado");
+    expect(r.filter((x) => x.resultado === "criada")).toHaveLength(7);
+    expect((await shopRef().collection("bookings").doc(id).get()).get("status")).toBe("confirmed");
+  });
+
+  it("plano encerrado libera tudo, inclusive a semana remarcada", async () => {
+    const h = horario();
+    await garantir(h);
+    const id = idDaOcorrencia(ASSINATURA, versaoDoHorario(h), h.inicio);
+    await shopRef()
+      .collection("bookings")
+      .doc(id)
+      .update({ date: maisDias(h.inicio, 3), rescheduledFrom: { date: h.inicio, time: "15:00" } });
+    expect(await liberar("Plano de mensalista encerrado")).toBe(8);
+  });
+
+  it("a rotina sem substituir não apaga o conflito de uma semana que ficou no horário antigo", async () => {
+    const h = horario();
+    await garantir(h);
+    await db.doc(`barbershops/${SHOP}/services/longo`).set({ name: "Longo", price: 80, durationMin: 60, active: true });
+    await shopRef().collection("bookings").doc("outro").set({
+      clientId: "outro-cliente",
+      staffId: "barbeiro-a",
+      date: h.inicio,
+      time: "15:30",
+      durationMin: 30,
+      status: "confirmed",
+    });
+    const novo = horario({ serviceIds: ["longo"] });
+    await garantir(novo, ASSINATURA, { substituir: true });
+    const conflito = shopRef()
+      .collection("conflitos_horario_fixo")
+      .doc(idDaOcorrencia(ASSINATURA, versaoDoHorario(novo), h.inicio));
+    expect((await conflito.get()).exists).toBe(true);
+
+    /* A rotina da madrugada (sem substituir) segue vendo conflito. */
+    const noite = await garantir(novo);
+    expect(noite.find((x) => x.data === h.inicio)?.resultado).toBe("conflito");
+    expect((await conflito.get()).exists).toBe(true);
+
+    /* Saiu o que atrapalhava: "tentar de novo" troca a antiga pela nova. */
+    await shopRef().collection("bookings").doc("outro").update({ status: "cancelled_by_client" });
+    const de_novo = await garantir(novo, ASSINATURA, { substituir: true });
+    expect(de_novo.find((x) => x.data === h.inicio)?.resultado).toBe("criada");
+    expect((await conflito.get()).exists).toBe(false);
+  });
+
+  it("o aviso de semana sem reserva some quando o cliente resolve a data por outro caminho", async () => {
+    const h = horario();
+    const bookings = shopRef().collection("bookings");
+    await bookings.doc("avulso").set({
+      clientId: "outro-cliente",
+      staffId: "barbeiro-a",
+      date: h.inicio,
+      time: "15:00",
+      durationMin: 30,
+      status: "confirmed",
+    });
+    await garantir(h);
+    const conflito = shopRef()
+      .collection("conflitos_horario_fixo")
+      .doc(idDaOcorrencia(ASSINATURA, versaoDoHorario(h), h.inicio));
+    expect((await conflito.get()).exists).toBe(true);
+
+    await bookings.doc("a-mao").set({
+      clientId: CLIENTE,
+      staffId: "barbeiro-a",
+      date: h.inicio,
+      time: "17:00",
+      durationMin: 30,
+      status: "confirmed",
+    });
+    await garantir(h);
+    expect((await conflito.get()).exists).toBe(false);
   });
 });
 

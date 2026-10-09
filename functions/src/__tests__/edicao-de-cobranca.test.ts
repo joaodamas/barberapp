@@ -190,6 +190,43 @@ describe("revisão #116 · combo inativo já no atendimento", () => {
   });
 });
 
+/** Auditoria de 09/10: editar não reprecifica pela tabela de hoje. */
+describe("servicosDaEdicao — preço congelado ao tirar ou trocar", () => {
+  /* A tabela dobrou desde a marcação (proporção 8:5 igual à paga: 40 + 25). */
+  const hoje: ServicoDoCatalogo[] = [
+    { id: "corte", name: "Corte", price: 80, durationMin: 30 },
+    { id: "barba", name: "Barba", price: 50, durationMin: 30 },
+    { id: "sobrancelha", name: "Sobrancelha", price: 20, durationMin: 20 },
+  ];
+  const reserva = {
+    serviceIds: ["corte", "barba"],
+    serviceNames: ["Corte", "Barba"],
+    value: 65,
+    durationMin: 60,
+  };
+
+  it("tirar a barba deixa o corte pelo que foi cobrado, não pelo catálogo de hoje", () => {
+    const r = servicosDaEdicao(["corte"], hoje, reserva);
+    expect(r.value).toBe(40);
+    expect(r.serviceIds).toEqual(["corte"]);
+    expect(r.durationMin).toBe(30);
+  });
+  it("trocar a barba pela sobrancelha: corte congelado + sobrancelha de hoje", () => {
+    const r = servicosDaEdicao(["corte", "sobrancelha"], hoje, reserva);
+    expect(r.value).toBe(60);
+    expect(r.serviceNames).toEqual(["Corte", "Sobrancelha"]);
+  });
+  it("serviço apagado do catálogo continua valendo o que foi cobrado e mantém o nome", () => {
+    const semBarba: ServicoDoCatalogo[] = [
+      { id: "corte", name: "Corte", price: 40, durationMin: 30 },
+      { id: "sobrancelha", name: "Sobrancelha", price: 20, durationMin: 20 },
+    ];
+    const r = servicosDaEdicao(["barba"], semBarba, reserva);
+    expect(r.serviceNames).toEqual(["Barba"]);
+    expect(r.value).toBe(25);
+  });
+});
+
 /** Revisão financeira de 08/10. */
 describe("barbeiroMexeuNoDesconto — o desconto é do dono", () => {
   it("ausente mantém: pode", () => {

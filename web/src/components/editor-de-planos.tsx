@@ -5,9 +5,11 @@ import { Plus, Trash2 } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { putDoc, removeDoc } from "@/lib/db/repository";
-import { usePlans } from "@/lib/db/use-shop-data";
+import { usePlans, useSubscribers } from "@/lib/db/use-shop-data";
 import { useTenant } from "@/lib/tenant-context";
 import { formatBRL } from "@/lib/format";
+import { plural } from "@/lib/plural";
+import { lerReais, reaisParaCampo, VALOR_ILEGIVEL } from "@/lib/reais";
 
 /**
  * O catálogo de planos de mensalista — o que a barbearia vende.
@@ -50,6 +52,12 @@ export function EditorDePlanos({ open, onClose }: { open: boolean; onClose: () =
   const [salvando, setSalvando] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [novos, setNovos] = useState<Rascunho[]>([]);
+  const [aRemover, setARemover] = useState<Rascunho | null>(null);
+  const { items: assinaturas } = useSubscribers();
+  /* Quantos mensalistas ainda têm este plano: apagar o plano não cancela o
+   * contrato deles (o plano é copiado), mas some do catálogo sem aviso. */
+  const emUso = (id: string) =>
+    assinaturas.filter((a) => a.planId === id && a.status !== "cancelado").length;
 
   const linhas: Rascunho[] = [
     ...planos.map((p) => ({
@@ -81,10 +89,17 @@ export function EditorDePlanos({ open, onClose }: { open: boolean; onClose: () =
     setErro(null);
     try {
       const cota = Number(linha.servicesIncluded) || 0;
+      /* Vazio vale 0; texto ilegível NÃO grava — "abc" virava 0 em silêncio. */
+      const preco = String(linha.price).trim() === "" ? 0 : lerReais(linha.price);
+      const avulso = String(linha.priceAvulso).trim() === "" ? 0 : lerReais(linha.priceAvulso);
+      if (preco === null || avulso === null) {
+        setErro(VALOR_ILEGIVEL);
+        return;
+      }
       await putDoc(tenant.id, "plans", linha.id, {
         name: linha.name.trim(),
-        price: Number(linha.price) || 0,
-        priceAvulso: Number(linha.priceAvulso) || 0,
+        price: preco,
+        priceAvulso: avulso,
         description: linha.description.trim(),
         active: linha.active,
         /* Ilimitado e cota são excludentes: com `unlimited`, `decidirCobertura`
@@ -108,6 +123,7 @@ export function EditorDePlanos({ open, onClose }: { open: boolean; onClose: () =
   }
 
   async function remover(id: string) {
+    setARemover(null);
     if (novos.some((n) => n.id === id)) {
       setNovos((prev) => prev.filter((n) => n.id !== id));
       return;
@@ -136,7 +152,10 @@ export function EditorDePlanos({ open, onClose }: { open: boolean; onClose: () =
     ]);
   }
 
+  const usando = aRemover ? emUso(aRemover.id) : 0;
+
   return (
+    <>
     <Modal
       open={open}
       onClose={onClose}
@@ -170,7 +189,7 @@ export function EditorDePlanos({ open, onClose }: { open: boolean; onClose: () =
               <button
                 type="button"
                 aria-label={`Remover ${p.name || "plano"}`}
-                onClick={() => remover(p.id)}
+                onClick={() => (novos.some((n) => n.id === p.id) ? remover(p.id) : setARemover(p))}
                 className="shrink-0 rounded-lg p-2 text-ink-muted transition-colors hover:text-danger"
               >
                 <Trash2 size={16} />
@@ -226,13 +245,13 @@ export function EditorDePlanos({ open, onClose }: { open: boolean; onClose: () =
               </div>
             )}
 
-            {Number(p.price) > 0 && Number(p.priceAvulso) > 0 && !p.unlimited && Number(p.servicesIncluded) > 0 && (
+            {(lerReais(p.price) ?? 0) > 0 && (lerReais(p.priceAvulso) ?? 0) > 0 && !p.unlimited && Number(p.servicesIncluded) > 0 && (
               <p className="text-xs text-ink-muted">
                 Cada atendimento sai a{" "}
                 <span className="text-ink">
-                  {formatBRL(Number(p.price) / Number(p.servicesIncluded))}
+                  {formatBRL((lerReais(p.price) ?? 0) / Number(p.servicesIncluded))}
                 </span>{" "}
-                para ele — o avulso é {formatBRL(Number(p.priceAvulso))}.
+                para ele — o avulso é {formatBRL(lerReais(p.priceAvulso) ?? 0)}.
               </p>
             )}
 
@@ -255,6 +274,32 @@ export function EditorDePlanos({ open, onClose }: { open: boolean; onClose: () =
         )}
       </div>
     </Modal>
+
+    <Modal
+      open={!!aRemover}
+      onClose={() => setARemover(null)}
+      title="Apagar plano"
+      footer={
+        <>
+          <Button variant="ghost" onClick={() => setARemover(null)}>
+            Cancelar
+          </Button>
+          <Button onClick={() => aRemover && remover(aRemover.id)}>Apagar</Button>
+        </>
+      }
+    >
+      <p className="text-sm text-ink">
+        Apagar o plano <strong>{aRemover?.name || "sem nome"}</strong> do catálogo?
+      </p>
+      {usando > 0 && (
+        <p className="mt-2 text-xs text-gold-strong">
+          {usando} {plural(usando, "mensalista usa", "mensalistas usam")} este plano.
+          {plural(usando, "O contrato dele continua", "Os contratos deles continuam")} como {plural(usando, "está", "estão")},
+          mas ninguém novo poderá contratá-lo.
+        </p>
+      )}
+    </Modal>
+    </>
   );
 }
 
@@ -276,8 +321,8 @@ function Campo({
           aria-label={label}
           type="text"
           inputMode="decimal"
-          value={valor}
-          onChange={(e) => onChange(e.target.value.replace(",", "."))}
+          value={typeof valor === "number" ? reaisParaCampo(valor) : valor}
+          onChange={(e) => onChange(e.target.value)}
           onBlur={onBlur}
           placeholder="0,00"
           className="w-full bg-transparent text-sm text-ink outline-none"
