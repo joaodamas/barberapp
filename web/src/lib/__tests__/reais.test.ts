@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { lerReais, reaisParaCampo } from "@/lib/reais";
+import { lerPercentual, lerReais, reaisParaCampo } from "@/lib/reais";
 
 /**
  * `Number("1.500")` é 1,5. Uma despesa de aluguel de R$ 1.500 entrava como
@@ -42,6 +42,27 @@ describe("lerReais", () => {
     expect(lerReais(1500.5)).toBe(1500.5);
     expect(lerReais(-1)).toBeNull();
     expect(lerReais(Number.NaN)).toBeNull();
+  });
+});
+
+describe("lerPercentual — taxa não tem milhar", () => {
+  it("4.199 é 4,199%, não R$ 4.199", () => {
+    expect(lerPercentual("4.199")).toBe(4.2);
+    expect(lerReais("4.199")).toBe(4199); // o defeito que o leitor de dinheiro causaria
+  });
+  it("vírgula ou ponto são decimais", () => {
+    expect(lerPercentual("3,49")).toBe(3.49);
+    expect(lerPercentual("3.49")).toBe(3.49);
+    expect(lerPercentual("2")).toBe(2);
+    expect(lerPercentual(" 1,99 % ")).toBe(1.99);
+  });
+  it("fora de 0–100 ou ilegível é null", () => {
+    expect(lerPercentual("100,5")).toBeNull();
+    expect(lerPercentual("-1")).toBeNull();
+    expect(lerPercentual("abc")).toBeNull();
+    expect(lerPercentual("")).toBeNull();
+    expect(lerPercentual("1,2345")).toBeNull();
+    expect(lerPercentual(100)).toBe(100);
   });
 });
 

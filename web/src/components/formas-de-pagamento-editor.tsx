@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatBRL } from "@/lib/format";
-import { lerReais } from "@/lib/reais";
+import { lerPercentual } from "@/lib/reais";
 import {
   FORMAS_NATIVAS,
   idDaForma,
@@ -99,13 +99,20 @@ export function EditorDeFormasDePagamento({
 
               <div className="flex min-h-11 items-center gap-2">
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="decimal"
                   aria-label={`Taxa de ${forma.label}`}
-                  min={0}
-                  max={100}
-                  step="0.01"
-                  value={forma.feePct}
-                  onChange={(e) => alterar(forma.id, { feePct: paraTaxa(e.target.value) })}
+                  /* Não controlado: o texto só vira número ao sair do campo
+                     (digitar "3," não pode ser reescrito a cada tecla). */
+                  defaultValue={String(forma.feePct).replace(".", ",")}
+                  onBlur={(e) => {
+                    const taxa = lerPercentual(e.target.value);
+                    if (taxa === null) {
+                      e.target.value = String(forma.feePct).replace(".", ",");
+                      return;
+                    }
+                    alterar(forma.id, { feePct: taxa });
+                  }}
                   className="min-h-11 w-full rounded-xl border border-border bg-surface-raised px-3 text-sm tabular-nums text-ink"
                 />
                 <span className="text-sm text-ink-muted">%</span>
@@ -189,10 +196,8 @@ export function EditorDeFormasDePagamento({
             </label>
             <input
               id="nova-taxa"
-              type="number"
-              min={0}
-              max={100}
-              step="0.01"
+              type="text"
+              inputMode="decimal"
               value={novaTaxa}
               placeholder="0,00"
               onChange={(e) => setNovaTaxa(e.target.value)}
@@ -227,7 +232,6 @@ const NOME_DO_MEIO: Record<MeioDePagamento, string> = {
 
 /** Vírgula aceita, negativo não, e o teto é 100 — acima disso é digitação. */
 function paraTaxa(valor: string): number {
-  const n = lerReais(valor);
-  if (n === null) return 0;
-  return Math.min(Math.round(n * 100) / 100, 100);
+  /* Percentual, não dinheiro: "4.199" é 4,199% e não 4199 (ver `lerPercentual`). */
+  return lerPercentual(valor) ?? 0;
 }
