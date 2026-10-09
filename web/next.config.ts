@@ -154,12 +154,23 @@ const nextConfig: NextConfig = {
           { key: "Vary", value: "Host" },
         ],
       },
-      {
-        /* O nome de cada arquivo muda a cada build: guardar por um ano é
-         * seguro, e é o que o próprio Next faria sem a regra acima. */
-        source: "/_next/static/:path*",
-        headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
-      },
+      /* O nome de cada arquivo muda a cada build: guardar por um ano é
+       * seguro, e é o que o próprio Next faria sem a regra acima.
+       *
+       * SÓ EM PRODUÇÃO (09/10). No `next dev` os arquivos de /_next/static
+       * mantêm o MESMO nome entre recompilações; com "immutable" o navegador
+       * seguia usando a cópia antiga e a tela rodava código velho misturado
+       * com novo (a de Outras receitas abria em erro e a coleção nova saía
+       * com o caminho errado — "sem permissão"). O próprio Next avisa no
+       * terminal: "Custom Cache-Control headers … can break development". */
+      ...(isDev
+        ? []
+        : [
+            {
+              source: "/_next/static/:path*",
+              headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
+            },
+          ]),
     ];
   },
 };
