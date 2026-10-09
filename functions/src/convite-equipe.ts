@@ -468,7 +468,8 @@ async function cadeiraEhDoDono(uid: string, barbershopId: string, quem: string):
  *
  * O `uid` da ficha vem de um campo; a prova de que a conta aceitou o convite
  * está nos claims (`equipe[loja] == staffId`, gravado pelo aceite) e em
- * `members/{uid}` (só o servidor grava). Sem nenhum dos dois, o `uid` da ficha
+ * `members/{uid}` (só o servidor grava; sem `staffId`, no legado, vale com a
+ * ficha apontando para a conta). Sem nenhum dos dois, o `uid` da ficha
  * é de alguém que nunca aceitou nada aqui — e reescrever os claims ou revogar
  * as sessões dessa conta seria mexer na vida de terceiro.
  */
@@ -483,6 +484,13 @@ export async function contaEhDaCadeira(params: {
   const db = params.db ?? getFirestore();
   const membro = await db.doc(`barbershops/${params.barbershopId}/members/${params.uid}`).get();
   if (membro.exists && membro.get("role") === "staff" && membro.get("staffId") === params.staffId) return true;
+  /* Barbeiro ligado antes do convite existir (`grantShopRole` do suporte):
+   * `members` sem `staffId`, sem claim `equipe`. A prova é `members` (só o
+   * servidor grava) de papel staff MAIS a ficha apontando para a conta. */
+  if (membro.exists && membro.get("role") === "staff" && !membro.get("staffId")) {
+    const ficha = await db.doc(`barbershops/${params.barbershopId}/staff/${params.staffId}`).get();
+    if (ficha.exists && ficha.get("uid") === params.uid) return true;
+  }
   const claims = await (params.claimsDaConta ??
     (async (u: string) => (await getAuth().getUser(u).catch(() => null))?.customClaims ?? null))(params.uid);
   const equipe = claims?.equipe as Record<string, string> | undefined;

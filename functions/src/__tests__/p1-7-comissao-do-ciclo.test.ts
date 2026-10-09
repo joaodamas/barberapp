@@ -241,6 +241,13 @@ describe("P1-7 · o que a fonte precisa continuar dizendo", () => {
     expect(fonte).toMatch(/comissaoVigenteRef\(db, barbershopId, bookingId, depois\)\.get\(\)/);
   });
 
+  it("o `commissionPct` legado sai da reserva na reversão e na reconclusão", () => {
+    /* O merge não apaga campo de mapa aninhado; sem o delete explícito, reservas
+     * antigas manteriam a % de comissão legível pelo cliente. */
+    const ocorrencias = fonte.match(/commissionPct:\s*FieldValue\.delete\(\)/g) ?? [];
+    expect(ocorrencias.length).toBeGreaterThanOrEqual(2);
+  });
+
   it("o pagamento é congelado ANTES de ser apagado", () => {
     /* Desde o desconto no fechamento (28/09) o congelado passa por
      * `brutoDoFatoCongelado`, que guarda o bruto de TABELA e o desconto — a

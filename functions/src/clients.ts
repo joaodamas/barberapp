@@ -77,6 +77,12 @@ export type ClientDoc = {
    * linha.
    */
   telefoneConfirmado?: boolean;
+  /**
+   * O dono vinculou esta conta a um cadastro de balcão (09/10). Deixa o balcão
+   * reaproveitar a conta pelo número, mas NÃO é telefone provado. Cai junto com
+   * a confirmação quando a conta troca o WhatsApp.
+   */
+  vinculadoPeloDono?: boolean;
 };
 
 /** Só dígitos. "(11) 98888-7777" e "11988887777" são a mesma pessoa. */
@@ -142,13 +148,19 @@ export async function acharClientePorWhatsapp(params: {
   /* `active !== false` e não `active === true`: cadastro anterior ao campo não
    * o tem, e tratá-lo como inativo criaria um segundo cadastro para alguém que
    * já existe — o oposto do que esta função serve para evitar. */
-  /* Conta com `telefoneConfirmado` (vinculada por SMS, 02/10)
-   * É a pessoa daquele número — o balcão pode reusá-la, e é o que impede o
-   * cliente vinculado de virar dois cadastros de novo na próxima visita. */
+  /* Conta que o balcão pode reusar pelo número (02/10): `telefoneConfirmado`
+   * (vinculada por SMS, número provado) ou `vinculadoPeloDono` (o dono juntou
+   * os cadastros na tela Clientes, 09/10). Reusar é o que impede o cliente
+   * vinculado de virar dois cadastros na próxima visita. Só a primeira marca é
+   * PROVA do telefone; a do dono vale apenas para o balcão reaproveitar a
+   * conta — WhatsApp e demais usos continuam exigindo `telefoneConfirmado`. */
   const vivo = encontrados.docs.find(
     (d) =>
       d.data().active !== false &&
-      (!params.soDeBalcao || !d.data().uid || d.data().telefoneConfirmado === true)
+      (!params.soDeBalcao ||
+        !d.data().uid ||
+        d.data().telefoneConfirmado === true ||
+        d.data().vinculadoPeloDono === true)
   );
   return vivo ? { id: vivo.id, dados: vivo.data() as ClientDoc } : null;
 }
@@ -220,6 +232,16 @@ export async function resolverCliente(params: {
    * verdadeiro porque referência e identidade coincidem. */
   if (params.uid) {
     const jaEraEu = existente?.id === params.uid;
+    /* O indício antigo, gravado na própria conta (`mesmoNumeroQue`), migra para
+     * o cadastro de balcão a que aponta (09/10). Lido AQUI, na fase de leitura:
+     * `acharClientePorWhatsapp` devolve o primeiro cadastro vivo do número, e
+     * quando é a própria conta o legado não aparece nele. */
+    const proprio = await params.tx.get(clientes.doc(params.uid));
+    const legado = proprio.exists ? (proprio.get("mesmoNumeroQue") as string | undefined) : undefined;
+    /* Se o balcão a que o legado aponta já não existe, não há para onde
+     * migrar: o campo antigo só é apagado. */
+    const balcaoDoLegado = legado ? await params.tx.get(clientes.doc(legado)) : null;
+    const legadoAMigrar = balcaoDoLegado?.exists ? legado : undefined;
     /* SEM fusão automática. Ela acontecia pelo WhatsApp que a pessoa digitou,
      * sem verificação nenhuma: qualquer conta que informasse o número de um
      * cliente de balcão absorvia o cadastro dele — e, com ele, as próximas
@@ -245,11 +267,14 @@ export async function resolverCliente(params: {
             ...(whatsappServeComoChave(whatsapp) ? { whatsapp } : {}),
             /* Número novo digitado na reserva não é o número provado: a
              * confirmação cai, e o balcão para de reusar esta conta. */
-            ...(whatsappServeComoChave(whatsapp) && !jaEraEu ? { telefoneConfirmado: false } : {}),
+            ...(whatsappServeComoChave(whatsapp) && !jaEraEu
+              ? { telefoneConfirmado: false, vinculadoPeloDono: false }
+              : {}),
             origin: params.origin,
             active: true,
             /* O indício antigo morava aqui, onde a própria conta o lê. */
-            mesmoNumeroQue: FieldValue.delete(),
+            /* Só some quando a migração vai na mesma transação (abaixo). */
+            ...(legado ? { mesmoNumeroQue: FieldValue.delete() } : {}),
             /* Quem foi anonimizado a pedido e volta a agendar com a conta é um
              * tratamento NOVO: o selo sai junto com a volta do nome, senão o
              * cadastro afirmaria "anonimizado" com o nome escrito ao lado. Ver
@@ -263,11 +288,15 @@ export async function resolverCliente(params: {
           },
           { merge: true }
         );
-        /* O indício vai para o cadastro de balcão, que só a barbearia lê. */
-        if (balcaoDoMesmoNumero) {
-          tx.update(clientes.doc(balcaoDoMesmoNumero), {
-            contasDoMesmoNumero: FieldValue.arrayUnion(params.uid as string),
-          });
+        /* O indício vai para o cadastro de balcão, que só a barbearia lê. O
+         * legado migra junto, e só o apaga quem o migrou (ou quem não
+         * tem para onde). */
+        for (const alvo of new Set([balcaoDoMesmoNumero, legadoAMigrar].filter((x): x is string => !!x))) {
+          tx.set(
+            clientes.doc(alvo),
+            { contasDoMesmoNumero: FieldValue.arrayUnion(params.uid as string) },
+            { merge: true }
+          );
         }
       },
     };

@@ -387,17 +387,46 @@ describe("vínculo do balcão à conta — com prova", () => {
     expect(segunda).toMatchObject({ vinculado: false, jaVinculado: true });
   });
 
-  it("🔒 o vínculo do dono NÃO confirma o telefone — o número da conta foi digitado por ela (09/10)", async () => {
+  it("o vínculo do dono NÃO confirma o telefone, mas deixa o balcão reusar a conta (09/10)", async () => {
     const balcao = await balcaoComHistorico();
     await vincularCadastros({ db, barbershopId: SHOP, deId: balcao.id, paraUid: "uid-tadeu", via: "dono", por: "dono-1" });
     const conta = (await clientes()).find((c) => c.id === "uid-tadeu")!;
     expect(conta.telefoneConfirmado).not.toBe(true);
+    expect(conta.vinculadoPeloDono).toBe(true);
 
-    /* O balcão não reaproveita a conta pelo número: quem liga com esse número
-     * não recebe a reserva na conta de outra pessoa. */
-    await gravarComTravaDeHorario(pedido({ time: "17:00", name: "Quem ligou", whatsapp: "11977776666" }));
+    /* Sem duplicar: a próxima marcação de balcão com esse número cai na conta. */
+    await gravarComTravaDeHorario(pedido({ time: "17:00", name: "Tadeu", whatsapp: "11977776666" }));
+    const nova = (await reservas()).find((r) => r.time === "17:00")!;
+    expect(nova.clientId).toBe("uid-tadeu");
+    expect((await clientes()).filter((c) => c.active !== false)).toHaveLength(1);
+  });
+
+  it("🔒 conta vinculada pelo dono que troca o WhatsApp deixa de ser reusada pelo balcão", async () => {
+    const balcao = await balcaoComHistorico();
+    await vincularCadastros({ db, barbershopId: SHOP, deId: balcao.id, paraUid: "uid-tadeu", via: "dono", por: "dono-1" });
+    await gravarComTravaDeHorario(
+      pedido({ time: "16:00", uid: "uid-tadeu", origin: "app", whatsapp: "11955554444" })
+    );
+    const conta = (await clientes()).find((c) => c.id === "uid-tadeu")!;
+    expect(conta.vinculadoPeloDono).toBe(false);
+    await gravarComTravaDeHorario(pedido({ time: "17:00", name: "Outra pessoa", whatsapp: "11955554444" }));
     const nova = (await reservas()).find((r) => r.time === "17:00")!;
     expect(nova.clientId).not.toBe("uid-tadeu");
+  });
+
+  it("o indício legado (`mesmoNumeroQue` na conta) migra para o balcão antes de ser apagado", async () => {
+    await gravarComTravaDeHorario(pedido({ time: "15:00", name: "Seu Zé", whatsapp: "11944443333" }));
+    const [balcao] = await clientes();
+    await db.doc(`barbershops/${SHOP}/clients/uid-legado`).set({
+      uid: "uid-legado", name: "Zé", whatsapp: "11944443333", origin: "app", active: true, mesmoNumeroQue: balcao.id,
+    });
+
+    await gravarComTravaDeHorario(
+      pedido({ time: "16:00", uid: "uid-legado", origin: "app", name: "Zé", whatsapp: "11944443333" })
+    );
+    const cs = await clientes();
+    expect(cs.find((c) => c.id === balcao.id)!.contasDoMesmoNumero).toContain("uid-legado");
+    expect(cs.find((c) => c.id === "uid-legado")!.mesmoNumeroQue).toBeUndefined();
   });
 
   it("depois do vínculo POR SMS, o balcão marca na CONTA — não nasce um terceiro cadastro", async () => {

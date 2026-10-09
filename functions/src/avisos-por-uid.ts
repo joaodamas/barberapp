@@ -10,7 +10,7 @@ import { getFirestore } from "firebase-admin/firestore";
  * o envio lê estas coleções, não o token da conta.
  *
  * Apaga:
- * - os aparelhos da conta nesta barbearia;
+ * - os aparelhos de dono (`papel == owner`) da conta nesta barbearia;
  * - os contatos de Telegram do tipo `dono` que a conta ligou (`ligadoPor`) e o
  *   índice `telegram_chats` que aponta a conversa para esta barbearia.
  *
@@ -24,7 +24,13 @@ export async function limparAvisosDoUid(
 ): Promise<{ aparelhos: number; telegram: number }> {
   const shopRef = db.doc(`barbershops/${barbershopId}`);
 
-  const aparelhos = await shopRef.collection("push_tokens").where("uid", "==", uid).get();
+  /* Só o que é de DONO: se o suporte concede `staff` a quem já tinha celular
+   * registrado como barbeiro, o aparelho de barbeiro fica. */
+  const aparelhos = await shopRef
+    .collection("push_tokens")
+    .where("uid", "==", uid)
+    .where("papel", "==", "owner")
+    .get();
   const contatos = await shopRef
     .collection("telegram_contatos")
     .where("ligadoPor", "==", uid)

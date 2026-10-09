@@ -771,7 +771,14 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
           discountReason: FieldValue.delete(),
           discountBy: FieldValue.delete(),
           discountAt: FieldValue.delete(),
-          cicloFinanceiro: congelado,
+          /* O `commissionPct` que reservas antigas ainda carregam sai aqui: o
+           * merge não apaga campo de mapa aninhado por conta própria. */
+          cicloFinanceiro: {
+            ...congelado,
+            ...(congelado.comissao
+              ? { comissao: { ...congelado.comissao, commissionPct: FieldValue.delete() } }
+              : {}),
+          },
         },
         { merge: true }
       );
@@ -1014,7 +1021,16 @@ export async function materializarConclusao(params: {
         cobertura,
         /* Qual linha passa a valer, para a PRÓXIMA reversão negar a certa. */
         ...(reconclusao
-          ? { cicloFinanceiro: { ...ciclo, comissaoVigenteId: comissaoDoCicloRef.id } }
+          ? {
+              cicloFinanceiro: {
+                ...ciclo,
+                comissaoVigenteId: comissaoDoCicloRef.id,
+                /* Legado: a % de comissão não fica na reserva (09/10). */
+                ...(ciclo?.comissao
+                  ? { comissao: { ...ciclo.comissao, commissionPct: FieldValue.delete() } }
+                  : {}),
+              },
+            }
           : {}),
         /* A reserva volta a dizer o desconto do FATO — revisão do PR #82. Só
          * na reconclusão com fato congelado: fora dela, o desconto da

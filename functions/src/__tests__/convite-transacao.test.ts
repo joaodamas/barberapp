@@ -215,6 +215,21 @@ describe("a conta da ficha é MESMO desta cadeira? (09/10)", () => {
     expect(await verificar("conta-de-terceiro", async () => ({ equipe: { [SHOP]: "s2" } }))).toBe(false);
   });
 
+  it("barbeiro legado (members de staff sem staffId, sem claim) é da cadeira se a ficha aponta para ele", async () => {
+    await semear();
+    await staffRef().update({ uid: "legado" });
+    await shopRef().collection("members").doc("legado").set({ role: "staff", email: "l@exemplo.com" });
+    expect(await verificar("legado")).toBe(true);
+  });
+
+  it("🔒 `members` de staff sem staffId NÃO prova a cadeira de uma ficha forjada para outra conta", async () => {
+    await semear();
+    await staffRef().update({ uid: "terceiro" });
+    await shopRef().collection("members").doc("legado").set({ role: "staff" });
+    expect(await verificar("terceiro")).toBe(false);
+    expect(await verificar("legado")).toBe(false);
+  });
+
   it("🔒 `members` de outra cadeira não prova esta", async () => {
     await semear();
     await shopRef().collection("members").doc("x").set({ role: "staff", staffId: "s2" });
@@ -228,6 +243,7 @@ describe("quem deixa de ser dono perde os avisos de dono (09/10)", () => {
   beforeEach(async () => {
     await shopRef().set({ status: "ativo" });
     await shopRef().collection("push_tokens").doc("a1").set({ uid: COCONTA, papel: "owner", token: "t1" });
+    await shopRef().collection("push_tokens").doc("a3").set({ uid: COCONTA, papel: "staff", token: "t3" });
     await shopRef().collection("push_tokens").doc("a2").set({ uid: "dono-que-fica", papel: "owner", token: "t2" });
     await shopRef().collection("telegram_contatos").doc("111").set({ chatId: "111", alvo: "dono", ligadoPor: COCONTA, ativo: true });
     await shopRef().collection("telegram_contatos").doc("222").set({ chatId: "222", alvo: "dono", ligadoPor: "dono-que-fica", ativo: true });
@@ -241,6 +257,8 @@ describe("quem deixa de ser dono perde os avisos de dono (09/10)", () => {
     expect(r).toEqual({ aparelhos: 1, telegram: 1 });
     expect((await shopRef().collection("push_tokens").doc("a1").get()).exists).toBe(false);
     expect((await shopRef().collection("push_tokens").doc("a2").get()).exists).toBe(true);
+    /* Aparelho de barbeiro da mesma conta não é de dono: fica. */
+    expect((await shopRef().collection("push_tokens").doc("a3").get()).exists).toBe(true);
     expect((await shopRef().collection("telegram_contatos").doc("111").get()).exists).toBe(false);
     expect((await db.doc("telegram_chats/111").get()).exists).toBe(false);
     expect((await shopRef().collection("telegram_contatos").doc("222").get()).exists).toBe(true);
