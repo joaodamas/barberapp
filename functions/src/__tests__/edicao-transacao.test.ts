@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { initializeApp, deleteApp, type App } from "firebase-admin/app";
-import { FieldValue, getFirestore, type Firestore } from "firebase-admin/firestore";
+import { FieldValue, getFirestore, Timestamp, type Firestore } from "firebase-admin/firestore";
 import { gravarEdicao, idDaEdicao, type PedidoDeDesconto } from "../edicao-de-cobranca";
 import { calcularEventoFinanceiro, type PaymentFees, type PaymentMethod } from "../financial-events";
 import type { ServicoDoCatalogo } from "../combos";
@@ -40,7 +40,9 @@ const pagamentoRef = () => shopRef().collection("payments").doc(`pagamento_${BOO
 const reservaRef = () => shopRef().collection("bookings").doc(BOOKING);
 
 /** O estado que o gatilho produz ao concluir "corte + barba" (combo) a 40% em Pix. */
-async function semearConcluido(params: { date?: string; metodo?: PaymentMethod } = {}) {
+async function semearConcluido(
+  params: { date?: string; metodo?: PaymentMethod; criadoEm?: Timestamp } = {}
+) {
   const date = params.date ?? HOJE;
   const metodo = params.metodo ?? "pix";
   const { commission, payment } = calcularEventoFinanceiro({
@@ -82,7 +84,10 @@ async function semearConcluido(params: { date?: string; metodo?: PaymentMethod }
     clientId: "c1",
     date,
     ...payment,
-    createdAt: FieldValue.serverTimestamp(),
+    /* Criado no dia do atendimento (meio-dia em São Paulo): a janela olha
+     * também o dia de criação, e "agora" do relógio real faria o atendimento
+     * de setembro parecer fechado no mês corrente. */
+    createdAt: params.criadoEm ?? Timestamp.fromDate(new Date(`${date}T15:00:00Z`)),
   });
 }
 
@@ -235,6 +240,14 @@ describe("idempotência e recusas", () => {
   it("dono fora do mês, recusa", async () => {
     await semearConcluido({ date: "2026-09-30" });
     await expect(editar({ serviceIds: ["corte"] })).rejects.toThrow(/outro mês/);
+  });
+  it("atendimento de 30/09 fechado já em outubro: dono ainda edita", async () => {
+    await semearConcluido({
+      date: "2026-09-30",
+      criadoEm: Timestamp.fromDate(new Date("2026-10-01T15:00:00Z")),
+    });
+    const r = await editar({ serviceIds: ["corte"] });
+    expect(r.depois.value).toBe(50);
   });
 });
 

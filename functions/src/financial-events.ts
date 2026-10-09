@@ -4,7 +4,7 @@ import { percentualDoCadastro } from "./remuneracao";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { valoresDoPagamento } from "./payments";
 import { formasDoTenant, type FormaDePagamento } from "./formas-de-pagamento";
-import { competenciaDe, decidirCobertura, type Cobertura } from "./mensalistas";
+import { assinaturaDaCompetencia, competenciaDe, decidirCobertura, type Cobertura } from "./mensalistas";
 import {
   estornoDaComissaoDeServico,
   idDaComissaoDeCicloNovo,
@@ -581,18 +581,38 @@ async function resolverCobertura(params: {
 
   const shopRef = db.doc(`barbershops/${barbershopId}`);
 
-  /* Mesma consulta que `criarMensalista` usa para barrar a segunda assinatura
-   * — e é ela que garante que existe no máximo uma ativa por cliente. */
+  /* Ativa (no máximo uma por cliente, como `criarMensalista` barra) E a
+   * cancelada cujo ciclo pago ainda vale: cancelar não corta o plano no mesmo
+   * dia. `assinaturaDaCompetencia` escolhe entre elas pela data do corte. */
+  const competencia = competenciaDe(params.date);
   const assinaturas = await tx.get(
     shopRef
       .collection("subscriptions")
       .where("clientId", "==", clientId)
-      .where("status", "==", "ativo")
-      .limit(1)
   );
 
-  const snap = assinaturas.docs[0];
+  /* A cancelada só segue cobrindo se a fatura DA competência está paga. */
+  const candidatas = await Promise.all(
+    assinaturas.docs.map(async (d) => {
+      const status = d.get("status") as "ativo" | "suspenso" | "cancelado";
+      const fatura =
+        status === "cancelado"
+          ? await tx.get(
+              shopRef.collection("subscription_invoices").doc(`fatura_${d.id}_${competencia}`)
+            )
+          : null;
+      return {
+        status,
+        startedAt: String(d.get("startedAt") ?? ""),
+        canceledAt: (d.get("canceledAt") as string | null | undefined) ?? null,
+        competenciaPaga: fatura?.get("status") === "paga",
+        docRef: d,
+      };
+    })
+  );
+  const snap = assinaturaDaCompetencia(candidatas, competencia)?.docRef;
   if (!snap) return { tipo: "avulso", motivo: "sem_plano", valorCoberto: 0 };
+  const competenciaPaga = candidatas.find((c) => c.docRef.id === snap.id)?.competenciaPaga === true;
 
   /* O `id` depois do espalhamento: quem manda é o id do documento, não um campo
    * `id` que alguém tenha gravado dentro dele. A cobertura é casada por esse
@@ -602,7 +622,6 @@ async function resolverCobertura(params: {
     typeof decidirCobertura
   >[0]["assinatura"];
 
-  const competencia = competenciaDe(params.date);
   const doCliente = await tx.get(shopRef.collection("bookings").where("clientId", "==", clientId));
 
   const jaCobertosNaCompetencia = contarCobertosNaCompetencia(
@@ -616,6 +635,7 @@ async function resolverCobertura(params: {
     assinatura,
     jaCobertosNaCompetencia,
     metodoInformado: params.metodoInformado,
+    competenciaPaga,
   });
 }
 

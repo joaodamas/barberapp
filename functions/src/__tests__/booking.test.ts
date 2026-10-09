@@ -8,6 +8,7 @@ import {
   idDaReservaPorChave,
   jornadaDoBarbeiro,
   nomeLimpo,
+  recusarSeEncerrada,
 } from "../booking";
 
 /**
@@ -184,5 +185,14 @@ describe("repetição pela chave só vale para o MESMO pedido (08/10)", () => {
   it("em 'qualquer barbeiro' o barbeiro gravado não conta — quem decidiu foi o servidor", () => {
     expect(divergenciaDaRepeticao({ ...gravada, staffId: "b2" }, { ...mesmo, staffId: null })).toBeNull();
     expect(divergenciaDaRepeticao(gravada, { ...mesmo, staffId: null, time: "16:00" })).not.toBeNull();
+  });
+});
+
+describe("barbearia encerrada não recebe reserva (09/10)", () => {
+  it("recusa a encerrada e deixa passar as demais", () => {
+    expect(() => recusarSeEncerrada({ status: "encerrada" })).toThrow(/não está mais recebendo/);
+    expect(() => recusarSeEncerrada({ status: "ativo" })).not.toThrow();
+    expect(() => recusarSeEncerrada({ status: "suspenso" })).not.toThrow();
+    expect(() => recusarSeEncerrada(undefined)).not.toThrow();
   });
 });

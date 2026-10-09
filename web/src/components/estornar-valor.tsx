@@ -9,6 +9,8 @@ import { useRefunds } from "@/lib/db/use-shop-data";
 import { chaveDeIdempotencia } from "@/lib/chave-de-idempotencia";
 import { estornadoDe } from "@/lib/estornos";
 import { plural } from "@/lib/plural";
+import { lerReais, reaisParaCampo, VALOR_ILEGIVEL } from "@/lib/reais";
+import { mensagemDaFuncao } from "@/lib/mensagem-da-funcao";
 import type { RefundDoc } from "@/lib/domain";
 
 /**
@@ -69,9 +71,10 @@ export function EstornarValor(params: {
    * em cascata e, pior, sobrescreveria o que o dono digitou no instante em que
    * `refunds` terminasse de carregar. */
   const [valorDigitado, setValorDigitado] = useState<string | null>(null);
-  const valor = valorDigitado ?? String(resta);
+  const valor = valorDigitado ?? reaisParaCampo(resta);
 
-  const pedido = Math.round((Number(valor.replace(",", ".")) || 0) * 100) / 100;
+  const lido = lerReais(valor);
+  const pedido = lido ?? 0;
   const podeConfirmar = pedido > 0 && pedido <= resta && motivo.trim().length >= 3;
 
   async function confirmar() {
@@ -96,7 +99,7 @@ export function EstornarValor(params: {
       params.aoEstornar?.(r.valor);
       params.aoFechar();
     } catch (e) {
-      setErro(e instanceof Error ? e.message : "Não consegui registrar a devolução.");
+      setErro(mensagemDaFuncao(e, "Não consegui registrar a devolução."));
     } finally {
       setSalvando(false);
     }
@@ -138,15 +141,15 @@ export function EstornarValor(params: {
         <label className="flex flex-col gap-1 text-xs text-ink-muted">
           Quanto devolver
           <input
-            type="number"
-            min={0}
-            max={resta}
-            step="0.01"
+            inputMode="decimal"
             value={valor}
             onChange={(e) => setValorDigitado(e.target.value)}
             className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ink"
           />
         </label>
+        {lido === null && valor.trim() !== "" && (
+          <p className="text-xs text-danger">{VALOR_ILEGIVEL}</p>
+        )}
         {pedido > resta && (
           <p className="text-xs text-danger">
             O máximo que ainda pode ser devolvido é {formatBRL(resta)}.
