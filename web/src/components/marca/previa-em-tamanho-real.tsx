@@ -1,7 +1,8 @@
 /**
  * O logo nos tamanhos em que ele realmente aparece, nos temas claro e escuro:
  *
- * - topo do painel: 38 px, ao lado do nome (`painel-sidebar-nav.tsx`);
+ * - topo do painel: 38 px, em círculo, ao lado do nome (`painel-sidebar-nav.tsx`);
+ * - topo do app do cliente: 32 px, em círculo (`(cliente)/layout.tsx`);
  * - ícone do celular: 60 px, cantos arredondados, logo a 72% sobre o fundo
  *   escolhido (mesma geometria do `icon-192.png`);
  * - favicon: 32 px, sem fundo.
@@ -37,7 +38,14 @@ export function PreviaEmTamanhoReal({
           >
             <div className="flex items-center gap-3">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={logo} alt="" width={38} height={38} className="h-[38px] w-[38px] shrink-0 rounded-md object-contain" />
+              <img
+                src={logo}
+                alt=""
+                width={38}
+                height={38}
+                className="h-[38px] w-[38px] shrink-0 rounded-full object-cover"
+                style={{ boxShadow: `0 0 0 1px ${t.borda}` }}
+              />
               <div className="min-w-0 leading-tight">
                 <p className="truncate font-display text-base uppercase tracking-wider" style={{ color: t.tinta }}>
                   {nomeCurto || "—"}
@@ -49,6 +57,20 @@ export function PreviaEmTamanhoReal({
             </div>
 
             <div className="flex items-end gap-5">
+              <div className="flex flex-col items-center gap-1">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={logo}
+                  alt=""
+                  width={32}
+                  height={32}
+                  className="h-8 w-8 rounded-full object-cover"
+                  style={{ boxShadow: `0 0 0 1px ${t.borda}` }}
+                />
+                <span className="text-[10px]" style={{ color: t.suave }}>
+                  App do cliente
+                </span>
+              </div>
               <div className="flex flex-col items-center gap-1">
                 <div
                   className="flex h-[60px] w-[60px] items-center justify-center overflow-hidden rounded-[22%] border"

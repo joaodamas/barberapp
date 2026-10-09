@@ -253,3 +253,11 @@ export const paymentGateways = [
     ],
   },
 ];
+
+/** Categorias de receita avulsa — o que entra e não é atendimento, venda nem mensalidade. */
+export const incomeCategories = [
+  "Venda de equipamento",
+  "Aluguel de cadeira",
+  "Parceria ou patrocínio",
+  "Outras receitas",
+];

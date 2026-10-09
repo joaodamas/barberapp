@@ -6,7 +6,7 @@ import { getTenant, isPlatformRoot } from "@/lib/tenant-server";
 import { ClienteBottomNav } from "@/components/cliente-bottom-nav";
 import { ClienteSidebarNav } from "@/components/cliente-sidebar-nav";
 import { AvisoDeConexao } from "@/components/aviso-de-conexao";
-import { logoSemOtimizar } from "@/lib/logo-da-marca";
+import { CLASSE_DO_LOGO_REDONDO, logoSemOtimizar } from "@/lib/logo-da-marca";
 
 export default async function ClienteLayout({
   children,
@@ -37,7 +37,7 @@ export default async function ClienteLayout({
           <AvisoDeConexao recuoDoTopo={false} />
           <header className="safe-top flex items-center gap-2.5 px-4 pb-3 pt-4 md:hidden">
             <Link href="/" className="flex items-center gap-2.5">
-              <Image src={brand.logo} unoptimized={logoSemOtimizar(brand.logo)} alt="" width={32} height={32} priority className="shrink-0 rounded-md object-contain" />
+              <Image src={brand.logo} unoptimized={logoSemOtimizar(brand.logo)} alt="" width={32} height={32} priority className={CLASSE_DO_LOGO_REDONDO} />
               <span className="font-display text-sm uppercase tracking-wider text-ink">
                 {brand.shortName}
               </span>

@@ -23,6 +23,7 @@ código alterada.
 | Comissão de serviço | `commissions` com `origin: "servico"` | 🟢 desde o Gate A |
 | Comissão de produto | — | 🔴 **não existe documento** |
 | Despesas | `ExpenseDoc` | 🟡 existe, sem congelamento (D24) |
+| Outras receitas (09/10) | `other_incomes` (`OtherIncomeDoc`) | 🟡 existe, direto da tela como `ExpenseDoc` (D24) |
 | Correções | `refunds` · movimento `ajuste` | 🔴 **não existem** |
 | Movimentos de caixa sem fato | `cash_entries` | 🔴 **não existe escrita** |
 
@@ -81,6 +82,41 @@ somado por engano em nenhuma visão futura. E a marca
 (`includedInSubscription`) continua necessária **no booking**, para explicar
 por que não há pagamento — sem ela, um atendimento sem `payments` seria
 indistinguível de um erro de materialização.
+
+---
+
+## Adendo de 09/10/2026 · lançamentos parcelados e "Outras receitas"
+
+**Parcela é um fato por mês.** Um lançamento parcelado (despesa ou receita
+avulsa) são N documentos, cada um com o valor DA PARCELA, a data de vencimento
+e `parcela: {numero, total, grupoId}`. Não existe documento "total".
+
+| Pergunta | Regra |
+|---|---|
+| Em que mês a parcela pesa no DRE? | No mês da data dela (competência = vencimento). Despesa parcelada não é recorrente: cai em "Despesas Operacionais Eventuais". |
+| E no caixa? | Na data dela, **depois que a data chegou**. Parcela com data futura não é saída (nem entrada) do fluxo — o modelo não guarda "paga", então não se afirma que foi paga antes da data. |
+| E na projeção? | Parcela com data de hoje em diante entra no dia dela, em coluna própria (`parcelaAPagar` / `parcelaAReceber`), fora de `fixedExpense`: parcela tem fim, recorrente não. |
+| Equipamento parcelado? | **Limitação registrada:** a máquina de R$ 3.000 em 10x vira despesa de R$ 300 em cada mês, e não ativo imobilizado com depreciação. Não há ativo, depreciação nem a contrapartida de financiamento no produto; inventar isso criaria número sem fato de origem. |
+| Mês "fechado"? | O produto não tem fechamento (D24). Alterar valor ou excluir parcela de mês que já passou é permitido, e a confirmação avisa que reescreve o resultado e o caixa daquele mês. |
+
+**"Outras receitas"** (venda de equipamento, aluguel de cadeira, parceria) é uma
+linha própria, **abaixo** do custo fixo e **fora** de `receita.bruta`:
+
+```
+resultado antes de impostos = margem de contribuição − custo fixo + outras receitas
+imposto (Simples)           = alíquota × receita.bruta          ← não inclui outras receitas
+```
+
+Por quê fora da bruta: a base do Simples, a comissão do barbeiro, o ticket médio
+e o ponto de equilíbrio são sobre o que a cadeira e a loja produzem. Somar ali
+uma venda de equipamento inflaria o imposto e a comissão sem que ninguém tenha
+decidido isso. **Limitação registrada:** o tratamento tributário real de cada
+tipo de receita avulsa é decisão do contador; o produto não o presume. A
+identidade `receita bruta − custo total = resultado` vale quando não há outras
+receitas no mês; com elas, `resultado = receita bruta + outras receitas − custo total`.
+
+A fonte `otherIncomes` entra em `resultado`, `caixaDoMes` e `projecao` na regra de
+falha de leitura (`lib/apuracao.ts`): coleção ilegível = número "não apurado".
 
 ---
 

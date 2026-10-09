@@ -30,7 +30,7 @@ import {
   mostrarSeletor,
   type MetodoDeLogin,
 } from "@/lib/metodos-de-login";
-import { logoSemOtimizar } from "@/lib/logo-da-marca";
+import { CLASSE_DO_LOGO_REDONDO, logoSemOtimizar } from "@/lib/logo-da-marca";
 import { ehNavegadorEmbutido } from "@/lib/navegador-embutido";
 import { AVISO_DE_COPIA_FALHOU, copiarOuSelecionar } from "@/lib/copiar-texto";
 
@@ -363,7 +363,7 @@ export default function LoginPage() {
         </div>
       ) : (
         <div className="flex flex-col items-center gap-2 text-center">
-          <Image src={brand.logo} unoptimized={logoSemOtimizar(brand.logo)} alt="" width={56} height={56} priority />
+          <Image src={brand.logo} unoptimized={logoSemOtimizar(brand.logo)} alt="" width={56} height={56} priority className={CLASSE_DO_LOGO_REDONDO} />
           <h1 className="font-display text-xl text-ink">{brand.name}</h1>
           <p className="text-sm text-ink-muted">Entre com sua conta</p>
         </div>

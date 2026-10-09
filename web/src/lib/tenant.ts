@@ -719,6 +719,15 @@ export function slugFromHost(host: string | null | undefined): string | null {
   const hostname = host.split(":")[0].toLowerCase().replace(/\.$/, "");
   if (!hostname) return null;
 
+  /* Só em desenvolvimento: `navalha-centro.localhost:3001` abre a unidade
+   * "navalha-centro". O navegador resolve qualquer `*.localhost` para a própria
+   * máquina, então dá para testar várias barbearias (uma rede) sem DNS nem
+   * `hosts`. Em produção `*.localhost` nunca chega aqui com sentido. */
+  if (process.env.NODE_ENV !== "production" && hostname.endsWith(".localhost")) {
+    const slug = hostname.slice(0, -".localhost".length);
+    if (slug && !slug.includes(".") && !RESERVED_SLUGS.has(slug)) return slug;
+  }
+
   if (
     hostname === "localhost" ||
     hostname.endsWith(".localhost") ||

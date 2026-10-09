@@ -260,6 +260,7 @@ describe("3.2 · o número que responde 'quanto sobrou'", () => {
       mensalidade: 300,
       estorno: -50,
       despesa: -400,
+      receita_avulsa: 0,
       compra: -180,
       caixa: -100,
     });

@@ -3,7 +3,9 @@
  *
  * O dono escolhe um arquivo de qualquer proporção (logo horizontal, foto da
  * fachada, print do Instagram) e o que sobe é um QUADRADO: é o formato do
- * ícone do celular, do favicon e do selo no topo do app. O recorte é simples
+ * ícone do celular e do favicon (o sistema arredonda). O selo que o cliente vê
+ * no app é um CÍRCULO sobre esse quadrado: o enquadramento mostra a máscara, e
+ * o arquivo continua quadrado. O recorte é simples
  * de propósito — aproximar e arrastar — porque o dono faz isso uma vez.
  *
  * Com zoom 1 a imagem inteira cabe no quadrado (o que sobra fica
@@ -15,8 +17,10 @@
  * precisa dar o mesmo recorte nos dois.
  */
 
+import { FORA_DO_CIRCULO_MAXIMO } from "@/lib/analise-do-logo";
+
 export type Enquadramento = {
-  /** 1 = a imagem inteira cabe; até `ZOOM_MAXIMO`. */
+  /** 1 = a imagem inteira cabe no quadrado; de `ZOOM_MINIMO` até `ZOOM_MAXIMO`. */
   zoom: number;
   /** Deslocamento do centro da imagem, em fração do lado do quadrado. */
   x: number;
@@ -33,6 +37,8 @@ export function tamanhoDaFonte(f: FonteDoLogo): { largura: number; altura: numbe
 }
 
 export const ZOOM_MAXIMO = 4;
+/** Abaixo de 1 a imagem encolhe dentro do quadrado: é o que encaixa um logo de cantos cheios no círculo. */
+export const ZOOM_MINIMO = 0.5;
 export const ENQUADRAMENTO_INICIAL: Enquadramento = { zoom: 1, x: 0, y: 0 };
 
 /** Onde desenhar a imagem num quadrado de `lado` px: `drawImage(img, dx, dy, dw, dh)`. */
@@ -61,7 +67,7 @@ export function retanguloNoQuadrado(
  * imagem é menor que o quadrado, ela fica centrada.
  */
 export function limitarEnquadramento(largura: number, altura: number, e: Enquadramento): Enquadramento {
-  const zoom = Math.min(ZOOM_MAXIMO, Math.max(1, Number.isFinite(e.zoom) ? e.zoom : 1));
+  const zoom = Math.min(ZOOM_MAXIMO, Math.max(ZOOM_MINIMO, Number.isFinite(e.zoom) ? e.zoom : 1));
   const maior = Math.max(largura, altura);
   if (!(maior > 0)) return { zoom, x: 0, y: 0 };
   /* Quanto a imagem passa do quadrado em cada eixo, em fração do lado. */
@@ -80,4 +86,25 @@ export function logoNoIcone(lado: number, escala: number) {
   const tamanho = Math.round(lado * escala);
   const margem = Math.round((lado - tamanho) / 2);
   return { x: margem, y: margem, tamanho };
+}
+
+/**
+ * Zoom que põe uma imagem inteira dentro do círculo inscrito no quadrado: a
+ * diagonal dela (a distância entre cantos opostos) passa a caber no diâmetro.
+ * Nunca passa de 1 — se já cabe, não encolhe — nem de baixo de `ZOOM_MINIMO`.
+ */
+export function zoomParaCirculo(largura: number, altura: number): number {
+  if (!(largura > 0 && altura > 0)) return 1;
+  return Math.min(1, Math.max(ZOOM_MINIMO, Math.max(largura, altura) / Math.hypot(largura, altura)));
+}
+
+/**
+ * O enquadramento com que o recorte abre. Se o conteúdo, inteiro no quadrado,
+ * já cabe no círculo (`foraDoCirculo` baixo — um logo redondo, por exemplo),
+ * fica como está: encolher um selo redondo só deixaria um anel vazio. Se os
+ * cantos têm conteúdo, a caixa da imagem encolhe até caber no círculo.
+ */
+export function enquadramentoInicial(largura: number, altura: number, foraDoCirculo: number): Enquadramento {
+  if (!(foraDoCirculo > FORA_DO_CIRCULO_MAXIMO)) return ENQUADRAMENTO_INICIAL;
+  return { zoom: zoomParaCirculo(largura, altura), x: 0, y: 0 };
 }
