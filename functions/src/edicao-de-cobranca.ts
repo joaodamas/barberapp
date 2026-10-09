@@ -12,7 +12,7 @@ import {
   idDaComissaoDeCicloNovo,
   idDoEstornoDaComissaoDeServico,
 } from "./comissoes";
-import { dentroDaJanela, diaDeCriacao } from "./correcao-de-pagamento";
+import { dentroDaJanela, diaAnteriorDe, diaDeCriacao } from "./correcao-de-pagamento";
 import { descontoAplicavel, ehCortesia } from "./desconto";
 import {
   calcularEventoFinanceiro,
@@ -284,7 +284,9 @@ export function motivoDaRecusaDaEdicao(params: {
     if (!params.ehDoBarbeiro) return "barbeiro_de_outro";
     /* "No mesmo dia": o do atendimento OU o em que ele foi fechado — o das
      * 23h50 fechado depois da meia-noite não pode virar "outro dia". */
-    if (params.dataDoPagamento !== params.hoje && params.criadoEm !== params.hoje) {
+    const fechadoHojeDeOntem =
+      params.criadoEm === params.hoje && params.dataDoPagamento === diaAnteriorDe(params.hoje);
+    if (params.dataDoPagamento !== params.hoje && !fechadoHojeDeOntem) {
       return "barbeiro_outro_dia";
     }
     if (params.mexeuNoDesconto) return "desconto_so_dono";
@@ -727,10 +729,13 @@ export const editarCobrancaDoAtendimento = onCall<EdicaoInput>(async (request) =
     ...(d.data() as Omit<ServicoDoCatalogo, "id">),
   }));
   const jaTinha = new Set((Array.isArray(reservaSnap.get("serviceIds")) ? reservaSnap.get("serviceIds") : []).map(String));
+  /* Sem preço gravado (reserva legada com value 0) não há o que congelar: o
+   * serviço apagado viraria "Serviço" a R$ 0 — aí vale a recusa de sempre. */
+  const temPrecoCongelado = (Number(reservaSnap.get("value")) || 0) > 0;
   for (const id of ids) {
     /* O que já estava na reserva vale mesmo que o serviço tenha saído do
      * catálogo: sem isso, apagar um serviço travava até a troca da forma. */
-    if (jaTinha.has(id)) continue;
+    if (jaTinha.has(id) && temPrecoCongelado) continue;
     const s = catalogo.find((c) => c.id === id);
     if (!s || (s.active === false && !jaTinha.has(id))) {
       throw new HttpsError("failed-precondition", "Serviço indisponível.");

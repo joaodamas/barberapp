@@ -656,6 +656,17 @@ export default function DespesasPage() {
             />
             Recorrente (repete todo mês — entra como custo fixo no resultado)
           </label>
+          {/* Sem data de fim no modelo: mudar a recorrente antiga muda o custo
+              de TODOS os meses desde o lançamento, inclusive os já fechados. */}
+          {editingId &&
+            expenses.some((e) => e.id === editingId && e.recurring && e.date < `${mes}-01`) && (
+              <p role="note" className="rounded-lg border border-gold/40 bg-gold/5 p-3 text-xs text-ink md:col-span-2">
+                Esta recorrente vem de meses anteriores. Mudar o valor ou desmarcar aqui muda o custo
+                fixo de todos os meses desde o lançamento, inclusive os já fechados. Para reajustar só
+                daqui para frente, lance uma nova recorrente (mesma categoria e descrição) com a data
+                de hoje e o valor novo — a mais recente substitui a antiga — e não mexa nesta.
+              </p>
+            )}
 
           <label className="flex flex-col gap-1 text-xs text-ink-muted md:col-span-2">
             Observações

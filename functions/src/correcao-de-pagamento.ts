@@ -165,8 +165,29 @@ export function dentroDaJanela(dataDoPagamento: string, hoje: string, criadoEm?:
   if (competenciaDe(String(dataDoPagamento)) === mesDeHoje) return true;
   /* O atendimento de 30/09 fechado no dia 1º: o fato é de setembro, mas o
    * pagamento nasceu em outubro, e o dono precisa conseguir corrigir o erro de
-   * quem acabou de fechar. */
-  return !!criadoEm && competenciaDe(criadoEm) === mesDeHoje;
+   * quem acabou de fechar. A exceção é ESTREITA: só o mês imediatamente
+   * anterior ao da criação — fechar em outubro um atendimento de julho não
+   * reabre julho. */
+  return (
+    !!criadoEm &&
+    competenciaDe(criadoEm) === mesDeHoje &&
+    competenciaDe(String(dataDoPagamento)) === mesAnteriorDe(competenciaDe(criadoEm))
+  );
+}
+
+/** `2026-10` → `2026-09`; `2026-01` → `2025-12`. */
+export function mesAnteriorDe(competencia: string): string {
+  const [a, m] = competencia.split("-").map(Number);
+  if (!a || !m) return "";
+  return m === 1 ? `${a - 1}-12` : `${a}-${String(m - 1).padStart(2, "0")}`;
+}
+
+/** `2026-10-01` → `2026-09-30`. */
+export function diaAnteriorDe(data: string): string {
+  const d = new Date(`${data}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return "";
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
 }
 
 /** O dia (`YYYY-MM-DD`) em que o documento foi criado, no fuso da barbearia. */

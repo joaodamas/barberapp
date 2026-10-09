@@ -176,7 +176,7 @@ export function EntradaDeEstoque({
           </span>
           <input
             value={fornecedor}
-            onChange={(e) => setFornecedor(e.target.value)}
+            onChange={(e) => { setFornecedor(e.target.value); setChave(chaveDeIdempotencia()); }}
             placeholder="Distribuidora"
             className="min-h-11 rounded-xl border border-border bg-surface px-3 text-sm text-ink"
           />
@@ -192,7 +192,7 @@ export function EntradaDeEstoque({
                 key={m}
                 type="button"
                 aria-pressed={metodo === m}
-                onClick={() => setMetodo(metodo === m ? null : m)}
+                onClick={() => { setMetodo(metodo === m ? null : m); setChave(chaveDeIdempotencia()); }}
                 className={
                   "min-h-11 rounded-xl border text-sm transition-colors " +
                   (metodo === m

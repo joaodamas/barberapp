@@ -275,7 +275,7 @@ export function VenderProduto({ aoVender }: { aoVender?: () => void }) {
                     {cliente.whatsapp ? mascararWhatsapp(cliente.whatsapp) : "sem WhatsApp"}
                   </p>
                 </div>
-                <Button variant="ghost" onClick={() => setCliente(null)}>
+                <Button variant="ghost" onClick={() => { setCliente(null); setChave(chaveDeIdempotencia()); }}>
                   Tirar
                 </Button>
               </div>
@@ -297,6 +297,7 @@ export function VenderProduto({ aoVender }: { aoVender?: () => void }) {
                     type="button"
                     onClick={() => {
                       setCliente(c);
+                      setChave(chaveDeIdempotencia());
                       setBuscando(false);
                     }}
                     className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-left transition-colors hover:border-gold/60"
@@ -332,7 +333,7 @@ export function VenderProduto({ aoVender }: { aoVender?: () => void }) {
                     key={b.id}
                     type="button"
                     aria-pressed={vendedorId === b.id}
-                    onClick={() => setVendedorClicado(vendedorId === b.id ? null : b.id)}
+                    onClick={() => { setVendedorClicado(vendedorId === b.id ? null : b.id); setChave(chaveDeIdempotencia()); }}
                     className={
                       "min-h-11 rounded-xl border px-3 text-sm transition-colors " +
                       (vendedorId === b.id
@@ -371,6 +372,7 @@ export function VenderProduto({ aoVender }: { aoVender?: () => void }) {
                   aria-pressed={forma?.id === f.id}
                   onClick={() => {
                     setForma(f);
+                    setChave(chaveDeIdempotencia());
                     setErro(null);
                   }}
                   className={

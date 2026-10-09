@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  assinaturaDaVenda,
   custoMedioPonderado,
   divergenciaDaEntradaRepetida,
   divergenciaDaVendaRepetida,
@@ -284,17 +285,38 @@ describe("repetição com a mesma chave e pedido diferente", () => {
     { productId: "gel", quantity: 1 },
   ];
 
-  it("a venda repetida igual passa; carrinho diferente é recusado", () => {
-    expect(divergenciaDaVendaRepetida([2, 1], itens)).toBeNull();
-    expect(divergenciaDaVendaRepetida([2, 3], itens)).not.toBeNull();
-    // Carrinho cresceu: a segunda linha não existe sob a chave.
-    expect(divergenciaDaVendaRepetida([2, null], itens)).not.toBeNull();
-    // Carrinho encolheu: sobraram movimentos gravados.
-    expect(divergenciaDaVendaRepetida([2, 1], [itens[0]!])).not.toBeNull();
+  const pedido = { paymentMethod: "pix", formaId: "pix", clientId: "c1", staffId: "b1" };
+  const sig = assinaturaDaVenda({ itens, ...pedido });
+  const gravadasComSig = [
+    { quantity: 2, assinatura: sig },
+    { quantity: 1, assinatura: sig },
+  ];
+
+  it("a assinatura ignora a ordem do carrinho, mas vê cada campo do pedido", () => {
+    expect(assinaturaDaVenda({ itens: [...itens].reverse(), ...pedido })).toBe(sig);
+    expect(assinaturaDaVenda({ itens, ...pedido, formaId: "credito" })).not.toBe(sig);
+    expect(assinaturaDaVenda({ itens, ...pedido, clientId: "c2" })).not.toBe(sig);
+    expect(assinaturaDaVenda({ itens, ...pedido, staffId: "b2" })).not.toBe(sig);
+    expect(assinaturaDaVenda({ itens, ...pedido, paymentMethod: "cash" })).not.toBe(sig);
   });
 
-  it("movimento antigo sem quantidade legível não bloqueia o retry", () => {
-    expect(divergenciaDaVendaRepetida([Number.NaN, 1], itens)).toBeNull();
+  it("a venda repetida igual passa; qualquer pedido diferente é recusado", () => {
+    expect(divergenciaDaVendaRepetida(gravadasComSig, itens, sig)).toBeNull();
+    // Carrinho encolheu: as linhas lidas são as do pedido NOVO, só a assinatura vê.
+    const menor = [itens[0]!];
+    const sigMenor = assinaturaDaVenda({ itens: menor, ...pedido });
+    expect(divergenciaDaVendaRepetida([gravadasComSig[0]!], menor, sigMenor)).not.toBeNull();
+    // Outra forma de pagamento, mesmo carrinho.
+    const outraForma = assinaturaDaVenda({ itens, ...pedido, formaId: "credito" });
+    expect(divergenciaDaVendaRepetida(gravadasComSig, itens, outraForma)).not.toBeNull();
+    // Carrinho cresceu: a segunda linha não existe sob a chave.
+    expect(divergenciaDaVendaRepetida([gravadasComSig[0]!, { quantity: null }], itens, sig)).not.toBeNull();
+  });
+
+  it("movimento anterior à assinatura confere só a quantidade", () => {
+    expect(divergenciaDaVendaRepetida([{ quantity: 2 }, { quantity: 1 }], itens, sig)).toBeNull();
+    expect(divergenciaDaVendaRepetida([{ quantity: 2 }, { quantity: 3 }], itens, sig)).not.toBeNull();
+    expect(divergenciaDaVendaRepetida([{ quantity: Number.NaN }, { quantity: 1 }], itens, sig)).toBeNull();
   });
 
   it("a entrada repetida confere produto, quantidade e custo", () => {
@@ -303,5 +325,11 @@ describe("repetição com a mesma chave e pedido diferente", () => {
     expect(divergenciaDaEntradaRepetida(gravada, { productId: "pomada", quantity: 12, unitCost: 18 })).not.toBeNull();
     expect(divergenciaDaEntradaRepetida(gravada, { productId: "pomada", quantity: 10, unitCost: 20 })).not.toBeNull();
     expect(divergenciaDaEntradaRepetida(gravada, { productId: "gel", quantity: 10, unitCost: 18 })).not.toBeNull();
+    // Fornecedor e meio de pagamento também são o pedido.
+    const completa = { ...gravada, supplier: "Distribuidora", paymentMethod: "pix" };
+    const igual = { productId: "pomada", quantity: 10, unitCost: 18, supplier: "Distribuidora", paymentMethod: "pix" };
+    expect(divergenciaDaEntradaRepetida(completa, igual)).toBeNull();
+    expect(divergenciaDaEntradaRepetida(completa, { ...igual, supplier: "Outra" })).not.toBeNull();
+    expect(divergenciaDaEntradaRepetida(completa, { ...igual, paymentMethod: null })).not.toBeNull();
   });
 });
