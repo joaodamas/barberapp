@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { AConfirmar, DocumentoLegal, Secao } from "@/components/legal/documento";
+import { ANUAL_DISPONIVEL } from "@/lib/platform";
+import { PRECOS_POR_PLANO } from "@/lib/tenant";
 
 export const metadata: Metadata = {
   title: "Termos de Uso — Topete",
@@ -66,6 +68,21 @@ export default function TermosPage() {
             Enquanto não houver cobrança automática, a contratação e o pagamento
             são combinados diretamente conosco.
           </li>
+          {/* A cláusula do anual só aparece com a trava ligada: os termos não
+              descrevem um plano que ainda não está à venda. Texto a ser revisado
+              pelo dono/jurídico, em especial o prazo de devolução. */}
+          {ANUAL_DISPONIVEL && (
+            <li>
+              <strong className="text-ink">Plano anual.</strong> Paga-se{" "}
+              {10} mensalidades e usa-se {12} meses (Agenda R$ {PRECOS_POR_PLANO.agenda.anual}, Crescimento R${" "}
+              {PRECOS_POR_PLANO.crescimento.anual}, Gestão R$ {PRECOS_POR_PLANO.gestao.anual}), à vista, por Pix ou
+              boleto. Não há fidelidade nem multa: você pode cancelar quando quiser e devolvemos o valor pago menos
+              os meses já usados, calculados pelo preço mensal de tabela (R$ {PRECOS_POR_PLANO.agenda.mensal},
+              R$ {PRECOS_POR_PLANO.crescimento.mensal} ou R$ {PRECOS_POR_PLANO.gestao.mensal}), em até 30 dias do
+              pedido. O desconto de barbearia fundadora não se acumula com o plano anual, e o barbeiro extra segue
+              cobrado à parte, por mês.
+            </li>
+          )}
         </ul>
       </Secao>
 

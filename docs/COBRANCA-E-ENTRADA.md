@@ -34,7 +34,16 @@ paridade — a landing e a tela Equipe leem de lá, ninguém crava o número.
 - **Fundadores:** 30% de desconto **só no primeiro mês** nas 20 primeiras
   barbearias; do segundo mês em diante, mensalidade cheia (01/10/2026 — antes
   era vitalício) (`DESCONTO_FUNDADOR`). Só registrado aqui; quem aplica é o Hub, na cobrança.
-- **Anual:** pague 10 meses, use 12 (materiais de venda).
+- **Anual (Fase 1, decisão do dono):** paga 10 meses, usa 12 — Agenda R$ 970,
+  Crescimento R$ 1.970, Gestão R$ 2.470 (`anual` em `PRECOS_POR_PLANO`). Economia
+  de R$ 194 / 394 / 494 frente a 12 mensalidades.
+  - **Só à vista** (Pix ou boleto); parcelado fica para depois.
+  - **Cancelamento sem multa:** devolve o valor pago menos os meses já usados a
+    preço de tabela mensal (97 / 197 / 247), pago manualmente.
+  - **Desconto de fundadora não acumula** com o anual (`DESCONTO_FUNDADOR` só vale na mensal).
+  - **Barbeiro extra** segue R$ 19/mês, à parte, sem desconto.
+  - Contrato `plano_escolhido` v2 em `docs/INTEGRACAO-HUB.md`. Atrás da trava
+    `ANUAL_DISPONIVEL` (hoje desligada) até o Hub publicar a v2.
 
 ---
 

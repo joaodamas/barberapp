@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { destinoDoCadastro } from "@/lib/platform";
 import { PRECOS_POR_PLANO } from "@/lib/tenant";
-import { ArrowRight, Check, Plus } from "lucide-react";
+import { ArrowRight, Plus } from "lucide-react";
 import fotoDono from "@/assets/fotos/dono-no-salao.webp";
 import pcAgenda from "@/assets/landing/pc-agenda.jpg";
 import celAgendarHorario from "@/assets/landing/cel-agendar-horario.jpg";
@@ -13,6 +13,7 @@ import { TourDoTopete } from "@/components/landing/tour";
 import { ComoFunciona } from "@/components/landing/passos";
 import { SemComTopete } from "@/components/landing/sem-com";
 import { QuantoCusta } from "@/components/landing/conta";
+import { GradeDePrecos } from "@/components/landing/precos";
 
 /**
  * A página da plataforma — Topete. Terceira versão (02/10/2026).
@@ -366,60 +367,35 @@ export function PaginaDaPlataforma() {
               implantação.
             </p>
           </Reveal>
-          <div className="mt-12 grid gap-4 md:grid-cols-3">
-            {/* Preço e teto saem de `PRECOS_POR_PLANO`, a mesma tabela que a tela
-                Equipe usa — a página não pode prometer um teto e o painel cobrar outro.
-                O que cada plano libera espelha `FEATURES_POR_PLANO`. */}
-            {[
+          {/* Preço e teto saem de `PRECOS_POR_PLANO`, a mesma tabela que a tela
+              Equipe usa — a página não pode prometer um teto e o painel cobrar outro.
+              O que cada plano libera espelha `FEATURES_POR_PLANO`. O alternador
+              Mensal | Anual só aparece com `ANUAL_DISPONIVEL`. */}
+          <GradeDePrecos
+            cartoes={[
               {
+                id: "agenda",
                 nome: "Agenda",
                 plano: PRECOS_POR_PLANO.agenda,
                 itens: ["Link e marca próprios", "Encaixe com aprovação", "Clientes e caixa do dia", "Avisos no celular e no Telegram"],
                 destaque: false,
               },
               {
+                id: "crescimento",
                 nome: "Crescimento",
                 plano: PRECOS_POR_PLANO.crescimento,
                 itens: ["Tudo do Agenda", "Mensalistas com horário fixo", "Loja e fidelidade", "Projeção de caixa"],
                 destaque: true,
               },
               {
+                id: "gestao",
                 nome: "Gestão",
                 plano: PRECOS_POR_PLANO.gestao,
                 itens: ["Tudo do Crescimento", "Despesas", "Quanto sobrou (DRE)", "Fechamento do mês"],
                 destaque: false,
               },
-            ].map((p, i) => (
-              <Reveal key={p.nome} delay={i * 90}>
-                <div
-                  className={
-                    "relative flex h-full flex-col rounded-2xl border bg-white p-7 " +
-                    (p.destaque ? "border-[#C9A45C] shadow-[0_24px_50px_-30px_rgba(143,107,34,.55)]" : "border-[#E6DDCB]")
-                  }
-                >
-                  {p.destaque && (
-                    <span className="absolute -top-3 left-6 rounded-full bg-[#16140F] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#E0AE58]">
-                      Recomendado
-                    </span>
-                  )}
-                  <p className="text-sm font-semibold">{p.nome}</p>
-                  <p className="mt-3 font-brand text-[2.6rem] leading-none tracking-[-0.03em]">
-                    R$ {p.plano.mensal}
-                    <span className="text-base text-[#5A554C]">/mês</span>
-                  </p>
-                  <p className="mt-2 text-sm font-medium text-[#8F6B22]">Até {p.plano.tetoDeBarbeiros} barbeiros</p>
-                  <ul className="mt-6 flex flex-col gap-2.5 border-t border-[#EFE8DA] pt-5">
-                    {p.itens.map((t) => (
-                      <li key={t} className="flex items-start gap-2 text-sm text-[#3A352C]">
-                        <Check size={16} className="mt-0.5 shrink-0 text-[#8F6B22]" />
-                        {t}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </Reveal>
-            ))}
-          </div>
+            ]}
+          />
           <div className="mt-8 grid gap-4 md:grid-cols-[1fr_auto] md:items-center">
             <p className="text-sm text-[#5A554C]">
               <span className="font-semibold text-[#16140F]">Barbeiro extra:</span> R${" "}

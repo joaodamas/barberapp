@@ -38,6 +38,15 @@ describe("resposta do Hub", () => {
     expect(r.boletos[1]).toMatchObject({ situacao: "pago", pagoEm: "2026-09-09" });
   });
 
+  it("assinatura anual traz ciclo e valorCiclo; Hub antigo sem eles vira nulo", () => {
+    const anual = lerRespostaDoHub({
+      assinatura: { plano: "Agenda", valor: 80.83, ciclo: "anual", valorCiclo: 970, status: "ativo", proximoVencimento: "2027-10-10" },
+    });
+    expect(anual.assinatura).toMatchObject({ ciclo: "anual", valorCiclo: 970, proximoVencimento: "2027-10-10" });
+    const antigo = lerRespostaDoHub({ assinatura: { plano: "Agenda", valor: 97, ciclo: "mensal" } });
+    expect(antigo.assinatura.valorCiclo).toBeNull();
+  });
+
   it("boleto sem id, sem valor ou com data torta sai da lista em vez de aparecer quebrado", () => {
     const r = lerRespostaDoHub({
       cobrancas: [
@@ -53,7 +62,7 @@ describe("resposta do Hub", () => {
   it("resposta vazia não quebra e não inventa nada", () => {
     const r = lerRespostaDoHub(null);
     expect(r.boletos).toEqual([]);
-    expect(r.assinatura).toEqual({ plano: null, valor: null, ciclo: null, status: null, proximoVencimento: null });
+    expect(r.assinatura).toEqual({ plano: null, valor: null, ciclo: null, valorCiclo: null, status: null, proximoVencimento: null });
   });
 
   it("no máximo 12 boletos", () => {

@@ -3,15 +3,18 @@ import {
   DESCONTO_FUNDADOR,
   PRECOS_POR_PLANO,
   barbeirosExtras,
+  ANUAL_DISPONIVEL,
+  economiaDoAnual,
+  equivalenteMensalDoAnual,
   precoDoPlano,
   valorMensal,
 } from "../plans";
 
 describe("tabela de preços (29/09)", () => {
   it("mensalidade e teto de cada plano", () => {
-    expect(precoDoPlano("agenda")).toEqual({ mensal: 97, tetoDeBarbeiros: 3, barbeiroExtra: 19 });
-    expect(precoDoPlano("crescimento")).toEqual({ mensal: 197, tetoDeBarbeiros: 6, barbeiroExtra: 19 });
-    expect(precoDoPlano("gestao")).toEqual({ mensal: 247, tetoDeBarbeiros: 10, barbeiroExtra: 19 });
+    expect(precoDoPlano("agenda")).toEqual({ mensal: 97, anual: 970, tetoDeBarbeiros: 3, barbeiroExtra: 19 });
+    expect(precoDoPlano("crescimento")).toEqual({ mensal: 197, anual: 1970, tetoDeBarbeiros: 6, barbeiroExtra: 19 });
+    expect(precoDoPlano("gestao")).toEqual({ mensal: 247, anual: 2470, tetoDeBarbeiros: 10, barbeiroExtra: 19 });
   });
 
   it("plano de cima nunca cobre menos gente que o de baixo", () => {
@@ -22,6 +25,25 @@ describe("tabela de preços (29/09)", () => {
 
   it("fundadores: 30% nas 20 primeiras", () => {
     expect(DESCONTO_FUNDADOR).toEqual({ percentual: 30, vagas: 20, meses: 1 });
+  });
+});
+
+describe("plano anual (2 meses grátis)", () => {
+  it("paga 10 mensalidades de tabela", () => {
+    for (const p of Object.values(PRECOS_POR_PLANO)) expect(p.anual).toBe(p.mensal * 10);
+  });
+
+  it("equivalente por mês, em centavos, e economia", () => {
+    expect(equivalenteMensalDoAnual(970)).toBe(80.83);
+    expect(equivalenteMensalDoAnual(1970)).toBe(164.17);
+    expect(equivalenteMensalDoAnual(2470)).toBe(205.83);
+    expect(economiaDoAnual("agenda")).toBe(194);
+    expect(economiaDoAnual("crescimento")).toBe(394);
+    expect(economiaDoAnual("gestao")).toBe(494);
+  });
+
+  it("a trava nasce desligada", () => {
+    expect(ANUAL_DISPONIVEL).toBe(false);
   });
 });
 

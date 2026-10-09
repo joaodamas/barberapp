@@ -67,6 +67,8 @@ export type AssinaturaNoHub = {
   plano: string | null;
   valor: number | null;
   ciclo: string | null;
+  /** Total do ciclo em R$ (no anual, o valor à vista); ausente em Hub antigo. */
+  valorCiclo: number | null;
   /** Status comercial no Hub (ativo, trial, suspenso…). */
   status: string | null;
   proximoVencimento: string | null;
@@ -105,6 +107,7 @@ export function lerRespostaDoHub(corpo: unknown): { assinatura: AssinaturaNoHub;
       plano: texto(a.plano),
       valor: numero(a.valor),
       ciclo: texto(a.ciclo),
+      valorCiclo: numero(a.valorCiclo),
       status: texto(a.status),
       proximoVencimento: texto(a.proximoVencimento),
     },
