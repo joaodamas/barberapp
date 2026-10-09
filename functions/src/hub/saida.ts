@@ -112,6 +112,9 @@ export async function enfileirarSeNovo(
 
 const RESERVA_MS = 60_000;
 const TEMPO_LIMITE_MS = 15_000;
+/** Limite da function de reenvio e o quanto dele se gasta antes de parar (sobra a folga de um envio). */
+const TEMPO_DA_ROTINA_S = 300;
+const ORCAMENTO_DA_ROTINA_MS = (TEMPO_DA_ROTINA_S - 45) * 1000;
 
 export function projetoAtual(): string {
   if (process.env.GCLOUD_PROJECT) return process.env.GCLOUD_PROJECT;
@@ -222,6 +225,7 @@ export const reenviarAvisosAoHub = onSchedule(
     timeZone: "America/Sao_Paulo",
     region: "southamerica-east1",
     secrets: [PLATAFORMA_TOKEN],
+    timeoutSeconds: TEMPO_DA_ROTINA_S,
   },
   async () => {
     const db = getFirestore();
@@ -233,9 +237,23 @@ export const reenviarAvisosAoHub = onSchedule(
       .orderBy("proximaTentativaEmMs")
       .limit(200)
       .get();
+    let tentados = 0;
     for (const d of naHora.docs) {
-      await entregarAviso(d.ref, PLATAFORMA_TOKEN.value());
+      /* Orçamento de tempo: com o Hub lento, 200 avisos de 15 s estourariam o
+       * limite da function no meio de um envio. Parar ANTES do próximo deixa o
+       * resto intacto — segue `pendente` e na hora, e é o primeiro da fila na
+       * rodada seguinte (a consulta ordena pela próxima tentativa). */
+      if (Date.now() - agora > ORCAMENTO_DA_ROTINA_MS) break;
+      try {
+        await entregarAviso(d.ref, PLATAFORMA_TOKEN.value());
+      } catch (erro) {
+        console.error(`[hub] aviso ${d.id}: reenvio falhou`, erro);
+      }
+      tentados++;
     }
-    if (naHora.size) console.log(`[hub] ${naHora.size} aviso(s) na hora reenviado(s)`);
+    if (tentados < naHora.size) {
+      console.warn(`[hub] tempo da rotina acabou: ${naHora.size - tentados} aviso(s) ficaram para a próxima rodada`);
+    }
+    if (tentados) console.log(`[hub] ${tentados} aviso(s) na hora reenviado(s)`);
   }
 );

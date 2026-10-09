@@ -28,6 +28,9 @@
  *   BUILD_ESPERADO  identidade do build recém-publicado (12 primeiros
  *                   caracteres do commit, a mesma de `next.config.ts`). Quando
  *                   presente, o cenário 1 exige o worker `?v=<build>`.
+ *   FUMACA_EMAIL / FUMACA_SENHA  OPCIONAIS. A conta de teste de uma barbearia
+ *                   isolada: com as duas, entra pelo /login e confere que o
+ *                   /painel abre a tela Hoje sem erro de leitura. Sem elas, pula.
  *   DETALHE         `completo` (padrão: diário e print na falha) ou `resumo`
  *                   (produção: o repositório é público, e o diário leva console
  *                   e endereços do site dos clientes — sai só o veredito).
@@ -230,6 +233,53 @@ async function loginHidrata(context) {
   return erros;
 }
 
+/**
+ * OPCIONAL — o painel logado. Só roda com `FUMACA_EMAIL` e `FUMACA_SENHA` (a
+ * conta de teste de uma barbearia isolada, ver docs/MONITORAMENTO.md): entra
+ * pelo `/login`, espera o `/painel` abrir a tela Hoje e exige que NENHUM
+ * `ErroAoCarregar` apareça. É o "listener que o Firestore recusou" — regra
+ * publicada errada, índice faltando — que o agendar anônimo não enxerga.
+ * Sem os segredos, avisa e segue: nunca falha por falta de conta.
+ */
+async function painelSemErroDeLeitura(context) {
+  const nome = "painel logado";
+  const { page, erros, diario } = await abrirAba(context);
+  try {
+    await page.goto(`${SITE}/login`, { waitUntil: "domcontentloaded", timeout: 60_000 });
+    const email = page.locator("#login-email");
+    await email.waitFor({ timeout: 45_000 });
+    // Texto digitado antes da hidratação pode ser descartado: repete até o botão habilitar.
+    const entrar = page.locator("form:has(#login-email) button[type=submit]");
+    let pronto = false;
+    for (let i = 0; i < 15 && !pronto; i++) {
+      await email.fill(process.env.FUMACA_EMAIL);
+      await page.locator("#login-password").fill(process.env.FUMACA_SENHA);
+      for (let j = 0; j < 6 && !pronto; j++) {
+        pronto = await entrar.first().isEnabled().catch(() => false);
+        if (!pronto) await esperar(500);
+      }
+    }
+    if (!pronto) throw new Error("o botão de entrar não habilitou");
+    await entrar.first().click();
+    await page.waitForURL((u) => u.pathname.startsWith("/painel"), { timeout: 45_000 });
+    // A tela Hoje: o texto aparece quando a agenda do dia hidratou.
+    await page.getByText("Hoje", { exact: true }).first().waitFor({ timeout: 45_000 });
+    // Dá tempo de os listeners do Firestore responderem (ou serem recusados).
+    await esperar(8_000);
+    const alerta = page.locator('[role="alert"]', { hasText: /Não foi possível carregar/ });
+    if (await alerta.count()) {
+      const texto = ((await alerta.first().innerText().catch(() => "")) || "").replace(/\s+/g, " ").slice(0, 120);
+      erros.push(`a tela Hoje mostrou erro de leitura: "${texto}"`);
+    }
+  } catch (e) {
+    const tela = await registrarTravamento(page, diario, nome);
+    erros.push(`${nome}: ${e.message.split("\n")[0]}${tela}`);
+  }
+  if (!erros.length) console.log(`  ${nome}: /painel abriu a tela Hoje sem erro de leitura`);
+  await page.close();
+  return erros;
+}
+
 // ── Fase "antes": instala o worker da versão que está no ar ───────────────
 if (FASE === "antes") {
   if (!PERFIL) {
@@ -292,6 +342,17 @@ try {
   // A volta: mesma sessão, service worker já instalado.
   anotarFalhas("volta", await visita(context, "volta ao app"));
   anotarFalhas("login", await loginHidrata(context));
+  if (process.env.FUMACA_EMAIL && process.env.FUMACA_SENHA) {
+    // Contexto próprio: a sessão do login de teste não vaza para outras visitas.
+    const logado = await browser.newContext(IPHONE);
+    try {
+      anotarFalhas("painel", await painelSemErroDeLeitura(logado));
+    } finally {
+      await logado.close();
+    }
+  } else {
+    console.log("  AVISO: sem FUMACA_EMAIL/FUMACA_SENHA — o passo do painel logado foi pulado");
+  }
 } catch (e) {
   falhas.push(`o passo travou: ${e.message.split("\n")[0]}`);
 } finally {

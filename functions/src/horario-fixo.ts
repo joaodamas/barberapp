@@ -604,13 +604,20 @@ export function lojaRecebeReservaDoFixo(shop: FirebaseFirestore.DocumentData | u
  * Idempotente: roda de novo e só cria o que falta.
  */
 export const garantirHorariosFixos = onSchedule(
-  { schedule: "15 3 * * *", timeZone: "America/Sao_Paulo" },
+  { schedule: "15 3 * * *", timeZone: "America/Sao_Paulo", timeoutSeconds: 540 },
   async () => {
     const db = getFirestore();
     const lojas = await db.collection("barbershops").get();
     for (const loja of lojas.docs) {
       if (!lojaRecebeReservaDoFixo(loja.data())) continue;
-      const assinaturas = await loja.ref.collection("subscriptions").where("status", "==", "ativo").get();
+      /* A consulta de uma loja que falha não derruba as outras. */
+      let assinaturas: FirebaseFirestore.QuerySnapshot;
+      try {
+        assinaturas = await loja.ref.collection("subscriptions").where("status", "==", "ativo").get();
+      } catch (err) {
+        console.error(`[horario-fixo] ${loja.id}: leitura das assinaturas falhou`, err);
+        continue;
+      }
       for (const a of assinaturas.docs) {
         if (!a.get("horarioFixo")) continue;
         try {

@@ -1,0 +1,22 @@
+{
+  "displayName": "Topete · alerta da plataforma",
+  "documentation": {
+    "mimeType": "text/markdown",
+    "content": "**Uma rotina da plataforma registrou um alerta próprio** (hoje: a conferência noturna do financeiro).\n\nO log traz `alertaDaPlataforma=true` e o campo `tipo`. O que olhar:\n\n1. Abra o link \"Ver logs\" e leia o `tipo` e o resumo (`refeitos`, `pendentes`, `falhas`).\n2. O mesmo registro está no Firestore, na coleção `alertas_da_plataforma` (projeto certo, console do Firebase), com a data.\n3. `pendentes` são conclusões refeitas sem comissão do ciclo: precisam de um olhar humano. `falhas` dizem a barbearia e a reserva.\n\nMáximo de um e-mail a cada 10 minutos; fecha sozinho depois de 1 dia."
+  },
+  "combiner": "OR",
+  "conditions": [
+    {
+      "displayName": "Log com alertaDaPlataforma=true",
+      "conditionMatchedLog": {
+        "filter": "jsonPayload.alertaDaPlataforma=true"
+      }
+    }
+  ],
+  "alertStrategy": {
+    "notificationRateLimit": { "period": "600s" },
+    "autoClose": "86400s"
+  },
+  "notificationChannels": ["__CANAL__"],
+  "enabled": true
+}

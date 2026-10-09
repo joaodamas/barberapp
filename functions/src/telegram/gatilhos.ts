@@ -140,10 +140,31 @@ async function porLoja(rotina: string, shopRef: DocumentReference, fn: () => Pro
   }
 }
 
+/**
+ * Roda `fn` até `tentativas` vezes, esperando `esperaMs` entre elas, e lança o
+ * último erro se todas falharem (aí a function falha e o log vira alerta).
+ */
+export async function comNovasTentativas<T>(fn: () => Promise<T>, tentativas: number, esperaMs: number): Promise<T> {
+  for (let i = 1; ; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      if (i >= tentativas) throw e;
+      logger.warn(`[telegram] leitura inicial falhou (tentativa ${i} de ${tentativas}); tentando de novo`, {
+        erro: e instanceof Error ? e.message : String(e),
+      });
+      await new Promise((ok) => setTimeout(ok, esperaMs));
+    }
+  }
+}
+
 /** Barbearias com alguém ligado e que estão funcionando. */
 async function lojasComContatos(): Promise<Array<{ shopRef: DocumentReference; contatos: Contato[] }>> {
   const db = getFirestore();
-  const lojas = await db.collection("barbershops").get();
+  /* Esta leitura é o ponto único de falha da rodada (às 7h e às 21h): se ela
+   * cai, nenhuma loja recebe nada. Um solavanco do Firestore se resolve em
+   * segundos, então tenta de novo na própria rodada antes de desistir. */
+  const lojas = await comNovasTentativas(() => db.collection("barbershops").get(), 3, 2_000);
   const out: Array<{ shopRef: DocumentReference; contatos: Contato[] }> = [];
   const abertas = lojas.docs.filter((l) => !["encerrada", "suspenso"].includes(String(l.get("status"))));
   await emLotes(abertas, TAMANHO_DO_LOTE, (l) =>

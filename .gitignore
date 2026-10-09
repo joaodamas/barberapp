@@ -23,6 +23,8 @@ yarn-error.log*
 # Parâmetros (não segredos) das functions: o deploy não interativo exige o
 # valor aqui, mesmo com `default` no defineString (08/10).
 !functions/.env
+# E o da produção (`.env.<projectId>`, lido por cima do `.env`): só parâmetros.
+!functions/.env.axon-barber
 
 # vercel
 .vercel
