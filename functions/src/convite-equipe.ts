@@ -3,6 +3,7 @@ import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { getAuth } from "firebase-admin/auth";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { exigirEdicao, idSeguro, vinculosDe } from "./acesso";
+import { mutarClaims } from "./claims";
 
 /**
  * Acesso do barbeiro ao sistema — convite e ativação automática (05/10).
@@ -157,25 +158,25 @@ export async function definirAcessoDeBarbeiro(params: {
   staffId: string | null;
   revogarSessao: boolean;
 }): Promise<void> {
-  const auth = getAuth();
-  const user = await auth.getUser(params.uid);
-  const claims = { ...(user.customClaims ?? {}) } as Record<string, unknown>;
-  const barbershops = { ...((claims.barbershops as Record<string, string>) ?? {}) };
-  const equipe = { ...((claims.equipe as Record<string, string>) ?? {}) };
+  await mutarClaims(params.uid, (claims) => {
+    const barbershops = { ...((claims.barbershops as Record<string, string>) ?? {}) };
+    const equipe = { ...((claims.equipe as Record<string, string>) ?? {}) };
 
-  if (params.staffId) {
-    if (barbershops[params.barbershopId] !== "owner") barbershops[params.barbershopId] = "staff";
-    equipe[params.barbershopId] = params.staffId;
-  } else {
-    if (barbershops[params.barbershopId] === "staff") delete barbershops[params.barbershopId];
-    delete equipe[params.barbershopId];
-  }
+    if (params.staffId) {
+      if (barbershops[params.barbershopId] !== "owner") barbershops[params.barbershopId] = "staff";
+      equipe[params.barbershopId] = params.staffId;
+    } else {
+      if (barbershops[params.barbershopId] === "staff") delete barbershops[params.barbershopId];
+      delete equipe[params.barbershopId];
+    }
 
-  await auth.setCustomUserClaims(params.uid, { ...claims, barbershops, equipe });
+    claims.barbershops = barbershops;
+    claims.equipe = equipe;
+  });
   /* Retirar acesso precisa valer já: revogar força o token novo, sem o
    * papel. Dar acesso NÃO revoga — derrubaria a sessão que o barbeiro acabou
    * de abrir para aceitar; a tela renova o token sozinha. */
-  if (params.revogarSessao) await auth.revokeRefreshTokens(params.uid);
+  if (params.revogarSessao) await getAuth().revokeRefreshTokens(params.uid);
 }
 
 /** Cancela os convites em aberto deste barbeiro. Devolve quantos. */

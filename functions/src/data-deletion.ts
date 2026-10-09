@@ -2,6 +2,7 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { vinculosDe } from "./acesso";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { getAuth, type Auth } from "firebase-admin/auth";
+import { mutarClaims } from "./claims";
 import { FieldValue, getFirestore, type Firestore, type QueryDocumentSnapshot } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { semIdentificacao } from "./anonimizacao";
@@ -291,7 +292,13 @@ async function tratarContas(ctx: Contexto, membros: QueryDocumentSnapshot[]): Pr
       await ctx.db.doc(`platform_users/${uid}`).delete();
       await ctx.auth.deleteUser(uid);
     } else {
-      await ctx.auth.setCustomUserClaims(uid, { ...claims, barbershops: vinculos });
+      await mutarClaims(
+        uid,
+        (atuais) => {
+          atuais.barbershops = vinculos;
+        },
+        ctx.auth
+      );
       // O claim antigo continuaria valendo até o token vencer.
       await ctx.auth.revokeRefreshTokens(uid);
     }
