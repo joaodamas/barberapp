@@ -46,8 +46,9 @@ describe("lerReais", () => {
 });
 
 describe("lerPercentual — taxa não tem milhar", () => {
-  it("4.199 é 4,199%, não R$ 4.199", () => {
-    expect(lerPercentual("4.199")).toBe(4.2);
+  it("4.199 não vira R$ 4.199: percentual com 3 casas é recusado, não arredondado", () => {
+    expect(lerPercentual("4.199")).toBeNull();
+    expect(lerPercentual("4,199")).toBeNull();
     expect(lerReais("4.199")).toBe(4199); // o defeito que o leitor de dinheiro causaria
   });
   it("vírgula ou ponto são decimais", () => {

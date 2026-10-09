@@ -8,7 +8,7 @@ import { Pill } from "@/components/ui/pill";
 import { Modal } from "@/components/ui/modal";
 import { formatBRL } from "@/lib/format";
 import { contar } from "@/lib/plural";
-import { lerReais, VALOR_ILEGIVEL } from "@/lib/reais";
+import { lerPercentual, lerReais, VALOR_ILEGIVEL } from "@/lib/reais";
 import { useProducts } from "@/lib/db/use-shop-data";
 import { useFeature, useTenant } from "@/lib/tenant-context";
 import { RecursoBloqueado } from "@/components/recurso-bloqueado";
@@ -84,7 +84,7 @@ function LojaConteudo() {
 
   const preview = useMemo(() => {
     const cost = Math.max(lerReais(form.cost) ?? 0, 0);
-    const rawPct = lerReais(form.profitPct) ?? 0;
+    const rawPct = lerPercentual(form.profitPct) ?? 0;
     const profitPct = Math.min(Math.max(rawPct, 0), MAX_PROFIT_PCT);
     const clamped = rawPct !== profitPct;
     const price = cost / (1 - profitPct / 100);

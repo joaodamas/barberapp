@@ -47,6 +47,7 @@ export function EditorDeFormasDePagamento({
   const [novoLabel, setNovoLabel] = useState("");
   const [novaBase, setNovaBase] = useState<MeioDePagamento>("credit");
   const [novaTaxa, setNovaTaxa] = useState("");
+  const [erroNova, setErroNova] = useState<string | null>(null);
 
   const nativos = new Set(FORMAS_NATIVAS.map((f) => f.id));
 
@@ -57,13 +58,20 @@ export function EditorDeFormasDePagamento({
   function adicionar() {
     const label = novoLabel.trim();
     if (!label) return;
+    /* Taxa em branco é 0%; ilegível ou acima de 100 NÃO entra como 0% em silêncio. */
+    const taxa = novaTaxa.trim() === "" ? 0 : lerPercentual(novaTaxa);
+    if (taxa === null) {
+      setErroNova("Taxa inválida. Use um percentual de 0 a 100, com até 2 casas (ex.: 3,49).");
+      return;
+    }
+    setErroNova(null);
     onChange([
       ...formas,
       {
         id: idDaForma(label, formas.map((f) => f.id)),
         label,
         base: novaBase,
-        feePct: paraTaxa(novaTaxa),
+        feePct: taxa,
         active: true,
       },
     ]);
@@ -104,6 +112,7 @@ export function EditorDeFormasDePagamento({
                   aria-label={`Taxa de ${forma.label}`}
                   /* Não controlado: o texto só vira número ao sair do campo
                      (digitar "3," não pode ser reescrito a cada tecla). */
+                  key={`${forma.id}:${forma.feePct}`}
                   defaultValue={String(forma.feePct).replace(".", ",")}
                   onBlur={(e) => {
                     const taxa = lerPercentual(e.target.value);
@@ -209,6 +218,11 @@ export function EditorDeFormasDePagamento({
             <Plus size={16} aria-hidden /> Adicionar
           </Button>
         </div>
+        {erroNova && (
+          <p role="alert" className="text-xs text-danger">
+            {erroNova}
+          </p>
+        )}
         <p className="text-xs text-ink-muted">
           <strong className="text-ink">Entra como</strong> é o que o relatório vai
           contar: uma forma de crédito soma em cartão no fluxo de caixa, seja qual
@@ -229,9 +243,3 @@ const NOME_DO_MEIO: Record<MeioDePagamento, string> = {
   debit: "Débito",
   credit: "Crédito",
 };
-
-/** Vírgula aceita, negativo não, e o teto é 100 — acima disso é digitação. */
-function paraTaxa(valor: string): number {
-  /* Percentual, não dinheiro: "4.199" é 4,199% e não 4199 (ver `lerPercentual`). */
-  return lerPercentual(valor) ?? 0;
-}

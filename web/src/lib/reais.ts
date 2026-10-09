@@ -68,7 +68,7 @@ export function reaisParaCampo(valor: number | null | undefined): string {
  *
  * Não usa `lerReais`: percentual não tem milhar. "4.199" é 4,199% (o
  * `type="number"` entrega assim), e como dinheiro viraria 4199 e bateria no
- * teto de 100%. Vírgula ou ponto são sempre decimais, até 3 casas. `%` e
+ * teto de 100%. Vírgula ou ponto são sempre decimais, até 2 casas. `%` e
  * espaços são ignorados; fora de 0–100 ou ilegível devolve `null`.
  */
 export function lerPercentual(texto: string | number | null | undefined): number | null {
@@ -76,7 +76,7 @@ export function lerPercentual(texto: string | number | null | undefined): number
     return Number.isFinite(texto) && texto >= 0 && texto <= 100 ? Math.round(texto * 100) / 100 : null;
   }
   const limpo = String(texto ?? "").replace(/%/g, "").replace(/[\s ]/g, "");
-  if (!/^\d+([.,]\d{1,3})?$/.test(limpo)) return null;
+  if (!/^\d+([.,]\d{1,2})?$/.test(limpo)) return null;
   const n = Number(limpo.replace(",", "."));
   return n <= 100 ? Math.round(n * 100) / 100 : null;
 }
