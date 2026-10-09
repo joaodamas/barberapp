@@ -32,7 +32,7 @@ describe("grade por barbeiro", () => {
 
   it("atendimento de 60 min tira duas linhas de livre", () => {
     const g = montarGrade({ ...base, equipe: [ana], reservas: [res("a", "ana", "10:00", 60)] });
-    expect(g.colunas[0].livres).toEqual([540, 570, 630, 660]);
+    expect(g.colunas[0].livres).toEqual([540, 570, 660, 690]);
   });
 
   it("encaixe sobreposto na MESMA coluna abre a segunda faixa", () => {
@@ -62,8 +62,8 @@ describe("grade por barbeiro", () => {
     const g = montarGrade({ ...base, equipe: [ana, tarde], reservas: [] });
     expect(g.abre).toBe(540);
     expect(g.fecha).toBe(720);
-    expect(g.colunas[1].livres).toEqual([630, 660]);
-    expect(g.colunas[0].livres).toEqual([540, 570, 600, 630, 660]);
+    expect(g.colunas[1].livres).toEqual([630, 660, 690]);
+    expect(g.colunas[0].livres).toEqual([540, 570, 600, 630, 660, 690]);
   });
 
   it("intervalo é por barbeiro", () => {
