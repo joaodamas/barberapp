@@ -75,6 +75,33 @@ export function svgDoMonograma(nome: string, cor: unknown): string {
   ].join("");
 }
 
+/**
+ * Estilos de monograma que o dono pode escolher em "Sua marca" para virar o
+ * ícone — o "robô" que faz o logo a partir do nome e da cor, sem serviço
+ * externo. `circulo` é o mesmo desenho do monograma automático.
+ */
+export const ESTILOS_DO_MONOGRAMA = [
+  { id: "circulo", nome: "Círculo" },
+  { id: "quadrado", nome: "Quadrado" },
+  { id: "letra", nome: "Só letra" },
+] as const;
+export type EstiloDoMonograma = (typeof ESTILOS_DO_MONOGRAMA)[number]["id"];
+
+/** SVG 512×512 do monograma no estilo pedido. `letra` não tem fundo: a tinta é a cor da marca. */
+export function svgDoMonogramaEstilo(nome: string, cor: unknown, estilo: EstiloDoMonograma): string {
+  if (estilo === "circulo") return svgDoMonograma(nome, cor);
+  const fundo = corValida(cor);
+  const iniciais = escaparXml(iniciaisDe(nome));
+  const letra = estilo === "letra";
+  const tamanho = letra ? (iniciais.length > 1 ? 300 : 380) : iniciais.length > 1 ? 196 : 232;
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="${escaparXml(String(nome ?? ""))}">`,
+    letra ? "" : `<rect width="512" height="512" rx="112" fill="${fundo}"/>`,
+    `<text x="256" y="256" dy="0.35em" text-anchor="middle" font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif" font-weight="700" font-size="${tamanho}" fill="${letra ? fundo : tintaSobre(fundo)}">${iniciais}</text>`,
+    `</svg>`,
+  ].join("");
+}
+
 /** Caminho do monograma servido por `app/marca.svg/route.ts`. */
 export const MARCA_GERADA = "/marca.svg";
 
