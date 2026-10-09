@@ -12,7 +12,24 @@ import {
   type ArquivoDaMarca,
   type FundoDoIcone,
 } from "@/lib/logo-da-marca";
-import { logoNoIcone, retanguloNoQuadrado, type Enquadramento } from "@/lib/recorte-do-logo";
+import {
+  logoNoIcone,
+  retanguloNoQuadrado,
+  tamanhoDaFonte,
+  type Enquadramento,
+  type FonteDoLogo,
+} from "@/lib/recorte-do-logo";
+import {
+  analisar,
+  caixaDoSimbolo,
+  comMargem,
+  fracaoApagadaSobre,
+  removerFundo,
+  type AnaliseDoLogo,
+  type Caixa,
+  type PixelsLike,
+} from "@/lib/analise-do-logo";
+import { svgDoMonogramaEstilo, type EstiloDoMonograma } from "@/lib/monograma";
 
 /**
  * Do arquivo escolhido aos PNG que vão para o Storage — a parte que só existe
@@ -49,16 +66,118 @@ export function carregarImagem(arquivo: File): Promise<HTMLImageElement> {
 }
 
 /** O logo recortado num quadrado de `lado` px, fundo transparente. */
-export function desenharRecorte(imagem: HTMLImageElement, enquadramento: Enquadramento, lado = LADO_DO_LOGO) {
+export function desenharRecorte(imagem: FonteDoLogo, enquadramento: Enquadramento, lado = LADO_DO_LOGO) {
   const canvas = document.createElement("canvas");
   canvas.width = lado;
   canvas.height = lado;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas indisponível.");
   ctx.imageSmoothingQuality = "high";
-  const { dx, dy, dw, dh } = retanguloNoQuadrado(imagem.naturalWidth, imagem.naturalHeight, lado, enquadramento);
+  const { largura, altura } = tamanhoDaFonte(imagem);
+  const { dx, dy, dw, dh } = retanguloNoQuadrado(largura, altura, lado, enquadramento);
   ctx.drawImage(imagem, dx, dy, dw, dh);
   return canvas;
+}
+
+/* ── Ajudas automáticas (contas em `lib/analise-do-logo.ts`) ───────────── */
+
+/** Maior lado do canvas de trabalho: o arquivo final tem 512, então 2048 sobra. */
+const LADO_DE_TRABALHO = 2048;
+
+function lerPixels(canvas: HTMLCanvasElement): PixelsLike | null {
+  try {
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    return ctx ? ctx.getImageData(0, 0, canvas.width, canvas.height) : null;
+  } catch {
+    /* canvas "sujo" (alguns SVG): sem ler pixel, sem ajuda automática. */
+    return null;
+  }
+}
+
+function canvasDePixels(pixels: PixelsLike): HTMLCanvasElement {
+  const canvas = document.createElement("canvas");
+  canvas.width = pixels.width;
+  canvas.height = pixels.height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas indisponível.");
+  ctx.putImageData(new ImageData(new Uint8ClampedArray(pixels.data), pixels.width, pixels.height), 0, 0);
+  return canvas;
+}
+
+/** A imagem escolhida num canvas de até 2048 px, e o que dá para saber dela. */
+export type BaseDoLogo = {
+  canvas: HTMLCanvasElement;
+  pixels: PixelsLike | null;
+  analise: AnaliseDoLogo | null;
+  /** O símbolo isolado (ou o quadrado de reserva) dentro da caixa do conteúdo. */
+  simbolo: { caixa: Caixa; confiavel: boolean } | null;
+};
+
+export function prepararBase(imagem: HTMLImageElement): BaseDoLogo {
+  const escala = Math.min(1, LADO_DE_TRABALHO / Math.max(imagem.naturalWidth, imagem.naturalHeight));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(imagem.naturalWidth * escala));
+  canvas.height = Math.max(1, Math.round(imagem.naturalHeight * escala));
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) throw new Error("Canvas indisponível.");
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(imagem, 0, 0, canvas.width, canvas.height);
+  const pixels = lerPixels(canvas);
+  const analise = pixels ? analisar(pixels) : null;
+  const simbolo =
+    pixels && analise?.caixa ? caixaDoSimbolo(pixels, analise.fundo, analise.caixa) : null;
+  return { canvas, pixels, analise, simbolo };
+}
+
+/**
+ * A fonte do recorte: a base, com o fundo removido se pedido e aparada na
+ * `caixa` (com uma margem pequena para o logo não encostar na borda).
+ */
+export function montarFonte(
+  base: BaseDoLogo,
+  opcoes: { caixa: Caixa | null; semFundo: boolean }
+): HTMLCanvasElement {
+  let origem = base.canvas;
+  if (opcoes.semFundo && base.pixels && base.analise?.podeRemoverFundo) {
+    origem = canvasDePixels(removerFundo(base.pixels, base.analise.fundo));
+  }
+  if (!opcoes.caixa) return origem;
+  const c = comMargem(opcoes.caixa, 0.06, origem.width, origem.height);
+  const saida = document.createElement("canvas");
+  saida.width = c.w;
+  saida.height = c.h;
+  const ctx = saida.getContext("2d");
+  if (!ctx) throw new Error("Canvas indisponível.");
+  ctx.drawImage(origem, c.x, c.y, c.w, c.h, 0, 0, c.w, c.h);
+  return saida;
+}
+
+/** Quanto do conteúdo some sobre o fundo claro e o escuro do app (0 a 1). */
+export function apagamentoDoLogo(fonte: HTMLCanvasElement) {
+  const pixels = lerPixels(fonte);
+  if (!pixels) return { claro: 0, escuro: 0 };
+  return {
+    claro: fracaoApagadaSobre(pixels, FUNDOS_DO_ICONE.claro),
+    escuro: fracaoApagadaSobre(pixels, FUNDOS_DO_ICONE.escuro),
+  };
+}
+
+/** O monograma desenhado em 512×512 — entra no mesmo caminho do logo enviado. */
+export function desenharMonograma(nome: string, cor: string, estilo: EstiloDoMonograma): Promise<HTMLCanvasElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = LADO_DO_LOGO;
+      canvas.height = LADO_DO_LOGO;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return reject(new Error("Canvas indisponível."));
+      ctx.drawImage(img, 0, 0, LADO_DO_LOGO, LADO_DO_LOGO);
+      resolve(canvas);
+    };
+    img.onerror = () => reject(new Error("Não consegui desenhar o monograma."));
+    img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgDoMonogramaEstilo(nome, cor, estilo))}`;
+  });
 }
 
 /**

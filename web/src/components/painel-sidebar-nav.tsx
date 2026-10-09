@@ -35,7 +35,7 @@ export function PainelSidebarNav() {
         href="/painel"
         className="flex items-center gap-3 px-6 pb-6 pt-8"
       >
-        <Image src={brand.logo} unoptimized={logoSemOtimizar(brand.logo)} alt="" width={38} height={38} priority />
+        <Image src={brand.logo} unoptimized={logoSemOtimizar(brand.logo)} alt="" width={38} height={38} priority className="shrink-0 rounded-lg object-contain" />
         <div className="leading-tight">
           <p className="font-display text-base uppercase tracking-wider text-ink">
             {brand.shortName}

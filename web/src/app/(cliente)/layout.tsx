@@ -35,7 +35,7 @@ export default async function ClienteLayout({
         <div className="flex min-h-full w-full flex-1 flex-col md:h-full md:overflow-hidden">
           <header className="safe-top flex items-center gap-2.5 px-4 pb-3 pt-4 md:hidden">
             <Link href="/" className="flex items-center gap-2.5">
-              <Image src={brand.logo} unoptimized={logoSemOtimizar(brand.logo)} alt="" width={32} height={32} priority />
+              <Image src={brand.logo} unoptimized={logoSemOtimizar(brand.logo)} alt="" width={32} height={32} priority className="shrink-0 rounded-md object-contain" />
               <span className="font-display text-sm uppercase tracking-wider text-ink">
                 {brand.shortName}
               </span>
