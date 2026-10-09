@@ -59,11 +59,22 @@ export type ClientDoc = {
    * com conta no app. Nulo no caso normal.
    */
   mergedInto?: string | null;
-  /** Indício, não decisão: cadastro de balcão com o mesmo WhatsApp. */
+  /**
+   * Indício, não decisão — gravado no CADASTRO DE BALCÃO (09/10): contas do
+   * app que informaram o mesmo WhatsApp. Fica no cadastro que o cliente não
+   * lê; na conta, `clients/{uid}` é legível por ela, e o indício virava um
+   * oráculo ("este número já passou pelo balcão desta barbearia?") para quem
+   * digitasse números numa reserva.
+   */
+  contasDoMesmoNumero?: string[];
+  /** Legado: o indício que ficava na CONTA. Não é mais gravado; some na próxima reserva dela. */
   mesmoNumeroQue?: string;
   /**
-   * O WhatsApp desta CONTA foi provado (SMS) ou confirmado pelo dono no
-   * vínculo (`vinculo-de-cadastro.ts`). Só então o balcão a reusa pelo número.
+   * O WhatsApp desta CONTA foi provado: a conta entrou por SMS e o telefone
+   * verificado do token é este (`vinculo-de-cadastro.ts`). Só então o balcão a
+   * reusa pelo número. O vínculo confirmado pelo dono NÃO marca isto (09/10):
+   * o número da conta foi digitado por ela, e o dono confirma a pessoa, não a
+   * linha.
    */
   telefoneConfirmado?: boolean;
 };
@@ -131,7 +142,7 @@ export async function acharClientePorWhatsapp(params: {
   /* `active !== false` e não `active === true`: cadastro anterior ao campo não
    * o tem, e tratá-lo como inativo criaria um segundo cadastro para alguém que
    * já existe — o oposto do que esta função serve para evitar. */
-  /* Conta com `telefoneConfirmado` (vinculada por SMS ou pelo dono, 02/10)
+  /* Conta com `telefoneConfirmado` (vinculada por SMS, 02/10)
    * É a pessoa daquele número — o balcão pode reusá-la, e é o que impede o
    * cliente vinculado de virar dois cadastros de novo na próxima visita. */
   const vivo = encontrados.docs.find(
@@ -173,13 +184,14 @@ export async function acharClientePorWhatsapp(params: {
  * Até 23/09, quem aparecia com conta e o mesmo WhatsApp de um cliente de
  * balcão absorvia o cadastro dele (`active: false`, `mergedInto`). Como o
  * número não é verificado, isso era sequestro de identidade. Agora os dois
- * cadastros convivem; o de conta ganha `mesmoNumeroQue` como indício, e o
- * balcão só reusa cadastro de balcão. `mergedInto` antigo continua sendo
+ * cadastros convivem; o de balcão ganha `contasDoMesmoNumero` como indício, e
+ * o balcão só reusa cadastro de balcão. `mergedInto` antigo continua sendo
  * lido (histórico e LGPD).
  *
- * Desde 02/10 o vínculo existe COM PROVA — conta que entrou por SMS, ou o dono
- * confirmando na tela Clientes — em `vinculo-de-cadastro.ts`. A conta
- * vinculada ganha `telefoneConfirmado`, e só ela o balcão reusa pelo número.
+ * Desde 02/10 o vínculo existe — conta que entrou por SMS, ou o dono
+ * confirmando na tela Clientes — em `vinculo-de-cadastro.ts`. Só a conta que
+ * entrou por SMS ganha `telefoneConfirmado` (09/10), e só ela o balcão reusa
+ * pelo número.
  */
 export async function resolverCliente(params: {
   tx: Transaction;
@@ -217,7 +229,7 @@ export async function resolverCliente(params: {
      *
      * O número em comum fica registrado como INDÍCIO para o dono conferir,
      * nunca como decisão. */
-    const mesmoNumeroQue =
+    const balcaoDoMesmoNumero =
       existente && !jaEraEu && !existente.dados.uid ? existente.id : null;
 
     return {
@@ -236,7 +248,8 @@ export async function resolverCliente(params: {
             ...(whatsappServeComoChave(whatsapp) && !jaEraEu ? { telefoneConfirmado: false } : {}),
             origin: params.origin,
             active: true,
-            ...(mesmoNumeroQue ? { mesmoNumeroQue } : {}),
+            /* O indício antigo morava aqui, onde a própria conta o lê. */
+            mesmoNumeroQue: FieldValue.delete(),
             /* Quem foi anonimizado a pedido e volta a agendar com a conta é um
              * tratamento NOVO: o selo sai junto com a volta do nome, senão o
              * cadastro afirmaria "anonimizado" com o nome escrito ao lado. Ver
@@ -250,6 +263,12 @@ export async function resolverCliente(params: {
           },
           { merge: true }
         );
+        /* O indício vai para o cadastro de balcão, que só a barbearia lê. */
+        if (balcaoDoMesmoNumero) {
+          tx.update(clientes.doc(balcaoDoMesmoNumero), {
+            contasDoMesmoNumero: FieldValue.arrayUnion(params.uid as string),
+          });
+        }
       },
     };
   }
