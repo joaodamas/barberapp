@@ -86,7 +86,7 @@ export function MarcarNoBalcao({
     const i = diaInicial ? dias.findIndex((d) => d.iso === diaInicial && !d.disabled) : -1;
     return i >= 0 ? i : firstBookableIndex(dias);
   });
-  const [hora, setHora] = useState<string | null>(horaInicial ?? null);
+  const [horaEscolhida, setHora] = useState<string | null>(horaInicial ?? null);
   /* Encaixe do balcão (01/10): hora livre digitada, mesmo por cima de outro
    * cliente. Já nasce confirmado — quem decide que cabe é o barbeiro. */
   const [encaixando, setEncaixando] = useState(false);
@@ -209,6 +209,18 @@ export function MarcarNoBalcao({
   const horariosLivres = resposta?.chave === chave ? resposta.slots : null;
   const buscaFalhou = resposta?.chave === chave && resposta.falhou;
 
+  /* A hora que veio pré-preenchida (o "Livre · marcar" da grade) é um buraco de
+   * UMA linha; um serviço mais longo não cabe nele. Quando a lista de livres
+   * carrega e não contém a hora, ela deixa de valer — derivado, sem efeito — e
+   * a tela avisa. Fora do encaixe, a hora só é válida se está na lista. */
+  const horaPerdida =
+    !encaixando &&
+    horaEscolhida !== null &&
+    horariosLivres !== null &&
+    !buscaFalhou &&
+    !horariosLivres.includes(horaEscolhida);
+  const hora = horaPerdida ? null : horaEscolhida;
+
   /* A regra da busca mora em `lib/clientes-busca.ts`, com teste.
    *
    * Ela estava aqui e usava `normalizarWhatsapp` — a função de GRAVAR, que
@@ -241,7 +253,8 @@ export function MarcarNoBalcao({
    * (limpar() roda em fechar). Com algo escolhido ou digitado, o modal pergunta
    * antes. O dia que já vem de fora não conta como "preenchido". */
   const temAlteracao =
-    hora !== null ||
+    hora !== (horaInicial ?? null) ||
+    barbeiroId !== (barbeiroInicial ?? null) ||
     servicosEscolhidos.length > 0 ||
     (clienteEscolhido !== null && clienteEscolhido.id !== clienteInicial?.id) ||
     busca.trim() !== "" ||
@@ -507,6 +520,12 @@ export function MarcarNoBalcao({
               Nenhum horário livre nesse dia para esse barbeiro — dá para encaixar logo abaixo.
             </p>
           ) : (
+            <>
+            {horaPerdida && (
+              <p role="status" className="text-xs text-danger">
+                Esse horário não cabe nos serviços escolhidos. Escolha outro abaixo.
+              </p>
+            )}
             <div className="grid grid-cols-4 gap-1.5">
               {horariosLivres.map((h) => (
                 <button
@@ -528,6 +547,7 @@ export function MarcarNoBalcao({
                 </button>
               ))}
             </div>
+            </>
           )}
 
           {barbeiroId && (
