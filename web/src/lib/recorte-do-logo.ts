@@ -23,15 +23,6 @@ export type Enquadramento = {
   y: number;
 };
 
-/** O que o recorte desenha: a imagem escolhida ou um canvas já aparado / sem fundo / monograma. */
-export type FonteDoLogo = HTMLImageElement | HTMLCanvasElement;
-
-export function tamanhoDaFonte(f: FonteDoLogo): { largura: number; altura: number } {
-  return f instanceof HTMLImageElement
-    ? { largura: f.naturalWidth, altura: f.naturalHeight }
-    : { largura: f.width, altura: f.height };
-}
-
 export const ZOOM_MAXIMO = 4;
 export const ENQUADRAMENTO_INICIAL: Enquadramento = { zoom: 1, x: 0, y: 0 };
 
