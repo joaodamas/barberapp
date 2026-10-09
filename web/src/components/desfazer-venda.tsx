@@ -112,7 +112,7 @@ export function DesfazerVenda() {
 
   return (
     <section>
-      <h2 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-ink-muted md:mb-3 md:text-sm">
+      <h2 className="mb-2 flex items-center gap-1.5 text-[15px] font-semibold text-ink md:mb-3">
         <RotateCcw size={12} /> Vendas recentes
       </h2>
 

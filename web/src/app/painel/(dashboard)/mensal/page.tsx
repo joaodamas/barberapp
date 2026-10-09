@@ -139,7 +139,7 @@ function MensalConteudo() {
           as outras telas, onde o pequeno é o contexto e o grande é o nome. */}
       <div>
         <p className="text-sm text-ink-muted md:text-base">Receita que se repete</p>
-        <h1 className="text-xl text-ink md:text-4xl md:tracking-tight">Mensalistas</h1>
+        <h1 className="text-[22px] font-semibold leading-[1.15] tracking-[-0.02em] text-ink md:text-[28px]">Mensalistas</h1>
       </div>
 
       {/* G2 · contratar e receber vem PRIMEIRO.
@@ -176,7 +176,7 @@ function MensalConteudo() {
         </Card>
 
         <Card className="flex flex-col gap-3 md:p-6">
-          <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
+          <p className="flex items-center gap-1.5 text-[12.5px] font-medium text-ink-muted md:text-sm">
             <CalendarClock size={12} /> Régua de cobrança
           </p>
           <div className="flex items-center justify-between gap-1 md:gap-2">
@@ -264,7 +264,7 @@ function MensalConteudo() {
         <div className="mb-2 flex items-center justify-between md:mb-3">
           {/* "Assinantes" era a segunda palavra para a mesma pessoa, na tela
               que agora se chama Mensalistas do menu ao título. */}
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
+          <h2 className="text-[15px] font-semibold text-ink">
             Mensalistas
           </h2>
           <div className="flex flex-wrap items-center justify-end gap-2">
@@ -299,7 +299,7 @@ function MensalConteudo() {
         <Card className="table-scroll overflow-x-auto p-0">
           <table className="w-full min-w-[680px] text-sm">
             <thead>
-              <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ink-muted">
+              <tr className="border-b border-border text-left text-[12.5px] font-medium text-ink-muted">
                 <th className="px-4 py-3 font-medium md:px-6">Cliente</th>
                 <th className="px-4 py-3 font-medium">Plano</th>
                 <th className="px-4 py-3 font-medium">Próxima cobrança</th>

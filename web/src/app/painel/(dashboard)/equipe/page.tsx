@@ -172,7 +172,7 @@ export default function EquipePage() {
     <div className="flex flex-col gap-6 pt-1 md:gap-8 md:pt-2">
       <div>
         <p className="text-sm text-ink-muted md:text-base">Quem atende</p>
-        <h1 className="text-xl text-ink md:text-3xl md:tracking-tight">Equipe</h1>
+        <h1 className="text-[22px] font-semibold leading-[1.15] tracking-[-0.02em] text-ink md:text-[28px]">Equipe</h1>
         <p className="mt-1 max-w-2xl text-xs text-ink-muted md:text-sm">
           Com um barbeiro só, o cliente não escolhe nada — ele marca serviço e
           horário, como hoje. A partir do segundo, a escolha aparece sozinha no

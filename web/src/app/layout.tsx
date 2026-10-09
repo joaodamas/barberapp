@@ -93,7 +93,7 @@ export const viewport: Viewport = {
   /* Tem que ser o MESMO valor de `--color-canvas`. É a faixa que o Android
    * pinta acima da página no PWA: divergir cria uma emenda visível bem na
    * borda de cima, que é onde o dono olha primeiro. */
-  themeColor: "#f8fafc",
+  themeColor: "#f6f6f4",
   width: "device-width",
   initialScale: 1,
   /* `maximumScale: 1` bloqueava o pinch-zoom e reprovava no WCAG 1.4.4.

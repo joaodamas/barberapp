@@ -43,7 +43,7 @@ export function FidelidadeNaFicha({ clientId }: { clientId: string }) {
   return (
     <div className="rounded-xl border border-border bg-surface p-3">
       <div className="flex items-center justify-between gap-2">
-        <p className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-ink-muted">
+        <p className="flex items-center gap-1.5 text-[12.5px] font-medium text-ink-muted">
           <Gift size={12} className="text-gold-strong" /> Fidelidade
         </p>
         <p className="text-sm text-ink">

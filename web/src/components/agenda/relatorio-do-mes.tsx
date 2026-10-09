@@ -153,7 +153,7 @@ export function RelatorioDoMes({ mesParam }: { mesParam?: string }) {
 
       <header className="flex flex-col gap-1 border-b border-border pb-3">
         <p className="text-sm text-ink-muted">{nomeDaBarbearia}</p>
-        <h1 className="text-xl text-ink md:text-3xl md:tracking-tight">Agenda de {nomeDoMes.toLowerCase()}</h1>
+        <h1 className="text-[22px] font-semibold leading-[1.15] tracking-[-0.02em] text-ink md:text-[28px]">Agenda de {nomeDoMes.toLowerCase()}</h1>
         <p className="text-xs text-ink-muted">Emitido em {emissao}</p>
       </header>
 
@@ -252,7 +252,7 @@ function Numero({ rotulo, valor }: { rotulo: string; valor: number }) {
  * papel ela ocupa a largura da folha (o CSS de impressão tira a rolagem).
  */
 function TabelaDoDia({ linhas, comData = false }: { linhas: LinhaDoRelatorio[]; comData?: boolean }) {
-  const th = "px-2 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wide text-ink-muted";
+  const th = "px-2 py-1.5 text-left text-[12.5px] font-medium   text-ink-muted";
   const td = "px-2 py-1.5 align-top";
   return (
     <div className="overflow-x-auto rounded-xl border border-border bg-surface print:overflow-visible print:border-border-strong">

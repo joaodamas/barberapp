@@ -27,7 +27,11 @@ const raiz = fileURLToPath(new URL("../../", import.meta.url));
  * aba Agenda (28/09). A regra é a mesma; o texto dela está nos dois arquivos. */
 const TELA_HOJE = readFileSync(`${raiz}app/painel/(dashboard)/page.tsx`, "utf8");
 const ACOES = readFileSync(`${raiz}components/agenda/acoes-do-atendimento.tsx`, "utf8");
-const PAINEL = TELA_HOJE + "\n" + ACOES;
+/* As ações da linha (Concluir + menu "Mais") saíram da página para um
+ * componente compartilhado por Hoje e Agenda (09/10). A regra é a mesma; o
+ * texto dela mora ali. */
+const ACOES_DA_LINHA = readFileSync(`${raiz}components/agenda/acoes-da-linha.tsx`, "utf8");
+const PAINEL = TELA_HOJE + "\n" + ACOES + "\n" + ACOES_DA_LINHA;
 const MODAL = readFileSync(`${raiz}components/corrigir-pagamento.tsx`, "utf8");
 const ACTION_CENTER = readFileSync(`${raiz}lib/action-center.ts`, "utf8");
 const FINANCEIRO = readFileSync(`${raiz}app/painel/(dashboard)/financeiro/page.tsx`, "utf8");
@@ -175,9 +179,10 @@ describe("R1 · `executarIntencao` não reabre a conclusão sobre `completed`", 
 /* ================================================================== */
 
 describe("R1 · a ação existe na linha do atendimento concluído", () => {
-  it("🔒 há um botão 'Corrigir pagamento' para o concluído", () => {
-    expect(PAINEL).toContain("Corrigir pagamento");
-    expect(PAINEL).toContain('booking.status === "completed" && !liquidacao.coberto');
+  it("🔒 há uma ação 'Editar cobrança' para o concluído", () => {
+    expect(PAINEL).toContain("Editar cobrança");
+    expect(PAINEL).toContain('booking.status === "completed"');
+    expect(PAINEL).toContain("!liquidacao.coberto && !liquidacao.cortesia");
     expect(PAINEL).toContain("atendimento.abrirCorrecao(booking)");
   });
 
