@@ -4,7 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import { CalendarCheck2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { useAcesso, useTenant } from "@/lib/tenant-context";
 import { patchTenant } from "@/lib/db/repository";
 import { soAvisaSeGravou } from "@/lib/so-avisa-se-gravou";
@@ -62,80 +61,81 @@ export function LiberacaoDaAgenda() {
   const vencida = !!abertaAte && abertaAte < hoje;
 
   return (
-    <Card className="flex flex-col gap-3 py-3">
-      <div className="flex items-start gap-2">
-        <CalendarCheck2 size={18} className="mt-0.5 shrink-0 text-gold-strong" />
-        <div className="min-w-0">
-          <p className="text-sm text-ink">
-            {abertaAte ? (
-              <>
-                Clientes avulsos marcam até{" "}
-                <span className={"font-semibold " + (vencida ? "text-danger" : "")}>{dataCurta(abertaAte)}</span>
-                {vencida && " — a agenda deles está fechada até você liberar"}
-              </>
-            ) : (
-              "Clientes avulsos marcam até 60 dias à frente — nenhuma liberação definida ainda."
-            )}
-          </p>
-          <p className="text-xs text-ink-muted">
-            Mensalistas marcam até {diasMensalista} dias à frente. Você e o balcão marcam em qualquer data.
-          </p>
-        </div>
+    <Card className="flex flex-col gap-2 px-3 py-2">
+      {/* Uma linha só (guia do dono, 09/10): o aviso não pode competir com a
+          agenda. O que se usa toda quinzena fica à vista; o resto, atrás de
+          "Ajustar". */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <CalendarCheck2 size={16} className="shrink-0 text-ink-muted" aria-hidden />
+        <p className="min-w-0 flex-1 text-[13px] text-ink-muted">
+          {abertaAte ? (
+            <>
+              Avulsos marcam até{" "}
+              <span className={"font-semibold " + (vencida ? "text-danger" : "text-ink")}>{dataCurta(abertaAte)}</span>
+              {vencida && " — fechada até você liberar"}
+            </>
+          ) : (
+            <>
+              Avulsos marcam até <span className="font-semibold text-ink">60 dias</span> à frente · sem liberação definida
+            </>
+          )}
+        </p>
+        {podeEditar && (
+          <button
+            type="button"
+            disabled={salvando}
+            onClick={() => void gravar({ "policies.janela.abertaAte": proximo })}
+            className="rounded-controle px-2 py-1 text-[13px] font-semibold text-gold-strong transition-colors hover:bg-gold/10 disabled:opacity-50"
+          >
+            Liberar até {dataCurta(proximo)}
+          </button>
+        )}
       </div>
 
       {podeEditar && (
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            className="min-h-9 px-3 text-xs"
-            disabled={salvando}
-            onClick={() => void gravar({ "policies.janela.abertaAte": proximo })}
-          >
-            Liberar os próximos {BLOCO_DIAS} dias · até {dataCurta(proximo)}
-          </Button>
-          {/* O botão que se usa toda quinzena fica à vista; o resto, que se
-              ajusta de vez em quando, fica atrás de "Ajustar" — no celular o
-              quadro inteiro empurrava a grade do dia para baixo. */}
-          <details className="w-full text-xs text-ink-muted">
-            <summary className="cursor-pointer select-none py-1 hover:text-ink">Ajustar</summary>
-            <div className="mt-1 flex flex-wrap items-center gap-2">
-          <label className="flex items-center gap-1.5 text-xs text-ink-muted">
-            Outra data
-            <input
-              type="date"
-              min={hoje}
-              value={abertaAte ?? ""}
-              disabled={salvando}
-              onChange={(e) => e.target.value && void gravar({ "policies.janela.abertaAte": e.target.value })}
-              className="rounded-lg border px-2 py-1.5 text-sm text-ink"
-            />
-          </label>
-          <label className="flex items-center gap-1.5 text-xs text-ink-muted">
-            Mensalistas:
-            <input
-              type="number"
-              min={1}
-              max={365}
-              value={rascunhoMensalista ?? String(diasMensalista)}
-              disabled={salvando}
-              onChange={(e) => setRascunhoMensalista(e.target.value)}
-              onBlur={async () => {
-                const n = Math.round(Number(rascunhoMensalista));
-                if (rascunhoMensalista === null || !Number.isFinite(n) || n < 1 || n > 365 || n === diasMensalista) {
-                  setRascunhoMensalista(null);
-                  return;
-                }
-                if (await gravar({ "policies.janela.diasMensalista": n })) setRascunhoMensalista(null);
-              }}
-              className="w-16 rounded-lg border px-2 py-1.5 text-sm text-ink"
-            />
-            dias
-          </label>
-          <Link href="/painel/horarios" className="text-xs text-ink-muted underline-offset-2 hover:text-ink hover:underline">
-            Fechar ou abrir um dia específico →
-          </Link>
-            </div>
-          </details>
-        </div>
+        <details className="text-xs text-ink-muted">
+          <summary className="cursor-pointer select-none py-0.5 hover:text-ink">Ajustar</summary>
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <p className="w-full text-xs text-ink-muted">
+              Mensalistas marcam até {diasMensalista} dias à frente. Você e o balcão marcam em qualquer data.
+            </p>
+            <label className="flex items-center gap-1.5 text-xs text-ink-muted">
+              Outra data
+              <input
+                type="date"
+                min={hoje}
+                value={abertaAte ?? ""}
+                disabled={salvando}
+                onChange={(e) => e.target.value && void gravar({ "policies.janela.abertaAte": e.target.value })}
+                className="rounded-controle border border-border px-2 py-1.5 text-sm text-ink"
+              />
+            </label>
+            <label className="flex items-center gap-1.5 text-xs text-ink-muted">
+              Mensalistas:
+              <input
+                type="number"
+                min={1}
+                max={365}
+                value={rascunhoMensalista ?? String(diasMensalista)}
+                disabled={salvando}
+                onChange={(e) => setRascunhoMensalista(e.target.value)}
+                onBlur={async () => {
+                  const n = Math.round(Number(rascunhoMensalista));
+                  if (rascunhoMensalista === null || !Number.isFinite(n) || n < 1 || n > 365 || n === diasMensalista) {
+                    setRascunhoMensalista(null);
+                    return;
+                  }
+                  if (await gravar({ "policies.janela.diasMensalista": n })) setRascunhoMensalista(null);
+                }}
+                className="w-16 rounded-controle border border-border px-2 py-1.5 text-sm text-ink"
+              />
+              dias
+            </label>
+            <Link href="/painel/horarios" className="text-xs text-ink-muted underline-offset-2 hover:text-ink hover:underline">
+              Fechar ou abrir um dia específico →
+            </Link>
+          </div>
+        </details>
       )}
       {erro && (
         <p role="alert" className="text-xs text-danger">
