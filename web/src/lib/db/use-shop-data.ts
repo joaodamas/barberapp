@@ -249,3 +249,17 @@ export const useComissaoDoBarbeiro = (staffId: string | null, de: string, ate: s
     orderByField: "date",
     enabled: !!staffId,
   });
+
+/**
+ * As faturas do próprio cliente — o aviso de vencimento no app do mensalista.
+ *
+ * Filtradas por `clientId` pelo mesmo motivo de `useMinhasAssinaturas`: a regra
+ * de `subscription_invoices` libera o dono do documento, e a listagem sem o
+ * filtro seria negada. Sem `orderByField`: filtro de igualdade + ordenação pede
+ * índice composto, e quem escolhe a fatura relevante é `faturaRelevante`.
+ */
+export const useMinhasFaturas = (clientId: string | undefined) =>
+  useShopCollection<SubscriptionInvoiceDoc>("subscriptionInvoices", {
+    equals: { clientId },
+    enabled: !!clientId,
+  });

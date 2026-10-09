@@ -28,6 +28,7 @@ import { refundAmountFor } from "@/lib/business-rules";
 import type { TenantPolicies } from "@/lib/tenant";
 import type { Booking } from "@/lib/types";
 import { mensagemDaFuncao } from "@/lib/mensagem-da-funcao";
+import { AvisoDaMensalidade } from "@/components/aviso-da-mensalidade";
 
 type Tab = "futuras" | "historico";
 
@@ -327,6 +328,7 @@ export default function ReservasPage() {
       <h1 className="text-xl text-ink md:col-span-2 md:text-3xl md:tracking-tight">Reservas</h1>
 
       <div className="flex flex-col gap-5 md:col-start-1 md:row-start-2 md:gap-7">
+        <AvisoDaMensalidade />
         <div className="grid grid-cols-2 gap-2 md:w-fit md:gap-4">
           <Card className="flex flex-col items-center gap-0.5 p-3 text-center md:min-w-32 md:p-4">
             {/* Sem leitura, "0 atendimentos" e "R$ 0,00" seriam uma afirmação

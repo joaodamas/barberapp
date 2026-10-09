@@ -25,6 +25,7 @@ import { useTenant, usePolicies } from "@/lib/tenant-context";
 import { lerPerfil, mascararWhatsapp, salvarPerfil, whatsappValido } from "@/lib/db/perfil";
 import { useLoyalty, useMinhasAssinaturas, useMyBookings } from "@/lib/db/use-shop-data";
 import { assinaturaAtivaDe, termosDoPlano } from "@/lib/booking-status";
+import { AvisoDaMensalidade } from "@/components/aviso-da-mensalidade";
 
 type MenuKey = "dados" | "plano" | "notificacoes" | "politica" | "ajuda";
 
@@ -160,6 +161,8 @@ export default function PerfilPage() {
     <div className="grid grid-cols-1 gap-5 pt-1 md:grid-cols-[1fr_360px] md:items-start md:gap-x-10 md:gap-y-8 md:pt-4">
       <div className="flex flex-col gap-5 md:col-start-1 md:row-start-1 md:gap-7">
         <ProfileIdentity />
+
+        <AvisoDaMensalidade />
 
         <Card className="flex flex-col divide-y divide-border p-0">
           {menuItems.map(({ key, icon: Icon, label }) => (
