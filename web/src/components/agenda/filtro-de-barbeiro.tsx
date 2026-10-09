@@ -1,7 +1,8 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useRef, useSyncExternalStore } from "react";
 import { filtroValido } from "@/lib/grade-por-barbeiro";
+import { filtroAposClique, proximoChip } from "@/lib/barra-da-agenda";
 
 /**
  * Filtro por barbeiro da Agenda e do Hoje (auditoria de 09/10): chips
@@ -69,6 +70,29 @@ export function useFiltroDeBarbeiro(
   return [filtroValido(guardado, equipe), (id) => gravar(escopo, id)];
 }
 
+/**
+ * Troca o filtro SEM a tela pular. Trocar de 6 colunas para 1 muda a altura do
+ * conteúdo, e o navegador, para manter o scroll dentro do limite, joga a página
+ * para cima — a barra saía de debaixo do cursor. Aqui medimos onde a barra está
+ * antes e, depois da troca, devolvemos o scroll para que ela fique no mesmo lugar.
+ */
+function trocarSemPular(barra: HTMLElement | null, trocar: () => void) {
+  if (!barra) return trocar();
+  let rolagem: HTMLElement | null = barra.parentElement;
+  while (rolagem && !/(auto|scroll)/.test(getComputedStyle(rolagem).overflowY)) rolagem = rolagem.parentElement;
+  const antes = barra.getBoundingClientRect().top;
+  trocar();
+  /* Dois quadros: o primeiro aplica o estado, o segundo já tem a altura nova. */
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => {
+      const delta = barra.getBoundingClientRect().top - antes;
+      if (Math.abs(delta) < 1) return;
+      if (rolagem) rolagem.scrollTop += delta;
+      else window.scrollBy(0, delta);
+    })
+  );
+}
+
 export function FiltroDeBarbeiro({
   equipe,
   valor,
@@ -80,6 +104,7 @@ export function FiltroDeBarbeiro({
   aoMudar: (id: string | null) => void;
   className?: string;
 }) {
+  const grupo = useRef<HTMLDivElement>(null);
   const ativos = equipe.filter((b) => b.active !== false);
   /* Com uma cadeira só não há o que filtrar. */
   if (ativos.length < 2) return null;
@@ -89,11 +114,26 @@ export function FiltroDeBarbeiro({
     ...ativos.map((b) => ({ id: b.id, rotulo: b.name })),
   ];
 
+  const escolher = (id: string | null) => {
+    /* Clicar no que já está marcado não faz nada: só "Todos" volta para Todos. */
+    if (filtroAposClique(valor, id) === valor) return;
+    trocarSemPular(grupo.current, () => aoMudar(id));
+  };
+
   return (
     <div
+      ref={grupo}
       role="group"
       aria-label="Filtrar por barbeiro"
-      className={"flex gap-1.5 overflow-x-auto pb-1 " + className}
+      onKeyDown={(e) => {
+        if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
+        const atual = Math.max(0, opcoes.findIndex((o) => o.id === valor));
+        const alvo = proximoChip(opcoes.length, atual, e.key);
+        e.preventDefault();
+        escolher(opcoes[alvo].id);
+        grupo.current?.querySelectorAll<HTMLButtonElement>("button")[alvo]?.focus();
+      }}
+      className={"flex gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden " + className}
     >
       {opcoes.map((o) => {
         const ativo = o.id === valor;
@@ -102,12 +142,14 @@ export function FiltroDeBarbeiro({
             key={o.id ?? "todos"}
             type="button"
             aria-pressed={ativo}
-            onClick={() => aoMudar(o.id)}
+            /* Roving tabindex: um Tab entra no grupo, as setas andam dentro. */
+            tabIndex={ativo ? 0 : -1}
+            onClick={() => escolher(o.id)}
             className={
-              "min-h-11 shrink-0 rounded-full border px-4 text-sm transition-colors " +
+              "min-h-11 shrink-0 rounded-controle border px-4 text-sm transition-colors duration-150 md:min-h-10 " +
               (ativo
-                ? "border-gold bg-gold/10 font-medium text-ink"
-                : "border-border bg-surface text-ink-muted hover:border-gold/60")
+                ? "border-gold bg-gold font-semibold text-ink"
+                : "border-border bg-surface text-ink-muted hover:border-gold/60 hover:text-ink")
             }
           >
             {o.rotulo}

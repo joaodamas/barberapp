@@ -67,7 +67,9 @@ export async function generateMetadata(): Promise<Metadata> {
   const daBarbearia: Metadata = {
     title: {
       default: brand.name,
-      template: `%s · ${brand.shortName}`,
+      /* O nome inteiro: `shortName` corta em 14 caracteres (é o rótulo do ícone) e
+       * deixava "Minha agenda · Navalha Tatuap" na aba. */
+      template: `%s · ${brand.name}`,
     },
     description: `Agende seu horário, acompanhe sua fidelidade e assine um plano na ${brand.name}.`,
     manifest: "/manifest.webmanifest",
