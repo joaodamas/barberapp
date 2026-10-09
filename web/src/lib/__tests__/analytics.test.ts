@@ -1188,6 +1188,12 @@ describe("topServicos — recorte do DRE", () => {
     ]);
     expect(topServicos({ bookings, nomePorId: nomes, periodo: P })[0]).toMatchObject({ count: 2, revenue: 95.5 });
   });
+
+  it("serviço apagado do catálogo aparece pelo nome gravado na reserva, não pelo id", () => {
+    const apagado = { ...bk({ id: "1", value: 40 }), serviceNames: ["Hidratação"] } as ReturnType<typeof bk>;
+    const r = topServicos({ bookings: [apagado], nomePorId: new Map(), periodo: P });
+    expect(r[0]?.name).toBe("Hidratação");
+  });
 });
 
 describe("projeção — mensalidade pelas faturas", () => {

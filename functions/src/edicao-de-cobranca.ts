@@ -1,7 +1,12 @@
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { exigirEdicao, idSeguro, vinculosDe } from "./acesso";
-import { aplicarCombos, type ServicoDoCatalogo } from "./combos";
+import {
+  aplicarCombos,
+  aplicarCombosComCongelados,
+  diferencaDeServicos,
+  type ServicoDoCatalogo,
+} from "./combos";
 import {
   estornoDaComissaoDeServico,
   idDaComissaoDeCicloNovo,
@@ -165,6 +170,23 @@ export function servicosDaEdicao(
       durationMin: Number(reserva.durationMin) || 0,
       combos: [] as string[],
       inalterados: true,
+    };
+  }
+  /* Lista mudou, e a reserva tem preço gravado: o que FICA vale a sua parte do
+   * `value` congelado (repartida na proporção do catálogo), e só o que foi
+   * SOMADO entra pelo preço de hoje — a mesma conta do "Adicionar serviço"
+   * (#145). Reservado a R$ 40 (hoje R$ 45) + barba R$ 25: tirar a barba não
+   * pode devolver o corte a R$ 45. Sem preço gravado (legado), vale o catálogo. */
+  if (atuais.length > 0 && (Number(reserva.value) || 0) > 0) {
+    const { extras, remover } = diferencaDeServicos(atuais, ids);
+    const c = aplicarCombosComCongelados(reserva, extras, catalogo, remover);
+    return {
+      serviceIds: c.ids,
+      serviceNames: c.nomes,
+      value: c.valor,
+      durationMin: c.duracao,
+      combos: c.combos,
+      inalterados: false,
     };
   }
   const jaTinha = new Set(atuais);
@@ -697,6 +719,9 @@ export const editarCobrancaDoAtendimento = onCall<EdicaoInput>(async (request) =
   }));
   const jaTinha = new Set((Array.isArray(reservaSnap.get("serviceIds")) ? reservaSnap.get("serviceIds") : []).map(String));
   for (const id of ids) {
+    /* O que já estava na reserva vale mesmo que o serviço tenha saído do
+     * catálogo: sem isso, apagar um serviço travava até a troca da forma. */
+    if (jaTinha.has(id)) continue;
     const s = catalogo.find((c) => c.id === id);
     if (!s || (s.active === false && !jaTinha.has(id))) {
       throw new HttpsError("failed-precondition", "Serviço indisponível.");

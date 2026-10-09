@@ -1000,8 +1000,10 @@ export function topServicos(params: {
     // Combo de dois serviços rateia o valor entre eles.
     // O que entrou, não o preço: o desconto do fechamento sai da receita.
     const fatia = coberto ? 0 : safeDiv(valorCobrado(b), b.serviceIds.length);
-    for (const id of b.serviceIds) {
-      const name = params.nomePorId.get(id) ?? id;
+    const nomesGravados = (b as { serviceNames?: string[] }).serviceNames;
+    for (const [i, id] of b.serviceIds.entries()) {
+      /* Serviço apagado do catálogo: o nome gravado na reserva, não o id. */
+      const name = params.nomePorId.get(id) ?? nomesGravados?.[i] ?? id;
       const atual = acc.get(id) ?? { name, count: 0, revenue: 0 };
       atual.count += 1;
       atual.revenue += fatia;
