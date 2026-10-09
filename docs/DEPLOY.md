@@ -450,14 +450,6 @@ leva minutos para ficar pronto e regra precisa existir antes da tela que
 depende dela; o Hosting é a chave que liga tudo para o cliente, e vai por
 último.
 
-### Despesas e receitas parceladas (#162): produção exige o escopo `tudo`
-
-A tela nova lê a coleção `other_incomes`, e o Firestore nega leitura de coleção
-sem regra. Publicar **`somente hosting`** com este PR deixaria o resultado, o
-caixa e a projeção como "não apurado" (só os números que dependem da coleção)
-e a tela de Outras receitas em erro. Use **`tudo`** (regras antes do
-hosting) ou `somente regras e índices` antes do `somente hosting`.
-
 ### Sobre as functions
 
 São publicadas **por nome**, e a lista sai dos exports compilados de

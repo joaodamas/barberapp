@@ -43,17 +43,6 @@ export default function ProjecaoPage() {
   return <ProjecaoConteudo />;
 }
 
-/** Parcelas que vencem no período: o que sai (−) e o que entra (+), de lançamentos parcelados. */
-function ParcelasDoPeriodo({ aPagar, aReceber }: { aPagar: number; aReceber: number }) {
-  if (!aPagar && !aReceber) return <>—</>;
-  return (
-    <span className="flex flex-col items-end">
-      {aReceber > 0 && <span className="text-success">+ {formatBRL(aReceber)}</span>}
-      {aPagar > 0 && <span className="text-danger">− {formatBRL(aPagar)}</span>}
-    </span>
-  );
-}
-
 function ProjecaoConteudo() {
   const [horizonte, setHorizonte] = useState<Horizonte>("mensal");
   const { projecao: cashProjection, status, raw, fontesIlegiveis, erro } = useFinanceiro(
@@ -117,8 +106,7 @@ function ProjecaoConteudo() {
         <p className="mt-1 text-xs text-ink-muted md:text-sm">
           Combina marcações já confirmadas, mensalidades em aberto (no
           vencimento da fatura; mês ainda não emitido, pelo cadastro) e despesas
-          fixas recorrentes (dia real), mais as parcelas de despesas e receitas
-          parceladas que ainda vão vencer. Dias sem marcação ainda
+          fixas recorrentes (dia real). Dias sem marcação ainda
           usam a média histórica daquele dia da semana — marcados como
           &quot;estimado&quot;.
         </p>
@@ -237,7 +225,6 @@ function ProjecaoConteudo() {
                 <th className="px-4 py-3 text-right font-medium">Receita</th>
                 <th className="px-4 py-3 text-right font-medium">Mensalistas</th>
                 <th className="px-4 py-3 text-right font-medium">Despesa fixa</th>
-                <th className="px-4 py-3 text-right font-medium">Parcelas</th>
                 <th className="px-4 py-3 text-right font-medium">Resultado</th>
                 <th className="px-4 py-3 text-right font-medium md:px-6">Acumulado</th>
               </tr>
@@ -270,9 +257,6 @@ function ProjecaoConteudo() {
                   <td className="px-4 py-3 text-right text-danger">
                     −{formatBRL(m.fixedExpense)}
                   </td>
-                  <td className="px-4 py-3 text-right text-ink-muted">
-                    <ParcelasDoPeriodo aPagar={m.parcelaAPagar} aReceber={m.parcelaAReceber} />
-                  </td>
                   <td
                     className={`px-4 py-3 text-right font-medium ${
                       m.net >= 0 ? "text-success" : "text-danger"
@@ -303,7 +287,6 @@ function ProjecaoConteudo() {
               <th className="px-4 py-3 font-medium">Receita</th>
               <th className="px-4 py-3 text-right font-medium">Mensalista</th>
               <th className="px-4 py-3 text-right font-medium">Despesa fixa</th>
-              <th className="px-4 py-3 text-right font-medium">Parcelas</th>
               <th className="px-4 py-3 text-right font-medium">Líquido do dia</th>
               <th className="px-4 py-3 text-right font-medium md:px-6">Saldo acumulado</th>
             </tr>
@@ -341,9 +324,6 @@ function ProjecaoConteudo() {
                 </td>
                 <td className="px-4 py-2.5 text-right text-danger">
                   {d.fixedExpense > 0 ? `− ${formatBRL(d.fixedExpense)}` : "—"}
-                </td>
-                <td className="px-4 py-2.5 text-right text-ink-muted">
-                  <ParcelasDoPeriodo aPagar={d.parcelaAPagar} aReceber={d.parcelaAReceber} />
                 </td>
                 <td
                   className={`whitespace-nowrap px-4 py-2.5 text-right font-medium ${

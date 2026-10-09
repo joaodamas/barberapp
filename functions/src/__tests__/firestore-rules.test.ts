@@ -18,7 +18,6 @@ import {
   serverTimestamp,
   updateDoc,
   where,
-  writeBatch,
 } from "firebase/firestore";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
@@ -75,7 +74,6 @@ beforeEach(async () => {
     for (const bid of [ALFA, BETA]) {
       await setDoc(doc(db, "barbershops", bid), { slug: bid, status: "ativo", plan: "completo" });
       await setDoc(doc(db, `barbershops/${bid}/expenses`, "exp-1"), { value: 1800 });
-      await setDoc(doc(db, `barbershops/${bid}/other_incomes`, "rec-1"), { value: 900 });
       await setDoc(doc(db, `barbershops/${bid}/services`, "corte"), { name: "Corte", price: 60 });
       await setDoc(doc(db, `barbershops/${bid}/cash_entries`, "cx-1"), { value: 300 });
       await setDoc(doc(db, `barbershops/${bid}/payments`, "pg-1"), {
@@ -669,79 +667,10 @@ describe("fidelidade", () => {
   });
 });
 
-const receitaValida = {
-  category: "Venda de equipamento",
-  description: "Cadeira antiga",
-  payer: "—",
-  value: 333.34,
-  date: "2026-10-09",
-  payment: "Pix",
-};
-
-describe("receitas avulsas e parcelas — other_incomes", () => {
-  /* Mesma regra de `expenses`: o dono da casa lê e grava (inclusive as N
-   * parcelas de um lançamento, uma a uma ou em lote); ninguém mais. */
-  it("o dono lê, grava e exclui as parcelas da própria barbearia", async () => {
-    const db = as(DONO_ALFA);
-    await assertSucceeds(getDoc(doc(db, `barbershops/${ALFA}/other_incomes`, "rec-1")));
-    await assertSucceeds(setDoc(doc(db, `barbershops/${ALFA}/other_incomes`, "g1_01"), receitaValida));
-    await assertSucceeds(updateDoc(doc(db, `barbershops/${ALFA}/other_incomes`, "g1_01"), { value: 300 }));
-    await assertSucceeds(deleteDoc(doc(db, `barbershops/${ALFA}/other_incomes`, "g1_01")));
-    // lote atômico de 3 parcelas
-    const lote = writeBatch(db);
-    for (let n = 1; n <= 3; n++) {
-      lote.set(doc(db, `barbershops/${ALFA}/other_incomes`, `g3_0${n}`), {
-        ...receitaValida,
-        parcela: { numero: n, total: 3, grupoId: "g3" },
-      });
-    }
-    await assertSucceeds(lote.commit());
-  });
-
-  it("🔒 o formato é conferido: valor, data, campos e parcela", async () => {
-    const col = (id: string) => doc(as(DONO_ALFA), `barbershops/${ALFA}/other_incomes`, id);
-    await assertFails(setDoc(col("a"), { ...receitaValida, value: 0 }));
-    await assertFails(setDoc(col("b"), { ...receitaValida, value: -5 }));
-    await assertFails(setDoc(col("c"), { ...receitaValida, value: "300" }));
-    await assertFails(setDoc(col("d"), { ...receitaValida, date: "10/10/2026" }));
-    await assertFails(setDoc(col("e"), { ...receitaValida, campoSolto: true }));
-    await assertFails(setDoc(col("f"), { ...receitaValida, payment: "Fiado" }));
-    await assertFails(setDoc(col("g"), { ...receitaValida, parcela: { numero: 4, total: 3, grupoId: "g" } }));
-    await assertFails(setDoc(col("h"), { ...receitaValida, parcela: { numero: 1, total: 99, grupoId: "g" } }));
-    await assertFails(setDoc(col("i"), { value: 100 }));
-  });
-
-  it("o dono grava o grupo de parcelas de despesa em lote atômico", async () => {
-    const db = as(DONO_ALFA);
-    const lote = writeBatch(db);
-    for (let n = 1; n <= 3; n++) {
-      lote.set(doc(db, `barbershops/${ALFA}/expenses`, `g2_0${n}`), {
-        value: 100,
-        recurring: false,
-        parcela: { numero: n, total: 3, grupoId: "g2" },
-      });
-    }
-    await assertSucceeds(lote.commit());
-  });
-
-  it("🔒 o dono de outra barbearia não lê nem grava", async () => {
-    await assertFails(getDoc(doc(as(DONO_BETA), `barbershops/${ALFA}/other_incomes`, "rec-1")));
-    await assertFails(
-      setDoc(doc(as(DONO_BETA), `barbershops/${ALFA}/other_incomes`, "x"), { value: 1 })
-    );
-  });
-
-  it("🔒 barbeiro, cliente e anônimo não leem", async () => {
-    await assertFails(getDoc(doc(as(BARBEIRO_ALFA), `barbershops/${ALFA}/other_incomes`, "rec-1")));
-    await assertFails(getDoc(doc(as(CLIENTE), `barbershops/${ALFA}/other_incomes`, "rec-1")));
-    await assertFails(getDoc(doc(anon(), `barbershops/${ALFA}/other_incomes`, "rec-1")));
-  });
-});
-
 describe("cobertura", () => {
   it("nenhuma barbearia enxerga a outra, em nenhuma coleção declarada", async () => {
     const colecoes = [
-      "expenses", "other_incomes", "cash_entries", "commissions", "inventory_movements",
+      "expenses", "cash_entries", "commissions", "inventory_movements",
       "payments", "refunds", "subscriptions", "subscription_invoices",
       "loyalty_transactions", "client_occurrences", "whatsapp_messages",
       "audit_log", "bookings", "members",
@@ -751,7 +680,7 @@ describe("cobertura", () => {
         getDoc(doc(as(DONO_ALFA), `barbershops/${BETA}/${colecao}`, "qualquer"))
       );
     }
-    expect(colecoes).toHaveLength(15);
+    expect(colecoes).toHaveLength(14);
   });
 });
 

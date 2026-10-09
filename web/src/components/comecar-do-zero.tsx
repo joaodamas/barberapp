@@ -88,7 +88,7 @@ export function ComecarDoZero() {
         <div>
           <p className="text-sm text-ink">Apagar o movimento e começar do zero</p>
           <p className="text-xs text-ink-muted md:text-sm">
-            Tira do sistema os atendimentos, pagamentos, comissões, despesas, outras receitas e vendas
+            Tira do sistema os atendimentos, pagamentos, comissões, despesas e vendas
             — o que foi teste. Equipe, serviços, preços, clientes, horários e taxas
             continuam como estão.
           </p>
@@ -276,7 +276,6 @@ function NOME_DA_COLECAO(colecao: string): [string, string] {
     cash_entries: ["lançamento no caixa", "lançamentos no caixa"],
     inventory_movements: ["movimento de estoque", "movimentos de estoque"],
     expenses: ["despesa", "despesas"],
-    other_incomes: ["outra receita", "outras receitas"],
     subscriptions: ["mensalista", "mensalistas"],
     subscription_invoices: ["fatura de mensalidade", "faturas de mensalidade"],
     loyalty_transactions: ["ponto de fidelidade", "pontos de fidelidade"],

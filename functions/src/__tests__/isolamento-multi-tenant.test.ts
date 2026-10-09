@@ -62,7 +62,6 @@ const SUBCOLECOES = [
   "bookings",
   "schedules",
   "expenses",
-  "other_incomes",
   "cash_entries",
   "commissions",
   "inventory_movements",
@@ -150,7 +149,6 @@ beforeEach(async () => {
         active: true,
       });
       await setDoc(doc(db, `barbershops/${bid}/expenses`, "exp-1"), { value: 1800 });
-      await setDoc(doc(db, `barbershops/${bid}/other_incomes`, "rec-1"), { value: 900 });
       await setDoc(doc(db, `barbershops/${bid}/cash_entries`, "cx-1"), { value: 300 });
       await setDoc(doc(db, `barbershops/${bid}/commissions`, "com-1"), {
         uid: "staff-uid",
@@ -207,7 +205,6 @@ describe("1 · o dono da Alfa NÃO lê nenhuma coleção da Beta", () => {
       bookings: "bk-1",
       schedules: "sch-1",
       expenses: "exp-1",
-      other_incomes: "rec-1",
       cash_entries: "cx-1",
       commissions: "com-1",
       inventory_movements: "mov-1",
@@ -244,7 +241,7 @@ describe("1 · o dono da Alfa NÃO lê nenhuma coleção da Beta", () => {
     /* Ler documento a documento é um ataque; listar a coleção é outro. As duas
      * portas precisam estar fechadas. */
     const db = as(DONO_ALFA);
-    for (const colecao of ["expenses", "other_incomes", "bookings", "payments", "commissions", "audit_log"]) {
+    for (const colecao of ["expenses", "bookings", "payments", "commissions", "audit_log"]) {
       await assertFails(getDocs(collection(db, `barbershops/${BETA}/${colecao}`)));
     }
   });

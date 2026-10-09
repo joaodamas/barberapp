@@ -122,7 +122,6 @@ function DreConteudo() {
     grossRevenue,
     variableCost: custoVariavelTotal,
     fixedCost: custoFixoTotal,
-    outrasReceitas: r.outrasReceitas,
     taxRatePct: dreTaxRatePct,
     variacaoPct: scenarioPct,
   });
@@ -542,19 +541,6 @@ function DreConteudo() {
             <NaoApurado faltando={apuracao.faltando("custoFixo")} />
           )}
         </div>
-        {/* Venda de equipamento, aluguel de cadeira, parceria. Soma ao
-            resultado, mas fica FORA do faturamento: não entra na base do
-            imposto, na comissão nem no ticket. A linha só existe quando há
-            lançamento no mês. */}
-        {r.outrasReceitas > 0 && (
-          <div className="flex items-center justify-between py-1.5 pl-5">
-            <span className="text-ink-muted">
-              (+) Outras receitas{" "}
-              <span className="text-xs">(fora do faturamento e do imposto)</span>
-            </span>
-            <span className="font-medium text-success">{formatBRL(r.outrasReceitas)}</span>
-          </div>
-        )}
         <div className="mt-1 flex items-center justify-between border-t border-border pt-2">
           <span className="text-ink">(=) Resultado antes de impostos</span>
           {apuracao.ok("resultado") ? (
