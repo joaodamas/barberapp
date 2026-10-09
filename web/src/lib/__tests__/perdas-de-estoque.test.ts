@@ -126,6 +126,14 @@ describe("perdasDeEstoque · o que NÃO entra", () => {
   });
 });
 
+describe("perdasDeEstoque · custo zero", () => {
+  it("custo 0 conta como 'sem custo', não como perda de R$ 0 silenciosa", () => {
+    const r = perdasDeEstoque({ movements: [ajuste("a1", -3, { unitCost: 0 })], periodo: P });
+    expect(r.total).toBe(0);
+    expect(r.semCustoCongelado).toBe(3);
+  });
+});
+
 describe("perdasDeEstoque · os filhos fecham com o cabeçalho", () => {
   it("custo quebrado (R$ 100 ÷ 12) soma exatamente o total", () => {
     const movements = [

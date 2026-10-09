@@ -172,6 +172,21 @@ describe("contagem (define o saldo)", () => {
     expect(p.get("cost")).toBe(18);
   });
 
+  it("contagem sobre saldo VELHO é recusada: uma venda entrou no meio", async () => {
+    // O dono viu 10, contou 7; antes de confirmar o saldo caiu para 8.
+    await shopRef().collection("products").doc("pomada").update({ stock: 8 });
+    await expect(
+      ajustar({ pedido: { modo: "contagem", contado: 7, estoqueVisto: 10 } })
+    ).rejects.toThrow(/O estoque mudou desde que você abriu \(agora: 8\)\. Confira e conte de novo\./);
+    expect(await estoqueDe()).toBe(8);
+    expect(await movimentos()).toHaveLength(0);
+  });
+
+  it("contagem com o saldo visto igual ao real passa", async () => {
+    const r = await ajustar({ pedido: { modo: "contagem", contado: 7, estoqueVisto: 10 } });
+    expect(r.estoqueDepois).toBe(7);
+  });
+
   it("contagem igual ao saldo é recusada e não deixa movimento", async () => {
     await expect(ajustar({ pedido: { modo: "contagem", contado: 10 } })).rejects.toThrow(/nada a ajustar/);
     expect(await movimentos()).toHaveLength(0);

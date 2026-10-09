@@ -656,23 +656,32 @@ export function motivoDaRecusaDaVenda(params: {
   return null;
 }
 
-export type ResultadoDaCorrecaoDaVenda = {
+type LinhaCorrigida = {
   paymentId: string;
   movementId: string;
   de: ResultadoDaCorrecao["de"];
   para: CamposDaCorrecao;
+};
+
+export type ResultadoDaCorrecaoDaVenda = LinhaCorrigida & {
   repetida: boolean;
+  /** Todas as linhas corrigidas (venda com vários produtos). A primeira repete os campos acima. */
+  itens: LinhaCorrigida[];
 };
 
 /**
  * Pagamento, movimento e auditoria numa transação só. `update`, nunca `set`: o
  * pagamento continua sendo o mesmo documento, com os mesmos `createdAt`, `origin`
  * e `grossAmount`.
+ *
+ * Uma venda de vários produtos tem um movimento (e um pagamento) por linha.
+ * Corrigir a forma é corrigir o carrinho inteiro: `movementIds` leva todas as
+ * linhas e a transação é UMA — ou todas mudam, ou nenhuma.
  */
 export async function gravarCorrecaoDeVenda(params: {
   db: FirebaseFirestore.Firestore;
   shopRef: FirebaseFirestore.DocumentReference;
-  movementId: string;
+  movementIds: string[];
   metodo: PaymentMethod;
   fees: PaymentFees;
   formas?: FormaDePagamento[];
@@ -682,103 +691,142 @@ export async function gravarCorrecaoDeVenda(params: {
   chave: string;
   autor: string | null;
 }): Promise<ResultadoDaCorrecaoDaVenda> {
-  const { db, shopRef, movementId } = params;
+  const { db, shopRef } = params;
+  const ids = [...new Set(params.movementIds)];
+  if (ids.length === 0) throw new HttpsError("invalid-argument", "Venda não informada.");
+  if (ids.length > 20) throw new HttpsError("invalid-argument", "Venda com itens demais.");
 
-  const paymentId = idDoPagamento({ origem: "produto", movementId });
-  const pagamentoRef = shopRef.collection("payments").doc(paymentId);
-  const movimentoRef = shopRef.collection("inventory_movements").doc(movementId);
-  const logRef = shopRef.collection("audit_log").doc(idDaCorrecao(movementId, params.chave));
-  const devolucoesQuery = shopRef.collection("refunds").where("paymentId", "==", paymentId);
+  const linhas = ids.map((movementId) => {
+    const paymentId = idDoPagamento({ origem: "produto", movementId });
+    return {
+      movementId,
+      paymentId,
+      pagamentoRef: shopRef.collection("payments").doc(paymentId),
+      movimentoRef: shopRef.collection("inventory_movements").doc(movementId),
+      logRef: shopRef.collection("audit_log").doc(idDaCorrecao(movementId, params.chave)),
+      devolucoesQuery: shopRef.collection("refunds").where("paymentId", "==", paymentId),
+    };
+  });
 
   return db.runTransaction(async (tx) => {
     /* ================= LEITURAS — todas antes de qualquer escrita ================= */
-    const [pagamentoSnap, movimentoSnap, logSnap, devolucoesSnap] = await Promise.all([
-      tx.get(pagamentoRef),
-      tx.get(movimentoRef),
-      tx.get(logRef),
-      tx.get(devolucoesQuery),
-    ]);
+    const lidas = await Promise.all(
+      linhas.map(async (l) => {
+        const { pagamentoRef, movimentoRef, logRef, devolucoesQuery } = l;
+        const [pagamentoSnap, movimentoSnap, logSnap, devolucoesSnap] = await Promise.all([
+          tx.get(pagamentoRef),
+          tx.get(movimentoRef),
+          tx.get(logRef),
+          tx.get(devolucoesQuery),
+        ]);
+        return { ...l, pagamentoSnap, movimentoSnap, logSnap, devolucoesSnap };
+      })
+    );
 
     /* Idempotência ANTES de qualquer recusa: depois da primeira correção o
      * pagamento já está na forma nova, e um retry cairia em `mesma_forma`. */
-    if (logSnap.exists) {
-      const detail = (logSnap.get("detail") ?? {}) as {
-        de?: ResultadoDaCorrecao["de"];
-        para?: CamposDaCorrecao;
-      };
-      return {
-        paymentId,
-        movementId,
-        de:
-          detail.de ?? {
-            paymentMethod: null,
-            paymentFormId: null,
-            paymentFormLabel: null,
-            feePct: 0,
-            feeAmount: 0,
-            netAmount: 0,
-          },
-        para:
-          detail.para ??
-          camposDaCorrecao({
-            bruto: Number(pagamentoSnap.get("grossAmount")) || 0,
-            metodo: params.metodo,
-            fees: params.fees,
-            formas: params.formas,
-            formaId: params.formaId,
-          }),
-        repetida: true,
-      };
+    if (lidas.every((l) => l.logSnap.exists)) {
+      const itens: LinhaCorrigida[] = lidas.map((l) => {
+        const detail = (l.logSnap.get("detail") ?? {}) as {
+          de?: ResultadoDaCorrecao["de"];
+          para?: CamposDaCorrecao;
+        };
+        return {
+          paymentId: l.paymentId,
+          movementId: l.movementId,
+          de:
+            detail.de ?? {
+              paymentMethod: null,
+              paymentFormId: null,
+              paymentFormLabel: null,
+              feePct: 0,
+              feeAmount: 0,
+              netAmount: 0,
+            },
+          para:
+            detail.para ??
+            camposDaCorrecao({
+              bruto: Number(l.pagamentoSnap.get("grossAmount")) || 0,
+              metodo: params.metodo,
+              fees: params.fees,
+              formas: params.formas,
+              formaId: params.formaId,
+            }),
+        };
+      });
+      return { ...itens[0], itens, repetida: true };
+    }
+    if (lidas.some((l) => l.logSnap.exists)) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Essa correção já foi registrada com outros itens. Confira a lista de vendas antes de tentar de novo."
+      );
     }
 
-    const de = estadoDoPagamento(pagamentoSnap);
+    /* Valida TODAS as linhas antes de escrever qualquer uma: carrinho corrigido
+     * pela metade seria pior que nenhum. */
+    const planos = lidas.map((l) => {
+      const de = estadoDoPagamento(l.pagamentoSnap);
 
-    const motivo = motivoDaRecusaDaVenda({
-      temMovimento: movimentoSnap.exists,
-      tipoDoMovimento: movimentoSnap.get("kind") as string | null | undefined,
-      temPagamento: pagamentoSnap.exists,
-      origemDoPagamento: pagamentoSnap.get("origin") as string | null | undefined,
-      jaDevolvida: !devolucoesSnap.empty,
-      dataDoPagamento: String(pagamentoSnap.get("date") ?? ""),
-      criadoEm: diaDeCriacao(pagamentoSnap.get("createdAt"), params.fuso ?? DEFAULT_LOCALE.timeZone),
-      hoje: params.hoje,
-      metodoAtual: de.paymentMethod,
-      formaAtual: de.paymentFormId,
-      metodoNovo: params.metodo,
-      formaNova: params.formaId ?? null,
-    });
-    if (motivo) {
-      throw new HttpsError(CODIGO_DA_RECUSA_DA_VENDA[motivo], FRASE_DA_RECUSA_DA_VENDA[motivo]);
-    }
+      const motivo = motivoDaRecusaDaVenda({
+        temMovimento: l.movimentoSnap.exists,
+        tipoDoMovimento: l.movimentoSnap.get("kind") as string | null | undefined,
+        temPagamento: l.pagamentoSnap.exists,
+        origemDoPagamento: l.pagamentoSnap.get("origin") as string | null | undefined,
+        jaDevolvida: !l.devolucoesSnap.empty,
+        dataDoPagamento: String(l.pagamentoSnap.get("date") ?? ""),
+        criadoEm: diaDeCriacao(l.pagamentoSnap.get("createdAt"), params.fuso ?? DEFAULT_LOCALE.timeZone),
+        hoje: params.hoje,
+        metodoAtual: de.paymentMethod,
+        formaAtual: de.paymentFormId,
+        metodoNovo: params.metodo,
+        formaNova: params.formaId ?? null,
+      });
+      if (motivo) {
+        throw new HttpsError(CODIGO_DA_RECUSA_DA_VENDA[motivo], FRASE_DA_RECUSA_DA_VENDA[motivo]);
+      }
 
-    /* O bruto sai do PAGAMENTO congelado, nunca do preço de hoje do produto. */
-    const para = camposDaCorrecao({
-      bruto: Number(pagamentoSnap.get("grossAmount")) || 0,
-      metodo: params.metodo,
-      fees: params.fees,
-      formas: params.formas,
-      formaId: params.formaId,
+      /* O bruto sai do PAGAMENTO congelado, nunca do preço de hoje do produto. */
+      const para = camposDaCorrecao({
+        bruto: Number(l.pagamentoSnap.get("grossAmount")) || 0,
+        metodo: params.metodo,
+        fees: params.fees,
+        formas: params.formas,
+        formaId: params.formaId,
+      });
+      return { l, de, para };
     });
 
     /* ================= ESCRITAS ================= */
-    tx.update(pagamentoRef, para);
-    /* O estado operacional, na MESMA transação: o caixa diário lê o meio do
-     * movimento. Só o meio — preço, custo e quantidade são o fato e não mudam. */
-    tx.update(movimentoRef, { paymentMethod: params.metodo });
-    tx.set(logRef, {
-      action: "payment.corrigido",
-      by: params.autor,
-      at: FieldValue.serverTimestamp(),
-      detail: { movementId, paymentId, de, para },
-    });
+    for (const { l, de, para } of planos) {
+      const { pagamentoRef, movimentoRef, logRef, movementId, paymentId } = l;
+      tx.update(pagamentoRef, para);
+      /* O estado operacional, na MESMA transação: o caixa diário lê o meio do
+       * movimento. Só o meio — preço, custo e quantidade são o fato e não mudam. */
+      tx.update(movimentoRef, { paymentMethod: params.metodo });
+      tx.set(logRef, {
+        action: "payment.corrigido",
+        by: params.autor,
+        at: FieldValue.serverTimestamp(),
+        detail: { movementId, paymentId, de, para },
+      });
+    }
 
-    return { paymentId, movementId, de, para, repetida: false };
+    const itens: LinhaCorrigida[] = planos.map(({ l, de, para }) => ({
+      paymentId: l.paymentId,
+      movementId: l.movementId,
+      de,
+      para,
+    }));
+    return { ...itens[0], itens, repetida: false };
   });
 }
 
 type CorrecaoDaVendaInput = {
   barbershopId: string;
-  movementId: string;
+  /** Uma venda de vários produtos leva todas as linhas em `movementIds`. */
+  movementId?: string;
+  movementIds?: string[];
   paymentMethod: PaymentMethod;
   paymentFormId?: string | null;
   idempotencyKey?: string;
@@ -802,8 +850,10 @@ export const corrigirPagamentoDeVenda = onCall<CorrecaoDaVendaInput>(async (requ
   }
   await exigirEdicao(barbershopId);
 
-  const movementId = String(data.movementId ?? "");
-  if (!movementId) throw new HttpsError("invalid-argument", "Venda não informada.");
+  const movementIds = (Array.isArray(data.movementIds) ? data.movementIds : [data.movementId])
+    .map((m) => String(m ?? ""))
+    .filter(Boolean);
+  if (movementIds.length === 0) throw new HttpsError("invalid-argument", "Venda não informada.");
   if (!metodoValido(data.paymentMethod)) {
     throw new HttpsError("invalid-argument", "Informe como o cliente pagou.");
   }
@@ -816,7 +866,7 @@ export const corrigirPagamentoDeVenda = onCall<CorrecaoDaVendaInput>(async (requ
   return gravarCorrecaoDeVenda({
     db,
     shopRef,
-    movementId,
+    movementIds,
     metodo: data.paymentMethod,
     fees,
     formas,

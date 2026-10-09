@@ -70,7 +70,7 @@ export function AjustarEstoque({
       await callFunction<Record<string, unknown>, unknown>(
         "ajustarEstoque",
         modo === "contagem"
-          ? { ...base, modo, contado: previa.estoqueDepois }
+          ? { ...base, modo, contado: previa.estoqueDepois, estoqueVisto: estoqueAtual }
           : {
               ...base,
               modo,
@@ -143,7 +143,7 @@ export function AjustarEstoque({
         </div>
 
         <label className="flex flex-col gap-1.5">
-          <span className="text-[12.5px] font-medium text-ink-muted">
+          <span className="text-[11px] uppercase tracking-wide text-ink-muted">
             {modo === "contagem" ? "Quantidade real contada" : "Quantas unidades saíram"}
           </span>
           <input
@@ -161,7 +161,7 @@ export function AjustarEstoque({
 
         {modo === "saida" && (
           <div className="flex flex-col gap-1.5">
-            <span className="text-[12.5px] font-medium text-ink-muted">Motivo</span>
+            <span className="text-[11px] uppercase tracking-wide text-ink-muted">Motivo</span>
             <div className="flex flex-col gap-1.5">
               {MOTIVOS_DE_SAIDA.map((m) => (
                 <button

@@ -24,6 +24,11 @@ export type CorrecaoDeVenda = {
   staffId: string | null;
   /** Quanto já foi devolvido ao cliente nesta correção. */
   valorDevolvido: number;
+  /**
+   * A devolução aconteceu e a venda certa NÃO: o dono fechou o modal depois de
+   * devolver (ou a segunda devolução falhou). O Vender abre direto no aviso.
+   */
+  desistiu?: boolean;
 };
 
 export const MOTIVO_DE_CORRECAO = "Correção de venda";
@@ -97,6 +102,31 @@ export function CorrigirVenda({
     setErro(null);
   }
 
+  /* Fechar o modal depois de uma devolução já feita NÃO desfaz nada: o dinheiro
+   * e as unidades voltaram. A tela avisa e oferece refazer a venda certa. */
+  function fechar() {
+    const feitas = linhas.filter((l) => feitos[l.movementId] !== undefined);
+    if (feitas.length > 0) {
+      aoDevolver({
+        linhas: feitas.map((l) => ({
+          productId: l.productId,
+          quantity: feitos[l.movementId] ?? 0,
+          unitPrice: l.unitPrice,
+        })),
+        formaId: formaAtualId,
+        paymentMethod: venda.paymentMethod,
+        clientId: venda.clientId,
+        staffId: venda.staffId,
+        valorDevolvido: feitas.reduce(
+          (s, l) => s + Math.round(l.unitPrice * (feitos[l.movementId] ?? 0) * 100) / 100,
+          0
+        ),
+        desistiu: true,
+      });
+    }
+    aoFechar();
+  }
+
   async function confirmar() {
     if (!podeConfirmar) return;
     setSalvando(true);
@@ -150,7 +180,7 @@ export function CorrigirVenda({
   return (
     <Modal
       open
-      onClose={aoFechar}
+      onClose={fechar}
       title="Corrigir venda"
       description={`Venda de ${formatDateShortPtBR(venda.date)} · ${rotuloDaForma}`}
       footer={
@@ -161,7 +191,7 @@ export function CorrigirVenda({
             </p>
           )}
           <div className="flex gap-2">
-            <Button variant="secondary" onClick={aoFechar} className="flex-1">
+            <Button variant="secondary" onClick={fechar} className="flex-1">
               Cancelar
             </Button>
             <Button onClick={confirmar} disabled={!podeConfirmar} className="flex-1">
@@ -173,7 +203,7 @@ export function CorrigirVenda({
     >
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-1.5">
-          <p className="text-[12.5px] font-medium text-ink-muted">
+          <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
             1 · A venda original
           </p>
           <ul className="flex flex-col divide-y divide-border">
@@ -214,11 +244,11 @@ export function CorrigirVenda({
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <p className="text-[12.5px] font-medium text-ink-muted">
+          <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
             2 · O que precisa sair
           </p>
           <label className="flex flex-col gap-1.5">
-            <span className="text-[12.5px] font-medium text-ink-muted">Motivo da devolução</span>
+            <span className="text-[11px] uppercase tracking-wide text-ink-muted">Motivo da devolução</span>
             <input
               value={motivo}
               onChange={(e) => {
@@ -236,7 +266,7 @@ export function CorrigirVenda({
         </div>
 
         <div className="flex flex-col gap-1">
-          <p className="text-[12.5px] font-medium text-ink-muted">
+          <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
             3 · A venda certa
           </p>
           <p className="text-xs text-ink-muted">

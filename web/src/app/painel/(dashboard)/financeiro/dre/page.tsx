@@ -474,7 +474,7 @@ function DreConteudo() {
           groupKey="cmv"
           tone="danger"
         />
-        {r.perdasDeEstoque > 0 && (
+        {(r.perdasDeEstoque > 0 || detalhePerdas.semCustoCongelado > 0) && (
           <ExpandableGroup
             label="(−) Perdas e uso interno de estoque"
             value={r.perdasDeEstoque}
@@ -485,6 +485,12 @@ function DreConteudo() {
             groupKey="perdas"
             tone="danger"
           />
+        )}
+        {detalhePerdas.semCustoCongelado > 0 && (
+          <p role="status" className="pl-5 text-xs text-ink-muted">
+            {detalhePerdas.semCustoCongelado} un. de perda sem custo cadastrado — ficaram de fora do
+            valor. Cadastre o custo do produto (Dar entrada ou Editar) para as próximas.
+          </p>
         )}
         <ExpandableGroup
           label="(−) Despesas Variáveis"

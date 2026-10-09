@@ -92,7 +92,7 @@ export function EditarProduto({
     >
       <div className="flex flex-col gap-4">
         <label className="flex flex-col gap-1.5">
-          <span className="text-[12.5px] font-medium text-ink-muted">Nome do produto</span>
+          <span className="text-[11px] uppercase tracking-wide text-ink-muted">Nome do produto</span>
           <input
             autoFocus
             value={campos.name}
@@ -103,7 +103,7 @@ export function EditarProduto({
 
         <div className="grid grid-cols-2 gap-3">
           <label className="flex flex-col gap-1.5">
-            <span className="text-[12.5px] font-medium text-ink-muted">Preço de venda (R$)</span>
+            <span className="text-[11px] uppercase tracking-wide text-ink-muted">Preço de venda (R$)</span>
             <input
               inputMode="decimal"
               value={campos.price}
@@ -112,7 +112,7 @@ export function EditarProduto({
             />
           </label>
           <label className="flex flex-col gap-1.5">
-            <span className="text-[12.5px] font-medium text-ink-muted">Custo unitário (R$)</span>
+            <span className="text-[11px] uppercase tracking-wide text-ink-muted">Custo unitário (R$)</span>
             <input
               inputMode="decimal"
               value={campos.cost}
@@ -123,7 +123,7 @@ export function EditarProduto({
         </div>
 
         <label className="flex flex-col gap-1.5">
-          <span className="text-[12.5px] font-medium text-ink-muted">Estoque mínimo (un.)</span>
+          <span className="text-[11px] uppercase tracking-wide text-ink-muted">Estoque mínimo (un.)</span>
           <input
             inputMode="numeric"
             value={campos.minStock}

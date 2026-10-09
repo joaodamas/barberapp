@@ -368,8 +368,11 @@ export function perdasDeEstoque(params: {
     const unitCost = Number(m.unitCost);
     /* Sem custo congelado não se lê `products.cost` (reintroduziria o defeito
      * que o D3 mata): a perda entra com custo zero, e o contador diz quantas. */
-    const custo = Number.isFinite(unitCost) ? centavos(saiu * unitCost) : 0;
-    if (!Number.isFinite(unitCost)) semCusto += saiu;
+    /* Custo zero também é "sem custo": produto cadastrado sem custo (ou com
+     * custo 0) perde mercadoria que o DRE não consegue valorar — e a tela diz. */
+    const semCustoAqui = !Number.isFinite(unitCost) || unitCost <= 0;
+    const custo = semCustoAqui ? 0 : centavos(saiu * unitCost);
+    if (semCustoAqui) semCusto += saiu;
 
     const reason = m.reason ?? "outro";
     const reasonText = reason === "outro" ? (m.reasonText ?? null) : null;

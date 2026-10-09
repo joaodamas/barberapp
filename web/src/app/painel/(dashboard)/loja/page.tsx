@@ -197,7 +197,13 @@ function LojaConteudo() {
 
       <EntradaDeEstoque produto={aReceber} aoFechar={() => setAReceber(null)} />
       {aAjustar && (
-        <AjustarEstoque key={aAjustar.id} produto={aAjustar} aoFechar={() => setAAjustar(null)} />
+        /* O saldo AO VIVO: se uma venda entra com o modal aberto, a prévia muda
+           e o servidor recusa a contagem feita sobre o saldo velho. */
+        <AjustarEstoque
+          key={aAjustar.id}
+          produto={products.find((x) => x.id === aAjustar.id) ?? aAjustar}
+          aoFechar={() => setAAjustar(null)}
+        />
       )}
       {aEditar && <EditarProduto key={aEditar.id} produto={aEditar} aoFechar={() => setAEditar(null)} />}
       {historicoDe && (
@@ -307,7 +313,7 @@ function LojaConteudo() {
                 type="button"
                 aria-expanded={arquivadosAbertos}
                 onClick={() => setArquivadosAbertos((x) => !x)}
-                className="mb-2 flex cursor-pointer items-center gap-1.5 text-[15px] font-semibold text-ink"
+                className="mb-2 flex cursor-pointer items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm"
               >
                 <ChevronDown
                   size={14}

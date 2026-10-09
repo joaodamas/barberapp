@@ -575,7 +575,7 @@ describe("correção de VENDA · a transação ALTERA, não reescreve", () => {
 
   it("a conta da taxa é a do resto do produto, e o bruto sai do pagamento congelado", () => {
     expect(corpo).toContain("camposDaCorrecao({");
-    expect(corpo).toContain('Number(pagamentoSnap.get("grossAmount"))');
+    expect(corpo).toContain('Number(l.pagamentoSnap.get("grossAmount"))');
   });
 
   it("🔒 dono-only, autenticado antes de tocar no banco", () => {

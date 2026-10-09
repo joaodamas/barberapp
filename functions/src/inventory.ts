@@ -606,6 +606,12 @@ export async function gravarVendaComTravaDeEstoque(params: {
       if (!l.produtoSnap.exists) {
         throw new HttpsError("not-found", "Esse produto não está mais cadastrado.");
       }
+      if (l.produtoSnap.get("archived") === true) {
+        throw new HttpsError(
+          "failed-precondition",
+          `${l.produtoSnap.get("name") ?? "Produto"} está arquivado e não pode ser vendido. Reative o produto na Loja para vender.`
+        );
+      }
       const estoqueAntes = Number(l.produtoSnap.get("stock")) || 0;
       if (!estoqueSuficiente(estoqueAntes, l.item.quantity)) {
         throw new HttpsError(

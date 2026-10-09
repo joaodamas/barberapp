@@ -25,12 +25,15 @@ import type { PaymentMethod } from "@/lib/types";
  */
 export function CorrigirFormaDaVenda({
   venda,
+  irmas,
   nomeDoProduto,
   formaAtualId,
   aoFechar,
   aoCorrigir,
 }: {
   venda: VendaEstornavel;
+  /** Todas as linhas da mesma venda (inclui `venda`). A forma vale para todas. */
+  irmas: VendaEstornavel[];
   nomeDoProduto: string;
   /** A forma gravada no pagamento, quando houver. */
   formaAtualId: string | null;
@@ -51,7 +54,9 @@ export function CorrigirFormaDaVenda({
 
   /* Mesma forma que já está gravada: nada a corrigir. */
   const igual = escolhida !== null && escolhida.id === formaAtualId;
-  const taxa = escolhida ? Math.round(venda.valor * escolhida.feePct) / 100 : 0;
+  const linhas = irmas.length > 0 ? irmas : [venda];
+  const total = linhas.reduce((s, l) => s + l.valor, 0);
+  const taxa = escolhida ? Math.round(total * escolhida.feePct) / 100 : 0;
 
   async function confirmar() {
     if (!escolhida || igual) return;
@@ -61,7 +66,7 @@ export function CorrigirFormaDaVenda({
       const { callFunction } = await import("@/lib/firebase");
       await callFunction<Record<string, unknown>, unknown>("corrigirPagamentoDeVenda", {
         barbershopId: tenant.id,
-        movementId: venda.movementId,
+        movementIds: linhas.map((l) => l.movementId),
         paymentMethod: escolhida.base,
         paymentFormId: escolhida.id,
         idempotencyKey: chave,
@@ -80,7 +85,11 @@ export function CorrigirFormaDaVenda({
       open
       onClose={aoFechar}
       title="Corrigir forma de pagamento"
-      description={`${venda.quantidade}× ${nomeDoProduto} · ${formatBRL(venda.valor)}`}
+      description={
+        linhas.length > 1
+          ? `Venda com ${linhas.length} itens · ${formatBRL(total)}`
+          : `${venda.quantidade}× ${nomeDoProduto} · ${formatBRL(venda.valor)}`
+      }
       footer={
         <div className="flex flex-col gap-2">
           {erro && (
@@ -128,6 +137,12 @@ export function CorrigirFormaDaVenda({
             </button>
           ))}
         </div>
+
+        {linhas.length > 1 && (
+          <p className="text-xs text-ink-muted">
+            Esta venda tem {linhas.length} itens; a forma de todos será corrigida de uma vez.
+          </p>
+        )}
 
         {igual && <p className="text-xs text-ink-muted">Essa já é a forma registrada.</p>}
 

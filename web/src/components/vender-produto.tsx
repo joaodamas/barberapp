@@ -72,7 +72,10 @@ export function VenderProduto({
   const { items: equipe } = useStaff();
 
   const [linhas, setLinhas] = useState<Linha[]>(() =>
-    (inicial?.linhas ?? []).map((l) => ({ productId: l.productId, quantity: l.quantity }))
+    (inicial && !inicial.desistiu ? inicial.linhas : []).map((l) => ({
+      productId: l.productId,
+      quantity: l.quantity,
+    }))
   );
   const [forma, setForma] = useState<FormaDePagamento | null>(() =>
     inicial
@@ -97,7 +100,7 @@ export function VenderProduto({
    * preço da venda original; o resto é decisão do dono, linha a linha. */
   const [combinados, setCombinados] = useState<Record<string, Combinado>>(() => {
     const mapa: Record<string, Combinado> = {};
-    for (const l of inicial?.linhas ?? []) {
+    for (const l of inicial && !inicial.desistiu ? inicial.linhas : []) {
       mapa[l.productId] = { unitPrice: l.unitPrice, motivo: MOTIVO_DA_VENDA_ORIGINAL };
     }
     return mapa;
@@ -109,7 +112,7 @@ export function VenderProduto({
 
   /* A correção em andamento: devolução feita, venda certa por fazer. */
   const [correcaoAtiva, setCorrecaoAtiva] = useState(inicial !== null);
-  const [desistiu, setDesistiu] = useState(false);
+  const [desistiu, setDesistiu] = useState(inicial?.desistiu === true);
 
   /**
    * Chave de idempotência da tentativa atual.
@@ -299,7 +302,7 @@ export function VenderProduto({
       {/* ---- Correção de venda: a devolução já foi registrada ---- */}
       {inicial && correcaoAtiva && !desistiu && (
         <Card className="flex flex-col gap-2 border-gold/50 p-3">
-          <p className="text-[12.5px] font-medium text-gold-strong">
+          <p className="text-xs font-semibold uppercase tracking-wider text-gold-strong">
             Corrigindo uma venda
           </p>
           <p className="text-sm text-ink">

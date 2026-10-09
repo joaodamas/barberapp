@@ -70,6 +70,15 @@ describe("lerEdicaoDeProduto", () => {
     expect(r.ok && Object.keys(r.valor).sort()).toEqual(["cost", "minStock", "name", "price"]);
   });
 
+  it("produto sem custo gravado abre com o campo vazio — e pede o custo ao salvar", () => {
+    const c = camposDoProduto(
+      { name: "Antigo", price: 30, cost: undefined as unknown as number, minStock: undefined as unknown as number },
+      reaisParaCampo
+    );
+    expect(c).toEqual({ name: "Antigo", price: "30", cost: "", minStock: "" });
+    expect(lerEdicaoDeProduto(c)).toEqual({ ok: false, erro: "Informe o custo unitário." });
+  });
+
   it("os campos de abertura voltam pelo mesmo caminho", () => {
     const c = camposDoProduto({ name: "Cera", price: 49.9, cost: 20, minStock: 3 }, reaisParaCampo);
     expect(c).toEqual({ name: "Cera", price: "49,90", cost: "20", minStock: "3" });

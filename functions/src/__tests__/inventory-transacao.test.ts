@@ -972,3 +972,20 @@ describe("preço combinado · congelado na venda", () => {
     expect(est.valor).toBe(40);
   });
 });
+
+describe("produto arquivado não vende", () => {
+  it("a venda é recusada com mensagem clara e não deixa rastro", async () => {
+    await shopRef().collection("products").doc("pomada").update({ archived: true });
+    await expect(vender({ productId: "pomada", quantity: 1, paymentMethod: "pix" })).rejects.toThrow(
+      /Pomada está arquivado e não pode ser vendido/
+    );
+    expect(await movimentos()).toHaveLength(0);
+    expect(await estoqueDe("pomada")).toBe(10);
+  });
+
+  it("reativado, volta a vender", async () => {
+    await shopRef().collection("products").doc("pomada").update({ archived: false });
+    await vender({ productId: "pomada", quantity: 1, paymentMethod: "pix" });
+    expect(await estoqueDe("pomada")).toBe(9);
+  });
+});

@@ -34,11 +34,14 @@ export function camposDoProduto(
   p: { name: string; price: number; cost: number; minStock: number },
   paraCampo: (v: number) => string
 ): CamposDeEdicao {
+  /* Produto antigo pode não ter custo/preço/mínimo gravados: o campo abre
+   * VAZIO, e não "NaN" ou "undefined". */
+  const numero = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? paraCampo(v) : "");
   return {
-    name: p.name,
-    price: paraCampo(p.price),
-    cost: paraCampo(p.cost),
-    minStock: String(p.minStock ?? 0),
+    name: p.name ?? "",
+    price: numero(p.price),
+    cost: numero(p.cost),
+    minStock: typeof p.minStock === "number" && Number.isFinite(p.minStock) ? String(p.minStock) : "",
   };
 }
 
@@ -61,6 +64,7 @@ export function lerEdicaoDeProduto(
   if (price === null) return { ok: false, erro: VALOR_ILEGIVEL };
   if (!(price > 0)) return { ok: false, erro: "Informe um preço de venda maior que zero." };
 
+  if (campos.cost.trim() === "") return { ok: false, erro: "Informe o custo unitário." };
   const cost = lerReais(campos.cost);
   if (cost === null) return { ok: false, erro: VALOR_ILEGIVEL };
 

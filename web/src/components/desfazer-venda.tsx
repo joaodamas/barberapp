@@ -11,7 +11,7 @@ import { formatBRL, formatDateShortPtBR, mesAtual, rotuloDoMes } from "@/lib/for
 import { useTenant } from "@/lib/tenant-context";
 import {
   useInventoryMovements,
-  usePayments,
+  usePaymentsDesde,
   useProducts,
   useRefunds,
   useStaff,
@@ -63,7 +63,6 @@ export function DesfazerVenda({
   const { items: refunds } = useRefunds();
   const { items: produtos } = useProducts();
   const { items: equipe } = useStaff();
-  const { items: pagamentos } = usePayments();
 
   const [verTodas, setVerTodas] = useState(false);
   const [mesAtras, setMesAtras] = useState(0);
@@ -101,6 +100,11 @@ export function DesfazerVenda({
     () => [...new Set(todas.map((v) => v.productId))],
     [todas]
   );
+
+  /* Só os pagamentos do recorte: da venda mais antiga que a lista mostra em
+   * diante (e do mês escolhido), não a coleção `payments` inteira. */
+  const desde = vendas.reduce((min, v) => (v.date < min ? v.date : min), `${mes}-01`);
+  const { items: pagamentos } = usePaymentsDesde(desde);
 
   /* A forma gravada no PAGAMENTO da venda — o movimento só guarda o meio. */
   const formaDoPagamento = useMemo(() => {
@@ -276,7 +280,7 @@ export function DesfazerVenda({
                   {/* Devolução registrada (total ou parcial) trava a correção da
                       forma: ela guardou o meio antigo, e o servidor recusa. A
                       tela não oferece o que o sistema não faz. */}
-                  {v.devolvida === 0 && (
+                  {todas.filter((x) => x.carrinho === v.carrinho).every((x) => x.devolvida === 0) && (
                     <Button variant="ghost" className="text-xs" onClick={() => setACorrigirForma(v)}>
                       Corrigir forma
                     </Button>
@@ -391,6 +395,7 @@ export function DesfazerVenda({
         <CorrigirFormaDaVenda
           key={aCorrigirForma.movementId}
           venda={aCorrigirForma}
+          irmas={todas.filter((x) => x.carrinho === aCorrigirForma.carrinho)}
           nomeDoProduto={nomeDoProduto(aCorrigirForma.productId)}
           formaAtualId={formaDoPagamento.get(aCorrigirForma.movementId) ?? null}
           aoFechar={() => setACorrigirForma(null)}

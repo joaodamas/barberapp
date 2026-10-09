@@ -74,7 +74,7 @@ async function venderPomada(params: {
 }
 
 function corrigir(params: {
-  movementId: string;
+  movementId: string | string[];
   metodo: PaymentMethod;
   formaId?: string | null;
   chave?: string;
@@ -83,7 +83,7 @@ function corrigir(params: {
   return gravarCorrecaoDeVenda({
     db,
     shopRef: shopRef(),
-    movementId: params.movementId,
+    movementIds: Array.isArray(params.movementId) ? params.movementId : [params.movementId],
     metodo: params.metodo,
     fees: TAXAS,
     formas: FORMAS,
@@ -311,6 +311,71 @@ describe("idempotência", () => {
     await corrigir({ movementId: mov, metodo: "credit", formaId: "credit_chip", chave: "k2" });
 
     expect((await pagamentoRef(mov).get()).get("feePct")).toBe(4.19);
+    expect(await logs()).toHaveLength(2);
+  });
+});
+
+describe("venda com vários produtos (carrinho)", () => {
+  async function venderCarrinho() {
+    await shopRef()
+      .collection("products")
+      .doc("cera")
+      .set({ name: "Cera", cost: 10, price: 30, stock: 5, minStock: 1 });
+    const r = await gravarVendaComTravaDeEstoque({
+      db,
+      shopRef: shopRef(),
+      itens: [
+        { productId: "pomada", quantity: 1 },
+        { productId: "cera", quantity: 2 },
+      ],
+      paymentMethod: "pix",
+      clientId: null,
+      bookingId: null,
+      date: DIA_DA_VENDA,
+      chave: "carrinho1",
+      fees: TAXAS,
+      formas: FORMAS,
+      formaId: "pix",
+      extras: { createdAt: FieldValue.serverTimestamp() },
+    });
+    return r.movementIds;
+  }
+
+  it("corrige TODAS as linhas na mesma transação, com um log por linha", async () => {
+    const ids = await venderCarrinho();
+    const r = await corrigir({ movementId: ids, metodo: "credit", formaId: "credit_ap" });
+
+    expect(r.itens).toHaveLength(2);
+    for (const id of ids) {
+      expect((await pagamentoRef(id).get()).get("paymentMethod")).toBe("credit");
+      expect((await movimentoRef(id).get()).get("paymentMethod")).toBe("credit");
+    }
+    expect(await logs()).toHaveLength(2);
+  });
+
+  it("se UMA linha não pode ser corrigida, nenhuma é", async () => {
+    const ids = await venderCarrinho();
+    await gravarEstorno({
+      db,
+      shopRef: shopRef(),
+      ref: { origem: "produto", movementId: ids[1] },
+      chave: "dev1",
+      reason: "Cliente devolveu",
+      date: HOJE,
+    });
+
+    await expect(corrigir({ movementId: ids, metodo: "credit", formaId: "credit_ap" })).rejects.toThrow(
+      /já teve devolução/
+    );
+    expect((await pagamentoRef(ids[0]).get()).get("paymentMethod")).toBe("pix");
+    expect(await logs()).toHaveLength(0);
+  });
+
+  it("o retry do carrinho inteiro é idempotente", async () => {
+    const ids = await venderCarrinho();
+    await corrigir({ movementId: ids, metodo: "credit", formaId: "credit_ap" });
+    const b = await corrigir({ movementId: ids, metodo: "credit", formaId: "credit_ap" });
+    expect(b.repetida).toBe(true);
     expect(await logs()).toHaveLength(2);
   });
 });

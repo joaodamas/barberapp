@@ -51,7 +51,16 @@ export function motivoDeAjusteValido(motivo: unknown): motivo is MotivoDeAjuste 
 
 /** O pedido do dono: contou o saldo real, ou informou quanto saiu sem venda. */
 export type PedidoDeAjuste =
-  | { modo: "contagem"; contado: number }
+  | {
+      modo: "contagem";
+      contado: number;
+      /**
+       * O saldo que o dono tinha na tela ao contar. Se na transação o saldo for
+       * outro (uma venda entrou no meio), a contagem é recusada: "contei 7"
+       * calculado sobre um saldo velho viraria uma diferença errada.
+       */
+      estoqueVisto?: number;
+    }
   | { modo: "saida"; quantidade: number };
 
 export type CalculoDoAjuste =
@@ -210,6 +219,16 @@ export async function gravarAjusteDeEstoque(params: {
     }
 
     const estoqueAntes = Number(produtoSnap.get("stock")) || 0;
+    if (
+      params.pedido.modo === "contagem" &&
+      typeof params.pedido.estoqueVisto === "number" &&
+      params.pedido.estoqueVisto !== estoqueAntes
+    ) {
+      throw new HttpsError(
+        "failed-precondition",
+        `O estoque mudou desde que você abriu (agora: ${estoqueAntes}). Confira e conte de novo.`
+      );
+    }
     const calculo = calcularAjuste({ estoqueAtual: estoqueAntes, pedido: params.pedido });
     if (!calculo.ok) {
       if (calculo.motivo === "excede") {
@@ -255,6 +274,8 @@ type AjusteInput = {
   modo: "contagem" | "saida";
   /** `modo: "contagem"` — o saldo real contado. */
   contado?: number;
+  /** `modo: "contagem"` — o saldo que a tela mostrava ao contar. */
+  estoqueVisto?: number;
   /** `modo: "saida"` — quantas unidades saíram sem venda. */
   quantity?: number;
   /** Obrigatório em `saida`; em `contagem` é sempre "contagem". */
@@ -287,7 +308,11 @@ export const ajustarEstoque = onCall<AjusteInput>(async (request) => {
   let pedido: PedidoDeAjuste;
   let reason: MotivoDeAjuste;
   if (data.modo === "contagem") {
-    pedido = { modo: "contagem", contado: data.contado as number };
+    pedido = {
+      modo: "contagem",
+      contado: data.contado as number,
+      ...(typeof data.estoqueVisto === "number" ? { estoqueVisto: data.estoqueVisto } : {}),
+    };
     reason = "contagem";
   } else if (data.modo === "saida") {
     pedido = { modo: "saida", quantidade: data.quantity as number };
