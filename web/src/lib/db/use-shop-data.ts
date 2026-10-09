@@ -63,7 +63,10 @@ export function useStaffComRemuneracao() {
           }
         : s;
     }),
-  } as typeof equipe;
+    /* A leitura de `staff_pay` PRONTA: salvar salário regrava o histórico a
+     * partir dela, e com a leitura falha os meses passados perderiam a folha. */
+    folhaPronta: pay.status === "pronto",
+  } as typeof equipe & { folhaPronta: boolean };
 }
 
 /** Comissões apuradas — escritas pelo servidor na conclusão do atendimento. */
