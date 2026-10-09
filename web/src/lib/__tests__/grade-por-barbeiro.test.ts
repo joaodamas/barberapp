@@ -52,6 +52,28 @@ describe("grade por barbeiro", () => {
     expect(g.colunas.map((c) => c.id)).toEqual(["ana", "caio"]);
   });
 
+  it("coluna de inativo ou de ficha apagada mostra o atendimento mas não oferece livre", () => {
+    const inativo = { id: "caio", name: "Caio", active: false };
+    const g = montarGrade({
+      ...base,
+      equipe: [ana, inativo],
+      reservas: [res("c", "caio", "09:00"), res("z", "apagado", "10:00")],
+    });
+    const caio = g.colunas.find((c) => c.id === "caio")!;
+    const orfa = g.colunas.find((c) => c.id === "apagado")!;
+    expect(caio.faixas).toHaveLength(1);
+    expect(caio.livres).toEqual([]);
+    expect(orfa.faixas).toHaveLength(1);
+    expect(orfa.livres).toEqual([]);
+    expect(g.colunas.find((c) => c.id === "ana")!.livres.length).toBeGreaterThan(0);
+  });
+
+  it("policies.openWeekdays vale antes dos dias da loja, e a jornada dele antes de tudo", () => {
+    expect(montarGrade({ ...base, equipe: [ana], reservas: [], openWeekdays: [2] }).colunas).toEqual([]);
+    const dele = { id: "gui", name: "Gui", schedule: { weekdays: [1] } };
+    expect(montarGrade({ ...base, equipe: [dele], reservas: [], openWeekdays: [2] }).colunas).toHaveLength(1);
+  });
+
   it("jornada própria: quem não trabalha na segunda não tem coluna", () => {
     const terca = { id: "duda", name: "Duda", schedule: { weekdays: [2, 3] } };
     expect(montarGrade({ ...base, equipe: [ana, terca], reservas: [] }).colunas.map((c) => c.id)).toEqual(["ana"]);

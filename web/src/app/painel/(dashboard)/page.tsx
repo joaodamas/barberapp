@@ -71,7 +71,7 @@ export default function PainelHojePage() {
   const { items: equipe } = useStaff();
   /* Filtro por barbeiro: só a lista da agenda do dia. Os números do topo e o
    * caixa são da barbearia inteira. */
-  const [filtro, setFiltro] = useFiltroDeBarbeiro(equipe);
+  const [filtro, setFiltro] = useFiltroDeBarbeiro(equipe, "hoje");
   const variosBarbeiros = equipe.filter((b) => b.active !== false).length > 1;
   const nomeDoBarbeiro = (b: { staffId?: string | null; staffName?: string | null }) =>
     equipe.find((s) => s.id === b.staffId)?.name ?? b.staffName ?? "—";
@@ -208,7 +208,7 @@ export default function PainelHojePage() {
   /* Menos o que voltou para o cliente hoje — a mesma conta do fechamento do
    * Telegram. O detalhe por forma (`caixaHoje`) segue bruto: a devolução não
    * grava a forma de cada fatia, e inventar a divisão seria chute. */
-  const recebidoReal = recebidoDoDia(caixaHoje.total, refunds.items, hoje).recebido;
+  const { recebido: recebidoReal, estornado: estornadoHoje } = recebidoDoDia(caixaHoje.total, refunds.items, hoje);
 
   /* D3 · o recebido tem fonte PRÓPRIA desde o D2, e some pela falha dela.
    *
@@ -373,6 +373,21 @@ export default function PainelHojePage() {
           }}
         />
         <FiltroDeBarbeiro equipe={equipe} valor={filtro} aoMudar={setFiltro} className="mt-2" />
+        {filtro && (
+          <p className="mt-2 flex flex-wrap items-center gap-x-2 rounded-xl border border-gold/40 bg-gold/5 px-3 py-2 text-sm text-ink">
+            <span>
+              Mostrando só <strong>{equipe.find((b) => b.id === filtro)?.name}</strong> na agenda. Os números e o
+              caixa são da barbearia inteira.
+            </span>
+            <button
+              type="button"
+              onClick={() => setFiltro(null)}
+              className="alvo-toque font-medium text-gold-strong underline underline-offset-2"
+            >
+              ver todos
+            </button>
+          </p>
+        )}
         {status === "pronto" && reservasDaAgenda.length > 0 && bookingsDoDia.length === 0 && (
           <p className="mt-2 text-sm text-ink-muted">
             Nenhum horário de {equipe.find((b) => b.id === filtro)?.name ?? "este barbeiro"} neste dia.
@@ -511,7 +526,7 @@ export default function PainelHojePage() {
                   onClick={() => {
                     atendimento.abrirConcluir(booking);
                   }}
-                  className="alvo-toque flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ink-muted transition-colorshover:border-success hover:text-success"
+                  className="alvo-toque flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ink-muted transition-colors hover:border-success hover:text-success"
                 >
                   <Check size={14} />
                   {booking.status === "no_show" ? "Veio depois" : "Concluir"}
@@ -525,7 +540,7 @@ export default function PainelHojePage() {
                   onClick={() => {
                     atendimento.abrirFalta(booking);
                   }}
-                  className="alvo-toque flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ink-muted transition-colorshover:border-danger hover:text-danger"
+                  className="alvo-toque flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ink-muted transition-colors hover:border-danger hover:text-danger"
                 >
                   <UserX size={14} /> Não veio
                 </button>
@@ -538,7 +553,7 @@ export default function PainelHojePage() {
                   onClick={() => {
                     atendimento.abrirCancelar(booking);
                   }}
-                  className="alvo-toque flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ink-muted transition-colorshover:border-danger hover:text-danger"
+                  className="alvo-toque flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ink-muted transition-colors hover:border-danger hover:text-danger"
                 >
                   <CalendarX size={14} /> Cancelar
                 </button>
@@ -546,7 +561,7 @@ export default function PainelHojePage() {
               {emAberto && (
                 <button
                   onClick={() => atendimento.abrirRemarcar(booking)}
-                  className="alvo-toque flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ink-muted transition-colorshover:border-gold hover:text-gold-strong"
+                  className="alvo-toque flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-ink-muted transition-colors hover:border-gold hover:text-gold-strong"
                 >
                   <CalendarClock size={14} /> Remarcar
                 </button>
@@ -729,6 +744,11 @@ export default function PainelHojePage() {
       <section id="caixa-de-hoje" className="scroll-mt-4">
         <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted md:text-sm">
           Caixa de hoje
+          {estornadoHoje > 0 && (
+            <span className="ml-2 font-normal normal-case tracking-normal">
+              · por forma, antes de devoluções ({formatBRL(estornadoHoje)})
+            </span>
+          )}
         </h2>
         <Card className="flex flex-col divide-y divide-border p-0 md:flex-row md:divide-x md:divide-y-0">
           <div className="flex items-center gap-3 px-4 py-3 md:flex-1 md:p-5">

@@ -87,13 +87,14 @@ export function reservasDoFiltro<B extends { staffId?: string | null }>(reservas
 function jornadaDe(
   loja: EntradaDeJornada | null | undefined,
   barbeiro: BarbeiroDaGrade | null,
-  dia: string
+  dia: string,
+  openWeekdays?: number[]
 ) {
   const dele = barbeiro?.schedule ?? {};
   const daLoja = loja ?? {};
   return jornadaDoDia({
     schedule: {
-      weekdays: dele.weekdays ?? daLoja.weekdays,
+      weekdays: dele.weekdays ?? openWeekdays ?? daLoja.weekdays,
       opensAt: dele.opensAt ?? daLoja.opensAt,
       closesAt: dele.closesAt ?? daLoja.closesAt,
       breaks: dele.breaks ?? daLoja.breaks,
@@ -128,6 +129,8 @@ export function montarGrade<B extends ReservaDaGrade>(params: {
   filtro: string | null;
   /** "colunas": uma por barbeiro. "unica": todos juntos (celular em "Todos"). */
   modo: "colunas" | "unica";
+  /** `policies.openWeekdays`: o servidor o consulta antes dos dias da loja. */
+  openWeekdays?: number[];
 }): GradeMontada<B> {
   const { dia, schedule, equipe, filtro, modo } = params;
   const grade = Number(schedule?.slotMinutes) || 30;
@@ -139,7 +142,7 @@ export function montarGrade<B extends ReservaDaGrade>(params: {
   };
 
   const rascunho = (b: BarbeiroDaGrade | null, nome: string): Omit<Rascunho<B>, "reservas" | "folga"> => {
-    const j = jornadaDe(schedule, b, dia);
+    const j = jornadaDe(schedule, b, dia, params.openWeekdays);
     return {
       id: b?.id ?? null,
       nome,
@@ -166,7 +169,8 @@ export function montarGrade<B extends ReservaDaGrade>(params: {
     if (conhecidos.has(b.id)) continue;
     const dele = reservas.filter((x) => x.staffId === b.id);
     if (dele.length === 0) continue;
-    rascunhos.push({ ...rascunho(b, b.name), folga: false, reservas: dele });
+    /* Desativado com atendimento marcado: a coluna existe, mas não vende vaga. */
+    rascunhos.push({ ...rascunho(b, b.name), aberto: false, folga: false, reservas: dele });
     conhecidos.add(b.id);
   }
   /* Atendimento de quem não está na equipe (ficha apagada): coluna pelo nome
@@ -181,6 +185,7 @@ export function montarGrade<B extends ReservaDaGrade>(params: {
     for (const [chave, nome] of nomes) {
       rascunhos.push({
         ...rascunho(null, nome),
+        aberto: false,
         id: chave || null,
         folga: false,
         reservas: orfas.filter((o) => (o.staffId ?? "") === chave),

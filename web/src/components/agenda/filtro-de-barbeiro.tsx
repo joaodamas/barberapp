@@ -12,19 +12,23 @@ import { filtroValido } from "@/lib/grade-por-barbeiro";
  * horário de um era caçar o nome em cada cartão.
  */
 
-const CHAVE = "topete:filtro-de-barbeiro";
+/* Uma chave por tela: o filtro escolhido na Agenda não pode deixar o Hoje
+ * filtrado sem o dono ter pedido. */
+export type EscopoDoFiltro = "agenda" | "hoje";
+const chaveDe = (e: EscopoDoFiltro) => `topete:filtro-de-barbeiro:${e}`;
 
 /* Se o armazenamento do aparelho estiver bloqueado (aba privada, política do
  * navegador), o filtro continua funcionando na sessão: a escolha vale na
  * memória, só não sobrevive ao fechar. Um chip que não responde seria botão
  * decorativo. */
-let emMemoria: string | null | undefined;
+const emMemoria = new Map<EscopoDoFiltro, string | null>();
 const ouvintes = new Set<() => void>();
 
-function ler(): string | null {
-  if (emMemoria !== undefined) return emMemoria;
+function ler(escopo: EscopoDoFiltro): string | null {
+  const lembrado = emMemoria.get(escopo);
+  if (lembrado !== undefined) return lembrado;
   try {
-    return window.localStorage.getItem(CHAVE) || null;
+    return window.localStorage.getItem(chaveDe(escopo)) || null;
   } catch {
     return null;
   }
@@ -37,11 +41,11 @@ function assinar(aviso: () => void) {
   };
 }
 
-function gravar(id: string | null) {
-  emMemoria = id;
+function gravar(escopo: EscopoDoFiltro, id: string | null) {
+  emMemoria.set(escopo, id);
   try {
-    if (id) window.localStorage.setItem(CHAVE, id);
-    else window.localStorage.removeItem(CHAVE);
+    if (id) window.localStorage.setItem(chaveDe(escopo), id);
+    else window.localStorage.removeItem(chaveDe(escopo));
   } catch {
     /* só na memória */
   }
@@ -54,10 +58,15 @@ function gravar(id: string | null) {
  * a agenda vazia sem explicação.
  */
 export function useFiltroDeBarbeiro(
-  equipe: Array<{ id: string; active?: boolean }>
+  equipe: Array<{ id: string; active?: boolean }>,
+  escopo: EscopoDoFiltro
 ): [string | null, (id: string | null) => void] {
-  const guardado = useSyncExternalStore(assinar, ler, () => null);
-  return [filtroValido(guardado, equipe), gravar];
+  const guardado = useSyncExternalStore(
+    assinar,
+    () => ler(escopo),
+    () => null
+  );
+  return [filtroValido(guardado, equipe), (id) => gravar(escopo, id)];
 }
 
 export function FiltroDeBarbeiro({

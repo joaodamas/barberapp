@@ -48,6 +48,7 @@ export function GradeDoDia({
   pedidos,
   schedule,
   equipe,
+  openWeekdays,
   filtro,
   selecionadoId,
   aoSelecionar,
@@ -63,6 +64,8 @@ export function GradeDoDia({
   schedule: EntradaDeJornada | null | undefined;
   /** A equipe do salão; cada barbeiro ativo que trabalha no dia ganha uma coluna. */
   equipe: BarbeiroDaGrade[];
+  /** `policies.openWeekdays`, como o servidor. */
+  openWeekdays?: number[];
   /** Barbeiro do filtro (`null` = Todos). */
   filtro: string | null;
   selecionadoId: string | null;
@@ -73,7 +76,7 @@ export function GradeDoDia({
 }) {
   const ocupantes = reservas.filter((b) => OCCUPIES_SLOT.includes(b.status));
   const doPedido = pedidos.map((p) => p.booking);
-  const comum = { dia, schedule, equipe, reservas: ocupantes, pedidos: doPedido, filtro };
+  const comum = { dia, schedule, equipe, openWeekdays, reservas: ocupantes, pedidos: doPedido, filtro };
   const emColunas = montarGrade({ ...comum, modo: "colunas" });
   if (emColunas.colunas.length === 0 && pedidos.length === 0) return null;
 

@@ -59,7 +59,7 @@ export default function AgendaPage() {
   /* O "Livre · marcar" de uma coluna abre o balcão já na hora e no barbeiro dela. */
   const [livreEscolhido, setLivreEscolhido] = useState<LivreEscolhido | null>(null);
   const { items: equipe } = useStaff();
-  const [filtro, setFiltro] = useFiltroDeBarbeiro(equipe);
+  const [filtro, setFiltro] = useFiltroDeBarbeiro(equipe, "agenda");
   const [mostrarCancelados, setMostrarCancelados] = useState(false);
   /* Grade é o padrão (pedido de 28/09: ver livre, ocupado e encaixes lado a
    * lado). A lista continua para quem prefere rolar. */
@@ -347,6 +347,7 @@ export default function AgendaPage() {
             pedidos={pedidosDoDia.map((p) => ({ booking: p, nivel: analisar(p).sugestao.nivel as NivelDoEncaixe }))}
             schedule={tenant.schedule}
             equipe={equipe}
+            openWeekdays={tenant.policies.openWeekdays}
             filtro={filtro}
             selecionadoId={selecionadoId}
             aoSelecionar={(id) => setSelecionadoId((atual) => (atual === id ? null : id))}
