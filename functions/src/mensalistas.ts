@@ -817,6 +817,16 @@ export function valorDoMensalValido(valor: unknown): number | null {
   return Math.round(n * 100) / 100;
 }
 
+/**
+ * O reajuste "na fatura já emitida" só alcança o mês atual em diante.
+ *
+ * Marcado por padrão, ele subia também a fatura vencida de meses anteriores —
+ * dívida que o cliente já tinha pelo valor antigo passava a custar o novo.
+ */
+export function faturaAceitaReajuste(competenciaDaFatura: unknown, hoje: string): boolean {
+  return String(competenciaDaFatura ?? "") >= competenciaDe(hoje);
+}
+
 export const ajustarValorDoMensal = onCall<{
   barbershopId: string;
   subscriptionId: string;
@@ -840,6 +850,9 @@ export const ajustarValorDoMensal = onCall<{
 
   const db = getFirestore();
   const shopRef = db.doc(`barbershops/${barbershopId}`);
+  const shopSnap = await shopRef.get();
+  if (!shopSnap.exists) throw new HttpsError("not-found", "Barbearia não encontrada.");
+  const hoje = hojeNoFuso(localeDoDocumento(shopSnap.data()).timeZone);
   const ref = shopRef.collection("subscriptions").doc(String(subscriptionId));
 
   return db.runTransaction(async (tx) => {
@@ -858,7 +871,7 @@ export const ajustarValorDoMensal = onCall<{
               .where("subscriptionId", "==", String(subscriptionId))
               .where("status", "==", "aberta")
           )
-        ).docs
+        ).docs.filter((f) => faturaAceitaReajuste(f.get("competencia"), hoje))
       : [];
 
     tx.update(ref, { price: valor, priceAjustadoEm: FieldValue.serverTimestamp(), priceAjustadoPor: uid });
