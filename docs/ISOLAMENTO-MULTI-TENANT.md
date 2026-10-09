@@ -146,7 +146,7 @@ Beta. Token válido, Admin SDK escreveria sem reclamar.
 | **Exige vínculo** | `completeOnboardingStep` | `role !== "owner"` |
 | | `encerrarConta`, `reabrirConta` | `ehDono` |
 | | `cancelBooking`, `rescheduleBooking` | dono da reserva **ou** da barbearia |
-| | `grantShopRole` | `platformAdmin` ou `owner` daquela barbearia |
+| | `grantShopRole` | só `platformAdmin` (09/10); conceder exige e-mail verificado |
 | | `provisionBarbershop`, `definirPlano` | `platformAdmin` |
 | | `setOwnerRole` | `role === "owner"` |
 | **Pública por desenho** | `createBooking`, `availableSlots` | qualquer um agenda em qualquer barbearia — é o produto |

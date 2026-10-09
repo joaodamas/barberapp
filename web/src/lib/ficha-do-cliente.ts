@@ -188,11 +188,23 @@ export type ParDeMesmoNumero = { conta: Doc<ClientDoc>; balcao: Doc<ClientDoc> }
 export function paresDeMesmoNumero(clientes: Doc<ClientDoc>[]): ParDeMesmoNumero[] {
   const porId = new Map(clientes.map((c) => [c.id, c]));
   const pares: ParDeMesmoNumero[] = [];
-  for (const conta of clientes) {
-    if (!conta.uid || conta.active === false || !conta.mesmoNumeroQue) continue;
-    const balcao = porId.get(conta.mesmoNumeroQue);
-    if (!balcao || balcao.uid || balcao.active === false || balcao.mergedInto) continue;
+  const vistos = new Set<string>();
+  const juntar = (conta: Doc<ClientDoc> | undefined, balcao: Doc<ClientDoc> | undefined) => {
+    if (!conta || !conta.uid || conta.active === false) return;
+    if (!balcao || balcao.uid || balcao.active === false || balcao.mergedInto) return;
+    const chave = `${conta.id}|${balcao.id}`;
+    if (vistos.has(chave)) return;
+    vistos.add(chave);
     pares.push({ conta, balcao });
+  };
+  /* O indício mora no cadastro de balcão (`contasDoMesmoNumero`, 09/10). O
+   * legado, na conta (`mesmoNumeroQue`), vale enquanto a conta não reservar de
+   * novo. */
+  for (const balcao of clientes) {
+    for (const uid of balcao.contasDoMesmoNumero ?? []) juntar(porId.get(uid), balcao);
+  }
+  for (const conta of clientes) {
+    if (conta.mesmoNumeroQue) juntar(conta, porId.get(conta.mesmoNumeroQue));
   }
   return pares;
 }

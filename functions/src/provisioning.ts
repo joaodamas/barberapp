@@ -1,6 +1,6 @@
 import { CAMINHO_FINANCEIRO } from "./politicas-financeiras";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
-import { vinculosDe } from "./acesso";
+import { limparAvisosDoUid } from "./avisos-por-uid";
 import { getAuth } from "firebase-admin/auth";
 import { FieldValue, getFirestore, type Firestore } from "firebase-admin/firestore";
 import { featuresFor, toPlanId, type PlanId } from "./plans";
@@ -369,7 +369,16 @@ export async function criarBarbeariaAssistida(
   return { barbershopId: shopRef.id };
 }
 
-/** Concede ou revoga papel de alguém numa barbearia. Idempotente. */
+/**
+ * Concede ou revoga papel de alguém numa barbearia. Idempotente.
+ *
+ * Só o suporte da plataforma (09/10). Aberta ao dono, ligava QUALQUER e-mail à
+ * loja sem que a pessoa soubesse ou aceitasse — e, sem e-mail confirmado, quem
+ * só sabia o endereço de outra pessoa criava a conta com ele e herdava o
+ * papel. Dono dá acesso a barbeiro pelo convite (`criarConviteDeBarbeiro`), em
+ * que a pessoa aceita com a própria conta. Conceder exige e-mail verificado;
+ * retirar o papel não.
+ */
 export const grantShopRole = onCall<{
   barbershopId: string;
   email: string;
@@ -386,12 +395,8 @@ export const grantShopRole = onCall<{
     throw new HttpsError("invalid-argument", "Papel inválido.");
   }
 
-  const isPlatformAdmin = request.auth?.token.platformAdmin === true;
-  const callerRole = vinculosDe(request)?.[
-    barbershopId
-  ];
-  if (!isPlatformAdmin && callerRole !== "owner") {
-    throw new HttpsError("permission-denied", "Só o dono da barbearia ou o suporte pode fazer isso.");
+  if (request.auth?.token.platformAdmin !== true) {
+    throw new HttpsError("permission-denied", "Só o suporte da plataforma pode fazer isso.");
   }
 
   const auth = getAuth();
@@ -408,9 +413,16 @@ export const grantShopRole = onCall<{
     );
   }
 
+  if (role && user.emailVerified !== true) {
+    throw new HttpsError("failed-precondition", "Não foi possível dar acesso a esse e-mail.");
+  }
+
   await grantRole(user.uid, barbershopId, role ?? null);
 
   const db = getFirestore();
+  /* Perdeu o papel de dono (retirado ou rebaixado): os avisos de dono saem
+   * junto — celular e Telegram não dependem do claim. */
+  if (role !== "owner") await limparAvisosDoUid(barbershopId, user.uid, db);
   const memberRef = db.doc(`barbershops/${barbershopId}/members/${user.uid}`);
   if (role) {
     await memberRef.set(
