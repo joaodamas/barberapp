@@ -228,7 +228,7 @@ function Grade({
                   {paraHora(inicio)}–{paraHora(fim)} · {b.clientName}
                 </span>
                 {varios && (
-                  <span className="w-full truncate text-[11px] text-ink-muted">{nomeDe(b.staffId, b.staffName)}</span>
+                  <span className="w-full truncate text-[11px] text-ink-muted">{nomeDe(b.staffId)}</span>
                 )}
                 <span className="text-[11px] font-medium">{estilo.rotulo}</span>
               </button>
@@ -348,7 +348,7 @@ function ColunaDaGradeView({
               {mensalistas?.has(b.clientId) && <EtiquetaMensalista />}
             </span>
             <span className="w-full truncate text-[11px] text-ink-muted">
-              {comNome && <span className="font-medium text-ink">{nomeDe(b.staffId, b.staffName)} · </span>}
+              {comNome && <span className="font-medium text-ink">{nomeDe(b.staffId)} · </span>}
               {((b as { serviceNames?: string[] }).serviceNames ?? []).join(" + ") || "Serviço"}
               {b.horarioFixoId ? " · horário fixo" : ""}
               {feito ? " · concluído" : falta ? " · não veio" : ""}

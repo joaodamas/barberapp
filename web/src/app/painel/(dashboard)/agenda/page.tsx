@@ -166,7 +166,7 @@ export default function AgendaPage() {
   /* Com mais de um barbeiro, o cartão diz de quem é o atendimento. */
   const variosBarbeiros = equipe.filter((b) => b.active !== false).length > 1;
   const nomeDoBarbeiro = (b: Doc<BookingDoc>) =>
-    variosBarbeiros ? (equipe.find((s) => s.id === b.staffId)?.name ?? b.staffName ?? null) : null;
+    variosBarbeiros ? (equipe.find((s) => s.id === b.staffId)?.name ?? null) : null;
 
   const moverSemana = (n: number) => {
     const d = new Date(`${dia}T12:00:00`);
