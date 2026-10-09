@@ -205,6 +205,14 @@ export default function SuaMarcaPage() {
     return enquadramentoInicial(largura, altura, foraDoCirculoDoRecorte(imagem, ENQUADRAMENTO_INICIAL, fundoDaFonte));
   }, [imagem, fundoDaFonte]);
   const enquadramento = ajuste.fonte === imagem ? ajuste.valor : enquadramentoAutomatico;
+  /* "Encaixar no círculo": a caixa da fonte atual inteira dentro do círculo, centrada. */
+  const encaixeNoCirculo = useMemo(() => {
+    if (!imagem) return ENQUADRAMENTO_INICIAL;
+    const { largura, altura } = tamanhoDaFonte(imagem);
+    return enquadramentoInicial(largura, altura, 1);
+  }, [imagem]);
+  const encaixado =
+    enquadramento.zoom <= encaixeNoCirculo.zoom + 0.001 && enquadramento.x === 0 && enquadramento.y === 0;
   const setEnquadramento = (valor: Enquadramento) => setAjuste({ fonte: imagem, valor });
 
   /* A miniatura das prévias acompanha o recorte. 192 px custam pouco para
@@ -551,12 +559,27 @@ export default function SuaMarcaPage() {
                     <p className="min-w-0 flex-1 text-xs text-ink">{a.texto}</p>
                     {a.acao === "simbolo" && (
                       <div className="flex flex-wrap gap-2">
-                        <Button type="button" size="sm" onClick={() => setNoSimbolo(true)}>
-                          Aproximar no símbolo
-                        </Button>
-                        <Button type="button" size="sm" variant="secondary" onClick={() => usarMonograma()}>
-                          Usar monograma
-                        </Button>
+                        {/* Só os botões que mudam algo: sem símbolo achado, ou já nele, não há o que fazer. */}
+                        {a.id === "circulo" && imagem && !encaixado && (
+                          <Button type="button" size="sm" onClick={() => setEnquadramento(encaixeNoCirculo)}>
+                            Encaixar no círculo
+                          </Button>
+                        )}
+                        {!noSimbolo && !usandoMonograma && base?.simbolo && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={a.id === "circulo" ? "secondary" : "primary"}
+                            onClick={() => setNoSimbolo(true)}
+                          >
+                            Aproximar no símbolo
+                          </Button>
+                        )}
+                        {!usandoMonograma && (
+                          <Button type="button" size="sm" variant="secondary" onClick={() => usarMonograma()}>
+                            Usar monograma
+                          </Button>
+                        )}
                       </div>
                     )}
                   </li>
