@@ -1047,7 +1047,7 @@ export default function AgendarPage() {
          * + 1px de borda + a área segura do iPhone instalado. `bottom-16` (64px)
          * a cobria no aparelho com a barra do home, e o `safe-bottom` aqui
          * somava a margem uma segunda vez. */
-        <div className="fixed inset-x-0 bottom-[calc(57px+env(safe-area-inset-bottom))] z-10 mx-auto w-full max-w-md border-t border-border bg-canvas/95 px-4 py-3 backdrop-blur md:hidden">
+        <div className="fixed inset-x-0 bottom-[calc(60px+env(safe-area-inset-bottom))] z-10 mx-auto w-full max-w-md border-t border-border bg-canvas/95 px-4 py-3 backdrop-blur md:hidden">
           <div className="mb-2 flex items-center justify-between text-sm">
             <span className="text-ink-muted">
               {/* O `(s)` é o produto se recusando a concordar e devolvendo a

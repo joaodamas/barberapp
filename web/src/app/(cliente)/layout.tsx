@@ -34,7 +34,7 @@ export default async function ClienteLayout({
       <div className="mx-auto flex min-h-full w-full max-w-md flex-1 flex-col md:h-full md:max-w-none md:flex-row md:overflow-hidden">
         <ClienteSidebarNav />
         <div className="flex min-h-full w-full flex-1 flex-col md:h-full md:overflow-hidden">
-          <AvisoDeConexao />
+          <AvisoDeConexao recuoDoTopo={false} />
           <header className="safe-top flex items-center gap-2.5 px-4 pb-3 pt-4 md:hidden">
             <Link href="/" className="flex items-center gap-2.5">
               <Image src={brand.logo} unoptimized={logoSemOtimizar(brand.logo)} alt="" width={32} height={32} priority />

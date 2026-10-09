@@ -23,6 +23,11 @@ const OFFLINE_URL = "/offline";
  * `Request` de uma navegação muda o modo/redirect dela); ela só deixa de ser
  * esperada. */
 const PRAZO_DA_NAVEGACAO_MS = 8000;
+/* Aparelho ONLINE não cai no offline aos 8 s: o servidor frio (SSR sem
+ * instância mínima) pode levar mais que isso e a pessoa está conectada. Online,
+ * continua esperando até este teto; sem rede (`navigator.onLine` falso), cai
+ * no prazo curto. */
+const TETO_DA_NAVEGACAO_ONLINE_MS = 25000;
 const APP_SHELL = [
   OFFLINE_URL,
   /* A marca DESTA barbearia — o worker é por origem, e cada subdomínio
@@ -96,7 +101,16 @@ self.addEventListener("fetch", (event) => {
     rede.catch(() => {});
     let relogio;
     const prazo = new Promise((_, rejeitar) => {
-      relogio = setTimeout(() => rejeitar(new Error("prazo da navegação")), PRAZO_DA_NAVEGACAO_MS);
+      relogio = setTimeout(() => {
+        if (!self.navigator.onLine) {
+          rejeitar(new Error("prazo da navegação"));
+          return;
+        }
+        relogio = setTimeout(
+          () => rejeitar(new Error("teto da navegação")),
+          TETO_DA_NAVEGACAO_ONLINE_MS - PRAZO_DA_NAVEGACAO_MS
+        );
+      }, PRAZO_DA_NAVEGACAO_MS);
     });
     event.respondWith(
       Promise.race([rede, prazo])

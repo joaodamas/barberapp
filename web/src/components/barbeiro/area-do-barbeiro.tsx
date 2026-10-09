@@ -127,7 +127,7 @@ export function AreaDoBarbeiro({ children }: { children: React.ReactNode }) {
   return (
     <CadeiraContext.Provider value={{ staffId, nome }}>
       <div className="mx-auto flex min-h-full w-full max-w-3xl flex-1 flex-col overflow-y-auto md:h-full">
-        <AvisoDeConexao />
+        <AvisoDeConexao recuoDoTopo={false} />
         <header className="safe-top flex items-center justify-between gap-3 px-4 pb-2 pt-4">
           <div className="min-w-0 leading-tight">
             <p className="truncate font-display text-sm uppercase tracking-wider text-ink">{tenant.brand.shortName}</p>

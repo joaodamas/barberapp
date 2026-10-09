@@ -870,8 +870,8 @@ export function useAcoesDoAtendimento() {
         <p className="mb-5 text-sm text-ink-muted">
           O horário volta a ficar livre na agenda e sai da previsão do dia. O
           Topete não avisa o cliente sozinho: depois de cancelar, aparece o
-          botão &ldquo;Avisar no WhatsApp&rdquo; com a mensagem pronta, e você
-          envia com um toque.
+          botão &ldquo;Avisar no WhatsApp&rdquo; com a mensagem pronta (se o
+          cliente tiver WhatsApp no cadastro), e você envia com um toque.
         </p>
         {erroCancelar && (
           <p className="mb-4 text-sm text-danger" role="alert">

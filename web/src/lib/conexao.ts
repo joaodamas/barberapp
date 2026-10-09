@@ -54,7 +54,9 @@ export function assinarConexao(aoMudar: () => void) {
 }
 
 export const lerConexao = () => estado;
-export const conexaoNoServidor = (): EstadoDaConexao => ({ online: true, ultimaDoServidor: null });
+/* Constante: o `getServerSnapshot` precisa devolver o MESMO objeto sempre. */
+const ESTADO_NO_SERVIDOR: EstadoDaConexao = { online: true, ultimaDoServidor: null };
+export const conexaoNoServidor = (): EstadoDaConexao => ESTADO_NO_SERVIDOR;
 
 /** A frase do aviso. Sem hora conhecida, não inventa uma. */
 export function textoDoAvisoDeConexao(ultimaDoServidor: number | null): string {

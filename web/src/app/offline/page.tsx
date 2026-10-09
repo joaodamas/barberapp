@@ -1,19 +1,12 @@
-"use client";
-
-import { useEffect } from "react";
 import Image from "next/image";
-import { Button } from "@/components/ui/button";
 
+/**
+ * Página estática, SEM componente de cliente: sem rede o chunk de JS dela não
+ * está em cache e não hidrataria. O "Tentar de novo" é um link para a própria
+ * URL (recarrega sem JS) e o recarregamento ao voltar a rede é um script
+ * inline mínimo (a CSP permite `'unsafe-inline'`).
+ */
 export default function OfflinePage() {
-  /* A promessa "atualiza sozinho" só vale se algo a cumpre: ao voltar a rede,
-   * recarrega. O botão cobre o caso em que o evento `online` não vem (sinal
-   * fraco não é "offline" para o navegador). */
-  useEffect(() => {
-    const voltou = () => window.location.reload();
-    window.addEventListener("online", voltou);
-    return () => window.removeEventListener("online", voltou);
-  }, []);
-
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-4 overflow-y-auto px-8 text-center md:h-full">
       <Image src="/marca.svg" alt="" width={72} height={72} />
@@ -23,7 +16,13 @@ export default function OfflinePage() {
         confirmada continua salva. Quando a conexão voltar, esta tela
         recarrega sozinha — ou toque abaixo para tentar agora.
       </p>
-      <Button onClick={() => window.location.reload()}>Tentar de novo</Button>
+      <a
+        href=""
+        className="inline-flex min-h-11 items-center justify-center rounded-xl bg-gold px-5 text-sm font-semibold text-ink"
+      >
+        Tentar de novo
+      </a>
+      <script dangerouslySetInnerHTML={{ __html: 'addEventListener("online",function(){location.reload()})' }} />
     </div>
   );
 }
