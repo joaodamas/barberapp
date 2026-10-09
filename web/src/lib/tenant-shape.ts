@@ -56,6 +56,11 @@ export function toTenant(id: string, data: Record<string, unknown>): Tenant {
     ...(typeof data.dominio === "string" && /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(data.dominio.trim())
       ? { dominio: data.dominio.trim().toLowerCase() }
       : {}),
+    /* O id de uma rede é id de documento do Firestore: o mesmo formato que as
+     * callables aceitam (`idSeguro`). Lixo aqui é descartado, não repassado. */
+    ...(typeof data.redeId === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(data.redeId)
+      ? { redeId: data.redeId }
+      : {}),
     brand: normalizarMarca(id, brand),
     contact: { ...DEFAULT_TENANT.contact, ...contact },
     /* Barbearia sem `locale` gravado herda o padrão da plataforma. Nunca

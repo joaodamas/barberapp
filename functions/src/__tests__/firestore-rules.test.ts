@@ -1401,3 +1401,88 @@ describe("concluir e marcar falta só a partir do dia (08/10)", () => {
     await assertFails(updateDoc(bk(DONO_ALFA), { status: "no_show" }));
   });
 });
+
+describe("a rede / franquia (09/10)", () => {
+  const REDE = "rede-navalha";
+  const OUTRA = "rede-outra";
+  const DONO_DA_REDE = {
+    sub: "dono-rede",
+    redes: { [REDE]: "dono" },
+    barbershops: { [ALFA]: "owner", [BETA]: "owner" },
+  };
+  const DONO_DA_OUTRA = { sub: "dono-outra", redes: { [OUTRA]: "dono" }, barbershops: { "unidade-x": "owner" } };
+
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, "redes", REDE), { nome: "Navalha", slug: "navalha", unidades: [], status: "ativa" });
+      await setDoc(doc(db, `redes/${REDE}/private`, "contrato"), { donos: [DONO_DA_REDE.sub], maxUnidades: 20 });
+      await setDoc(doc(db, "redes_slugs", "navalha"), { redeId: REDE });
+      await updateDoc(doc(db, "barbershops", ALFA), { redeId: REDE });
+      await updateDoc(doc(db, "barbershops", BETA), { redeId: REDE });
+    });
+  });
+
+  it("a vitrine da rede é legível sem login, mas não listável", async () => {
+    await assertSucceeds(getDoc(doc(anon(), "redes", REDE)));
+    await assertSucceeds(getDoc(doc(anon(), "redes_slugs", "navalha")));
+    await assertFails(getDocs(collection(anon(), "redes")));
+    await assertFails(getDocs(collection(as(DONO_DA_REDE), "redes")));
+    await assertFails(getDocs(collection(anon(), "redes_slugs")));
+    await assertSucceeds(getDocs(collection(as(SUPORTE), "redes")));
+    await assertSucceeds(getDocs(collection(as(SUPORTE), "redes_slugs")));
+  });
+
+  it("🔒 ninguém escreve na rede por regra — nem o dono dela, nem o suporte", async () => {
+    for (const quem of [DONO_DA_REDE, SUPORTE, DONO_ALFA]) {
+      await assertFails(updateDoc(doc(as(quem), "redes", REDE), { nome: "Minha" }));
+      await assertFails(setDoc(doc(as(quem), "redes", "nova"), { nome: "Nova" }));
+      await assertFails(deleteDoc(doc(as(quem), "redes", REDE)));
+      await assertFails(updateDoc(doc(as(quem), `redes/${REDE}/private`, "contrato"), { donos: [quem.sub] }));
+      await assertFails(setDoc(doc(as(quem), "redes_slugs", "novo"), { redeId: REDE }));
+    }
+  });
+
+  it("🔒 o contrato é do dono da rede e da plataforma", async () => {
+    const contrato = (quem: ReturnType<typeof as> | ReturnType<typeof anon>) => getDoc(doc(quem, `redes/${REDE}/private`, "contrato"));
+    await assertSucceeds(contrato(as(DONO_DA_REDE)));
+    await assertSucceeds(contrato(as(SUPORTE)));
+    await assertFails(contrato(anon()));
+    await assertFails(contrato(as(DONO_ALFA))); // dono de UMA unidade não lê o contrato
+    await assertFails(contrato(as(DONO_DA_OUTRA)));
+    await assertFails(contrato(as({ ...DONO_DA_REDE, mustChangePassword: true })));
+  });
+
+  it("🔒 o dono da unidade não grava, troca nem apaga o redeId", async () => {
+    await assertFails(updateDoc(doc(as(DONO_ALFA), "barbershops", ALFA), { redeId: OUTRA }));
+    await assertFails(updateDoc(doc(as(DONO_ALFA), "barbershops", ALFA), { redeId: deleteField() }));
+    await assertFails(updateDoc(doc(as(DONO_BETA), "barbershops", BETA), { redeId: REDE, name: "x" }));
+    // O resto da ficha continua editável (a trava não vira bloqueio geral).
+    await assertSucceeds(updateDoc(doc(as(DONO_ALFA), "barbershops", ALFA), { "contact.address": "Rua Nova, 10" }));
+  });
+
+  it("o redeId fica na ficha pública, legível por get", async () => {
+    const snap = await assertSucceeds(getDoc(doc(anon(), "barbershops", ALFA)));
+    expect(snap.get("redeId")).toBe(REDE);
+  });
+
+  it("o dono da rede lê as DUAS unidades; o da outra rede não lê nenhuma", async () => {
+    await assertSucceeds(getDoc(doc(as(DONO_DA_REDE), `barbershops/${ALFA}/expenses`, "exp-1")));
+    await assertSucceeds(getDoc(doc(as(DONO_DA_REDE), `barbershops/${BETA}/expenses`, "exp-1")));
+    await assertFails(getDoc(doc(as(DONO_DA_OUTRA), `barbershops/${ALFA}/expenses`, "exp-1")));
+    await assertFails(getDoc(doc(as(DONO_DA_OUTRA), `barbershops/${BETA}/expenses`, "exp-1")));
+  });
+
+  it("🔒 o gerente de uma unidade (owner só dela) não lê a irmã nem escreve na rede", async () => {
+    const gerente = { sub: "gerente-alfa", barbershops: { [ALFA]: "owner" } };
+    await assertSucceeds(getDoc(doc(as(gerente), `barbershops/${ALFA}/expenses`, "exp-1")));
+    await assertFails(getDoc(doc(as(gerente), `barbershops/${BETA}/expenses`, "exp-1")));
+    await assertFails(updateDoc(doc(as(gerente), "redes", REDE), { nome: "Meu" }));
+  });
+
+  it("🔒 claim de rede sozinho não abre unidade: o acesso vem do vínculo derivado", async () => {
+    const soRede = { sub: "so-rede", redes: { [REDE]: "dono" } };
+    await assertFails(getDoc(doc(as(soRede), `barbershops/${ALFA}/expenses`, "exp-1")));
+  });
+});
+

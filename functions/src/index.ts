@@ -65,6 +65,7 @@ export { vincularCadastroDeBalcao, vincularMinhaContaPeloTelefone } from "./vinc
 export { availableSlots } from "./availability";
 export { apagarSemanaDoFixo, definirHorarioFixo, garantirHorariosFixos } from "./horario-fixo";
 export { meusDestinos } from "./destinos";
+export { criarRede, vincularUnidade, desvincularUnidade, definirDonoDaRede } from "./rede";
 export { revisarAssinaturas } from "./billing";
 export { definirPlano } from "./subscription";
 export {
