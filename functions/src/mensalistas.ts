@@ -278,6 +278,12 @@ export function decidirCobertura(params: {
    * afirmação dele vence a decisão do servidor.
    */
   metodoInformado?: string | null;
+  /**
+   * A fatura da competência do atendimento está PAGA? Decisão do produto
+   * (09/10): a assinatura cancelada só segue cobrindo o mês se o mês foi pago.
+   * Sem fatura paga, depois do cancelamento o corte é avulso.
+   */
+  competenciaPaga?: boolean;
 }): Cobertura {
   const { assinatura } = params;
   if (!assinatura) return { tipo: "avulso", motivo: "sem_plano", valorCoberto: 0 };
@@ -288,7 +294,8 @@ export function decidirCobertura(params: {
    * "continua valendo até {{3}}"): quem decide é `valeNaCompetencia`, logo
    * abaixo. Recusar aqui todo `status !== "ativo"` cortava o plano no mesmo
    * dia do cancelamento, com o mês pago. Suspensa continua sem cobrir. */
-  const canceladaAindaVale = assinatura.status === "cancelado" && !!assinatura.canceledAt;
+  const canceladaAindaVale =
+    assinatura.status === "cancelado" && !!assinatura.canceledAt && params.competenciaPaga === true;
   if (assinatura.status !== "ativo" && !canceladaAindaVale) {
     return { tipo: "avulso", motivo: "plano_inativo", valorCoberto: 0 };
   }
@@ -371,17 +378,25 @@ export function valeNaCompetencia(
  *
  * Só havia a procura por `status == "ativo"`: quem cancelou no dia 20 perdia a
  * cobertura no mesmo dia, com o mês pago. Agora a cancelada cuja competência
- * ainda vale (`valeNaCompetencia`) também entra. Preferência: a ativa que vale,
+ * ainda vale (`valeNaCompetencia`) E cuja fatura da competência está PAGA
+ * (`competenciaPaga`) também entra. Preferência: a ativa que vale,
  * depois a cancelada que vale, depois a ativa que não vale (para
  * `decidirCobertura` dar o motivo `plano_inativo` de sempre).
  */
 export function assinaturaDaCompetencia<
-  T extends Pick<SubscriptionDoc, "status" | "startedAt" | "canceledAt">
+  T extends Pick<SubscriptionDoc, "status" | "startedAt" | "canceledAt"> & {
+    /** A fatura DESTA competência está paga? Só então a cancelada segue cobrindo. */
+    competenciaPaga?: boolean;
+  }
 >(assinaturas: T[], competencia: string): T | null {
   const ativa = assinaturas.find((a) => a.status === "ativo");
   if (ativa && valeNaCompetencia(ativa, competencia)) return ativa;
   const cancelada = assinaturas.find(
-    (a) => a.status === "cancelado" && !!a.canceledAt && valeNaCompetencia(a, competencia)
+    (a) =>
+      a.status === "cancelado" &&
+      !!a.canceledAt &&
+      a.competenciaPaga === true &&
+      valeNaCompetencia(a, competencia)
   );
   return cancelada ?? ativa ?? null;
 }

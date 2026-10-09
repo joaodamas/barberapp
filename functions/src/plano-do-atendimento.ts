@@ -28,7 +28,9 @@ export type PlanoNoFechamento = {
 export function recorteDoPlano(
   assinatura: Record<string, unknown> | undefined,
   /** Competência do atendimento: é o que deixa a cancelada com o mês pago valer. */
-  competencia?: string
+  competencia?: string,
+  /** A fatura dessa competência está paga? Sem isso a cancelada não é plano. */
+  competenciaPaga?: boolean
 ): PlanoNoFechamento | null {
   if (!assinatura) return null;
   /* Cancelar não corta o plano no mesmo dia: o ciclo pago vale até o fim dele
@@ -43,6 +45,7 @@ export function recorteDoPlano(
           status: "cancelado" as const,
           startedAt: String(assinatura.startedAt ?? ""),
           canceledAt: String(assinatura.canceledAt),
+          competenciaPaga: competenciaPaga === true,
         },
       ],
       competencia
@@ -77,14 +80,22 @@ export const planoDoAtendimento = onCall<{ barbershopId: string; bookingId: stri
   if (!clientId) return { plano: null };
   const assinaturas = await shopRef.collection("subscriptions").where("clientId", "==", clientId).get();
   const competencia = competenciaDe(String(reserva.get("date") ?? ""));
-  const escolhida = assinaturaDaCompetencia(
-    assinaturas.docs.map((d) => ({
-      status: d.get("status") as "ativo" | "suspenso" | "cancelado",
-      startedAt: String(d.get("startedAt") ?? ""),
-      canceledAt: (d.get("canceledAt") as string | null | undefined) ?? null,
-      dados: d.data(),
-    })),
-    competencia
+  const candidatas = await Promise.all(
+    assinaturas.docs.map(async (d) => {
+      const status = d.get("status") as "ativo" | "suspenso" | "cancelado";
+      const fatura =
+        status === "cancelado"
+          ? await shopRef.collection("subscription_invoices").doc(`fatura_${d.id}_${competencia}`).get()
+          : null;
+      return {
+        status,
+        startedAt: String(d.get("startedAt") ?? ""),
+        canceledAt: (d.get("canceledAt") as string | null | undefined) ?? null,
+        competenciaPaga: fatura?.get("status") === "paga",
+        dados: d.data(),
+      };
+    })
   );
-  return { plano: recorteDoPlano(escolhida?.dados, competencia) };
+  const escolhida = assinaturaDaCompetencia(candidatas, competencia);
+  return { plano: recorteDoPlano(escolhida?.dados, competencia, escolhida?.competenciaPaga) };
 });

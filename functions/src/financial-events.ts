@@ -591,16 +591,28 @@ async function resolverCobertura(params: {
       .where("clientId", "==", clientId)
   );
 
-  const snap = assinaturaDaCompetencia(
-    assinaturas.docs.map((d) => ({
-      status: d.get("status") as "ativo" | "suspenso" | "cancelado",
-      startedAt: String(d.get("startedAt") ?? ""),
-      canceledAt: (d.get("canceledAt") as string | null | undefined) ?? null,
-      docRef: d,
-    })),
-    competencia
-  )?.docRef;
+  /* A cancelada só segue cobrindo se a fatura DA competência está paga. */
+  const candidatas = await Promise.all(
+    assinaturas.docs.map(async (d) => {
+      const status = d.get("status") as "ativo" | "suspenso" | "cancelado";
+      const fatura =
+        status === "cancelado"
+          ? await tx.get(
+              shopRef.collection("subscription_invoices").doc(`fatura_${d.id}_${competencia}`)
+            )
+          : null;
+      return {
+        status,
+        startedAt: String(d.get("startedAt") ?? ""),
+        canceledAt: (d.get("canceledAt") as string | null | undefined) ?? null,
+        competenciaPaga: fatura?.get("status") === "paga",
+        docRef: d,
+      };
+    })
+  );
+  const snap = assinaturaDaCompetencia(candidatas, competencia)?.docRef;
   if (!snap) return { tipo: "avulso", motivo: "sem_plano", valorCoberto: 0 };
+  const competenciaPaga = candidatas.find((c) => c.docRef.id === snap.id)?.competenciaPaga === true;
 
   /* O `id` depois do espalhamento: quem manda é o id do documento, não um campo
    * `id` que alguém tenha gravado dentro dele. A cobertura é casada por esse
@@ -623,6 +635,7 @@ async function resolverCobertura(params: {
     assinatura,
     jaCobertosNaCompetencia,
     metodoInformado: params.metodoInformado,
+    competenciaPaga,
   });
 }
 

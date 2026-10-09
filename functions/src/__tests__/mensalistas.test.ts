@@ -195,10 +195,19 @@ describe("G2 · a assinatura vale nesta competência?", () => {
 
 describe("assinaturaDaCompetencia — qual assinatura responde pelo corte", () => {
   const ativa = { status: "ativo" as const, startedAt: "2026-10-10", canceledAt: null };
-  const cancelada = { status: "cancelado" as const, startedAt: "2026-01-05", canceledAt: "2026-09-28" };
+  const cancelada = {
+    status: "cancelado" as const,
+    startedAt: "2026-01-05",
+    canceledAt: "2026-09-28",
+    competenciaPaga: true,
+  };
 
-  it("cancelada que ainda vale na competência é escolhida", () => {
+  it("cancelada que ainda vale na competência, com a fatura paga, é escolhida", () => {
     expect(assinaturaDaCompetencia([cancelada], "2026-09")).toBe(cancelada);
+  });
+  it("cancelada sem a fatura do mês paga não cobre", () => {
+    expect(assinaturaDaCompetencia([{ ...cancelada, competenciaPaga: false }], "2026-09")).toBeNull();
+    expect(assinaturaDaCompetencia([{ ...cancelada, competenciaPaga: undefined }], "2026-09")).toBeNull();
   });
   it("depois do mês pago, a cancelada some", () => {
     expect(assinaturaDaCompetencia([cancelada], "2026-10")).toBeNull();

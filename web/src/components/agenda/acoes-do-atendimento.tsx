@@ -15,10 +15,10 @@ import { formatBRL, formatPctPtBR, toISODate } from "@/lib/format";
 import { refundAmountFor } from "@/lib/business-rules";
 import { useTenant } from "@/lib/tenant-context";
 import type { TenantPolicies } from "@/lib/tenant";
-import { useSubscribers } from "@/lib/db/use-shop-data";
+import { useSubscribers, useSubscriptionInvoices } from "@/lib/db/use-shop-data";
 import { patchDoc } from "@/lib/db/repository";
 import { soAvisaSeGravou } from "@/lib/so-avisa-se-gravou";
-import { assinaturaAtivaDe, termosDoPlano } from "@/lib/booking-status";
+import { assinaturaDoAtendimentoDe, termosDoPlano } from "@/lib/booking-status";
 import { useAuth } from "@/lib/auth-context";
 import {
   MOTIVOS_DE_DESCONTO,
@@ -53,6 +53,7 @@ export function useAcoesDoAtendimento() {
   const ehDono = claims.barbershops?.[tenant.id] === "owner";
   /* O dono lê as assinaturas; o barbeiro não (08/10) — é receita da casa. */
   const { items: assinaturas } = useSubscribers({ enabled: ehDono });
+  const { items: faturasDoPlano } = useSubscriptionInvoices({ enabled: ehDono });
   const hoje = toISODate(new Date());
 
   const [aFechar, setAFechar] = useState<Doc<BookingDoc> | null>(null);
@@ -90,7 +91,7 @@ export function useAcoesDoAtendimento() {
 
   /* D2 · o cliente que está sendo fechado tem plano contratado?
    *
-   * `assinaturaAtivaDe` responde só isso. Não responde "este corte está
+   * `assinaturaDoAtendimentoDe` responde só isso (ativa, ou cancelada com o mês pago). Não responde "este corte está
    * coberto" — essa decisão depende de competência e cota, mora em
    * `decidirCobertura` no servidor, e reimplementá-la aqui recriaria o D1 com
    * outro nome: o web afirmando uma coisa e o fato nascendo outra. */
@@ -134,7 +135,7 @@ export function useAcoesDoAtendimento() {
 
   const assinaturaDoFechamento: PlanoNoFechamento | null = aFechar
     ? ehDono
-      ? assinaturaAtivaDe(assinaturas, aFechar.clientId)
+      ? assinaturaDoAtendimentoDe(assinaturas, faturasDoPlano, aFechar.clientId, aFechar.date)
       : respostaDoPlano?.plano ?? null
     : null;
 

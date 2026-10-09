@@ -156,10 +156,11 @@ export const useSubscribers = (opcoes?: { enabled?: boolean }) =>
  * É o lastro que faltava: antes, "receita de mensalista" saía de um status
  * marcado como `ativo`. Escritas só pelo servidor.
  */
-export const useSubscriptionInvoices = () =>
+export const useSubscriptionInvoices = (opcoes?: { enabled?: boolean }) =>
   useShopCollection<SubscriptionInvoiceDoc>("subscriptionInvoices", {
     orderByField: "dueDate",
     direction: "desc",
+    enabled: opcoes?.enabled ?? true,
   });
 
 export const useInventoryMovements = () =>
