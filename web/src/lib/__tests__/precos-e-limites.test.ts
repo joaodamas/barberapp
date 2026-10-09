@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { ANUAL_DISPONIVEL } from "@/lib/platform";
 import {
   DESCONTO_FUNDADOR,
+  economiaDoAnual,
+  equivalenteMensalDoAnual,
   PRECOS_POR_PLANO,
   barbeirosExtras,
   valorMensal,
@@ -17,9 +20,9 @@ import {
 describe("tabela de preços (29/09)", () => {
   it("Agenda R$ 97 até 3, Crescimento R$ 197 até 6, Gestão R$ 247 até 10", () => {
     expect(PRECOS_POR_PLANO).toEqual({
-      agenda: { mensal: 97, tetoDeBarbeiros: 3, barbeiroExtra: 19 },
-      crescimento: { mensal: 197, tetoDeBarbeiros: 6, barbeiroExtra: 19 },
-      gestao: { mensal: 247, tetoDeBarbeiros: 10, barbeiroExtra: 19 },
+      agenda: { mensal: 97, anual: 970, tetoDeBarbeiros: 3, barbeiroExtra: 19 },
+      crescimento: { mensal: 197, anual: 1970, tetoDeBarbeiros: 6, barbeiroExtra: 19 },
+      gestao: { mensal: 247, anual: 2470, tetoDeBarbeiros: 10, barbeiroExtra: 19 },
     });
   });
 
@@ -27,8 +30,22 @@ describe("tabela de preços (29/09)", () => {
     expect(DESCONTO_FUNDADOR).toEqual({ percentual: 30, vagas: 20, meses: 1 });
   });
 
+  it("anual: 10 mensalidades, equivalente por mês e economia", () => {
+    for (const p of Object.values(PRECOS_POR_PLANO)) expect(p.anual).toBe(p.mensal * 10);
+    expect(equivalenteMensalDoAnual(970)).toBe(80.83);
+    expect(economiaDoAnual("agenda")).toBe(194);
+    expect(economiaDoAnual("crescimento")).toBe(394);
+    expect(economiaDoAnual("gestao")).toBe(494);
+  });
+
+  it("a trava do anual é a mesma dos dois lados", async () => {
+    const servidor = await import("../../../../functions/src/plans");
+    expect(ANUAL_DISPONIVEL).toBe(servidor.ANUAL_DISPONIVEL);
+  });
+
   it("a tabela do site é a mesma do servidor", async () => {
     const servidor = await import("../../../../functions/src/plans");
+    expect(economiaDoAnual("gestao")).toBe(servidor.economiaDoAnual("gestao"));
     expect(PRECOS_POR_PLANO).toEqual(servidor.PRECOS_POR_PLANO);
     expect(DESCONTO_FUNDADOR).toEqual(servidor.DESCONTO_FUNDADOR);
     for (const plano of ["agenda", "crescimento", "gestao"] as const) {

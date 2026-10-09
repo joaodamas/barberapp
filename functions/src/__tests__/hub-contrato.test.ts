@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { FieldValue } from "firebase-admin/firestore";
 import {
   PRECO_MENSAL,
+  cicloDoPedido,
   comDominioAutorizado,
   desfechoDaResposta,
   diaEmSaoPaulo,
@@ -258,8 +259,40 @@ describe("eventos para o Hub", () => {
       ocorridoEm: quando,
       plano: "crescimento",
     });
-    expect(e).toMatchObject({ plano: "crescimento", valor: PRECO_MENSAL.crescimento, ciclo: "mensal" });
+    expect(e).toMatchObject({
+      plano: "crescimento",
+      valor: PRECO_MENSAL.crescimento,
+      ciclo: "mensal",
+      valorCiclo: 197,
+      formaPagamento: "avista",
+    });
+    /* O mensal mantém o id v1, sem ciclo: não quebra a deduplicação antiga. */
     expect(e.eventoId).toBe("plano_escolhido:abc:crescimento:2026-09-28");
+  });
+
+  it("plano_escolhido anual: valor é o equivalente por mês, valorCiclo o total, id leva o ciclo", () => {
+    const base = { evento: "plano_escolhido" as const, barbershopId: "abc", slug: "x", nome: "X", ocorridoEm: quando, ciclo: "anual" as const };
+    const a = montarEvento({ ...base, plano: "agenda" });
+    expect(a).toMatchObject({ ciclo: "anual", valor: 80.83, valorCiclo: 970, formaPagamento: "avista" });
+    expect(a.eventoId).toBe("plano_escolhido:abc:agenda:anual:2026-09-28");
+    expect(montarEvento({ ...base, plano: "crescimento" })).toMatchObject({ valor: 164.17, valorCiclo: 1970 });
+    expect(montarEvento({ ...base, plano: "gestao" })).toMatchObject({ valor: 205.83, valorCiclo: 2470 });
+  });
+
+  it("anual isento continua valor 0", () => {
+    const e = montarEvento({
+      evento: "plano_escolhido", barbershopId: "abc", slug: "x", nome: "X", ocorridoEm: quando,
+      plano: "gestao", ciclo: "anual", isento: true,
+    });
+    expect(e).toMatchObject({ valor: 0, valorCiclo: 0, ciclo: "anual", isento: true });
+  });
+
+  it("cicloDoPedido: ausente é mensal; anual só com a trava ligada; o resto é recusado", () => {
+    expect(cicloDoPedido(undefined, false)).toEqual({ ok: true, ciclo: "mensal" });
+    expect(cicloDoPedido("mensal", false)).toEqual({ ok: true, ciclo: "mensal" });
+    expect(cicloDoPedido("anual", false)).toMatchObject({ ok: false });
+    expect(cicloDoPedido("anual", true)).toEqual({ ok: true, ciclo: "anual" });
+    expect(cicloDoPedido("trimestral", true)).toMatchObject({ ok: false });
   });
 
   it("plano_escolhido sem plano é defeito de quem chamou", () => {
@@ -286,6 +319,7 @@ describe("eventos para o Hub", () => {
       idDoEvento("cadastrada", "ZE8iNGVKp3l7OqZFJbqF"),
       idDoEvento("onboarding_concluido", "ZE8iNGVKp3l7OqZFJbqF"),
       idDoEvento("plano_escolhido", "ZE8iNGVKp3l7OqZFJbqF", { plano: "gestao", dia: "2026-09-28" }),
+      idDoEvento("plano_escolhido", "ZE8iNGVKp3l7OqZFJbqF", { plano: "gestao", dia: "2026-09-28", ciclo: "anual" }),
       idDoEvento("pediu_cancelamento", "ZE8iNGVKp3l7OqZFJbqF", { dia: "2026-09-28" }),
     ];
     for (const id of ids) {

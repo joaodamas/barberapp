@@ -10,7 +10,16 @@ import { useShopCollection } from "@/lib/db/use-collection";
 import { mensagemDoErro } from "@/lib/direitos-do-titular";
 import { AVISO_DE_COPIA_FALHOU, copiarOuSelecionar } from "@/lib/copiar-texto";
 import { formatBRL } from "@/lib/format";
-import { NOME_DO_PLANO, PRECOS_POR_PLANO, type PlanId } from "@/lib/tenant";
+import { ANUAL_DISPONIVEL } from "@/lib/platform";
+import {
+  MESES_GRATIS_NO_ANUAL,
+  NOME_DO_PLANO,
+  PRECOS_POR_PLANO,
+  economiaDoAnual,
+  equivalenteMensalDoAnual,
+  type CicloDoPlano,
+  type PlanId,
+} from "@/lib/tenant";
 import { useTenant } from "@/lib/tenant-context";
 
 /**
@@ -40,6 +49,7 @@ type Resposta =
         plano: string | null;
         valor: number | null;
         ciclo: string | null;
+        valorCiclo?: number | null;
         status: string | null;
         proximoVencimento: string | null;
       };
@@ -47,7 +57,7 @@ type Resposta =
     }
   | { disponivel: false; isento: boolean; motivo: "isento" | "fora_de_producao" | "hub_sem_rota" | "hub_fora" };
 
-type Pedido = { tipo: string; plano: string | null; valor: number | null; em?: { toDate?: () => Date } };
+type Pedido = { tipo: string; plano: string | null; valor: number | null; ciclo?: string | null; em?: { toDate?: () => Date } };
 
 const PLANOS: PlanId[] = ["agenda", "crescimento", "gestao"];
 
@@ -64,6 +74,11 @@ const ROTULO: Record<Situacao, { texto: string; tom: "success" | "danger" | "gol
   processando: { texto: "Processando", tom: "neutral" },
   cancelado: { texto: "Cancelado", tom: "neutral" },
 };
+
+/** R$ 970 quando é redondo, R$ 80,83 quando não é. */
+function reais(n: number) {
+  return Number.isInteger(n) ? `R$ ${n}` : formatBRL(n);
+}
 
 /** "2026-10-10" → "10/10/2026", sem passar por fuso. */
 function dataCurta(iso: string) {
@@ -141,7 +156,11 @@ function PlanoAtual({ plano, resposta }: { plano: PlanId; resposta: Resposta | n
       <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">Seu plano</p>
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h2 className="font-display text-2xl text-ink">{NOME_DO_PLANO[plano]}</h2>
-        {valor !== null ? (
+        {doHub?.ciclo === "anual" && doHub.valorCiclo != null ? (
+          <span className="text-sm text-ink">
+            {reais(doHub.valorCiclo)}/ano ({formatBRL(equivalenteMensalDoAnual(doHub.valorCiclo))}/mês)
+          </span>
+        ) : valor !== null ? (
           <span className="text-sm text-ink">{formatBRL(valor)}/mês</span>
         ) : (
           <span className="text-sm text-ink-muted">
@@ -342,6 +361,8 @@ function MudarDePlano({ plano, barbershopId }: { plano: PlanId; barbershopId: st
   const pedidos = usePedidos();
   const ultimo = pedidos.find((p) => p.tipo === "plano_escolhido");
   const [escolhido, setEscolhido] = useState<PlanId | null>(null);
+  const [ciclo, setCiclo] = useState<CicloDoPlano>("mensal");
+  const anual = ANUAL_DISPONIVEL && ciclo === "anual";
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -351,7 +372,7 @@ function MudarDePlano({ plano, barbershopId }: { plano: PlanId; barbershopId: st
     setErro(null);
     try {
       const { callFunction } = await import("@/lib/firebase");
-      await callFunction("escolherPlano", { barbershopId, plano: escolhido });
+      await callFunction("escolherPlano", { barbershopId, plano: escolhido, ciclo: anual ? "anual" : "mensal" });
       setEscolhido(null);
     } catch (e) {
       setErro(mensagemDoErro(e));
@@ -372,8 +393,25 @@ function MudarDePlano({ plano, barbershopId }: { plano: PlanId; barbershopId: st
       {ultimo?.plano && (
         <p role="status" className="text-sm text-ink">
           Pedido enviado{ultimo.em?.toDate ? ` em ${ultimo.em.toDate().toLocaleDateString("pt-BR")}` : ""}: plano{" "}
-          {NOME_DO_PLANO[ultimo.plano as PlanId] ?? ultimo.plano}.
+          {NOME_DO_PLANO[ultimo.plano as PlanId] ?? ultimo.plano}
+          {ultimo.ciclo === "anual" ? " (anual)" : ""}.
         </p>
+      )}
+
+      {ANUAL_DISPONIVEL && (
+        <div role="group" aria-label="Ciclo de cobrança" className="inline-flex self-start rounded-full border border-border p-1 text-sm">
+          {(["mensal", "anual"] as const).map((c) => (
+            <button
+              key={c}
+              type="button"
+              aria-pressed={ciclo === c}
+              onClick={() => setCiclo(c)}
+              className={`rounded-full px-4 py-1.5 font-medium ${ciclo === c ? "bg-gold/20 text-ink" : "text-ink-muted"}`}
+            >
+              {c === "mensal" ? "Mensal" : `Anual (${MESES_GRATIS_NO_ANUAL} meses grátis)`}
+            </button>
+          ))}
+        </div>
       )}
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -389,7 +427,17 @@ function MudarDePlano({ plano, barbershopId }: { plano: PlanId; barbershopId: st
                 <span className="font-semibold text-ink">{NOME_DO_PLANO[p]}</span>
                 {atual && <Pill tone="gold">Atual</Pill>}
               </div>
-              <span className="text-sm text-ink">{formatBRL(preco.mensal)}/mês</span>
+              {anual ? (
+                <>
+                  <span className="text-sm text-ink">{reais(preco.anual)}/ano</span>
+                  <span className="text-xs text-ink-muted">
+                    Equivale a {formatBRL(equivalenteMensalDoAnual(preco.anual))}/mês · economize{" "}
+                    {reais(economiaDoAnual(p))}
+                  </span>
+                </>
+              ) : (
+                <span className="text-sm text-ink">{formatBRL(preco.mensal)}/mês</span>
+              )}
               <span className="text-xs text-ink-muted">
                 Até {preco.tetoDeBarbeiros} barbeiros · + {formatBRL(preco.barbeiroExtra)} por barbeiro extra
               </span>
@@ -408,7 +456,11 @@ function MudarDePlano({ plano, barbershopId }: { plano: PlanId; barbershopId: st
         open={escolhido !== null}
         onClose={() => setEscolhido(null)}
         title={escolhido ? `Pedir o plano ${NOME_DO_PLANO[escolhido]}?` : ""}
-        description="A equipe do Topete confirma a mudança e a próxima cobrança já vem com o valor novo."
+        description={
+          anual
+            ? "O Hub gera a cobrança anual à vista (Pix ou boleto). Até o pagamento, seu plano segue como está."
+            : "A equipe do Topete confirma a mudança e a próxima cobrança já vem com o valor novo."
+        }
         footer={
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setEscolhido(null)} disabled={enviando}>
@@ -420,11 +472,28 @@ function MudarDePlano({ plano, barbershopId }: { plano: PlanId; barbershopId: st
           </div>
         }
       >
-        {escolhido && (
+        {escolhido && !anual && (
           <p className="text-sm text-ink">
             {formatBRL(PRECOS_POR_PLANO[escolhido].mensal)}/mês, até {PRECOS_POR_PLANO[escolhido].tetoDeBarbeiros}{" "}
             barbeiros.
           </p>
+        )}
+        {escolhido && anual && (
+          <div className="flex flex-col gap-2 text-sm text-ink">
+            <p>
+              {reais(PRECOS_POR_PLANO[escolhido].anual)}/ano à vista (equivale a{" "}
+              {formatBRL(equivalenteMensalDoAnual(PRECOS_POR_PLANO[escolhido].anual))}/mês), até{" "}
+              {PRECOS_POR_PLANO[escolhido].tetoDeBarbeiros} barbeiros.
+            </p>
+            <p className="text-ink-muted">
+              Barbeiro extra segue {formatBRL(PRECOS_POR_PLANO[escolhido].barbeiroExtra)}/mês, à parte. O desconto de
+              fundadora não vale no anual.
+            </p>
+            <p className="text-ink-muted">
+              Se você já paga mensal, o pedido só é registrado: o Hub decide a data da cobrança anual, e nada muda no
+              seu mês corrente.
+            </p>
+          </div>
         )}
         {erro && (
           <p role="alert" className="mt-2 text-sm text-danger">

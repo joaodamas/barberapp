@@ -478,6 +478,8 @@ export const FEATURES_POR_PLANO: Record<PlanId, TenantFeatures> = {
 export type PrecoDoPlano = {
   /** Mensalidade do plano, em R$. */
   mensal: number;
+  /** Plano anual à vista, em R$: 10 mensalidades para usar 12 (2 meses grátis). */
+  anual: number;
   /** Quantos barbeiros ativos a mensalidade cobre. */
   tetoDeBarbeiros: number;
   /** R$ por mês de cada barbeiro ativo acima do teto. */
@@ -485,10 +487,10 @@ export type PrecoDoPlano = {
 };
 
 export const PRECOS_POR_PLANO: Record<PlanId, PrecoDoPlano> = {
-  agenda: { mensal: 97, tetoDeBarbeiros: 3, barbeiroExtra: 19 },
-  crescimento: { mensal: 197, tetoDeBarbeiros: 6, barbeiroExtra: 19 },
+  agenda: { mensal: 97, anual: 970, tetoDeBarbeiros: 3, barbeiroExtra: 19 },
+  crescimento: { mensal: 197, anual: 1970, tetoDeBarbeiros: 6, barbeiroExtra: 19 },
   // Era R$ 297 até 29/09.
-  gestao: { mensal: 247, tetoDeBarbeiros: 10, barbeiroExtra: 19 },
+  gestao: { mensal: 247, anual: 2470, tetoDeBarbeiros: 10, barbeiroExtra: 19 },
 };
 
 /** Como o plano aparece para o dono e na landing. */
@@ -507,6 +509,26 @@ export const NOME_DO_PLANO: Record<PlanId, string> = {
  * daqui o desconta, para a tela nunca afirmar um valor que o boleto não diz.
  */
 export const DESCONTO_FUNDADOR = { percentual: 30, vagas: 20, meses: 1 } as const;
+
+/**
+ * Regras do anual (decisão do dono): paga 10 mensalidades, usa 12; só à vista
+ * (Pix ou boleto); o desconto de fundadora não acumula; barbeiro extra segue
+ * `barbeiroExtra` por mês, à parte. Espelha `functions/src/plans.ts`.
+ */
+export const MESES_GRATIS_NO_ANUAL = 2;
+
+export type CicloDoPlano = "mensal" | "anual";
+
+/** R$/mês equivalente do anual, arredondado a centavos (970 → 80,83). */
+export function equivalenteMensalDoAnual(anual: number): number {
+  return Math.round((anual / 12) * 100) / 100;
+}
+
+/** Quanto o anual poupa frente a 12 mensalidades de tabela, em R$. */
+export function economiaDoAnual(plan: PlanId): number {
+  const p = PRECOS_POR_PLANO[plan];
+  return p.mensal * 12 - p.anual;
+}
 
 /** Barbeiros ativos acima do teto do plano — nunca negativo. */
 export function barbeirosExtras(plan: PlanId, ativos: number): number {
