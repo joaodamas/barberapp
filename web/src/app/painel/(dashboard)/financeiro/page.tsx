@@ -203,8 +203,7 @@ export default function FinanceiroPage() {
             Outras receitas ficam fora da receita realizada e do imposto. */}
         {r.outrasReceitas > 0 && apuracao.ok("outrasReceitas") && (
           <p className="text-xs text-ink-muted md:text-sm">
-            Resultado = receita realizada {formatBRL(r.grossRevenue)} − custo total{" "}
-            {formatBRL(totalExpenses)} + outras receitas{" "}
+            Resultado = receita realizada − custo total + outras receitas{" "}
             <strong className="text-ink">{formatBRL(r.outrasReceitas)}</strong> (venda de
             equipamento, aluguel de cadeira, parcerias — fora do imposto). A margem é sobre a
             receita realizada mais as outras receitas.
