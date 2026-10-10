@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { comissaoDaVenda, idDaComissao, lucroDaVenda } from "../comissoes";
+import {
+  comissaoDaVenda,
+  estornoDaComissao,
+  idDaComissao,
+  lucroDaVenda,
+  percentualDoProduto,
+} from "../comissoes";
 
 /**
  * Rodada 3.1 · a comissão de produto vira fato.
@@ -154,5 +160,114 @@ describe("3.1 · o id da comissão", () => {
     expect(idDaComissao({ origem: "servico", refId: "x" })).not.toBe(
       idDaComissao({ origem: "produto", refId: "x" })
     );
+  });
+});
+
+describe("comissão por produto · % próprio sobre o PREÇO", () => {
+  const base = {
+    movementId: "mv1",
+    staffId: "rafael",
+    uid: "uid-rafael",
+    staffName: "Rafael",
+    unitPrice: 50,
+    unitCost: 20,
+    quantidade: 1,
+    commissionPct: 40,
+    date: "2026-10-10",
+  };
+
+  it("pomada R$ 50 a 10% → R$ 5,00, sobre o preço e não sobre o lucro", () => {
+    const c = comissaoDaVenda({ ...base, commissionPctDoProduto: 10 })!;
+    expect(c.commissionRule).toBe("produto_sobre_preco");
+    expect(c.commissionPct).toBe(10);
+    expect(c.commissionBase).toBe(50);
+    expect(c.commissionAmount).toBe(5);
+  });
+
+  it("0% é valor legítimo: o produto não comissiona, e NÃO cai no % do barbeiro", () => {
+    const c = comissaoDaVenda({ ...base, commissionPctDoProduto: 0 })!;
+    expect(c.commissionRule).toBe("produto_sobre_preco");
+    expect(c.commissionPct).toBe(0);
+    expect(c.commissionAmount).toBe(0);
+  });
+
+  it.each([undefined, null, "", -1, 101, Number.NaN, "abc"])(
+    "%j = sem % próprio: regra antiga (40%% do lucro)",
+    (bruto) => {
+      const c = comissaoDaVenda({ ...base, commissionPctDoProduto: bruto })!;
+      expect(c.commissionRule).toBe("barbeiro_sobre_lucro");
+      expect(c.commissionPct).toBe(40);
+      expect(c.commissionBase).toBe(30);
+      expect(c.commissionAmount).toBe(12);
+    }
+  );
+
+  it("usa o preço efetivamente cobrado (digitado) × quantidade", () => {
+    const c = comissaoDaVenda({ ...base, unitPrice: 42.5, quantidade: 3, commissionPctDoProduto: 10 })!;
+    expect(c.commissionBase).toBe(127.5);
+    expect(c.commissionAmount).toBe(12.75);
+  });
+
+  it("sem vendedor continua sem comissão, mesmo com % no produto", () => {
+    expect(comissaoDaVenda({ ...base, staffId: null, commissionPctDoProduto: 10 })).toBeNull();
+  });
+
+  it("percentualDoProduto: limites 0 e 100 valem", () => {
+    expect(percentualDoProduto(0)).toBe(0);
+    expect(percentualDoProduto(100)).toBe(100);
+    expect(percentualDoProduto(undefined)).toBeNull();
+  });
+
+  it("o estorno total nega EXATAMENTE o valor da venda", () => {
+    const v = comissaoDaVenda({ ...base, unitPrice: 33.33, quantidade: 3, commissionPctDoProduto: 12.5 })!;
+    const e = estornoDaComissao({
+      movementId: "mv1",
+      chave: "e1",
+      staffId: "rafael",
+      uid: null,
+      staffName: "Rafael",
+      unitPrice: 33.33,
+      unitCost: 20,
+      quantidade: 3,
+      commissionPct: v.commissionPct,
+      commissionRule: v.commissionRule,
+      date: "2026-10-11",
+    });
+    expect(e.commissionAmount).toBe(-v.commissionAmount);
+    expect(e.commissionBase).toBe(-v.commissionBase);
+  });
+
+  it("o estorno parcial reverte só a parte devolvida", () => {
+    const e = estornoDaComissao({
+      movementId: "mv1",
+      chave: "e1",
+      staffId: "rafael",
+      uid: null,
+      staffName: null,
+      unitPrice: 50,
+      unitCost: 20,
+      quantidade: 1,
+      commissionPct: 10,
+      commissionRule: "produto_sobre_preco",
+      date: "2026-10-11",
+    });
+    expect(e.commissionAmount).toBe(-5);
+  });
+
+  it("documento antigo (sem regra) é estornado sobre o lucro, como sempre", () => {
+    const e = estornoDaComissao({
+      movementId: "mv1",
+      chave: "e1",
+      staffId: "rafael",
+      uid: null,
+      staffName: null,
+      unitPrice: 50,
+      unitCost: 20,
+      quantidade: 1,
+      commissionPct: 40,
+      date: "2026-10-11",
+    });
+    expect(e.commissionAmount).toBe(-12);
+    expect(e.commissionRule).toBe("barbeiro_sobre_lucro");
   });
 });

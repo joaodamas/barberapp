@@ -54,6 +54,12 @@ export type ProductDoc = {
   stock: number;
   minStock: number;
   /**
+   * Comissão do barbeiro NESTE produto, em % (0–100), sobre o PREÇO de venda
+   * cobrado. Ausente/null = vale a regra de sempre (% do barbeiro sobre o
+   * lucro). 0 é legítimo: o produto não comissiona.
+   */
+  commissionPct?: number | null;
+  /**
    * Fora de "Vender" e da lista principal da Loja. Nunca se exclui produto: ele
    * tem vendas, movimentos e CMV no histórico. Ausente = ativo.
    */
