@@ -434,7 +434,7 @@ export default function FinanceiroPage() {
             icon={Store}
             label="Faturamento da loja"
             value={formatBRL(commercialStats.storeRevenue)}
-            caption={`comissão sobre o lucro da loja: ${formatBRL(r.commissionsLoja)}`}
+            caption={`comissão sobre as vendas da loja: ${formatBRL(r.commissionsLoja)}`}
           />
         </div>
       </section>

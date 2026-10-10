@@ -14,7 +14,7 @@ import { movimentosDeCaixa, resumoDoFluxo } from "@/lib/fluxo-de-caixa";
 import { recebidoPorForma } from "@/lib/resumo-do-dia";
 import { extratoDaComissao } from "@/lib/barbeiro";
 import { liquidacaoDoAtendimento } from "@/lib/booking-status";
-import { camposDaCaixinha, lerCaixinha, TETO_DA_CAIXINHA, totalComCaixinha } from "@/lib/caixinha";
+import { camposDaCaixinha, lerCaixinha, TETO_DA_CAIXINHA, totalComCaixinha, caixinhasDoPeriodo } from "@/lib/caixinha";
 import type { Doc } from "@/lib/db/repository";
 import type { CommissionDoc, PaymentDoc } from "@/lib/domain";
 import type { TenantPolicies } from "@/lib/tenant";
@@ -279,5 +279,62 @@ describe("caixinha · o fechamento na tela", () => {
     expect(
       liquidacaoDoAtendimento({ status: "completed", paymentOrigin: "in_person", paymentMethod: "pix", value: 50 }).detalhe
     ).toBeNull();
+  });
+});
+
+describe("caixinhas a repassar por barbeiro (DRE, fora do resultado)", () => {
+  const periodo = { inicio: "2026-10-01", fim: "2026-10-31" };
+  const linha = (o: Partial<Parameters<typeof caixinhasDoPeriodo>[0]["commissions"][number]>) => ({
+    origin: "caixinha" as const,
+    staffId: "b-rafael",
+    staffName: "Rafael",
+    date: "2026-10-10",
+    commissionBase: 10,
+    feeAmount: 0.35,
+    commissionAmount: 9.65,
+    ...o,
+  });
+
+  it("soma o líquido por barbeiro, com a taxa dele à parte", () => {
+    const r = caixinhasDoPeriodo({
+      commissions: [
+        linha({}),
+        linha({ staffId: "b-leo", staffName: "Léo", commissionBase: 5, feeAmount: 0, commissionAmount: 5 }),
+        /* serviço e produto não entram */
+        { ...linha({}), origin: "servico" as const, commissionAmount: 20 },
+        { ...linha({}), origin: "produto" as const, commissionAmount: 4.5 },
+      ],
+      periodo,
+    });
+    expect(r.total).toBe(14.65);
+    expect(r.porBarbeiro).toEqual([
+      { staffId: "b-rafael", nome: "Rafael", bruto: 10, taxa: 0.35, liquido: 9.65 },
+      { staffId: "b-leo", nome: "Léo", bruto: 5, taxa: 0, liquido: 5 },
+    ]);
+  });
+
+  it("estorno da conclusão desfeita zera e o barbeiro sai da lista; ajuste de taxa soma", () => {
+    const r = caixinhasDoPeriodo({
+      commissions: [
+        linha({ feeAmount: 0, commissionAmount: 10 }),
+        /* Pix → crédito 3%: ajuste −0,30 */
+        linha({ commissionBase: 0, feeAmount: 0.3, commissionAmount: -0.3 }),
+        linha({ staffId: "b-leo", staffName: "Léo" }),
+        linha({ staffId: "b-leo", staffName: "Léo", commissionBase: -10, feeAmount: -0.35, commissionAmount: -9.65 }),
+      ],
+      periodo,
+    });
+    expect(r.porBarbeiro).toEqual([{ staffId: "b-rafael", nome: "Rafael", bruto: 10, taxa: 0.3, liquido: 9.7 }]);
+    expect(r.total).toBe(9.7);
+  });
+
+  it("fora do mês não conta; o nome do cadastro vence o congelado", () => {
+    const r = caixinhasDoPeriodo({
+      commissions: [linha({ date: "2026-09-30" }), linha({})],
+      periodo,
+      nomes: new Map([["b-rafael", "Rafael Siqueira"]]),
+    });
+    expect(r.porBarbeiro).toHaveLength(1);
+    expect(r.porBarbeiro[0].nome).toBe("Rafael Siqueira");
   });
 });
