@@ -49,8 +49,8 @@ describe("fechamento das 21h", () => {
   it("desconta os estornos do dia do total", () => {
     expect(
       totalDoFechamento([{ grossAmount: 50 }, { grossAmount: 70.1 }, { grossAmount: "x" }], [{ grossAmount: 20.05 }])
-    ).toEqual({ recebido: 100.05, estornado: 20.05 });
-    expect(totalDoFechamento([{ grossAmount: 50 }], [])).toEqual({ recebido: 50, estornado: 0 });
+    ).toEqual({ recebido: 100.05, estornado: 20.05, caixinha: 0 });
+    expect(totalDoFechamento([{ grossAmount: 50 }], [])).toEqual({ recebido: 50, estornado: 0, caixinha: 0 });
   });
 
   it("o rótulo diz o critério real — data do atendimento — e o estorno descontado", () => {

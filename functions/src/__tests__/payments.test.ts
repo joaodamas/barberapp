@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { documentoDePagamento, idDoPagamento, valoresDoPagamento } from "../payments";
+import {
+  calcularCaixinha,
+  documentoDePagamento,
+  estornoDaCaixinha,
+  idDaComissaoDaCaixinha,
+  idDoEstornoDaCaixinha,
+  idDoPagamento,
+  somarLinhasDaCaixinha,
+  valoresDoPagamento,
+} from "../payments";
 import type { PaymentFees } from "../financial-events";
 
 /**
@@ -133,5 +142,69 @@ describe("G1.6 · o documento guarda a origem explícita", () => {
     });
     expect(d.paymentOrigin).toBe("in_person");
     expect(d.origin).toBe("produto");
+  });
+});
+
+describe("caixinha (gorjeta) · a conta do barbeiro", () => {
+  const SEM = { dinheiro: 0, pix: 0, debito: 0, credito: 0 };
+
+  it("R$ 10 no Pix sem taxa: 100% do barbeiro, caixinha e líquido iguais", () => {
+    const c = calcularCaixinha({ caixinha: 10, metodo: "pix", fees: SEM })!;
+    expect(c.payment).toMatchObject({ grossAmount: 10, feeAmount: 0, netAmount: 10, paymentMethod: "pix" });
+    expect(c.commission).toEqual({ commissionPct: 100, commissionBase: 10, feeAmount: 0, commissionAmount: 10 });
+  });
+
+  it("R$ 10 no crédito a 3%: a taxa é do barbeiro, que recebe R$ 9,70", () => {
+    const c = calcularCaixinha({ caixinha: 10, metodo: "credit", fees: { ...SEM, credito: 3 } })!;
+    expect(c.payment.feeAmount).toBe(0.3);
+    expect(c.payment.netAmount).toBe(9.7);
+    expect(c.commission.commissionBase).toBe(10);
+    expect(c.commission.feeAmount).toBe(0.3);
+    expect(c.commission.commissionAmount).toBe(9.7);
+  });
+
+  it("a casa não fica com nada: líquido da caixinha = comissão do barbeiro", () => {
+    const c = calcularCaixinha({ caixinha: 7.77, metodo: "debit", fees: { ...SEM, debito: 1.99 } })!;
+    expect(c.commission.commissionAmount).toBe(c.payment.netAmount);
+  });
+
+  it("sem forma de pagamento, valor zero, negativo ou lixo: não há caixinha", () => {
+    expect(calcularCaixinha({ caixinha: 10, metodo: null, fees: SEM })).toBeNull();
+    for (const v of [0, -3, undefined, null, "abc", NaN]) {
+      expect(calcularCaixinha({ caixinha: v, metodo: "cash", fees: SEM })).toBeNull();
+    }
+  });
+
+  it("os ids derivam da reserva e do ciclo, e o documento diz 'caixinha'", () => {
+    expect(idDoPagamento({ origem: "caixinha", bookingId: "bk1" })).toBe("pagamento_caixinha_bk1");
+    expect(idDaComissaoDaCaixinha("comissao_bk1")).toBe("comissao_bk1_caixinha");
+    expect(idDaComissaoDaCaixinha("comissao_bk1_ev2")).toBe("comissao_bk1_ev2_caixinha");
+    const doc = documentoDePagamento({
+      ref: { origem: "caixinha", bookingId: "bk1" },
+      clientId: "c1",
+      date: "2026-10-02",
+      bruto: 10,
+      metodo: "cash",
+      fees: SEM,
+    });
+    expect(doc.origin).toBe("caixinha");
+    expect(doc).toMatchObject({ bookingId: "bk1" });
+  });
+
+  it("o estorno nega o saldo líquido, inclusive o ajuste da correção do meio", () => {
+    const original = { staffId: "s1", uid: "u1", staffName: "Otávio", commissionBase: 10, commissionAmount: 10, feeAmount: 0 };
+    const ajuste = { staffId: "s1", uid: "u1", staffName: "Otávio", commissionBase: 0, commissionAmount: -0.3, feeAmount: 0.3 };
+    const saldo = somarLinhasDaCaixinha([original, ajuste])!;
+    expect(saldo).toMatchObject({ commissionBase: 10, commissionAmount: 9.7, feeAmount: 0.3, staffId: "s1" });
+    const e = estornoDaCaixinha({ bookingId: "bk1", date: "2026-10-02", ...saldo });
+    expect(e).toMatchObject({ origin: "caixinha", commissionBase: -10, commissionAmount: -9.7, feeAmount: -0.3 });
+    expect(idDoEstornoDaCaixinha("bk1", "ev1")).toBe("comissao_estorno_caixinha_bk1_ev1");
+  });
+
+  it("ciclo já revertido (linha + estorno) soma zero: nada a negar de novo", () => {
+    const l = { staffId: "s1", commissionBase: 10, commissionAmount: 10, feeAmount: 0 };
+    const e = { staffId: "s1", commissionBase: -10, commissionAmount: -10, feeAmount: 0 };
+    expect(somarLinhasDaCaixinha([l, e])).toBeNull();
+    expect(somarLinhasDaCaixinha([])).toBeNull();
   });
 });

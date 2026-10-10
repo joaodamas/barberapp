@@ -3,7 +3,12 @@ import { politicasDe } from "./politicas-financeiras";
 import { exigirEdicao, vinculosDe } from "./acesso";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { SEM_TAXA, type PaymentFees, type PaymentMethod } from "./financial-events";
-import { idDoPagamento, valoresDoPagamento } from "./payments";
+import {
+  idDoAjusteDaCaixinha,
+  idDoPagamento,
+  somarLinhasDaCaixinha,
+  valoresDoPagamento,
+} from "./payments";
 import { formasDoTenant, type FormaDePagamento } from "./formas-de-pagamento";
 import { competenciaDe } from "./mensalistas";
 import { metodoValido } from "./inventory";
@@ -464,12 +469,71 @@ export async function gravarCorrecao(params: {
       formaId: params.formaId,
     });
 
+    /* A CAIXINHA vai pelo mesmo meio do atendimento (regra do dono: não tem
+     * seletor próprio), então corrigir o meio corrige o dela também. Lida aqui,
+     * ainda antes de qualquer escrita. A comissão vigente é a do ciclo atual da
+     * reserva — a mesma regra da reversão. */
+    const caixinhaPagamentoRef = shopRef
+      .collection("payments")
+      .doc(idDoPagamento({ origem: "caixinha", bookingId }));
+    /* Por reserva, e não pelo id do ciclo: a edição de cobrança troca a comissão
+     * vigente do serviço sem tocar na gorjeta. */
+    const [caixinhaPagamentoSnap, caixinhaLinhasSnap] = await Promise.all([
+      tx.get(caixinhaPagamentoRef),
+      tx.get(
+        shopRef
+          .collection("commissions")
+          .where("bookingId", "==", bookingId)
+          .where("origin", "==", "caixinha")
+      ),
+    ]);
+    const caixinhaDoBarbeiro = somarLinhasDaCaixinha(caixinhaLinhasSnap.docs.map((d) => d.data()));
+    const dataDaCaixinha = caixinhaLinhasSnap.docs[0]?.get("date");
+    const caixinhaDe = caixinhaPagamentoSnap.exists ? estadoDoPagamento(caixinhaPagamentoSnap) : null;
+    const caixinhaPara = caixinhaPagamentoSnap.exists
+      ? camposDaCorrecao({
+          bruto: Number(caixinhaPagamentoSnap.get("grossAmount")) || 0,
+          metodo: params.metodo,
+          fees: params.fees,
+          formas: params.formas,
+          formaId: params.formaId,
+        })
+      : null;
+
     /* ================= ESCRITAS ================= */
 
     /* O fato econômico. Exatamente os quatro campos — o objeto é `para`, e não
      * um espalhamento de `valoresDoPagamento`, justamente para que a lista de
      * chaves gravadas seja a lista declarada em `CAMPOS_CORRIGIVEIS`. */
     tx.update(pagamentoRef, para);
+
+    if (caixinhaDe && caixinhaPara) {
+      tx.update(caixinhaPagamentoRef, caixinhaPara);
+      /* A taxa da caixinha é do BARBEIRO: se o líquido mudou, o que ele recebe
+       * mudou junto. A comissão original não é reescrita (histórico financeiro
+       * se corrige somando): entra uma linha de AJUSTE com o delta, de id
+       * derivado da correção — o retry cai no `logSnap` lá de cima e nem chega
+       * aqui, e se chegasse regravaria a mesma linha. Pix → crédito a 3% sobre
+       * R$ 10,00 gera −R$ 0,30. */
+      const delta = Math.round((caixinhaPara.netAmount - caixinhaDe.netAmount) * 100) / 100;
+      if (delta !== 0 && caixinhaDoBarbeiro) {
+        tx.set(shopRef.collection("commissions").doc(idDoAjusteDaCaixinha(bookingId, params.chave)), {
+          origin: "caixinha",
+          bookingId,
+          staffId: caixinhaDoBarbeiro.staffId,
+          uid: caixinhaDoBarbeiro.uid,
+          staffName: caixinhaDoBarbeiro.staffName,
+          date: dataDaCaixinha ?? String(pagamentoSnap.get("date") ?? ""),
+          commissionPct: 100,
+          /* A caixinha em si não mudou; só a taxa. */
+          commissionBase: 0,
+          feeAmount: Math.round((caixinhaPara.feeAmount - caixinhaDe.feeAmount) * 100) / 100,
+          commissionAmount: delta,
+          ajuste: true,
+          createdAt: FieldValue.serverTimestamp(),
+        });
+      }
+    }
 
     /* O estado operacional, na MESMA transação. Corrigir só o pagamento
      * deixaria o card crítico na tela para sempre e a agenda exibindo o método
@@ -489,7 +553,13 @@ export async function gravarCorrecao(params: {
       action: "payment.corrigido",
       by: params.autor,
       at: FieldValue.serverTimestamp(),
-      detail: { bookingId, paymentId, de, para },
+      detail: {
+        bookingId,
+        paymentId,
+        de,
+        para,
+        ...(caixinhaDe && caixinhaPara ? { caixinha: { de: caixinhaDe, para: caixinhaPara } } : {}),
+      },
     });
 
     return { paymentId, bookingId, de, para, repetida: false };

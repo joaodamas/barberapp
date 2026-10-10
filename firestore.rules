@@ -533,6 +533,28 @@ service cloud.firestore {
         );
       }
 
+      /* Caixinha (gorjeta) no fechamento — pedido do dono.
+       *
+       * `tipAmount` entra JUNTO com a conclusão, em reais, e o gatilho
+       * financeiro a materializa como pagamento e comissão de 100% do barbeiro.
+       * A regra garante o que o gatilho confia no documento:
+       * - número > 0 e até o teto (R$ 1.000,00): digitar "1000" no lugar de
+       *   "10,00" não vira repasse de milhares;
+       * - só com forma de pagamento escolhida: cortesia e "concluir sem cobrar"
+       *   do mensalista não receberam dinheiro, logo não têm gorjeta;
+       * - qualquer um do time pode informá-la (o modal é o mesmo do barbeiro e do
+       *   dono). */
+      function caixinhaDoFechamentoValida() {
+        let depois = request.resource.data;
+        let mexeu = depois.diff(resource.data).affectedKeys().hasAny(['tipAmount']);
+        return !mexeu || (
+          depois.tipAmount is number
+          && depois.tipAmount > 0
+          && depois.tipAmount <= 1000
+          && depois.get('paymentMethod', null) != null
+        );
+      }
+
       /* Concluir e marcar falta só a partir do DIA do atendimento (08/10).
        *
        * O painel do barbeiro mostrava "Concluir" na reserva da semana que vem,
@@ -594,7 +616,7 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data).affectedKeys()
                .hasOnly(['status', 'paymentMethod', 'paymentFormId', 'paymentFormLabel',
                          'discountAmount', 'discountInput', 'discountReason',
-                         'discountBy', 'discountAt'])
+                         'discountBy', 'discountAt', 'tipAmount'])
           && diaDoAtendimentoChegou(resource.data)
           && (resource.data.status in ['pending_payment', 'confirmed', 'confirmed_by_client', 'fit_in_requested']
               /* "Veio depois" (02/10): a falta pode virar atendimento concluído
@@ -604,12 +626,13 @@ service cloud.firestore {
           && (
             (request.resource.data.status == 'completed'
               && request.resource.data.get('paymentMethod', null) in [null, 'pix', 'cash', 'debit', 'credit']
-              && descontoDoFechamentoValido(barbershopId))
+              && descontoDoFechamentoValido(barbershopId)
+              && caixinhaDoFechamentoValida())
             || (request.resource.data.status == 'no_show'
               && !request.resource.data.diff(resource.data).affectedKeys()
                     .hasAny(['paymentMethod', 'paymentFormId', 'paymentFormLabel',
                              'discountAmount', 'discountInput', 'discountReason',
-                             'discountBy', 'discountAt']))
+                             'discountBy', 'discountAt', 'tipAmount']))
           );
         /* Histórico não se apaga: reserva errada se cancela. */
         allow delete: if false;

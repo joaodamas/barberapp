@@ -151,6 +151,7 @@ export function liquidacaoDoAtendimento(
     | "paymentFormLabel"
     | "value"
     | "discountAmount"
+    | "tipAmount"
   >
 ): LiquidacaoDoAtendimento {
   const cobertura = booking.cobertura;
@@ -198,8 +199,15 @@ export function liquidacaoDoAtendimento(
     booking.status === "completed" && Number(booking.discountAmount) > 0
       ? `${formatBRL(Number(booking.discountAmount))} de desconto`
       : null;
+  /* A caixinha aparece ao lado da forma: o cliente pagou MAIS do que o preço
+   * (e esse a mais é do barbeiro, não da casa). Sem ela o recebido do dia
+   * pareceria maior do que a soma das agendas. */
+  const caixinha =
+    booking.status === "completed" && Number(booking.tipAmount) > 0
+      ? `${formatBRL(Number(booking.tipAmount))} de caixinha`
+      : null;
   const detalhe =
-    [motivo ? `Fora do plano: ${motivo}` : null, desconto].filter(Boolean).join(" · ") || null;
+    [motivo ? `Fora do plano: ${motivo}` : null, desconto, caixinha].filter(Boolean).join(" · ") || null;
 
   /* O rótulo CONGELADO vence o genérico.
    *

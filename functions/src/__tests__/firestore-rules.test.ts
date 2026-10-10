@@ -1026,6 +1026,74 @@ describe("reserva: desconto no fechamento (28/09)", () => {
   });
 });
 
+describe("reserva: caixinha no fechamento", () => {
+  const bk = (quem: { sub: string } & Record<string, unknown>) =>
+    doc(as(quem), `barbershops/${ALFA}/bookings`, "bk-1");
+  const marcarFalta = () =>
+    testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `barbershops/${ALFA}/bookings`, "bk-1"), { status: "no_show" });
+    });
+
+  it("o dono e o barbeiro concluem com forma de pagamento e caixinha", async () => {
+    await assertSucceeds(updateDoc(bk(DONO_ALFA), { status: "completed", paymentMethod: "pix", tipAmount: 10 }));
+  });
+
+  it("o barbeiro também informa a caixinha", async () => {
+    await assertSucceeds(
+      updateDoc(bk(BARBEIRO_ALFA), { status: "completed", paymentMethod: "credit", tipAmount: 5.5 })
+    );
+  });
+
+  it("quem veio depois (falta -> concluído) pode ter caixinha", async () => {
+    await marcarFalta();
+    await assertSucceeds(updateDoc(bk(BARBEIRO_ALFA), { status: "completed", paymentMethod: "cash", tipAmount: 7 }));
+  });
+
+  it("🔒 sem forma de pagamento não há caixinha (mensalista sem cobrar)", async () => {
+    await assertFails(updateDoc(bk(DONO_ALFA), { status: "completed", paymentMethod: null, tipAmount: 10 }));
+    await assertFails(updateDoc(bk(DONO_ALFA), { status: "completed", tipAmount: 10 }));
+  });
+
+  it("🔒 cortesia (100% de desconto) não tem caixinha", async () => {
+    await assertFails(
+      updateDoc(bk(DONO_ALFA), {
+        status: "completed",
+        paymentMethod: null,
+        tipAmount: 10,
+        discountAmount: 90,
+        discountInput: { tipo: "pct", valor: 100 },
+        discountReason: "cortesia",
+        discountBy: DONO_ALFA.sub,
+        discountAt: serverTimestamp(),
+      })
+    );
+  });
+
+  it("🔒 só número positivo e até o teto de R$ 1.000,00", async () => {
+    for (const tipAmount of [0, -5, "10", null, 1000.01, 99999]) {
+      await assertFails(updateDoc(bk(DONO_ALFA), { status: "completed", paymentMethod: "pix", tipAmount }));
+    }
+    await assertSucceeds(updateDoc(bk(DONO_ALFA), { status: "completed", paymentMethod: "pix", tipAmount: 1000 }));
+  });
+
+  it("🔒 não vai na marcação de falta nem fora da conclusão", async () => {
+    await assertFails(updateDoc(bk(DONO_ALFA), { status: "no_show", tipAmount: 10 }));
+    await assertFails(updateDoc(bk(DONO_ALFA), { tipAmount: 10 }));
+    await assertFails(updateDoc(bk(BARBEIRO_ALFA), { tipAmount: 10 }));
+  });
+
+  it("🔒 reserva concluída não ganha caixinha depois, direto no banco", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `barbershops/${ALFA}/bookings`, "bk-1"), {
+        status: "completed",
+        paymentMethod: "pix",
+      });
+    });
+    await assertFails(updateDoc(bk(DONO_ALFA), { tipAmount: 10 }));
+    await assertFails(updateDoc(bk(DONO_ALFA), { status: "completed", paymentMethod: "pix", tipAmount: 10 }));
+  });
+});
+
 describe("vitrine pública e o que não é vitrine (rodada E2E de 23/09)", () => {
   it("sem login: vê a barbearia, serviços, barbeiros e planos", async () => {
     await testEnv.withSecurityRulesDisabled(async (ctx) => {

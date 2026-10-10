@@ -671,7 +671,9 @@ export function taxasDePagamento(
 ) {
   return centavos(
     payments
-      .filter((p) => dentroDoPeriodo(p.date, periodo))
+      /* A taxa da CAIXINHA é do barbeiro (já saiu do líquido dele), e não custo
+       * da casa: contá-la no DRE cobraria da casa uma taxa que ela não pagou. */
+      .filter((p) => p.origin !== "caixinha" && dentroDoPeriodo(p.date, periodo))
       .reduce((soma, p) => soma + (p.feeAmount ?? 0), 0)
   );
 }
@@ -1451,6 +1453,12 @@ export function caixaDoDia(payments: Doc<PaymentDoc>[]) {
   const cartao = soma(["debit", "credit"]);
   const dinheiro = soma(["cash"]);
   const total = payments.reduce((s, p) => s + bruto(p), 0);
+  /* A caixinha PASSOU pelo caixa (por isso está no total e na forma em que foi
+   * paga), mas é do barbeiro. Sai destacada para a tela dizer "inclui R$ X de
+   * caixinha" — o dono confere a gaveta e precisa saber que aquilo não é receita. */
+  const caixinha = centavos(
+    payments.filter((p) => p.origin === "caixinha").reduce((s, p) => s + bruto(p), 0)
+  );
 
   return {
     pix,
@@ -1458,6 +1466,7 @@ export function caixaDoDia(payments: Doc<PaymentDoc>[]) {
     dinheiro,
     naoInformado: centavos(total - pix - cartao - dinheiro),
     total,
+    caixinha,
   };
 }
 
