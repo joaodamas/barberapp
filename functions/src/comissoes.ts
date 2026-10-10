@@ -33,7 +33,7 @@
  * depender de qualquer agregado.
  */
 
-export type OrigemDaComissao = "servico" | "produto";
+export type OrigemDaComissao = "servico" | "produto" | "caixinha";
 
 /**
  * Como a comissão de uma venda de produto foi calculada — congelado no fato.
@@ -59,6 +59,8 @@ export type CommissionDoc = {
   commissionAmount: number;
   /** Ausente em documentos anteriores à comissão por produto = sobre o lucro. */
   commissionRule?: RegraDaComissao;
+  /** Só na caixinha: a taxa da maquininha que o barbeiro arcou (já fora de `commissionAmount`). */
+  feeAmount?: number;
   bookingId?: string;
   movementId?: string;
 };
@@ -173,6 +175,7 @@ export function comissaoDaVenda(params: {
 
 /** O id do documento, derivado do fato — mesma convenção de `payments`. */
 export function idDaComissao(ref: { origem: OrigemDaComissao; refId: string }): string {
+  if (ref.origem === "caixinha") return `comissao_${ref.refId}_caixinha`;
   return ref.origem === "servico"
     ? `comissao_${ref.refId}`
     : `comissao_venda_${ref.refId}`;

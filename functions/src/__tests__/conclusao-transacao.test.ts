@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { initializeApp, deleteApp, type App } from "firebase-admin/app";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
-import { materializarConclusao, type PaymentFees } from "../financial-events";
+import { materializarConclusao, reverterConclusao, type PaymentFees } from "../financial-events";
 import { gravarEdicao } from "../edicao-de-cobranca";
 import { gravarCorrecao } from "../correcao-de-pagamento";
 import type { ServicoDoCatalogo } from "../combos";
@@ -253,5 +253,272 @@ describe("cota do plano com conclusões simultâneas", () => {
     const c = (await reservaRef("n1").get()).get("cobertura");
     expect(c.tipo).toBe("plano");
     expect(c.usoNaCompetencia).toBe(1);
+  });
+});
+
+describe("caixinha (gorjeta) no fechamento", () => {
+  const caixinhaPagamentoRef = (id: string) =>
+    shopRef().collection("payments").doc(`pagamento_caixinha_${id}`);
+  const doServico = (linhas: Record<string, unknown>[]) => linhas.filter((l) => l.origin === "servico");
+  const daCaixinha = (linhas: Record<string, unknown>[]) => linhas.filter((l) => l.origin === "caixinha");
+  const taxas = (credito: number) =>
+    shopRef().update({ "policies.paymentFees": { dinheiro: 0, pix: 0, debito: 0, credito } });
+
+  it("R$ 50 no Pix + R$ 10 de caixinha (taxa 0): serviço e caixinha separados, 100% do barbeiro", async () => {
+    await taxas(0);
+    await concluir("b1", { ...reservaConcluida({ value: 50, metodo: "pix", serviceIds: ["corte"] }), tipAmount: 10 });
+
+    const servico = (await pagamentoRef("b1").get()).data()!;
+    expect(servico.origin).toBe("servico");
+    expect(servico.grossAmount).toBe(50);
+
+    const tip = (await caixinhaPagamentoRef("b1").get()).data()!;
+    expect(tip).toMatchObject({
+      origin: "caixinha",
+      bookingId: "b1",
+      clientId: "c1",
+      staffId: "s1",
+      date: HOJE,
+      grossAmount: 10,
+      netAmount: 10,
+      paymentMethod: "pix",
+    });
+
+    const linhas = await comissoes();
+    expect(doServico(linhas)).toHaveLength(1);
+    expect(saldo(doServico(linhas))).toBe(20);
+    const c = daCaixinha(linhas);
+    expect(c).toHaveLength(1);
+    expect(c[0]).toMatchObject({
+      id: "comissao_b1_caixinha",
+      commissionPct: 100,
+      commissionBase: 10,
+      feeAmount: 0,
+      commissionAmount: 10,
+      staffId: "s1",
+      staffName: "Otávio",
+    });
+  });
+
+  it("crédito a 3%: a taxa da caixinha é do barbeiro, que recebe R$ 9,70", async () => {
+    await taxas(3);
+    await concluir("b1", { ...reservaConcluida({ value: 50, metodo: "credit", serviceIds: ["corte"] }), tipAmount: 10 });
+    const tip = (await caixinhaPagamentoRef("b1").get()).data()!;
+    expect(tip.feeAmount).toBe(0.3);
+    expect(tip.netAmount).toBe(9.7);
+    const c = daCaixinha(await comissoes())[0];
+    expect(c.commissionAmount).toBe(9.7);
+    expect(c.commissionBase).toBe(10);
+    expect(c.feeAmount).toBe(0.3);
+    /* A taxa do SERVIÇO continua sendo da casa e não é tocada: 3% de R$ 50. */
+    expect((await pagamentoRef("b1").get()).get("feeAmount")).toBe(1.5);
+  });
+
+  it("desconto + caixinha: a base do serviço é o cobrado, a caixinha não entra nela", async () => {
+    await taxas(0);
+    await concluir("b1", {
+      ...reservaConcluida({ value: 50, metodo: "cash", serviceIds: ["corte"] }),
+      discountAmount: 10,
+      tipAmount: 5,
+    });
+    expect((await pagamentoRef("b1").get()).get("grossAmount")).toBe(40);
+    const linhas = await comissoes();
+    expect(doServico(linhas)[0].commissionBase).toBe(40);
+    expect(saldo(doServico(linhas))).toBe(16);
+    expect((await caixinhaPagamentoRef("b1").get()).get("grossAmount")).toBe(5);
+    expect(saldo(daCaixinha(linhas))).toBe(5);
+  });
+
+  it("sem caixinha informada: nada de caixinha", async () => {
+    await concluir("b1", reservaConcluida({ value: 50, metodo: "pix", serviceIds: ["corte"] }));
+    expect((await caixinhaPagamentoRef("b1").get()).exists).toBe(false);
+    expect(daCaixinha(await comissoes())).toHaveLength(0);
+  });
+
+  it("cortesia e coberto não têm caixinha, e o campo solto na reserva é apagado", async () => {
+    await concluir("b1", {
+      ...reservaConcluida({ value: 50, metodo: null, serviceIds: ["corte"] }),
+      discountAmount: 50,
+      tipAmount: 10,
+    });
+    expect((await caixinhaPagamentoRef("b1").get()).exists).toBe(false);
+    expect(daCaixinha(await comissoes())).toHaveLength(0);
+    expect((await reservaRef("b1").get()).get("tipAmount")).toBeUndefined();
+
+    /* Mensalista sem cobrar: sem forma de pagamento, sem caixinha. */
+    await concluir("b2", { ...reservaConcluida({ value: 50, metodo: null, serviceIds: ["corte"] }), tipAmount: 10 });
+    expect((await caixinhaPagamentoRef("b2").get()).exists).toBe(false);
+    expect(daCaixinha(await comissoes())).toHaveLength(0);
+  });
+
+  it("retry do gatilho não duplica a caixinha nem o repasse", async () => {
+    await taxas(3);
+    const depois = { ...reservaConcluida({ value: 50, metodo: "credit", serviceIds: ["corte"] }), tipAmount: 10 };
+    await concluir("b1", depois);
+    await entregar("b1", depois);
+    await entregar("b1", depois);
+    expect((await shopRef().collection("payments").get()).size).toBe(2);
+    const linhas = await comissoes();
+    expect(daCaixinha(linhas)).toHaveLength(1);
+    expect(saldo(daCaixinha(linhas))).toBe(9.7);
+  });
+
+  it("a conferência noturna materializa a caixinha que o gatilho perdeu", async () => {
+    await taxas(0);
+    const depois = { ...reservaConcluida({ value: 50, metodo: "cash", serviceIds: ["corte"] }), tipAmount: 8 };
+    await reservaRef("b1").set(depois);
+    await entregar("b1", depois, "conferencia-2026-10-03");
+    expect((await caixinhaPagamentoRef("b1").get()).get("grossAmount")).toBe(8);
+    expect(saldo(daCaixinha(await comissoes()))).toBe(8);
+  });
+
+  describe("reversão e reconclusão", () => {
+    const desfazer = async (id: string, depois: Record<string, unknown>, chave: string) => {
+      const aberta = { ...depois, status: "no_show" };
+      await reservaRef(id).update({ status: "no_show" });
+      await reverterConclusao({ db, barbershopId: SHOP, bookingId: id, depois: aberta, chave });
+    };
+
+    it("desfazer a conclusão nega a caixinha, apaga o pagamento e limpa a reserva", async () => {
+      await taxas(3);
+      const depois = { ...reservaConcluida({ value: 50, metodo: "credit", serviceIds: ["corte"] }), tipAmount: 10 };
+      await concluir("b1", depois);
+      await desfazer("b1", depois, "ev-rev1");
+
+      expect((await caixinhaPagamentoRef("b1").get()).exists).toBe(false);
+      expect((await pagamentoRef("b1").get()).exists).toBe(false);
+      const linhas = await comissoes();
+      /* Soma, nunca apaga: linha original + estorno. */
+      expect(daCaixinha(linhas)).toHaveLength(2);
+      expect(saldo(daCaixinha(linhas))).toBe(0);
+      expect(saldo(doServico(linhas))).toBe(0);
+      expect(daCaixinha(linhas).find((l) => l.id === "comissao_estorno_caixinha_b1_ev-rev1")?.commissionAmount).toBe(-9.7);
+      const r = (await reservaRef("b1").get()).data()!;
+      expect(r.tipAmount).toBeUndefined();
+      expect(r.paymentMethod).toBeNull();
+    });
+
+    it("reentrega da MESMA reversão não nega duas vezes", async () => {
+      await taxas(0);
+      const depois = { ...reservaConcluida({ value: 50, metodo: "cash", serviceIds: ["corte"] }), tipAmount: 10 };
+      await concluir("b1", depois);
+      await desfazer("b1", depois, "ev-rev1");
+      await reverterConclusao({ db, barbershopId: SHOP, bookingId: "b1", depois: { ...depois, status: "no_show" }, chave: "ev-rev1" });
+      expect(saldo(daCaixinha(await comissoes()))).toBe(0);
+      expect(daCaixinha(await comissoes())).toHaveLength(2);
+    });
+
+    it("reconcluir com OUTRA caixinha: a anterior não volta, vale a nova", async () => {
+      await taxas(0);
+      const depois = { ...reservaConcluida({ value: 50, metodo: "cash", serviceIds: ["corte"] }), tipAmount: 10 };
+      await concluir("b1", depois);
+      await desfazer("b1", depois, "ev-rev1");
+
+      /* O dono conclui de novo, agora com R$ 4 e Pix. A reserva carrega o ciclo. */
+      await reservaRef("b1").update({ status: "completed", paymentMethod: "pix", tipAmount: 4 });
+      const nova = (await reservaRef("b1").get()).data()!;
+      await entregar("b1", nova, "ev-concl2");
+
+      expect((await caixinhaPagamentoRef("b1").get()).get("grossAmount")).toBe(4);
+      const linhas = daCaixinha(await comissoes());
+      expect(saldo(linhas)).toBe(4);
+      expect(linhas.map((l) => l.id).sort()).toEqual(
+        ["comissao_b1_caixinha", "comissao_b1_ev-concl2_caixinha", "comissao_estorno_caixinha_b1_ev-rev1"].sort()
+      );
+    });
+
+    it("reconcluir SEM caixinha: o repasse anterior fica negado e nada novo nasce", async () => {
+      await taxas(0);
+      const depois = { ...reservaConcluida({ value: 50, metodo: "cash", serviceIds: ["corte"] }), tipAmount: 10 };
+      await concluir("b1", depois);
+      await desfazer("b1", depois, "ev-rev1");
+      await reservaRef("b1").update({ status: "completed", paymentMethod: "cash" });
+      await entregar("b1", (await reservaRef("b1").get()).data()!, "ev-concl2");
+      expect((await caixinhaPagamentoRef("b1").get()).exists).toBe(false);
+      expect(saldo(daCaixinha(await comissoes()))).toBe(0);
+    });
+  });
+
+  describe("correção do meio de pagamento", () => {
+    it("Pix -> crédito a 3% corrige o pagamento da caixinha e soma um ajuste de -R$ 0,30", async () => {
+      await taxas(3);
+      await shopRef().update({ "policies.paymentFees.pix": 0 });
+      const depois = { ...reservaConcluida({ value: 50, metodo: "pix", serviceIds: ["corte"] }), tipAmount: 10 };
+      await concluir("b1", depois);
+
+      await gravarCorrecao({
+        db,
+        shopRef: shopRef(),
+        bookingId: "b1",
+        metodo: "credit",
+        fees: { dinheiro: 0, pix: 0, debito: 0, credito: 3 },
+        hoje: HOJE,
+        chave: "k1",
+        autor: "uid-dono",
+      });
+
+      const tip = (await caixinhaPagamentoRef("b1").get()).data()!;
+      expect(tip).toMatchObject({ paymentMethod: "credit", feeAmount: 0.3, netAmount: 9.7, grossAmount: 10 });
+      const linhas = daCaixinha(await comissoes());
+      expect(linhas).toHaveLength(2);
+      const ajuste = linhas.find((l) => l.id === "comissao_ajuste_caixinha_b1_k1")!;
+      expect(ajuste.commissionAmount).toBe(-0.3);
+      expect(ajuste.commissionBase).toBe(0);
+      expect(ajuste.feeAmount).toBe(0.3);
+      expect(saldo(linhas)).toBe(9.7);
+      /* A linha original não foi reescrita. */
+      expect(linhas.find((l) => l.id === "comissao_b1_caixinha")?.commissionAmount).toBe(10);
+    });
+
+    it("depois do ajuste, desfazer a conclusão fecha a caixinha em zero (não sobra o -0,30)", async () => {
+      await taxas(3);
+      await shopRef().update({ "policies.paymentFees.pix": 0 });
+      const depois = { ...reservaConcluida({ value: 50, metodo: "pix", serviceIds: ["corte"] }), tipAmount: 10 };
+      await concluir("b1", depois);
+      await gravarCorrecao({
+        db,
+        shopRef: shopRef(),
+        bookingId: "b1",
+        metodo: "credit",
+        fees: { dinheiro: 0, pix: 0, debito: 0, credito: 3 },
+        hoje: HOJE,
+        chave: "k1",
+        autor: "uid-dono",
+      });
+      await reservaRef("b1").update({ status: "no_show" });
+      await reverterConclusao({ db, barbershopId: SHOP, bookingId: "b1", depois: { ...depois, status: "no_show" }, chave: "ev-rev1" });
+      expect(saldo(daCaixinha(await comissoes()))).toBe(0);
+      expect((await caixinhaPagamentoRef("b1").get()).exists).toBe(false);
+    });
+  });
+
+  it("a edição de cobrança não toca na caixinha, e desfazer depois dela ainda a nega", async () => {
+    await taxas(0);
+    const depois = { ...reservaConcluida({ value: 75, metodo: "cash" }), tipAmount: 10 };
+    await concluir("b1", depois);
+    await gravarEdicao({
+      db,
+      shopRef: shopRef(),
+      bookingId: "b1",
+      papel: "owner",
+      staffIdDoAutor: null,
+      serviceIds: ["corte"],
+      catalogo: CATALOGO,
+      desconto: undefined,
+      formaId: null,
+      metodo: "cash",
+      fees: { dinheiro: 0, pix: 0, debito: 0, credito: 0 },
+      padraoPct: 40,
+      hoje: HOJE,
+      chave: "k1",
+      autor: "uid-dono",
+    });
+    expect((await caixinhaPagamentoRef("b1").get()).get("grossAmount")).toBe(10);
+    expect(saldo(daCaixinha(await comissoes()))).toBe(10);
+
+    /* A comissão vigente do serviço mudou de id; a caixinha é achada por reserva. */
+    await reservaRef("b1").update({ status: "no_show" });
+    await reverterConclusao({ db, barbershopId: SHOP, bookingId: "b1", depois: { ...depois, status: "no_show", cicloFinanceiro: (await reservaRef("b1").get()).get("cicloFinanceiro") }, chave: "ev-rev1" });
+    expect(saldo(daCaixinha(await comissoes()))).toBe(0);
   });
 });

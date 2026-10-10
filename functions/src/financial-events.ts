@@ -2,7 +2,14 @@ import { onDocumentUpdated } from "firebase-functions/v2/firestore";
 import { politicasDe } from "./politicas-financeiras";
 import { percentualDoCadastro } from "./remuneracao";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
-import { valoresDoPagamento } from "./payments";
+import {
+  calcularCaixinha,
+  estornoDaCaixinha,
+  idDaComissaoDaCaixinha,
+  idDoEstornoDaCaixinha,
+  somarLinhasDaCaixinha,
+  valoresDoPagamento,
+} from "./payments";
 import { formasDoTenant, type FormaDePagamento } from "./formas-de-pagamento";
 import { assinaturaDaCompetencia, competenciaDe, decidirCobertura, type Cobertura } from "./mensalistas";
 import {
@@ -657,9 +664,6 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
      * retry, e o mesmo id não duplica. Na conclusão, a transação também LÊ a
      * comissão do ciclo e não regrava o que já existe (08/10): reentrega com
      * o retrato velho não pode desfazer edição nem correção. */
-    const pagamentoRef = db.doc(
-      `barbershops/${barbershopId}/payments/pagamento_${bookingId}`
-    );
     const reservaRef = db.doc(`barbershops/${barbershopId}/bookings/${bookingId}`);
 
     const efeito = decidirEfeito(antes.status, depois.status);
@@ -696,112 +700,12 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
     }
 
     if (efeito === "reverter") {
-      /* Conclusão desfeita: o fato financeiro sai do acerto, mas NÃO some do
-       * histórico — P1-7, D-2 fechada em 20/08.
-       *
-       * O que havia aqui era `comissaoRef.delete()` + `pagamentoRef.delete()`.
-       * O gate mediu o preço disso: o par delete+create recriava a comissão
-       * lendo `staff.commissionPct` de hoje, e R$ 20,00 viraram R$ 30,00 num
-       * atendimento que já tinha acontecido. E como o id do pagamento é
-       * derivado, nada duplicava, nada sobrava e nenhuma tela podia notar.
-       *
-       * Agora a comissão volta somando uma linha negativa — a mesma regra que
-       * `refunds.ts:495` já aplicava à venda de produto, com a mesma
-       * justificativa, e que o atendimento nunca teve. */
-      const chave = chaveDoCiclo(event.id);
-
-      await db.runTransaction(async (tx) => {
-      const [atual, comissaoSnap, pagamentoSnap] = await Promise.all([
-        tx.get(reservaRef),
-        tx.get(comissaoVigenteRef(db, barbershopId, bookingId, depois)),
-        tx.get(pagamentoRef),
-      ]);
-      /* Conferido de novo DENTRO da transação: se a reserva foi concluída de
-       * novo entre a saída cedo e aqui, a transação relê e este evento para. */
-      if (!estadoAindaVale("reverter", atual.get("status"))) return;
-      /* Reentrega desta MESMA reversão (08/10). A primeira passada já apagou o
-       * pagamento e limpou o desconto da reserva; congelar de novo gravaria
-       * `cicloFinanceiro.pagamento: null` por cima do bruto congelado, e a
-       * reconclusão voltaria a ler o preço de hoje. */
-      if (jaReverteuNesteEvento(atual.get("cicloFinanceiro"), chave)) return;
-
-      const congelado: CicloFinanceiro = {
-        revertidoEm: chave,
-        /* Lido da reserva ATUAL, dentro da transação — é ela que o `set` abaixo
-         * vai limpar. */
-        descontoDaReserva: descontoDaReservaCongelado(atual.data()),
-        comissao: comissaoSnap.exists
-          ? {
-              commissionBase: Number(comissaoSnap.get("commissionBase")) || 0,
-              staffId: String(comissaoSnap.get("staffId") ?? ""),
-              uid: (comissaoSnap.get("uid") ?? null) as string | null,
-              staffName: (comissaoSnap.get("staffName") ?? null) as string | null,
-            }
-          : null,
-        /* O BRUTO do fato, não o `value` da reserva. Sem isto a reconclusão lê
-         * `depois.value` de agora: editar o preço do serviço entre as duas
-         * conclusões faria o "mesmo" pagamento renascer com outro bruto, e nada
-         * registraria a troca. */
-        pagamento: brutoDoFatoCongelado(
-          pagamentoSnap.exists ? pagamentoSnap.data() ?? null : null,
-          comissaoSnap.exists ? comissaoSnap.data() ?? null : null
-        ),
-      };
-
-      if (comissaoSnap.exists && congelado.comissao?.staffId) {
-        tx.set(
-          db.doc(
-            `barbershops/${barbershopId}/commissions/` +
-              idDoEstornoDaComissaoDeServico(bookingId, chave)
-          ),
-          {
-            ...estornoDaComissaoDeServico({
-              bookingId,
-              chave,
-              staffId: congelado.comissao.staffId,
-              uid: congelado.comissao.uid,
-              staffName: congelado.comissao.staffName,
-              date: String(depois.date ?? ""),
-              commissionPct: Number(comissaoSnap.get("commissionPct")) || 0,
-              commissionBase: congelado.comissao.commissionBase,
-              commissionAmount: Number(comissaoSnap.get("commissionAmount")) || 0,
-            }),
-            createdAt: FieldValue.serverTimestamp(),
-          }
-        );
-      }
-      if (pagamentoSnap.exists) tx.delete(pagamentoRef);
-      /* Sem `.catch(() => undefined)`: engolir o erro aqui deixava a reserva
-       * sem `cicloFinanceiro` — e a reconclusão seguinte recalculava com o
-       * percentual de HOJE, que é o P1-7 voltando pela janela. */
-      tx.set(
-        reservaRef,
-        {
-          cobertura: FieldValue.delete(),
-          paymentMethod: null,
-          paymentFormId: null,
-          paymentFormLabel: null,
-          /* O desconto sai com o método: ele foi dado NAQUELE fechamento, que
-           * acaba de ser desfeito. O valor que vale para a reconclusão já está
-           * congelado em `cicloFinanceiro.pagamento`; deixar os campos na
-           * reserva faria uma reserva de volta à agenda exibir um desconto de
-           * um atendimento que, para o produto, ainda não aconteceu. */
-          discountAmount: FieldValue.delete(),
-          discountInput: FieldValue.delete(),
-          discountReason: FieldValue.delete(),
-          discountBy: FieldValue.delete(),
-          discountAt: FieldValue.delete(),
-          /* O `commissionPct` que reservas antigas ainda carregam sai aqui: o
-           * merge não apaga campo de mapa aninhado por conta própria. */
-          cicloFinanceiro: {
-            ...congelado,
-            ...(congelado.comissao
-              ? { comissao: { ...congelado.comissao, commissionPct: FieldValue.delete() } }
-              : {}),
-          },
-        },
-        { merge: true }
-      );
+      await reverterConclusao({
+        db,
+        barbershopId,
+        bookingId,
+        depois,
+        chave: chaveDoCiclo(event.id),
       });
       return;
     }
@@ -809,6 +713,174 @@ export const materializeFinancialsOnCompletion = onDocumentUpdated(
     await materializarConclusao({ db, barbershopId, bookingId, depois, chaveDoEvento: event.id });
   }
 );
+
+/**
+ * A conclusão desfeita: o fato financeiro sai do acerto, mas NÃO some do
+ * histórico (extraída do gatilho para ser verificável com emulador).
+ *
+ * Idempotente por construção: ids derivados da chave do evento e a marca
+ * `cicloFinanceiro.revertidoEm` na reserva.
+ */
+export async function reverterConclusao(params: {
+  db: FirebaseFirestore.Firestore;
+  barbershopId: string;
+  bookingId: string;
+  /** A reserva depois do evento. */
+  depois: FirebaseFirestore.DocumentData;
+  /** `chaveDoCiclo(event.id)`. */
+  chave: string;
+}): Promise<void> {
+  const { db, barbershopId, bookingId, depois, chave } = params;
+  const pagamentoRef = db.doc(`barbershops/${barbershopId}/payments/pagamento_${bookingId}`);
+  const reservaRef = db.doc(`barbershops/${barbershopId}/bookings/${bookingId}`);
+  const caixinhaPagamentoRef = db.doc(
+    `barbershops/${barbershopId}/payments/pagamento_caixinha_${bookingId}`
+  );
+
+  /* Conclusão desfeita: o fato financeiro sai do acerto, mas NÃO some do
+   * histórico — P1-7, D-2 fechada em 20/08.
+   *
+   * O que havia aqui era `comissaoRef.delete()` + `pagamentoRef.delete()`.
+   * O gate mediu o preço disso: o par delete+create recriava a comissão
+   * lendo `staff.commissionPct` de hoje, e R$ 20,00 viraram R$ 30,00 num
+   * atendimento que já tinha acontecido. E como o id do pagamento é
+   * derivado, nada duplicava, nada sobrava e nenhuma tela podia notar.
+   *
+   * Agora a comissão volta somando uma linha negativa — a mesma regra que
+   * `refunds.ts:495` já aplicava à venda de produto, com a mesma
+   * justificativa, e que o atendimento nunca teve. */
+  await db.runTransaction(async (tx) => {
+  /* As linhas de caixinha são lidas POR RESERVA, não pelo id do ciclo: a
+   * edição de cobrança troca a comissão vigente (id novo) sem tocar na
+   * gorjeta, e a correção do meio soma linhas de ajuste. Negar só a linha
+   * original deixaria o ajuste sozinho no saldo do barbeiro. Linhas de
+   * ciclos já revertidos somam zero com o seu estorno. */
+  const [atual, comissaoSnap, pagamentoSnap, caixinhaLinhasSnap, caixinhaPagamentoSnap] =
+    await Promise.all([
+      tx.get(reservaRef),
+      tx.get(comissaoVigenteRef(db, barbershopId, bookingId, depois)),
+      tx.get(pagamentoRef),
+      tx.get(
+        db
+          .collection(`barbershops/${barbershopId}/commissions`)
+          .where("bookingId", "==", bookingId)
+          .where("origin", "==", "caixinha")
+      ),
+      tx.get(caixinhaPagamentoRef),
+    ]);
+  const caixinhaLiquida = somarLinhasDaCaixinha(caixinhaLinhasSnap.docs.map((d) => d.data()));
+  /* Conferido de novo DENTRO da transação: se a reserva foi concluída de
+   * novo entre a saída cedo e aqui, a transação relê e este evento para. */
+  if (!estadoAindaVale("reverter", atual.get("status"))) return;
+  /* Reentrega desta MESMA reversão (08/10). A primeira passada já apagou o
+   * pagamento e limpou o desconto da reserva; congelar de novo gravaria
+   * `cicloFinanceiro.pagamento: null` por cima do bruto congelado, e a
+   * reconclusão voltaria a ler o preço de hoje. */
+  if (jaReverteuNesteEvento(atual.get("cicloFinanceiro"), chave)) return;
+
+  const congelado: CicloFinanceiro = {
+    revertidoEm: chave,
+    /* Lido da reserva ATUAL, dentro da transação — é ela que o `set` abaixo
+     * vai limpar. */
+    descontoDaReserva: descontoDaReservaCongelado(atual.data()),
+    comissao: comissaoSnap.exists
+      ? {
+          commissionBase: Number(comissaoSnap.get("commissionBase")) || 0,
+          staffId: String(comissaoSnap.get("staffId") ?? ""),
+          uid: (comissaoSnap.get("uid") ?? null) as string | null,
+          staffName: (comissaoSnap.get("staffName") ?? null) as string | null,
+        }
+      : null,
+    /* O BRUTO do fato, não o `value` da reserva. Sem isto a reconclusão lê
+     * `depois.value` de agora: editar o preço do serviço entre as duas
+     * conclusões faria o "mesmo" pagamento renascer com outro bruto, e nada
+     * registraria a troca. */
+    pagamento: brutoDoFatoCongelado(
+      pagamentoSnap.exists ? pagamentoSnap.data() ?? null : null,
+      comissaoSnap.exists ? comissaoSnap.data() ?? null : null
+    ),
+  };
+
+  if (comissaoSnap.exists && congelado.comissao?.staffId) {
+    tx.set(
+      db.doc(
+        `barbershops/${barbershopId}/commissions/` +
+          idDoEstornoDaComissaoDeServico(bookingId, chave)
+      ),
+      {
+        ...estornoDaComissaoDeServico({
+          bookingId,
+          chave,
+          staffId: congelado.comissao.staffId,
+          uid: congelado.comissao.uid,
+          staffName: congelado.comissao.staffName,
+          date: String(depois.date ?? ""),
+          commissionPct: Number(comissaoSnap.get("commissionPct")) || 0,
+          commissionBase: congelado.comissao.commissionBase,
+          commissionAmount: Number(comissaoSnap.get("commissionAmount")) || 0,
+        }),
+        createdAt: FieldValue.serverTimestamp(),
+      }
+    );
+  }
+  if (pagamentoSnap.exists) tx.delete(pagamentoRef);
+  /* A CAIXINHA sai junto, pelo mesmo caminho do serviço: a comissão ganha uma
+   * linha negativa (o barbeiro não fica com gorjeta de um fechamento
+   * desfeito, e o histórico não é apagado), e o pagamento — o dinheiro que
+   * "entrou" — é apagado como o do serviço. Ela NÃO é congelada para a
+   * reconclusão: a gorjeta é do fechamento, e o novo fechamento informa a
+   * dele (ou nenhuma). */
+  if (caixinhaLiquida) {
+    tx.set(
+      db.doc(
+        `barbershops/${barbershopId}/commissions/` + idDoEstornoDaCaixinha(bookingId, chave)
+      ),
+      {
+        ...estornoDaCaixinha({
+          bookingId,
+          date: String(depois.date ?? ""),
+          ...caixinhaLiquida,
+        }),
+        createdAt: FieldValue.serverTimestamp(),
+      }
+    );
+  }
+  if (caixinhaPagamentoSnap.exists) tx.delete(caixinhaPagamentoRef);
+  /* Sem `.catch(() => undefined)`: engolir o erro aqui deixava a reserva
+   * sem `cicloFinanceiro` — e a reconclusão seguinte recalculava com o
+   * percentual de HOJE, que é o P1-7 voltando pela janela. */
+  tx.set(
+    reservaRef,
+    {
+      cobertura: FieldValue.delete(),
+      paymentMethod: null,
+      paymentFormId: null,
+      paymentFormLabel: null,
+      /* O desconto sai com o método: ele foi dado NAQUELE fechamento, que
+       * acaba de ser desfeito. O valor que vale para a reconclusão já está
+       * congelado em `cicloFinanceiro.pagamento`; deixar os campos na
+       * reserva faria uma reserva de volta à agenda exibir um desconto de
+       * um atendimento que, para o produto, ainda não aconteceu. */
+      discountAmount: FieldValue.delete(),
+      discountInput: FieldValue.delete(),
+      discountReason: FieldValue.delete(),
+      discountBy: FieldValue.delete(),
+      discountAt: FieldValue.delete(),
+      /* A caixinha também é do fechamento desfeito. */
+      tipAmount: FieldValue.delete(),
+      /* O `commissionPct` que reservas antigas ainda carregam sai aqui: o
+       * merge não apaga campo de mapa aninhado por conta própria. */
+      cicloFinanceiro: {
+        ...congelado,
+        ...(congelado.comissao
+          ? { comissao: { ...congelado.comissao, commissionPct: FieldValue.delete() } }
+          : {}),
+      },
+    },
+    { merge: true }
+  );
+  });
+}
 
 /**
  * A conclusão vira fato financeiro: comissão sempre; pagamento quando houve
@@ -828,6 +900,9 @@ export async function materializarConclusao(params: {
   const comissaoRef = db.doc(`barbershops/${barbershopId}/commissions/comissao_${bookingId}`);
   const pagamentoRef = db.doc(`barbershops/${barbershopId}/payments/pagamento_${bookingId}`);
   const reservaRef = db.doc(`barbershops/${barbershopId}/bookings/${bookingId}`);
+  const caixinhaPagamentoRef = db.doc(
+    `barbershops/${barbershopId}/payments/pagamento_caixinha_${bookingId}`
+  );
 
   /* Esta reserva já teve conclusão desfeita? — P1-7.
    *
@@ -932,10 +1007,11 @@ export async function materializarConclusao(params: {
   await db.runTransaction(async (tx) => {
     /* TODAS as leituras antes de qualquer escrita: o Firestore recusa leitura
      * depois de escrita na mesma transação. */
-    const [atual, comissaoSnap, pagamentoSnap] = await Promise.all([
+    const [atual, comissaoSnap, pagamentoSnap, caixinhaPagamentoSnap] = await Promise.all([
       tx.get(reservaRef),
       tx.get(comissaoDoCicloRef),
       tx.get(pagamentoRef),
+      tx.get(caixinhaPagamentoRef),
     ]);
     /* Conferido de novo DENTRO da transação: se a conclusão foi desfeita
      * entre a saída cedo e aqui, a transação relê e este evento para. */
@@ -1018,6 +1094,24 @@ export async function materializarConclusao(params: {
       desconto: coberto ? 0 : desconto,
     });
 
+    /* A CAIXINHA (gorjeta) — só existe com forma de pagamento escolhida e dinheiro
+     * de fato recebido. Cortesia e coberto não têm: se a reserva traz um
+     * `tipAmount` mesmo assim (escrita direta), ela estaria afirmando uma
+     * gorjeta que não entrou, e o campo é apagado. */
+    const gorjeta =
+      coberto || cortesia
+        ? null
+        : calcularCaixinha({
+            caixinha: depois.tipAmount,
+            metodo,
+            origem: (depois.paymentOrigin ?? null) as PaymentOrigin | null,
+            fees,
+            formas,
+            formaId: (depois.paymentFormId ?? null) as string | null,
+          });
+    const caixinhaSemLastro =
+      !gorjeta && depois.tipAmount !== undefined && depois.tipAmount !== null;
+
     const regravado = descontoDaReconclusao({
       desconto: coberto ? 0 : desconto,
       congelado: ciclo?.descontoDaReserva ?? null,
@@ -1056,6 +1150,7 @@ export async function materializarConclusao(params: {
          * na reconclusão com fato congelado: fora dela, o desconto da
          * reserva é o que o dono acabou de gravar, e já bate com o pagamento. */
         ...(reconclusao && ciclo?.pagamento ? camposDeDescontoNaReserva : {}),
+        ...(caixinhaSemLastro ? { tipAmount: FieldValue.delete() } : {}),
       },
       { merge: true }
     );
@@ -1086,6 +1181,47 @@ export async function materializarConclusao(params: {
       ...commission,
       createdAt: FieldValue.serverTimestamp(),
     });
+    /* A caixinha nasce na MESMA transação da comissão do ciclo, ANTES dos
+     * retornos abaixo: o `pagamentoSnap.exists` não pode engolir a gorjeta.
+     * Coberto e cortesia já saíram do cálculo (`gorjeta` nula). A guarda de
+     * idempotência lá de cima (comissão do ciclo existente) cobre a reentrega. */
+    if (gorjeta) {
+      if (caixinhaPagamentoSnap.exists) {
+        console.warn(
+          `[financeiro] ${bookingId}: pagamento_caixinha_${bookingId} já existia sem ` +
+            `${comissaoDoCicloRef.id}; mantido como estava.`
+        );
+      } else {
+        tx.set(caixinhaPagamentoRef, {
+          origin: "caixinha" as const,
+          bookingId,
+          clientId: depois.clientId ?? null,
+          date,
+          staffId,
+          ...gorjeta.payment,
+          createdAt: FieldValue.serverTimestamp(),
+        });
+      }
+      /* Sem barbeiro não há beneficiário: o dinheiro entrou (pagamento acima),
+       * mas não se inventa um dono para a comissão. */
+      if (staffId) {
+        tx.set(
+          db.doc(
+            `barbershops/${barbershopId}/commissions/${idDaComissaoDaCaixinha(comissaoDoCicloRef.id)}`
+          ),
+          {
+            origin: "caixinha" as const,
+            bookingId,
+            staffId,
+            uid: staffSnap?.get("uid") ?? null,
+            staffName: depois.staffName ?? null,
+            date,
+            ...gorjeta.commission,
+            createdAt: FieldValue.serverTimestamp(),
+          }
+        );
+      }
+    }
     /* COBERTO PELO PLANO NÃO GERA PAGAMENTO — D2, e é o coração do achado.
      *
      * A mensalidade já é a receita do plano, e ela tem lastro próprio:

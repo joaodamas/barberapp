@@ -18,6 +18,7 @@ import type { TenantPolicies } from "@/lib/tenant";
 import { useSubscribers, useSubscriptionInvoices } from "@/lib/db/use-shop-data";
 import { patchDoc } from "@/lib/db/repository";
 import { soAvisaSeGravou } from "@/lib/so-avisa-se-gravou";
+import { camposDaCaixinha, lerCaixinha, TETO_DA_CAIXINHA, totalComCaixinha } from "@/lib/caixinha";
 import { assinaturaDoAtendimentoDe, termosDoPlano } from "@/lib/booking-status";
 import { useAuth } from "@/lib/auth-context";
 import {
@@ -166,11 +167,27 @@ export function useAcoesDoAtendimento() {
   });
   const descontoBloqueia = podeDarDesconto && descontoAberto && (calculoDoDesconto.excedeu || descontoIlegivel);
 
+  /* CAIXINHA (gorjeta) NO FECHAMENTO — pedido do dono.
+   *
+   * Visível ao dono E ao barbeiro (o modal é o mesmo). Vai na MESMA escrita da
+   * conclusão, pela mesma razão do método e do desconto: o gatilho lê o
+   * documento depois do update. Só vale com forma de pagamento — o campo some
+   * na cortesia e é ignorado em "concluir sem cobrar", porque ali não entrou
+   * dinheiro. A mesma forma do atendimento: sem seletor próprio. */
+  const [caixinhaTexto, setCaixinhaTexto] = useState("");
+  const caixinha = lerCaixinha(caixinhaTexto);
+  const cortesiaAgora = podeDarDesconto && calculoDoDesconto.cortesia && !descontoBloqueia;
+  const mostraCaixinha = !!aFechar && planoConferido && !cortesiaAgora;
+  const caixinhaBloqueia =
+    mostraCaixinha && (caixinha.estado === "ilegivel" || caixinha.estado === "acima_do_teto");
+
+  /* Também limpa a caixinha: ela é do fechamento que acabou de acabar. */
   function limparDesconto() {
     setDescontoAberto(false);
     setDescontoTipo("valor");
     setDescontoTexto("");
     setDescontoMotivo(null);
+    setCaixinhaTexto("");
   }
 
   /* Remarcar pelo dono: o servidor (`rescheduleBooking`) já aceitava o dono
@@ -213,6 +230,7 @@ export function useAcoesDoAtendimento() {
     const booking = aFechar;
     if (!booking) return;
     if (descontoBloqueia) return;
+    if (caixinhaBloqueia && forma !== null) return;
     if (!planoConferido) return;
     /* O desconto vai na MESMA escrita, pela mesma razão do método: o gatilho
      * lê o documento atualizado, e gravar depois materializaria o pagamento
@@ -252,6 +270,8 @@ export function useAcoesDoAtendimento() {
           paymentFormLabel: forma?.label ?? null,
           ...(desconto ?? {}),
           ...autoria,
+          /* Sem forma (cortesia, mensalista sem cobrar) não há caixinha. */
+          ...camposDaCaixinha(caixinha, forma !== null && mostraCaixinha),
         });
       },
       // Fechar o diálogo É o aviso: é assim que o dono lê "deu certo".
@@ -776,6 +796,49 @@ export function useAcoesDoAtendimento() {
         {/* Cortesia (100%) conclui sem perguntar a forma: não entrou dinheiro,
             e oferecer "Pix" ou "Dinheiro" ali seria pedir ao dono que
             inventasse um meio para R$ 0,00 — decisão 2 do dono. */}
+        {/* CAIXINHA — opcional, antes das formas. Em reais; o cliente paga o
+            cobrado + ela, na mesma forma que escolher abaixo. */}
+        {mostraCaixinha && aFechar && (
+          <div className="mb-5 flex flex-col gap-1.5">
+            <label className="flex flex-col gap-1 text-xs text-ink-muted">
+              Caixinha (opcional)
+              <input
+                inputMode="decimal"
+                autoComplete="off"
+                value={caixinhaTexto}
+                onChange={(e) => setCaixinhaTexto(e.target.value)}
+                placeholder="R$ 0,00"
+                aria-invalid={caixinhaBloqueia}
+                className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink"
+              />
+            </label>
+            {caixinha.estado === "ilegivel" ? (
+              <p role="alert" className="text-sm text-danger">
+                Digite só o valor — por exemplo, 5 ou 5,50.
+              </p>
+            ) : caixinha.estado === "acima_do_teto" ? (
+              <p role="alert" className="text-sm text-danger">
+                A caixinha não pode passar de {formatBRL(TETO_DA_CAIXINHA)}.
+              </p>
+            ) : caixinha.estado === "ok" ? (
+              <p className="text-sm text-ink">
+                O cliente paga{" "}
+                <span className="font-medium">{formatBRL(totalComCaixinha(calculoDoDesconto.cobrar, caixinha))}</span>
+                <span className="text-ink-muted">
+                  {" "}· {formatBRL(calculoDoDesconto.cobrar)} do atendimento + {formatBRL(caixinha.valor)} de
+                  caixinha. A caixinha é toda do barbeiro, e a taxa da maquininha sobre ela também.
+                </span>
+              </p>
+            ) : null}
+            {assinaturaDoFechamento && caixinha.estado === "ok" && (
+              <p className="text-xs text-ink-muted">
+                Em &ldquo;Concluir sem cobrar&rdquo; a caixinha não é registrada — só junto com uma forma de
+                pagamento.
+              </p>
+            )}
+          </div>
+        )}
+
         {!planoConferido ? null : podeDarDesconto && calculoDoDesconto.cortesia && !descontoBloqueia ? (
           <button
             type="button"
@@ -791,7 +854,7 @@ export function useAcoesDoAtendimento() {
             <button
               key={forma.id}
               type="button"
-              disabled={salvando || descontoBloqueia}
+              disabled={salvando || descontoBloqueia || caixinhaBloqueia}
               onClick={() => void concluirCom(forma)}
               className="flex min-h-16 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-xl border border-border px-2 text-center text-sm font-medium text-ink transition-colors hover:border-gold hover:bg-gold/10 hover:text-gold-strong"
             >

@@ -1,4 +1,4 @@
-import { taxaDoMetodo, type PaymentFees, type PaymentMethod, type PaymentOrigin } from "./financial-events";
+import { centavos, taxaDoMetodo, type PaymentFees, type PaymentMethod, type PaymentOrigin } from "./financial-events";
 import { taxaDoPagamento, type FormaDePagamento } from "./formas-de-pagamento";
 
 /**
@@ -21,6 +21,7 @@ import { taxaDoPagamento, type FormaDePagamento } from "./formas-de-pagamento";
  * pagamento_{bookingId}          serviço
  * pagamento_venda_{movementId}   produto
  * pagamento_fatura_{invoiceId}   mensalidade
+ * pagamento_caixinha_{bookingId} caixinha (gorjeta) do atendimento
  * ```
  *
  * Idempotência **por construção**, como em `materializeFinancialsOnCompletion`:
@@ -40,17 +41,19 @@ import { taxaDoPagamento, type FormaDePagamento } from "./formas-de-pagamento";
  * "registrar o clique".
  */
 
-export type OrigemDoPagamento = "servico" | "produto" | "mensalidade";
+export type OrigemDoPagamento = "servico" | "produto" | "mensalidade" | "caixinha";
 
 export type ReferenciaDoPagamento =
   | { origem: "servico"; bookingId: string }
   | { origem: "produto"; movementId: string }
-  | { origem: "mensalidade"; invoiceId: string };
+  | { origem: "mensalidade"; invoiceId: string }
+  | { origem: "caixinha"; bookingId: string };
 
 /** O id do documento, derivado do fato. */
 export function idDoPagamento(ref: ReferenciaDoPagamento): string {
   if (ref.origem === "servico") return `pagamento_${ref.bookingId}`;
   if (ref.origem === "produto") return `pagamento_venda_${ref.movementId}`;
+  if (ref.origem === "caixinha") return `pagamento_caixinha_${ref.bookingId}`;
   return `pagamento_fatura_${ref.invoiceId}`;
 }
 
@@ -128,7 +131,7 @@ export function documentoDePagamento(params: {
   paymentOrigin?: PaymentOrigin;
 }) {
   const referencia =
-    params.ref.origem === "servico"
+    params.ref.origem === "servico" || params.ref.origem === "caixinha"
       ? { bookingId: params.ref.bookingId }
       : params.ref.origem === "produto"
         ? { movementId: params.ref.movementId }
@@ -147,5 +150,131 @@ export function documentoDePagamento(params: {
       formas: params.formas,
       formaId: params.formaId,
     }),
+  };
+}
+
+/**
+ * A caixinha (gorjeta) de um atendimento, com a taxa CONGELADA — pedido do dono.
+ *
+ * ## As três regras do dono, em uma conta
+ *
+ * 1. 100% do barbeiro que atendeu: `commissionPct: 100`, sobre a caixinha bruta.
+ * 2. A taxa da maquininha é DO BARBEIRO: R$ 10,00 no crédito a 3% rendem R$ 9,70
+ *    a ele. A casa não absorve taxa de um dinheiro que não é dela.
+ * 3. Mesma forma de pagamento do atendimento: não há seletor próprio, então a
+ *    taxa congelada é a da forma já escolhida no fechamento.
+ *
+ * ## Por que são DOIS documentos e nenhum deles é receita
+ *
+ * O `payment` é o dinheiro que ENTROU (caixa, recebido por forma, fechamento
+ * das 21h) e a `commission` é o que a casa DEVE ao barbeiro. Os dois nascem
+ * juntos e os dois carregam `origin: "caixinha"`, que é o que as leituras de
+ * receita, DRE e ticket usam para ignorá-los: é repasse que passa pela casa.
+ * Quando o barbeiro é pago, a saída (`pagamento_comissao`) fecha o par em zero.
+ *
+ * Pura de propósito, como `calcularEventoFinanceiro`. Sem forma de pagamento
+ * (`metodo` nulo) não há caixinha: a taxa seria desconhecida, e a regra do dono
+ * é que ela só existe quando a forma foi escolhida. Devolve `null` nesse caso e
+ * também para valor ausente, zero ou negativo.
+ */
+export function calcularCaixinha(params: {
+  /** O `tipAmount` da reserva, em reais. Qualquer coisa que não seja > 0 vale "sem caixinha". */
+  caixinha: unknown;
+  metodo: PaymentMethod | null;
+  origem?: PaymentOrigin | null;
+  fees: PaymentFees;
+  formas?: FormaDePagamento[];
+  formaId?: string | null;
+}) {
+  const bruta = centavos(Number(params.caixinha));
+  if (!Number.isFinite(bruta) || !(bruta > 0) || !params.metodo) return null;
+
+  const payment = valoresDoPagamento({
+    bruto: bruta,
+    metodo: params.metodo,
+    fees: params.fees,
+    formas: params.formas,
+    formaId: params.formaId,
+  });
+
+  return {
+    caixinha: bruta,
+    payment: { paymentOrigin: params.origem ?? ("in_person" as PaymentOrigin), ...payment },
+    commission: {
+      commissionPct: 100,
+      commissionBase: bruta,
+      feeAmount: payment.feeAmount,
+      commissionAmount: payment.netAmount,
+    },
+  };
+}
+
+/** O id da comissão da caixinha: o da comissão do CICLO do atendimento + `_caixinha`. */
+export function idDaComissaoDaCaixinha(idDaComissaoDoCiclo: string): string {
+  return `${idDaComissaoDoCiclo}_caixinha`;
+}
+
+/** O id do estorno da caixinha. Deriva da reserva E do evento, como o do serviço. */
+export function idDoEstornoDaCaixinha(bookingId: string, chave: string): string {
+  return `comissao_estorno_caixinha_${bookingId}_${chave}`;
+}
+
+/** O id da linha de AJUSTE da caixinha quando o meio é corrigido. Deriva da correção. */
+export function idDoAjusteDaCaixinha(bookingId: string, chave: string): string {
+  return `comissao_ajuste_caixinha_${bookingId}_${chave}`;
+}
+
+/**
+ * O saldo LÍQUIDO das linhas de caixinha de uma reserva — original, ajustes de
+ * correção do meio e estornos de ciclos anteriores, tudo somado.
+ *
+ * É o que a reversão nega: negar só a linha original deixaria um ajuste
+ * (−R$ 0,30 da taxa corrigida) sozinho no saldo do barbeiro, e negar pelo id do
+ * ciclo falharia depois de uma edição de cobrança, que troca a comissão vigente
+ * do serviço sem tocar na gorjeta. Nulo quando não há o que negar.
+ */
+export function somarLinhasDaCaixinha(
+  linhas: { staffId?: unknown; uid?: unknown; staffName?: unknown; commissionBase?: unknown; commissionAmount?: unknown; feeAmount?: unknown }[]
+) {
+  if (linhas.length === 0) return null;
+  const soma = (campo: "commissionBase" | "commissionAmount" | "feeAmount") =>
+    centavos(linhas.reduce((t, l) => t + (Number(l[campo]) || 0), 0));
+  const commissionBase = soma("commissionBase");
+  const commissionAmount = soma("commissionAmount");
+  const feeAmount = soma("feeAmount");
+  if (commissionBase === 0 && commissionAmount === 0 && feeAmount === 0) return null;
+  const dono = linhas.find((l) => l.staffId) ?? linhas[0];
+  return {
+    staffId: String(dono.staffId ?? ""),
+    uid: (dono.uid ?? null) as string | null,
+    staffName: (dono.staffName ?? null) as string | null,
+    commissionBase,
+    commissionAmount,
+    feeAmount,
+  };
+}
+
+/** A linha que NEGA o saldo de caixinha da reserva (reversão da conclusão). */
+export function estornoDaCaixinha(params: {
+  bookingId: string;
+  staffId: string;
+  uid: string | null;
+  staffName: string | null;
+  date: string;
+  commissionBase: number;
+  commissionAmount: number;
+  feeAmount: number;
+}) {
+  return {
+    origin: "caixinha" as const,
+    bookingId: params.bookingId,
+    staffId: params.staffId,
+    uid: params.uid,
+    staffName: params.staffName,
+    date: params.date,
+    commissionPct: 100,
+    commissionBase: -params.commissionBase,
+    feeAmount: -params.feeAmount,
+    commissionAmount: -params.commissionAmount,
   };
 }

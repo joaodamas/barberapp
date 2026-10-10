@@ -90,6 +90,9 @@ function indexarPagamentos(
     servico: "bookingId",
     produto: "movementId",
     mensalidade: "invoiceId",
+    /* Só para o tipo fechar: nenhuma receita indexa a caixinha — ela não é
+     * receita da casa, é repasse ao barbeiro. */
+    caixinha: "bookingId",
   };
   const campo = chave[origem];
 

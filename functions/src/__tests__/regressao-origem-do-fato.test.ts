@@ -97,7 +97,7 @@ describe("QA · toda comissão nasce dizendo de onde veio", () => {
        * escreve o campo à mão. Qualquer terceira forma é a que este teste
        * recusa. */
       const peloHelper = /comissaoDaVenda\(|estornoDaComissao\(/.test(texto);
-      const naMao = /origin:\s*"(servico|produto)"/.test(texto);
+      const naMao = /origin:\s*"(servico|produto|caixinha)"/.test(texto);
       expect(
         peloHelper || naMao,
         `${arquivo} grava commissions sem definir origin`
@@ -172,14 +172,18 @@ describe("QA · o vocabulário de origem é o mesmo na escrita e na leitura", ()
    * documento não entra em nenhuma das duas somas e o custo desaparece do DRE
    * sem erro nenhum. Este teste obriga a decisão a passar pelos dois lados. */
 
-  it("a comissão tem exatamente DUAS origens, e são as que o DRE soma", () => {
+  it("a comissão tem exatamente TRÊS origens — e a terceira (caixinha) o DRE NÃO soma", () => {
+    /* "caixinha" entrou por decisão do dono: é repasse que passa pela casa, não
+     * custo. O vocabulário passou pelos dois lados: `comissoesDeServico` e
+     * `comissaoDeProduto` seguem filtrando só `servico`/`produto` (a caixinha
+     * fica FORA do DRE de propósito), e as leituras de acerto a somam. */
     const texto = readFileSync(resolve(SRC, "comissoes.ts"), "utf8");
     const declaracao = texto.match(/export type OrigemDaComissao\s*=\s*([^;]+);/);
 
     expect(declaracao, "OrigemDaComissao deixou de ser declarada").not.toBeNull();
 
     const origens = [...declaracao![1].matchAll(/"([^"]+)"/g)].map((m) => m[1]).sort();
-    expect(origens).toEqual(["produto", "servico"]);
+    expect(origens).toEqual(["caixinha", "produto", "servico"]);
   });
 
   it("o id do documento distingue as duas origens para o mesmo sufixo", () => {

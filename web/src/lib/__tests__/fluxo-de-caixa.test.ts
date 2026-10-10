@@ -258,6 +258,7 @@ describe("3.2 · o número que responde 'quanto sobrou'", () => {
       servico: 500,
       produto: 200,
       mensalidade: 300,
+      caixinha: 0,
       estorno: -50,
       despesa: -400,
       compra: -180,
