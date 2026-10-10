@@ -1094,6 +1094,16 @@ describe("vitrine pública e o que não é vitrine (rodada E2E de 23/09)", () =>
     // Custo zero (brinde do fornecedor) é válido.
     await assertSucceeds(updateDoc(pomada(dono), { cost: 0 }));
 
+    // Comissão do barbeiro neste produto: 0–100 ou null (volta ao padrão).
+    await assertSucceeds(updateDoc(pomada(dono), { commissionPct: 10 }));
+    await assertSucceeds(updateDoc(pomada(dono), { commissionPct: 0 }));
+    await assertSucceeds(updateDoc(pomada(dono), { commissionPct: 100 }));
+    await assertSucceeds(updateDoc(pomada(dono), { commissionPct: null }));
+    await assertFails(updateDoc(pomada(dono), { commissionPct: -1 }));
+    await assertFails(updateDoc(pomada(dono), { commissionPct: 101 }));
+    await assertFails(updateDoc(pomada(dono), { commissionPct: "10" }));
+    await assertFails(updateDoc(pomada(as(BARBEIRO_ALFA)), { commissionPct: 10 }));
+
     // O saldo é do servidor: entrada, venda, devolução e ajuste.
     await assertFails(updateDoc(pomada(dono), { stock: 99 }));
     await assertFails(updateDoc(pomada(dono), { name: "X", stock: 99 }));
@@ -1119,6 +1129,15 @@ describe("vitrine pública e o que não é vitrine (rodada E2E de 23/09)", () =>
     const novo = (id: string) => doc(dono, `barbershops/${ALFA}/products`, id);
     await assertSucceeds(
       setDoc(novo("p1"), { name: "Cera", cost: 10, price: 30, stock: 4, minStock: 2 })
+    );
+    await assertSucceeds(
+      setDoc(novo("p1c"), { name: "Cera", cost: 10, price: 30, stock: 4, minStock: 2, commissionPct: 15 })
+    );
+    await assertSucceeds(
+      setDoc(novo("p1d"), { name: "Cera", cost: 10, price: 30, stock: 4, minStock: 2, commissionPct: null })
+    );
+    await assertFails(
+      setDoc(novo("p1e"), { name: "Cera", cost: 10, price: 30, stock: 4, minStock: 2, commissionPct: 150 })
     );
     await assertFails(setDoc(novo("p2"), { name: "Cera", cost: -10, price: 30, stock: 4, minStock: 2 }));
     await assertFails(setDoc(novo("p3"), { name: "Cera", cost: 10, price: 30, stock: -4, minStock: 2 }));

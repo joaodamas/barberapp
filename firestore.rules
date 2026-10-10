@@ -432,14 +432,26 @@ service cloud.firestore {
             && p.get('cost', 0) >= 0
             && p.get('minStock', 0) is number
             && p.get('minStock', 0) >= 0
-            && p.get('archived', false) is bool;
+            && p.get('archived', false) is bool
+            && comissaoDoProdutoValida(p);
+        }
+
+        /* A comissão do barbeiro NESTE produto (sobre o preço de venda):
+         * ausente ou null = usa a regra de sempre; número de 0 a 100 = vale,
+         * e 0 é "este produto não comissiona". Fora disso o servidor trataria
+         * como ausente e o dono acharia que configurou. */
+        function comissaoDoProdutoValida(p) {
+          return p.get('commissionPct', null) == null
+            || (p.get('commissionPct', null) is number
+                && p.get('commissionPct', null) >= 0
+                && p.get('commissionPct', null) <= 100);
         }
 
         allow create: if isOwnerOf(barbershopId)
           && produtoValido(request.resource.data)
           && request.resource.data.get('stock', 0) is number
           && request.resource.data.get('stock', 0) >= 0
-          && request.resource.data.keys().hasOnly(['name', 'cost', 'price', 'stock', 'minStock', 'archived']);
+          && request.resource.data.keys().hasOnly(['name', 'cost', 'price', 'stock', 'minStock', 'archived', 'commissionPct']);
 
         /* O SALDO (`stock`) é do servidor: entrada, venda, devolução e ajuste
          * gravam o movimento e o saldo na mesma transação. Editar o número
@@ -448,7 +460,7 @@ service cloud.firestore {
          * delete: o produto tem vendas e CMV no histórico. */
         allow update: if isOwnerOf(barbershopId)
           && request.resource.data.diff(resource.data).affectedKeys()
-               .hasOnly(['name', 'price', 'cost', 'minStock', 'archived'])
+               .hasOnly(['name', 'price', 'cost', 'minStock', 'archived', 'commissionPct'])
           && produtoValido(request.resource.data);
 
         allow delete: if isOwnerOf(barbershopId);

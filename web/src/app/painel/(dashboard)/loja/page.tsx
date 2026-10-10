@@ -26,7 +26,7 @@ import type { ProductDoc } from "@/lib/domain";
 import { EmptyState, LoadingRows } from "@/components/ui/empty-state";
 import { ErroAoCarregar } from "@/components/ui/erro-ao-carregar";
 import { splitSale } from "@/lib/business-rules";
-import { pedeConfirmacaoParaArquivar, separarArquivados } from "@/lib/produtos";
+import { lerComissaoDoProduto, pedeConfirmacaoParaArquivar, separarArquivados } from "@/lib/produtos";
 
 /* `profitPct` é margem sobre o PREÇO de venda (preço = custo ÷ (1 − m)), não
  * markup sobre o custo. 100% seria divisão por zero: limitamos e avisamos, em
@@ -39,6 +39,8 @@ const emptyForm = {
   profitPct: "30",
   stock: "",
   minStock: "5",
+  /* Em branco = sem % próprio: vale a comissão do barbeiro. */
+  commissionPct: "",
 };
 
 /* O gate mora num componente à parte, e não num retorno antecipado dentro do
@@ -75,6 +77,12 @@ function LojaConteudo() {
   const simPrice = lerReais(simPriceTxt) ?? 0;
   const [simCostTxt, setSimCostTxt] = useState("18");
   const simCost = lerReais(simCostTxt) ?? 0;
+  const [simProdPctTxt, setSimProdPctTxt] = useState("");
+  /* Ilegível = sem % próprio: o simulador não inventa um número. */
+  const simProdPct = (() => {
+    const l = lerComissaoDoProduto(simProdPctTxt);
+    return l.ok ? l.valor : null;
+  })();
   const [modalOpen, setModalOpen] = useState(false);
   const [aReceber, setAReceber] = useState<Doc<ProductDoc> | null>(null);
   const [aAjustar, setAAjustar] = useState<Doc<ProductDoc> | null>(null);
@@ -93,8 +101,15 @@ function LojaConteudo() {
   const lowStock = ativos.filter((p) => p.stock < p.minStock);
 
   const simSplit = useMemo(
-    () => splitSale({ price: simPrice, cost: simCost, barberPct: padraoDaCasa, taxPct: impostoDaCasa }),
-    [simPrice, simCost, padraoDaCasa, impostoDaCasa]
+    () =>
+      splitSale({
+        price: simPrice,
+        cost: simCost,
+        barberPct: padraoDaCasa,
+        taxPct: impostoDaCasa,
+        productPct: simProdPct,
+      }),
+    [simPrice, simCost, padraoDaCasa, impostoDaCasa, simProdPct]
   );
 
   const preview = useMemo(() => {
@@ -103,9 +118,11 @@ function LojaConteudo() {
     const profitPct = Math.min(Math.max(rawPct, 0), MAX_PROFIT_PCT);
     const clamped = rawPct !== profitPct;
     const price = cost / (1 - profitPct / 100);
-    const split = splitSale({ price, cost, barberPct: padraoDaCasa, taxPct: impostoDaCasa });
-    return { cost, price, profitPct, clamped, ...split, netProfit: split.shopProfit };
-  }, [form.cost, form.profitPct, padraoDaCasa, impostoDaCasa]);
+    const lidaComissao = lerComissaoDoProduto(form.commissionPct);
+    const productPct = lidaComissao.ok ? lidaComissao.valor : null;
+    const split = splitSale({ price, cost, barberPct: padraoDaCasa, taxPct: impostoDaCasa, productPct });
+    return { cost, price, profitPct, clamped, productPct, ...split, netProfit: split.shopProfit };
+  }, [form.cost, form.profitPct, form.commissionPct, padraoDaCasa, impostoDaCasa]);
 
   function openModal() {
     setForm(emptyForm);
@@ -127,6 +144,11 @@ function LojaConteudo() {
       setFormError("Informe um custo unitário maior que zero.");
       return;
     }
+    const comissao = lerComissaoDoProduto(form.commissionPct);
+    if (!comissao.ok) {
+      setFormError(comissao.erro);
+      return;
+    }
     setFormError(null);
     /* Grava primeiro; fecha depois. O modal fechava na mesma linha em que a
      * escrita saía, e o erro caía num modal já fechado — o dono via o produto
@@ -140,6 +162,7 @@ function LojaConteudo() {
           price: Math.round(preview.price * 100) / 100,
           stock: Number(form.stock) || 0,
           minStock: Number(form.minStock) || 0,
+          commissionPct: comissao.valor,
         }),
       avisar: () => setModalOpen(false),
     });
@@ -261,7 +284,10 @@ function LojaConteudo() {
                         <p className="truncate text-sm text-ink md:text-base">{p.name}</p>
                         <p className="text-xs text-ink-muted md:text-sm">
                           Custo {formatBRL(p.cost)} · Venda {formatBRL(p.price)} ·
-                          margem {formatBRL(margin)}
+                          margem {formatBRL(margin)} ·{" "}
+                          {typeof p.commissionPct === "number"
+                            ? `comissão ${p.commissionPct}% do preço`
+                            : "comissão padrão"}
                         </p>
                       </div>
                       <div className="flex shrink-0 items-center gap-2">
@@ -383,9 +409,21 @@ function LojaConteudo() {
                 className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ink md:py-2.5 md:text-base"
               />
             </label>
+            <label className="flex flex-col gap-1 text-xs text-ink-muted md:text-sm">
+              Comissão do produto (%) — opcional
+              <input
+                inputMode="decimal"
+                value={simProdPctTxt}
+                placeholder="padrão"
+                onChange={(e) => setSimProdPctTxt(e.target.value)}
+                className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ink md:py-2.5 md:text-base"
+              />
+            </label>
             <div className="flex items-center justify-between border-t border-border pt-3 text-sm md:text-base">
               <span className="text-ink-muted">
-                Comissão do profissional ({padraoDaCasa}% do lucro)
+                {simProdPct !== null
+                  ? `Comissão do profissional (${simProdPct}% do preço)`
+                  : `Comissão do profissional (${padraoDaCasa}% do lucro)`}
               </span>
               <span className="font-display font-semibold text-gold-strong md:text-lg">
                 {formatBRL(simSplit.commission)}
@@ -396,9 +434,10 @@ function LojaConteudo() {
                 uma linha; deixar o dono descobrir no acerto custa a confiança
                 dele na tela. */}
             <p className="text-xs text-ink-muted md:text-sm">
-              Rateio sobre o lucro da venda, não sobre o preço cheio. Usa o
-              padrão da casa — quem tem percentual próprio na Equipe recebe o
-              dele.
+              Sem percentual no produto, o rateio é sobre o lucro da venda, não
+              sobre o preço cheio, e usa o padrão da casa — quem tem percentual
+              próprio na Equipe recebe o dele. Com percentual no produto, ele
+              vale sobre o preço de venda.
             </p>
           </Card>
         </section>
@@ -494,6 +533,20 @@ function LojaConteudo() {
           </label>
 
           <label className="flex flex-col gap-1 text-xs text-ink-muted">
+            Comissão do barbeiro (%)
+            <input
+              inputMode="decimal"
+              value={form.commissionPct}
+              onChange={(e) => setForm((f) => ({ ...f, commissionPct: e.target.value }))}
+              placeholder="padrão"
+              className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ink"
+            />
+            <span className="text-[11px] text-ink-muted">
+              Sobre o preço de venda. Em branco usa a comissão do barbeiro.
+            </span>
+          </label>
+
+          <label className="flex flex-col gap-1 text-xs text-ink-muted">
             Estoque inicial (un.)
             <input
               type="number"
@@ -526,7 +579,11 @@ function LojaConteudo() {
             <Row label="Preço de venda" value={formatBRL(preview.price)} strong />
             <Row label="Lucro bruto" value={formatBRL(preview.grossProfit)} />
             <Row
-              label={`Comissão do profissional (${padraoDaCasa}%)`}
+              label={
+                preview.productPct !== null
+                  ? `Comissão do profissional (${preview.productPct}% do preço)`
+                  : `Comissão do profissional (${padraoDaCasa}%)`
+              }
               value={`− ${formatBRL(preview.commission)}`}
               tone="danger"
             />
@@ -540,7 +597,11 @@ function LojaConteudo() {
                 divergir se o percentual do barbeiro viesse do tenant e o da
                 casa não. */}
             <Row
-              label={`Sobra da barbearia (${100 - padraoDaCasa}% − imposto)`}
+              label={
+                preview.productPct !== null
+                  ? "Sobra da barbearia (após comissão e imposto)"
+                  : `Sobra da barbearia (${100 - padraoDaCasa}% − imposto)`
+              }
               value={formatBRL(preview.shopProfit)}
               tone="success"
               strong

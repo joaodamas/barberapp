@@ -705,6 +705,9 @@ export async function gravarVendaComTravaDeEstoque(params: {
             unitCost: m.movimento.unitCost,
             quantidade: m.item.quantity,
             commissionPct: params.vendedor.commissionPct,
+            /* Lido do snapshot do produto desta transação — o mesmo momento
+             * do preço e do custo congelados. */
+            commissionPctDoProduto: m.produtoSnap.get("commissionPct"),
             date: params.date,
           })
         : null;
