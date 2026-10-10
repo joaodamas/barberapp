@@ -12,7 +12,13 @@ import {
   idDaComissaoDeCicloNovo,
   idDoEstornoDaComissaoDeServico,
 } from "./comissoes";
-import { dentroDaJanela, diaAnteriorDe, diaDeCriacao } from "./correcao-de-pagamento";
+import {
+  dentroDaJanela,
+  diaAnteriorDe,
+  diaDeCriacao,
+  gravarMeioDaCaixinha,
+  lerCaixinhaDaReserva,
+} from "./correcao-de-pagamento";
 import { descontoAplicavel, ehCortesia } from "./desconto";
 import {
   calcularEventoFinanceiro,
@@ -27,7 +33,7 @@ import {
 import { formasDoTenant, type FormaDePagamento } from "./formas-de-pagamento";
 import { metodoValido } from "./inventory";
 import { DEFAULT_LOCALE, hojeNoFuso, localeDoDocumento } from "./locale";
-import { idDoPagamento } from "./payments";
+import { idDoAjusteDaCaixinha, idDoPagamento } from "./payments";
 import { politicasDe } from "./politicas-financeiras";
 
 /**
@@ -466,6 +472,9 @@ export async function gravarEdicao(params: {
     const comissaoVigenteId = ciclo?.comissaoVigenteId || `comissao_${bookingId}`;
     const comissaoVigenteRef = shopRef.collection("commissions").doc(comissaoVigenteId);
     const comissaoSnap = reservaSnap.exists ? await tx.get(comissaoVigenteRef) : null;
+    /* A caixinha vai pelo mesmo meio do atendimento: se a edição troca o meio,
+     * ela acompanha (`gravarMeioDaCaixinha`). Lida aqui, antes das escritas. */
+    const caixinha = reservaSnap.exists ? await lerCaixinhaDaReserva(tx, shopRef, bookingId) : null;
 
     const novo = servicosDaEdicao(params.serviceIds, params.catalogo, reserva);
     const desconto = descontoDaEdicao({
@@ -609,6 +618,22 @@ export async function gravarEdicao(params: {
       originalAmount: desconto.amount > 0 ? novo.value : FieldValue.delete(),
       discountAmount: desconto.amount > 0 ? desconto.amount : FieldValue.delete(),
     });
+
+    /* 2b. Caixinha: só quando o MEIO mudou. Com o meio igual, a taxa dela fica
+     * a do dia em que o cliente pagou — a mesma regra de `comTaxaCongelada`. */
+    const trocouOMeio =
+      metodoAtual !== params.metodo || (params.formaId != null && params.formaId !== formaAtual);
+    if (caixinha && trocouOMeio) {
+      gravarMeioDaCaixinha(tx, shopRef, caixinha, {
+        bookingId,
+        metodo: params.metodo,
+        fees: params.fees,
+        formas: params.formas,
+        formaId: params.formaId ?? null,
+        idDoAjuste: idDoAjusteDaCaixinha(bookingId, `edicao-${params.chave}`),
+        dataSemLinha: String(pagamentoSnap.get("date") ?? ""),
+      });
+    }
 
     /* 3. Reserva: o estado operacional bate com o fato. `completed → completed`
      * é "nada" para o gatilho, que não rematerializa por cima. */

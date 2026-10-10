@@ -521,4 +521,39 @@ describe("caixinha (gorjeta) no fechamento", () => {
     await reverterConclusao({ db, barbershopId: SHOP, bookingId: "b1", depois: { ...depois, status: "no_show", cicloFinanceiro: (await reservaRef("b1").get()).get("cicloFinanceiro") }, chave: "ev-rev1" });
     expect(saldo(daCaixinha(await comissoes()))).toBe(0);
   });
+
+  it("a edição que TROCA o meio leva a caixinha junto (Pix → crédito 3%: ajuste −R$ 0,30)", async () => {
+    await taxas(0);
+    const depois = { ...reservaConcluida({ value: 50, metodo: "pix" }), tipAmount: 10 };
+    await concluir("b1", depois);
+    const editarPara = (chave: string) =>
+      gravarEdicao({
+        db,
+        shopRef: shopRef(),
+        bookingId: "b1",
+        papel: "owner",
+        staffIdDoAutor: null,
+        serviceIds: ["corte"],
+        catalogo: CATALOGO,
+        desconto: undefined,
+        formaId: null,
+        metodo: "credit",
+        fees: { dinheiro: 0, pix: 0, debito: 0, credito: 3 },
+        padraoPct: 40,
+        hoje: HOJE,
+        chave,
+        autor: "uid-dono",
+      });
+    await editarPara("k1");
+
+    const tip = (await caixinhaPagamentoRef("b1").get()).data()!;
+    expect(tip).toMatchObject({ paymentMethod: "credit", grossAmount: 10, feeAmount: 0.3, netAmount: 9.7 });
+    const linhas = daCaixinha(await comissoes());
+    expect(linhas.find((l) => l.id === "comissao_ajuste_caixinha_b1_edicao-k1")?.commissionAmount).toBe(-0.3);
+    expect(saldo(linhas)).toBe(9.7);
+
+    /* Retry da mesma edição: nada novo. */
+    await editarPara("k1");
+    expect(saldo(daCaixinha(await comissoes()))).toBe(9.7);
+  });
 });
