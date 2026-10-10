@@ -54,6 +54,12 @@ export type ProductDoc = {
   stock: number;
   minStock: number;
   /**
+   * Comissão do barbeiro NESTE produto, em % (0–100), sobre o PREÇO de venda
+   * cobrado. Ausente/null = vale a regra de sempre (% do barbeiro sobre o
+   * lucro). 0 é legítimo: o produto não comissiona.
+   */
+  commissionPct?: number | null;
+  /**
    * Fora de "Vender" e da lista principal da Loja. Nunca se exclui produto: ele
    * tem vendas, movimentos e CMV no histórico. Ausente = ativo.
    */
@@ -79,12 +85,19 @@ export type CommissionDoc = {
   uid: string | null;
   staffName?: string | null;
   date: string;
-  origin: "servico" | "produto";
+  /**
+   * "caixinha" (gorjeta): 100% do barbeiro, taxa da maquininha dele. É REPASSE
+   * que passa pela casa — entra no acerto e no caixa, e fica FORA de receita,
+   * DRE e das comissões de serviço/produto.
+   */
+  origin: "servico" | "produto" | "caixinha";
   /** Congelados na conclusão. Nunca releem o cadastro. */
   commissionPct: number;
   /** Com desconto (28/09), é o valor COBRADO — a comissão é sobre ele. */
   commissionBase: number;
   commissionAmount: number;
+  /** Só na caixinha: a taxa da maquininha que o barbeiro arcou (já fora de `commissionAmount`). */
+  feeAmount?: number;
   /** Bruto de tabela e desconto, presentes só quando houve desconto. */
   originalAmount?: number;
   discountAmount?: number;
@@ -111,8 +124,10 @@ export type CommissionDoc = {
  */
 export type PaymentDoc = {
   /** De que fato o dinheiro veio. Ausente nos pagamentos anteriores a G1.6. */
-  origin?: "servico" | "produto" | "mensalidade";
+  origin?: "servico" | "produto" | "mensalidade" | "caixinha";
   bookingId?: string;
+  /** Barbeiro que atendeu — só na caixinha, que é dele. */
+  staffId?: string;
   /** Movimento de venda que originou o pagamento. */
   movementId?: string;
   /** Fatura de mensalidade que originou o pagamento. */
@@ -432,6 +447,14 @@ export type BookingDoc = {
   discountBy?: string;
   /** Quando: `serverTimestamp()` na escrita, conferido pela regra. */
   discountAt?: unknown;
+  /**
+   * Caixinha (gorjeta) dada ao barbeiro, em R$ — gravada na MESMA escrita da
+   * conclusão, como o desconto. Só existe com forma de pagamento escolhida
+   * (cortesia e "concluir sem cobrar" não têm). O gatilho a materializa em
+   * `payments`/`commissions` com `origin: "caixinha"`; fora do faturamento.
+   * Apagada pelo servidor se a conclusão for desfeita.
+   */
+  tipAmount?: number;
   /**
    * Edições da cobrança depois de concluído (02/10) — escritas só pelo
    * servidor (`editarCobrancaDoAtendimento`). A tela mostra quem e quando.

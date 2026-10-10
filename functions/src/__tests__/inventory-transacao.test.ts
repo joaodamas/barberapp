@@ -858,6 +858,59 @@ describe("3.1 · comissão de produto", () => {
   });
 });
 
+describe("comissão por produto · lida do produto dentro da transação", () => {
+  it("produto com 10% comissiona sobre o preço, não sobre o lucro", async () => {
+    await shopRef().collection("products").doc("pomada").update({ commissionPct: 10 });
+    await venderComVendedor({ productId: "pomada", quantity: 2 });
+    const [c] = await comissoes();
+    expect(c.commissionRule).toBe("produto_sobre_preco");
+    expect(c.commissionPct).toBe(10);
+    expect(c.commissionBase).toBe(90);
+    expect(c.commissionAmount).toBe(9);
+  });
+
+  it("0% no produto = sem comissão, e não cai no % do barbeiro", async () => {
+    await shopRef().collection("products").doc("pomada").update({ commissionPct: 0 });
+    await venderComVendedor({ productId: "pomada", quantity: 1 });
+    const [c] = await comissoes();
+    expect(c.commissionAmount).toBe(0);
+    expect(c.commissionRule).toBe("produto_sobre_preco");
+  });
+
+  it("produto sem % (ou fora de faixa) mantém a regra antiga sobre o lucro", async () => {
+    await shopRef().collection("products").doc("ultima").update({ commissionPct: 150 });
+    await venderComVendedor({ productId: "pomada", quantity: 1 });
+    await venderComVendedor({ productId: "ultima", quantity: 1 });
+    const cs = await comissoes();
+    expect(cs).toHaveLength(2);
+    for (const c of cs) expect(c.commissionRule).toBe("barbeiro_sobre_lucro");
+    expect(cs.reduce((s, c) => s + Number(c.commissionAmount), 0)).toBeCloseTo(24, 2);
+  });
+
+  it("carrinho com produtos de % diferentes: cada linha com o seu", async () => {
+    await shopRef().collection("products").doc("pomada").update({ commissionPct: 10 });
+    await gravarVendaComTravaDeEstoque({
+      db,
+      shopRef: shopRef(),
+      itens: [
+        { productId: "pomada", quantity: 1 },
+        { productId: "ultima", quantity: 1 },
+      ],
+      paymentMethod: "credit",
+      clientId: null,
+      bookingId: null,
+      date: HOJE,
+      chave: "carrinho-pct",
+      fees: TAXAS,
+      vendedor: VENDEDOR,
+    });
+    const cs = await comissoes();
+    const porBase = Object.fromEntries(cs.map((c) => [String(c.commissionRule), Number(c.commissionAmount)]));
+    expect(porBase.produto_sobre_preco).toBe(4.5); // 10% de 45
+    expect(porBase.barbeiro_sobre_lucro).toBe(13.2); // 40% de (55−22)
+  });
+});
+
 /* ================================================================== */
 /* Preço combinado na hora — o dono refaz a venda, ou dá o desconto     */
 /* ================================================================== */
@@ -955,6 +1008,14 @@ describe("preço combinado · congelado na venda", () => {
     ).rejects.toThrow(/outro pedido/);
     await expect(venderComPreco({ chave: "k1" })).rejects.toThrow(/outro pedido/);
     expect(await movimentos()).toHaveLength(1);
+  });
+
+  it("preço digitado: o % do produto incide sobre o preço COBRADO", async () => {
+    await shopRef().collection("products").doc("pomada").update({ commissionPct: 10 });
+    await venderComPreco({ unitPrice: 40, priceReason: "desconto combinado", vendedor: VENDEDOR });
+    const [c] = await comissoes();
+    expect(c.commissionBase).toBe(80); // 40 × 2, não 45 × 2
+    expect(c.commissionAmount).toBe(8);
   });
 
   it("a devolução desfaz o valor praticado, não o de tabela", async () => {

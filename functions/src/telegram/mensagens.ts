@@ -193,6 +193,8 @@ export function textoDoFechamento(params: {
   recebido: number;
   /** Estornos lançados hoje — já descontados de `recebido`. */
   estornado?: number;
+  /** Caixinha do dia: já está em `recebido` (o dinheiro entrou), mas é dos barbeiros. */
+  caixinha?: number;
 }): string {
   const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
   /* O rótulo diz o critério de verdade: `payments.date` é a data do
@@ -206,6 +208,11 @@ export function textoDoFechamento(params: {
     `💰 ${brl(params.recebido)} pelos atendimentos de hoje` +
       (params.estornado ? ` (já descontados ${brl(params.estornado)} de estornos)` : ""),
   ];
+  /* A caixinha entrou na gaveta (por isso está no total acima), mas não é da
+   * casa: quem confere a gaveta precisa saber quanto desse valor é repasse. */
+  if (params.caixinha) {
+    linhas.push(`🎁 Caixinha: ${brl(params.caixinha)} (dos barbeiros, já inclusa no total)`);
+  }
   if (params.faltas) linhas.push(`🚫 ${params.faltas} ${params.faltas === 1 ? "falta" : "faltas"}`);
   if (params.emAberto) {
     linhas.push(

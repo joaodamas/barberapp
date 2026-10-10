@@ -107,6 +107,27 @@ describe("textos", () => {
     expect(t).toContain("10 atendimentos concluídos");
     expect(t).toContain("R$");
     expect(t).toContain("2 horários ainda estão em aberto");
+    expect(t).not.toContain("Caixinha");
+  });
+  it("fechamento mostra a caixinha do dia, já inclusa no total", () => {
+    const t = textoDoFechamento({ loja: "L", data: "2026-10-01", concluidos: 1, faltas: 0, emAberto: 0, recebido: 60, caixinha: 10 });
+    expect(t).toContain("Caixinha: R$");
+    expect(t).toContain("10,00");
+    expect(t).toContain("já inclusa");
+  });
+  it("o total do fechamento soma a caixinha ao recebido e a destaca", async () => {
+    const { totalDoFechamento } = await import("../telegram/gatilhos");
+    expect(
+      totalDoFechamento(
+        [{ grossAmount: 50, origin: "servico" }, { grossAmount: 10, origin: "caixinha" }],
+        []
+      )
+    ).toEqual({ recebido: 60, estornado: 0, caixinha: 10 });
+    expect(totalDoFechamento([{ grossAmount: 50 }], [{ grossAmount: 5 }])).toEqual({
+      recebido: 45,
+      estornado: 5,
+      caixinha: 0,
+    });
   });
 });
 

@@ -3,7 +3,12 @@ import { politicasDe } from "./politicas-financeiras";
 import { exigirEdicao, vinculosDe } from "./acesso";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { SEM_TAXA, type PaymentFees, type PaymentMethod } from "./financial-events";
-import { idDoPagamento, valoresDoPagamento } from "./payments";
+import {
+  idDoAjusteDaCaixinha,
+  idDoPagamento,
+  somarLinhasDaCaixinha,
+  valoresDoPagamento,
+} from "./payments";
 import { formasDoTenant, type FormaDePagamento } from "./formas-de-pagamento";
 import { competenciaDe } from "./mensalistas";
 import { metodoValido } from "./inventory";
@@ -464,12 +469,27 @@ export async function gravarCorrecao(params: {
       formaId: params.formaId,
     });
 
+    /* A CAIXINHA vai pelo mesmo meio do atendimento (regra do dono: não tem
+     * seletor próprio), então corrigir o meio corrige o dela também. Lida aqui,
+     * ainda antes de qualquer escrita. */
+    const caixinha = await lerCaixinhaDaReserva(tx, shopRef, bookingId);
+
     /* ================= ESCRITAS ================= */
 
     /* O fato econômico. Exatamente os quatro campos — o objeto é `para`, e não
      * um espalhamento de `valoresDoPagamento`, justamente para que a lista de
      * chaves gravadas seja a lista declarada em `CAMPOS_CORRIGIVEIS`. */
     tx.update(pagamentoRef, para);
+
+    const correcaoDaCaixinha = gravarMeioDaCaixinha(tx, shopRef, caixinha, {
+      bookingId,
+      metodo: params.metodo,
+      fees: params.fees,
+      formas: params.formas,
+      formaId: params.formaId,
+      idDoAjuste: idDoAjusteDaCaixinha(bookingId, params.chave),
+      dataSemLinha: String(pagamentoSnap.get("date") ?? ""),
+    });
 
     /* O estado operacional, na MESMA transação. Corrigir só o pagamento
      * deixaria o card crítico na tela para sempre e a agenda exibindo o método
@@ -489,11 +509,108 @@ export async function gravarCorrecao(params: {
       action: "payment.corrigido",
       by: params.autor,
       at: FieldValue.serverTimestamp(),
-      detail: { bookingId, paymentId, de, para },
+      detail: {
+        bookingId,
+        paymentId,
+        de,
+        para,
+        ...(correcaoDaCaixinha ? { caixinha: correcaoDaCaixinha } : {}),
+      },
     });
 
     return { paymentId, bookingId, de, para, repetida: false };
   });
+}
+
+/* ================================================================== */
+/* A caixinha acompanha o meio do atendimento                         */
+/* ================================================================== */
+
+/**
+ * O que existe de caixinha nesta reserva — lido antes de qualquer escrita.
+ *
+ * Por reserva, e não pelo id do ciclo: a edição de cobrança troca a comissão
+ * vigente do serviço sem tocar na gorjeta, e o ajuste de taxa soma linhas.
+ */
+export async function lerCaixinhaDaReserva(
+  tx: FirebaseFirestore.Transaction,
+  shopRef: FirebaseFirestore.DocumentReference,
+  bookingId: string
+) {
+  const pagamentoRef = shopRef.collection("payments").doc(idDoPagamento({ origem: "caixinha", bookingId }));
+  const [pagamentoSnap, linhasSnap] = await Promise.all([
+    tx.get(pagamentoRef),
+    tx.get(
+      shopRef
+        .collection("commissions")
+        .where("bookingId", "==", bookingId)
+        .where("origin", "==", "caixinha")
+    ),
+  ]);
+  return {
+    pagamentoRef,
+    pagamentoSnap,
+    doBarbeiro: somarLinhasDaCaixinha(linhasSnap.docs.map((d) => d.data())),
+    data: linhasSnap.docs[0]?.get("date") as string | undefined,
+  };
+}
+
+/**
+ * Leva a caixinha para o meio novo — a mesma porta para a CORREÇÃO do meio e
+ * para a EDIÇÃO de cobrança que troca o meio. Antes só a correção acompanhava,
+ * e a edição deixava a gorjeta no Pix com o atendimento já no crédito: duas
+ * versões do mesmo pagamento, e o barbeiro sem a taxa que é dele.
+ *
+ * A taxa da caixinha é do BARBEIRO: se o líquido mudou, o que ele recebe mudou
+ * junto. A comissão original não é reescrita (histórico financeiro se corrige
+ * somando): entra uma linha de AJUSTE com o delta, de id derivado da operação —
+ * o retry regrava a mesma linha. Pix → crédito a 3% sobre R$ 10,00 gera
+ * −R$ 0,30. Sem caixinha, não faz nada e devolve `null`.
+ */
+export function gravarMeioDaCaixinha(
+  tx: FirebaseFirestore.Transaction,
+  shopRef: FirebaseFirestore.DocumentReference,
+  caixinha: Awaited<ReturnType<typeof lerCaixinhaDaReserva>>,
+  params: {
+    bookingId: string;
+    metodo: PaymentMethod;
+    fees: PaymentFees;
+    formas?: FormaDePagamento[];
+    formaId?: string | null;
+    idDoAjuste: string;
+    dataSemLinha: string;
+  }
+): { de: ReturnType<typeof estadoDoPagamento>; para: CamposDaCorrecao } | null {
+  if (!caixinha.pagamentoSnap.exists) return null;
+  const de = estadoDoPagamento(caixinha.pagamentoSnap);
+  const para = camposDaCorrecao({
+    bruto: Number(caixinha.pagamentoSnap.get("grossAmount")) || 0,
+    metodo: params.metodo,
+    fees: params.fees,
+    formas: params.formas,
+    formaId: params.formaId,
+  });
+  tx.update(caixinha.pagamentoRef, para);
+
+  const delta = Math.round((para.netAmount - de.netAmount) * 100) / 100;
+  if (delta !== 0 && caixinha.doBarbeiro) {
+    tx.set(shopRef.collection("commissions").doc(params.idDoAjuste), {
+      origin: "caixinha",
+      bookingId: params.bookingId,
+      staffId: caixinha.doBarbeiro.staffId,
+      uid: caixinha.doBarbeiro.uid,
+      staffName: caixinha.doBarbeiro.staffName,
+      date: caixinha.data ?? params.dataSemLinha,
+      commissionPct: 100,
+      /* A caixinha em si não mudou; só a taxa. */
+      commissionBase: 0,
+      feeAmount: Math.round((para.feeAmount - de.feeAmount) * 100) / 100,
+      commissionAmount: delta,
+      ajuste: true,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+  }
+  return { de, para };
 }
 
 /* ================================================================== */

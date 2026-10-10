@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, SlidersHorizontal, TrendingDown, TrendingUp, Wallet } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { caixinhasDoPeriodo } from "@/lib/caixinha";
 import { KpiTile } from "@/components/ui/kpi-tile";
 import { formatBRL, formatPctPtBR } from "@/lib/format";
 import { apuracaoDe, NAO_APURADO, porQueNaoApurou, type FonteFinanceira } from "@/lib/apuracao";
@@ -278,13 +279,21 @@ function DreConteudo() {
                 key: "var.comissao.loja",
                 label: "Loja",
                 value: r.commissionsLoja,
-                caption: "sobre o lucro do produto, não sobre a venda",
+                caption: "vendas de produto, pelo % de cada produto ou do barbeiro",
               },
             ]
           : []),
       ],
     },
   ];
+
+  /* Caixinha: repasse, não resultado. Fica FORA do DRE (não é receita nem
+   * despesa da casa), mas o dono precisa saber quanto entregar a cada um. */
+  const caixinhas = caixinhasDoPeriodo({
+    commissions: raw.commissions,
+    periodo,
+    nomes: new Map(raw.staff.map((s) => [s.id, s.name])),
+  });
 
   /* Despesa fixa = recorrente. Antes TODA despesa entrava como fixa, inclusive
    * impulsionamento no Instagram e revisão de máquina — o custo fixo ficava 45%
@@ -601,6 +610,33 @@ function DreConteudo() {
           )}
         </div>
       </Card>
+
+      {caixinhas.porBarbeiro.length > 0 && (
+        <Card className="flex flex-col gap-2 text-sm md:p-6">
+          <div className="flex items-center justify-between">
+            <span className="font-semibold text-ink">Caixinhas a repassar</span>
+            <span className="font-semibold text-ink">{formatBRL(caixinhas.total)}</span>
+          </div>
+          <p className="text-xs text-ink-muted">
+            Gorjeta dos clientes, 100% de quem atendeu. Já descontada a taxa da maquininha, que é
+            do barbeiro. Fica fora do resultado acima: não é receita nem despesa da barbearia.
+          </p>
+          {caixinhas.porBarbeiro.map((b) => (
+            <div key={b.staffId} className="flex items-center justify-between py-1 pl-5">
+              <span className="text-ink-muted">
+                {b.nome}
+                {b.taxa !== 0 && (
+                  <span className="text-xs">
+                    {" "}
+                    · {formatBRL(b.bruto)} − {formatBRL(b.taxa)} de taxa
+                  </span>
+                )}
+              </span>
+              <span className="font-medium text-ink">{formatBRL(b.liquido)}</span>
+            </div>
+          ))}
+        </Card>
+      )}
 
       {/* O simulador projeta A PARTIR do custo fixo. Com `expenses` ilegível
           ele partia de zero e desenhava uma tabela inteira de cenários sobre um

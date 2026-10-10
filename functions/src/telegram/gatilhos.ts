@@ -280,13 +280,19 @@ export const telegramAgendaDoDia = onSchedule(
  * um total maior do que o caixa — e o caixa é o que ele confere na gaveta.
  */
 export function totalDoFechamento(
-  pagamentos: Array<{ grossAmount?: unknown }>,
+  pagamentos: Array<{ grossAmount?: unknown; origin?: unknown }>,
   estornos: Array<{ grossAmount?: unknown }>
-): { recebido: number; estornado: number } {
+): { recebido: number; estornado: number; caixinha: number } {
   const soma = (xs: Array<{ grossAmount?: unknown }>) =>
     Math.round(xs.reduce((t, x) => t + (Number(x.grossAmount) || 0), 0) * 100) / 100;
   const estornado = soma(estornos);
-  return { recebido: Math.round((soma(pagamentos) - estornado) * 100) / 100, estornado };
+  return {
+    /* A caixinha ENTRA no recebido: é dinheiro que passou pela gaveta. */
+    recebido: Math.round((soma(pagamentos) - estornado) * 100) / 100,
+    estornado,
+    /* E sai destacada, para o dono saber quanto dele é repasse ao barbeiro. */
+    caixinha: soma(pagamentos.filter((p) => p.origin === "caixinha")),
+  };
 }
 
 export const telegramFechamentoDoDia = onSchedule(
@@ -312,7 +318,7 @@ export const telegramFechamentoDoDia = onSchedule(
           shopRef.collection("refunds").where("date", "==", hoje).get(),
         ]);
         const status = reservasSnap.docs.map((d) => String(d.get("status")));
-        const { recebido, estornado } = totalDoFechamento(
+        const { recebido, estornado, caixinha } = totalDoFechamento(
           pagamentosSnap.docs.map((d) => d.data()),
           estornosSnap.docs.map((d) => d.data())
         );
@@ -324,6 +330,7 @@ export const telegramFechamentoDoDia = onSchedule(
           emAberto: status.filter((s) => ABERTOS.includes(s)).length,
           recebido,
           estornado,
+          caixinha,
         });
         await avisar({ shopRef, contatos: donos, tipo: "fechamento", html });
       })

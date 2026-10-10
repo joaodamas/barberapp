@@ -245,6 +245,10 @@ export function useFinanceiro(mes: string, horizonte: Horizonte = "mensal") {
       subscribers: subscribers.items,
       services: services.items,
       products: products.items,
+      /* A caixinha a repassar por barbeiro (`caixinhasDoPeriodo`) — fora do
+       * resultado, então lida das linhas e não do agregado. */
+      commissions: commissions.items,
+      staff: staff.items,
       tops: topsAvulsos,
     },
   };

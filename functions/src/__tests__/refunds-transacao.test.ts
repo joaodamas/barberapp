@@ -191,6 +191,26 @@ describe("D22 · o fato original sobrevive ao estorno", () => {
     expect(reversao.get("commissionAmount")).toBe(-13.5);
   });
 
+  it("comissão por produto: o estorno nega EXATAMENTE o valor da venda", async () => {
+    await shopRef().collection("products").doc("pomada").update({ commissionPct: 12.5 });
+    const v = await vender({
+      productId: "pomada",
+      quantity: 3,
+      paymentMethod: "credit",
+      chave: "k-pct",
+      vendedor: { staffId: "leo", uid: null, staffName: "Léo", commissionPct: 50 },
+    });
+    const mvId = v.movementIds[0];
+    await estornar({ ref: { origem: "produto", movementId: mvId }, chave: "e1" });
+
+    const original = await doc("commissions", `comissao_venda_${mvId}`);
+    const reversao = await doc("commissions", `comissao_estorno_venda_${mvId}_e1`);
+    expect(original.get("commissionRule")).toBe("produto_sobre_preco");
+    expect(original.get("commissionAmount")).toBe(16.88); // 12,5% de 135
+    expect(reversao.get("commissionAmount")).toBe(-original.get("commissionAmount"));
+    expect(reversao.get("commissionBase")).toBe(-original.get("commissionBase"));
+  });
+
   it("NADA é apagado: a contagem de documentos só CRESCE", async () => {
     /* O teste mais direto da régua. Se algum dia alguém "simplificar" o estorno
      * para um delete, esta contagem cai e o teste fecha a porta. */

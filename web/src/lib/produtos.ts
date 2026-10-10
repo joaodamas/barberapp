@@ -1,7 +1,7 @@
 import type { Doc } from "@/lib/db/repository";
 import type { InventoryMovementDoc } from "@/lib/domain";
 import { formatBRL } from "@/lib/format";
-import { lerReais, VALOR_ILEGIVEL } from "@/lib/reais";
+import { lerPercentual, lerReais, VALOR_ILEGIVEL } from "@/lib/reais";
 import { rotuloDoMotivo } from "@/lib/ajuste-de-estoque";
 
 /**
@@ -20,6 +20,8 @@ export type EdicaoDeProduto = {
   price: number;
   cost: number;
   minStock: number;
+  /** Comissão do barbeiro neste produto (% sobre o preço). null = usa a regra de sempre. */
+  commissionPct: number | null;
 };
 
 export type CamposDeEdicao = {
@@ -27,11 +29,29 @@ export type CamposDeEdicao = {
   price: string;
   cost: string;
   minStock: string;
+  /** Em branco = sem % próprio. */
+  commissionPct: string;
 };
+
+export const ERRO_DA_COMISSAO_DO_PRODUTO = "A comissão precisa ser um percentual de 0 a 100.";
+
+/**
+ * Lê o campo "Comissão do barbeiro (%)". Em branco é VÁLIDO e vira null (o
+ * produto usa a regra de sempre); "0" também é válido e vira 0 — são coisas
+ * diferentes, por isso a checagem de vazio vem antes e não se usa `||`.
+ */
+export function lerComissaoDoProduto(
+  texto: string
+): { ok: true; valor: number | null } | { ok: false; erro: string } {
+  if (texto.trim() === "") return { ok: true, valor: null };
+  const n = lerPercentual(texto);
+  if (n === null) return { ok: false, erro: ERRO_DA_COMISSAO_DO_PRODUTO };
+  return { ok: true, valor: n };
+}
 
 /** Os campos do produto como a tela os mostra ao abrir a edição. */
 export function camposDoProduto(
-  p: { name: string; price: number; cost: number; minStock: number },
+  p: { name: string; price: number; cost: number; minStock: number; commissionPct?: number | null },
   paraCampo: (v: number) => string
 ): CamposDeEdicao {
   /* Produto antigo pode não ter custo/preço/mínimo gravados: o campo abre
@@ -42,6 +62,10 @@ export function camposDoProduto(
     price: numero(p.price),
     cost: numero(p.cost),
     minStock: typeof p.minStock === "number" && Number.isFinite(p.minStock) ? String(p.minStock) : "",
+    commissionPct:
+      typeof p.commissionPct === "number" && Number.isFinite(p.commissionPct)
+        ? String(p.commissionPct).replace(".", ",")
+        : "",
   };
 }
 
@@ -73,7 +97,13 @@ export function lerEdicaoDeProduto(
     return { ok: false, erro: "O estoque mínimo precisa ser um número inteiro." };
   }
 
-  return { ok: true, valor: { name, price, cost, minStock: minTexto === "" ? 0 : Number(minTexto) } };
+  const comissao = lerComissaoDoProduto(campos.commissionPct);
+  if (!comissao.ok) return comissao;
+
+  return {
+    ok: true,
+    valor: { name, price, cost, minStock: minTexto === "" ? 0 : Number(minTexto), commissionPct: comissao.valor },
+  };
 }
 
 export function estaArquivado(p: { archived?: boolean | null }): boolean {

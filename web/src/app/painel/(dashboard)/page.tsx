@@ -270,6 +270,7 @@ export default function PainelHojePage() {
         horariosLivres={horariosLivres}
         previsao={previsaoHoje}
         recebido={recebidoReal}
+        caixinha={caixaHoje.caixinha}
         fatiasDoRecebido={recebidoPorForma(caixaHoje)}
         agendaIlegivel={agendaIlegivel}
         pagamentosIlegiveis={pagamentosIlegiveis}

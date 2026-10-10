@@ -14,6 +14,17 @@ import { mesVizinho } from "@/lib/mensalidade";
 import { formatBRL, toISODate } from "@/lib/format";
 import { contar } from "@/lib/plural";
 
+/** O que a linha é, na língua do barbeiro. Caixinha tem rótulo próprio: não é comissão. */
+function rotuloDaLinha(l: { origin: string; commissionAmount: number; commissionBase: number }): string {
+  if (l.origin === "caixinha") {
+    /* Ajuste de taxa (correção do meio de pagamento): base zero, valor diferente de zero. */
+    if (l.commissionBase === 0) return "Caixinha · ajuste da taxa";
+    return l.commissionAmount < 0 ? "Estorno de caixinha" : "Caixinha";
+  }
+  if (l.commissionAmount < 0) return "Estorno";
+  return l.origin === "produto" ? "Venda de produto" : "Atendimento";
+}
+
 /**
  * A comissão do barbeiro no mês (05/10) — o extrato dele, linha a linha.
  *
@@ -57,6 +68,11 @@ export default function ComissaoDoBarbeiroPage() {
               {extrato.vendas > 0 ? ` · ${contar(extrato.vendas, "venda", "vendas")}` : ""} · sobre{" "}
               {formatBRL(extrato.base)}
             </p>
+            {extrato.caixinha !== 0 && (
+              <p className="text-xs text-ink-muted">
+                Inclui {formatBRL(extrato.caixinha)} de caixinha (já sem a taxa da maquininha).
+              </p>
+            )}
             <p className="mt-1 text-[11px] text-ink-muted">
               É o que foi apurado nos atendimentos fechados. O acerto (quando e como recebe) é combinado com o dono.
             </p>
@@ -71,9 +87,13 @@ export default function ComissaoDoBarbeiroPage() {
                   <li key={l.id} className="grid grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 text-sm">
                     <span className="tabular-nums text-ink-muted">{l.date.slice(8, 10)}/{l.date.slice(5, 7)}</span>
                     <span className="min-w-0 truncate text-ink">
-                      {l.commissionAmount < 0 ? "Estorno" : l.origin === "produto" ? "Venda de produto" : "Atendimento"}
+                      {rotuloDaLinha(l)}
                       <span className="text-ink-muted">
-                        {" "}· {l.commissionPct}% de {formatBRL(l.commissionBase)}
+                        {l.origin === "caixinha"
+                          ? l.commissionBase === 0
+                            ? ""
+                            : ` · ${formatBRL(Math.abs(l.commissionBase))}${l.feeAmount ? ` − taxa ${formatBRL(Math.abs(l.feeAmount))}` : ""}`
+                          : ` · ${l.commissionPct}% de ${formatBRL(l.commissionBase)}`}
                       </span>
                     </span>
                     <span className={`tabular-nums ${l.commissionAmount < 0 ? "text-danger" : "text-ink"}`}>

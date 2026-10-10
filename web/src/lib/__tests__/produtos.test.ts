@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   camposDoProduto,
+  ERRO_DA_COMISSAO_DO_PRODUTO,
   estaArquivado,
   historicoDoProduto,
   lerEdicaoDeProduto,
@@ -24,6 +25,7 @@ const campos = (over: Partial<Parameters<typeof lerEdicaoDeProduto>[0]> = {}) =>
   price: "45,00",
   cost: "18",
   minStock: "5",
+  commissionPct: "",
   ...over,
 });
 
@@ -31,13 +33,13 @@ describe("lerEdicaoDeProduto", () => {
   it("lê nome, preço, custo e mínimo", () => {
     expect(lerEdicaoDeProduto(campos())).toEqual({
       ok: true,
-      valor: { name: "Pomada", price: 45, cost: 18, minStock: 5 },
+      valor: { name: "Pomada", price: 45, cost: 18, minStock: 5, commissionPct: null },
     });
   });
 
   it("entende o jeito brasileiro de escrever dinheiro", () => {
     const r = lerEdicaoDeProduto(campos({ price: "1.500,50", cost: "1.200" }));
-    expect(r).toEqual({ ok: true, valor: { name: "Pomada", price: 1500.5, cost: 1200, minStock: 5 } });
+    expect(r).toEqual({ ok: true, valor: { name: "Pomada", price: 1500.5, cost: 1200, minStock: 5, commissionPct: null } });
   });
 
   it("apara o nome e recusa vazio ou longo demais", () => {
@@ -67,7 +69,7 @@ describe("lerEdicaoDeProduto", () => {
 
   it("🔒 nunca devolve o saldo: estoque não se edita aqui", () => {
     const r = lerEdicaoDeProduto(campos());
-    expect(r.ok && Object.keys(r.valor).sort()).toEqual(["cost", "minStock", "name", "price"]);
+    expect(r.ok && Object.keys(r.valor).sort()).toEqual(["commissionPct", "cost", "minStock", "name", "price"]);
   });
 
   it("produto sem custo gravado abre com o campo vazio — e pede o custo ao salvar", () => {
@@ -75,17 +77,51 @@ describe("lerEdicaoDeProduto", () => {
       { name: "Antigo", price: 30, cost: undefined as unknown as number, minStock: undefined as unknown as number },
       reaisParaCampo
     );
-    expect(c).toEqual({ name: "Antigo", price: "30", cost: "", minStock: "" });
+    expect(c).toEqual({ name: "Antigo", price: "30", cost: "", minStock: "", commissionPct: "" });
     expect(lerEdicaoDeProduto(c)).toEqual({ ok: false, erro: "Informe o custo unitário." });
   });
 
   it("os campos de abertura voltam pelo mesmo caminho", () => {
     const c = camposDoProduto({ name: "Cera", price: 49.9, cost: 20, minStock: 3 }, reaisParaCampo);
-    expect(c).toEqual({ name: "Cera", price: "49,90", cost: "20", minStock: "3" });
+    expect(c).toEqual({ name: "Cera", price: "49,90", cost: "20", minStock: "3", commissionPct: "" });
     expect(lerEdicaoDeProduto(c)).toEqual({
       ok: true,
-      valor: { name: "Cera", price: 49.9, cost: 20, minStock: 3 },
+      valor: { name: "Cera", price: 49.9, cost: 20, minStock: 3, commissionPct: null },
     });
+  });
+});
+
+describe("comissão do barbeiro no produto", () => {
+  it("em branco = sem % próprio (null), e não zero", () => {
+    expect(lerEdicaoDeProduto(campos({ commissionPct: "" }))).toMatchObject({ ok: true, valor: { commissionPct: null } });
+    expect(lerEdicaoDeProduto(campos({ commissionPct: "  " }))).toMatchObject({ ok: true, valor: { commissionPct: null } });
+  });
+
+  it("0 é valor legítimo e se mantém 0", () => {
+    expect(lerEdicaoDeProduto(campos({ commissionPct: "0" }))).toMatchObject({ ok: true, valor: { commissionPct: 0 } });
+  });
+
+  it("lê 10, 12,5 e 100", () => {
+    expect(lerEdicaoDeProduto(campos({ commissionPct: "10" }))).toMatchObject({ valor: { commissionPct: 10 } });
+    expect(lerEdicaoDeProduto(campos({ commissionPct: "12,5%" }))).toMatchObject({ valor: { commissionPct: 12.5 } });
+    expect(lerEdicaoDeProduto(campos({ commissionPct: "100" }))).toMatchObject({ valor: { commissionPct: 100 } });
+  });
+
+  it("fora de 0–100 ou ilegível é recusado (a regra também recusaria)", () => {
+    for (const t of ["101", "-1", "abc", "1,2,3"]) {
+      expect(lerEdicaoDeProduto(campos({ commissionPct: t }))).toEqual({
+        ok: false,
+        erro: ERRO_DA_COMISSAO_DO_PRODUTO,
+      });
+    }
+  });
+
+  it("o produto abre com o % gravado, inclusive 0, e vazio quando ausente/null", () => {
+    const base = { name: "Cera", price: 30, cost: 10, minStock: 1 };
+    expect(camposDoProduto({ ...base, commissionPct: 12.5 }, reaisParaCampo).commissionPct).toBe("12,5");
+    expect(camposDoProduto({ ...base, commissionPct: 0 }, reaisParaCampo).commissionPct).toBe("0");
+    expect(camposDoProduto({ ...base, commissionPct: null }, reaisParaCampo).commissionPct).toBe("");
+    expect(camposDoProduto(base, reaisParaCampo).commissionPct).toBe("");
   });
 });
 

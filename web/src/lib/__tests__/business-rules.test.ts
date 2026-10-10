@@ -106,6 +106,22 @@ describe("rateio de venda", () => {
     expect(r.commission).not.toBeCloseTo(27 * (commissionSplit.barberPct / 100));
   });
 
+  it("% do produto incide sobre o PREÇO: pomada R$ 50 a 10% → R$ 5,00", () => {
+    const r = splitSale({ price: 50, cost: 20, barberPct: 40, productPct: 10 });
+    expect(r.commission).toBeCloseTo(5);
+    expect(r.grossProfit).toBe(30);
+  });
+
+  it("% do produto = 0 zera a comissão, não cai no % do barbeiro", () => {
+    expect(splitSale({ price: 50, cost: 20, barberPct: 40, productPct: 0 }).commission).toBe(0);
+  });
+
+  it("sem % no produto (null/ausente/fora da faixa) mantém a regra sobre o lucro", () => {
+    for (const productPct of [null, undefined, -1, 101, Number.NaN]) {
+      expect(splitSale({ price: 50, cost: 20, barberPct: 40, productPct }).commission).toBeCloseTo(12);
+    }
+  });
+
   it("percentual zero é uma escolha legítima, não ausência de valor", () => {
     /* Um `|| 40` no lugar do `??` transformaria "esta barbearia não paga
      * comissão de produto" no padrão da casa — foi o mesmo cuidado tomado em

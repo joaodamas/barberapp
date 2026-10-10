@@ -464,7 +464,8 @@ describe("R1 · permissão e rastro", () => {
   it("o evento guarda de/para dos quatro campos, quem e quando", () => {
     /* §26 item 1. As chaves `de`/`para` seguem `subscription.ts:160`, o único
      * precedente com esse formato. */
-    expect(FONTE).toContain("detail: { bookingId, paymentId, de, para }");
+    /* (+ `caixinha: { de, para }` quando o atendimento tinha gorjeta.) */
+    expect(FONTE).toMatch(/detail:\s*\{\s*bookingId,\s*paymentId,\s*de,\s*para,/);
     expect(FONTE).toContain("by: params.autor");
     expect(FONTE).toContain("at: FieldValue.serverTimestamp()");
   });

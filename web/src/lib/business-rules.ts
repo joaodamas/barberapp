@@ -161,9 +161,26 @@ export function splitSale(params: {
   cost: number;
   barberPct?: number;
   taxPct?: number;
+  /**
+   * % de comissão cadastrado NO PRODUTO. Com valor de 0 a 100 (0 incluso) a
+   * comissão é esse % sobre o PREÇO de venda, e não `barberPct` sobre o lucro —
+   * a mesma regra do servidor (`comissoes.ts`). Ausente/null/fora da faixa =
+   * regra de sempre.
+   */
+  productPct?: number | null;
 }) {
   const grossProfit = Math.max(params.price - params.cost, 0);
-  const commission = (grossProfit * (params.barberPct ?? commissionSplit.barberPct)) / 100;
+  const pctDoProduto =
+    typeof params.productPct === "number" &&
+    Number.isFinite(params.productPct) &&
+    params.productPct >= 0 &&
+    params.productPct <= 100
+      ? params.productPct
+      : null;
+  const commission =
+    pctDoProduto !== null
+      ? (params.price * pctDoProduto) / 100
+      : (grossProfit * (params.barberPct ?? commissionSplit.barberPct)) / 100;
   const tax = (grossProfit * (params.taxPct ?? taxRatePct)) / 100;
   return {
     grossProfit,

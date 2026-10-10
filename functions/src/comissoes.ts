@@ -33,7 +33,17 @@
  * depender de qualquer agregado.
  */
 
-export type OrigemDaComissao = "servico" | "produto";
+export type OrigemDaComissao = "servico" | "produto" | "caixinha";
+
+/**
+ * Como a comissão de uma venda de produto foi calculada — congelado no fato.
+ *
+ * - `produto_sobre_preco`: o produto tem % próprio, que incide sobre o PREÇO
+ *   cobrado × quantidade (não sobre o lucro). Ex.: pomada R$ 50 a 10% → R$ 5,00.
+ * - `barbeiro_sobre_lucro`: regra de sempre — % do barbeiro (ou padrão da casa)
+ *   sobre o lucro da linha. Documentos antigos não têm o campo e são lidos assim.
+ */
+export type RegraDaComissao = "produto_sobre_preco" | "barbeiro_sobre_lucro";
 
 export type CommissionDoc = {
   origin: OrigemDaComissao;
@@ -47,6 +57,10 @@ export type CommissionDoc = {
   /** Sobre o que incidiu. Guardar só o resultado tornaria o passado indecifrável. */
   commissionBase: number;
   commissionAmount: number;
+  /** Ausente em documentos anteriores à comissão por produto = sobre o lucro. */
+  commissionRule?: RegraDaComissao;
+  /** Só na caixinha: a taxa da maquininha que o barbeiro arcou (já fora de `commissionAmount`). */
+  feeAmount?: number;
   bookingId?: string;
   movementId?: string;
 };
@@ -73,6 +87,41 @@ export function lucroDaVenda(params: {
 }
 
 /**
+ * O % próprio do produto, ou `null` quando não há.
+ *
+ * Ausente/null/vazio/NaN/fora de 0–100 = sem % próprio (cai na regra antiga).
+ * Zero é valor legítimo — 0% é "este produto não comissiona" — por isso a
+ * checagem é de ausência, nunca `||`. Mesmo critério de `percentualDaComissao`.
+ */
+export function percentualDoProduto(bruto: unknown): number | null {
+  if (bruto === undefined || bruto === null || bruto === "") return null;
+  const n = Number(bruto);
+  if (!Number.isFinite(n) || n < 0 || n > 100) return null;
+  return n;
+}
+
+/** Preço efetivamente cobrado × quantidade — a base do % do produto. */
+export function faturamentoDaVenda(params: { unitPrice: number; quantidade: number }): number {
+  return centavos(params.unitPrice * params.quantidade);
+}
+
+/**
+ * A base e o percentual de uma linha, conforme a regra que vale para ela.
+ * Única fonte da conta: venda e estorno passam por aqui, para o estorno nunca
+ * divergir da venda.
+ */
+export function baseDaComissaoDeProduto(params: {
+  unitPrice: number;
+  unitCost: number;
+  quantidade: number;
+  regra: RegraDaComissao;
+}): number {
+  return params.regra === "produto_sobre_preco"
+    ? faturamentoDaVenda(params)
+    : lucroDaVenda(params);
+}
+
+/**
  * A comissão de uma venda de produto, congelada.
  *
  * `staffId` vazio devolve `null`: **sem beneficiário não há comissão**. Gravar
@@ -89,14 +138,25 @@ export function comissaoDaVenda(params: {
   quantidade: number;
   /** Do barbeiro, quando ele tem o próprio; senão o padrão da casa. */
   commissionPct: number;
+  /**
+   * `ProductDoc.commissionPct`, lido do produto NA transação da venda. Com
+   * valor válido (0–100, inclusive 0) vale sobre o PREÇO e substitui
+   * `commissionPct`; ausente/inválido mantém a regra sobre o lucro.
+   */
+  commissionPctDoProduto?: unknown;
   date: string;
 }): CommissionDoc | null {
   if (!params.staffId) return null;
 
-  const base = lucroDaVenda({
+  const pctDoProduto = percentualDoProduto(params.commissionPctDoProduto);
+  const regra: RegraDaComissao =
+    pctDoProduto !== null ? "produto_sobre_preco" : "barbeiro_sobre_lucro";
+  const pct = pctDoProduto ?? params.commissionPct;
+  const base = baseDaComissaoDeProduto({
     unitPrice: params.unitPrice,
     unitCost: params.unitCost,
     quantidade: params.quantidade,
+    regra,
   });
 
   return {
@@ -106,14 +166,16 @@ export function comissaoDaVenda(params: {
     uid: params.uid,
     staffName: params.staffName,
     date: params.date,
-    commissionPct: params.commissionPct,
+    commissionPct: pct,
     commissionBase: base,
-    commissionAmount: centavos((base * params.commissionPct) / 100),
+    commissionAmount: centavos((base * pct) / 100),
+    commissionRule: regra,
   };
 }
 
 /** O id do documento, derivado do fato — mesma convenção de `payments`. */
 export function idDaComissao(ref: { origem: OrigemDaComissao; refId: string }): string {
+  if (ref.origem === "caixinha") return `comissao_${ref.refId}_caixinha`;
   return ref.origem === "servico"
     ? `comissao_${ref.refId}`
     : `comissao_venda_${ref.refId}`;
@@ -163,13 +225,20 @@ export function estornoDaComissao(params: {
   quantidade: number;
   /** CONGELADO do documento original, nunca relido do cadastro. */
   commissionPct: number;
+  /**
+   * CONGELADA do documento original. Ausente (documento antigo) = sobre o
+   * lucro. Estornar sobre a base errada deixaria saldo de uma venda desfeita.
+   */
+  commissionRule?: RegraDaComissao;
   /** Data do estorno. */
   date: string;
 }): CommissionDoc {
-  const base = lucroDaVenda({
+  const regra: RegraDaComissao = params.commissionRule ?? "barbeiro_sobre_lucro";
+  const base = baseDaComissaoDeProduto({
     unitPrice: params.unitPrice,
     unitCost: params.unitCost,
     quantidade: params.quantidade,
+    regra,
   });
 
   return {
@@ -185,6 +254,7 @@ export function estornoDaComissao(params: {
      * `refunds.ts`: o fato bem posto dispensa a fórmula especial. */
     commissionBase: -base,
     commissionAmount: -centavos((base * params.commissionPct) / 100),
+    commissionRule: regra,
   };
 }
 

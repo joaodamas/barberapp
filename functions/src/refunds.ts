@@ -511,6 +511,9 @@ export async function gravarEstorno(params: {
           unitCost,
           quantidade,
           commissionPct: Number(comissaoSnap.get("commissionPct")) || 0,
+          /* A regra também sai do documento: venda comissionada sobre o preço
+           * não pode ser estornada sobre o lucro. Documento antigo não a tem. */
+          commissionRule: comissaoSnap.get("commissionRule") ?? undefined,
           date: params.date,
         });
 

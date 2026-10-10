@@ -32,6 +32,7 @@ export function ResumoDoDiaTopo({
   horariosLivres,
   previsao,
   recebido,
+  caixinha = 0,
   fatiasDoRecebido,
   agendaIlegivel,
   pagamentosIlegiveis,
@@ -49,6 +50,8 @@ export function ResumoDoDiaTopo({
   horariosLivres: number;
   previsao: number;
   recebido: number;
+  /** Quanto do recebido é caixinha (dos barbeiros, não receita da casa). */
+  caixinha?: number;
   fatiasDoRecebido: FatiaDoRecebido[];
   agendaIlegivel: boolean;
   pagamentosIlegiveis: boolean;
@@ -136,7 +139,10 @@ export function ResumoDoDiaTopo({
             <Rotulo>Recebido hoje</Rotulo>
             <Valor className="text-success">{pagamentosIlegiveis ? NAO_APURADO : formatBRL(recebido)}</Valor>
             {!pagamentosIlegiveis && recebido > 0 && <BarrasDoRecebido fatias={fatiasDoRecebido} />}
-            <Legenda>atendimento, venda e mensalidade</Legenda>
+            <Legenda>
+              atendimento, venda e mensalidade
+              {!pagamentosIlegiveis && caixinha > 0 ? ` · inclui ${formatBRL(caixinha)} de caixinha` : ""}
+            </Legenda>
           </Bloco>
         </section>
       </div>

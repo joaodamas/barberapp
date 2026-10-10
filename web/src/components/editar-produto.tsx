@@ -132,6 +132,20 @@ export function EditarProduto({
           />
         </label>
 
+        <label className="flex flex-col gap-1.5">
+          <span className="text-[11px] uppercase tracking-wide text-ink-muted">Comissão do barbeiro (%)</span>
+          <input
+            inputMode="decimal"
+            value={campos.commissionPct}
+            placeholder="padrão"
+            onChange={(e) => campo("commissionPct", e.target.value)}
+            className="min-h-11 rounded-xl border border-border bg-surface px-3 text-sm tabular-nums text-ink"
+          />
+          <span className="text-xs text-ink-muted">
+            Sobre o preço de venda. Em branco usa a comissão do barbeiro. Vale para as vendas daqui para frente.
+          </span>
+        </label>
+
         <p className="text-xs text-ink-muted">
           {mudouPreco || mudouCusto
             ? "Preço e custo novos valem só para as vendas daqui para frente. As vendas já feitas guardam o preço e o custo do dia — o histórico e o resultado do mês não mudam."

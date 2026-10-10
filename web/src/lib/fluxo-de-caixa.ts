@@ -62,6 +62,9 @@ export type OrigemDeCaixa =
   | "servico"
   | "produto"
   | "mensalidade"
+  /* Caixinha: dinheiro que ENTROU e é do barbeiro. Entra no caixa; sai quando a
+   * casa repassa (`pagamento_comissao`), fechando em zero para a casa. */
+  | "caixinha"
   | "estorno"
   | "despesa"
   | "compra"
@@ -142,7 +145,9 @@ export function movimentosDeCaixa(params: {
           ? "Atendimento"
           : origem === "produto"
             ? "Venda de produto"
-            : "Mensalidade",
+            : origem === "caixinha"
+              ? "Caixinha"
+              : "Mensalidade",
     });
   }
 
@@ -240,6 +245,7 @@ const ORIGENS_ZERADAS: Record<OrigemDeCaixa, number> = {
   servico: 0,
   produto: 0,
   mensalidade: 0,
+  caixinha: 0,
   estorno: 0,
   despesa: 0,
   compra: 0,

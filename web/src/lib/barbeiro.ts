@@ -23,16 +23,22 @@ export function diaVizinho(iso: string, delta: number): string {
 
 export type LinhaDaComissao = Pick<
   CommissionDoc,
-  "date" | "origin" | "commissionPct" | "commissionBase" | "commissionAmount" | "bookingId" | "movementId"
+  "date" | "origin" | "commissionPct" | "commissionBase" | "commissionAmount" | "bookingId" | "movementId" | "feeAmount"
 > & { id: string };
 
 export type ExtratoDaComissao = {
   atendimentos: number;
   vendas: number;
-  /** Soma do que a comissão incidiu (valor cobrado / lucro da venda). */
+  /** Soma do que a comissão incidiu (valor cobrado / lucro da venda). SEM a caixinha. */
   base: number;
-  /** O que o barbeiro tem a receber no período — estornos já descontados. */
+  /** O que o barbeiro tem a receber no período — estornos já descontados, caixinha líquida incluída. */
   total: number;
+  /**
+   * A parte do `total` que é caixinha (já líquida da taxa da maquininha, que é
+   * dele). Separada de serviço e vendas: não é comissão, é gorjeta, e o barbeiro
+   * precisa conseguir conferi-la à parte.
+   */
+  caixinha: number;
   linhas: LinhaDaComissao[];
 };
 
@@ -65,8 +71,16 @@ export function extratoDaComissao(itens: LinhaDaComissao[]): ExtratoDaComissao {
   const saldoPorFato = new Map<string, { produto: boolean; saldo: number }>();
   let base = 0;
   let total = 0;
+  let caixinha = 0;
   for (const l of linhas) {
     const valor = Number(l.commissionAmount) || 0;
+    /* Caixinha entra no total (é dinheiro dele), mas NÃO na base, nem na
+     * contagem de atendimentos: ela acompanha o atendimento, não é outro. */
+    if (l.origin === "caixinha") {
+      caixinha += valor;
+      total += valor;
+      continue;
+    }
     const chave = fatoDaLinha(l);
     const atual = saldoPorFato.get(chave) ?? { produto: l.origin === "produto", saldo: 0 };
     atual.saldo += valor;
@@ -81,7 +95,7 @@ export function extratoDaComissao(itens: LinhaDaComissao[]): ExtratoDaComissao {
     if (f.produto) vendas++;
     else atendimentos++;
   }
-  return { atendimentos, vendas, base: centavos(base), total: centavos(total), linhas };
+  return { atendimentos, vendas, base: centavos(base), total: centavos(total), caixinha: centavos(caixinha) + 0, linhas };
 }
 
 /**
